@@ -1,8 +1,14 @@
+all: devkit
+#change below location to sysroot
+DEVKIT_PATH=../platform-root/opt/ngos/inc
+HEADERS=$(wildcard inc/*.h)
 
-SUBDIRS=
+devkit: $(HEADERS)
+	cp $^ $(DEVKIT_PATH)
 
-# SDI-API New API headers
-HEADERS+=inc/sdi_entity_info.h inc/sdi_media.h
-HEADERS+=inc/sdi_fan.h inc/sdi_led.h inc/sdi_thermal.h inc/sdi_entity.h
+clean:
+	        $(MAKE) -C src clean
 
-include ${MAKE_INC}/workspace.mak
+.PHONY: all clean src devkit
+
+
