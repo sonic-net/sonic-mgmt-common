@@ -1,0 +1,8 @@
+Package: sonic-sdi-api-dev
+Version: 1.0.0
+Architecture: amd64
+Maintainer: Dell <support@dell.com>
+Installed-Size: 95
+Section: net
+Priority: optional
+Description: This package contains sdi public api.

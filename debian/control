@@ -1,0 +1,12 @@
+Source: sonic-sdi-api-dev
+Section: net
+Priority: optional
+Maintainer: Dell <support@dell.com>
+
+Build-Depends: debhelper (>= 9), autotools-dev, dh-exec
+Standards-Version: 3.9.3
+Package: sonic-sdi-api-dev
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+Description: This package contains sdi public api.
+
