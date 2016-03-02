@@ -1,7 +1,0 @@
-21c0dea30f90d417a210814f26b415a4  usr/include/sonic/sdi_entity.h
-88764507993989775b402e664ce7358c  usr/include/sonic/sdi_entity_info.h
-901753ccf2a5cc4fd2de553abddf0b10  usr/include/sonic/sdi_fan.h
-231b4c3550c56272413f7d0e93bf947a  usr/include/sonic/sdi_led.h
-078e16c58ccd97239687d31f7c189c23  usr/include/sonic/sdi_media.h
-d4956279dbc181a8706bfe57f08622c9  usr/include/sonic/sdi_thermal.h
-cfd389ad640456fa0144e4b5e152fb4a  usr/share/doc/sonic-sdi-api-dev/changelog.gz
