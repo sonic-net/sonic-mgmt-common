@@ -1,4 +1,4 @@
-Source: sonic-sdi-api-dev
+Source: sonic-sdi-api
 Section: net
 Priority: optional
 Maintainer: Dell <support@dell.com>
