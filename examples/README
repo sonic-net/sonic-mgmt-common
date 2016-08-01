@@ -1,0 +1,4 @@
+This directory gives example implementation for SDI.
+
+Example stub code for fan,media,led,thermal is given here. Body of the function can be consturctured based on the chipset.
+Built sdi stub library(libsonic_sdi_stub) should be linked with PAS to get a PAS<-->SDI(stub) interface with out any actual hw.

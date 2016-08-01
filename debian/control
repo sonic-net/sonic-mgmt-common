@@ -1,0 +1,12 @@
+Source: sonic-sdi-api
+Section: net
+Priority: optional
+Maintainer: Dell <support@dell.com>
+Build-Depends: debhelper (>= 9), dh-autoreconf,libsonic-common-dev
+Standards-Version: 3.9.3
+
+Package: sonic-sdi-api-dev
+Architecture: all
+Depends: ${misc:Depends}
+Description: This package contains SDI (System Device Interface) public api.API that encapsuates fans, powersupplies, and pluggable modules.
+
