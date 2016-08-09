@@ -4,6 +4,8 @@ Priority: optional
 Maintainer: Dell <support@dell.com>
 Build-Depends: debhelper (>= 9), dh-autoreconf,libsonic-common-dev
 Standards-Version: 3.9.3
+Vcs-Browser: https://github.com/Azure/sonic-sdi-api
+Vcs-Git: https://github.com/Azure/sonic-sdi-api.git
 
 Package: sonic-sdi-api-dev
 Architecture: all
