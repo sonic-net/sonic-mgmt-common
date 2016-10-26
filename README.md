@@ -8,7 +8,7 @@ Description
 
 This repo has all public API declarations for the SDI API.  The PAS component utilizes the SDI API to get/set data for platform devices be it fans, power supplies, leds, qsfps, etc..
 
-The implementations of the API can be very platform specific and are kept in a seperate repository(ies) to facilitate reuse if these with diff arch implementation.
+The implementations of the API can be very platform specific and are kept in a separate repository(ies) to facilitate reuse if these with diff arch implementation.
 examples directory has Reference for implementing any new SDI functionality.  
 
 Building
