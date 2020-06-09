@@ -1,0 +1,11 @@
+.vscode
+*.code-workspace
+build
+vendor
+__pycache__
+*.pyc
+*.rdb
+*.swp
+*.yin
+*.tree
+translib/ocbinds/ocbinds.go

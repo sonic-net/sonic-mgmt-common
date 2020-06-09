@@ -1,0 +1,20 @@
+Source: sonic-mgmt-common
+Maintainer: Sachin Holla <sachin.holla@broadcom.com>
+Build-Depends: debhelper (>= 8.0.0),
+               dh-systemd
+Vcs-Git: https://github.com/Azure/sonic-mgmt-common
+Homepage: https://github.com/Azure/SONiC/
+Standards-Version: 3.9.3
+Section: net
+
+Package: sonic-mgmt-common
+Priority: extra  
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}  
+Description: SONiC Management Infrastructure
+
+Package: sonic-mgmt-common-codegen
+Priority: extra  
+Architecture: amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}  
+Description: SONiC Management Infrastructure generated code
