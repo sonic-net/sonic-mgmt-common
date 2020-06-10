@@ -31,13 +31,10 @@ YANG_ANNOTATION_FILES       := $(wildcard $(YANGDIR_ANNOTATIONS)/*.yang)
 
 YANGDIR_SONIC               := $(YANGDIR)/sonic
 YANGDIR_SONIC_COMMON        := $(YANGDIR_SONIC)/common
-SONIC_YANG_MOD_FILES        := $(wildcard *.yang)
+SONIC_YANG_MOD_FILES        := $(wildcard $(YANGDIR_SONIC)/*.yang)
 SONIC_YANG_COMMON_FILES     := $(wildcard $(YANGDIR_SONIC_COMMON)/*.yang)
 
-
-YANG_BUILD_DIR    := $(BUILD_DIR)/yang
-YANG_API_IGNORES  := $(YANG_BUILD_DIR)/api_ignore
-YANG_ANNOTS_CHK   := $(YANG_BUILD_DIR)/annots_checked
+YANG_ANNOTS_CHK   := .annots_checked
 
 TOOLS_DIR         := $(TOPDIR)/tools
 PYANG_PLUGIN_DIR  := $(TOOLS_DIR)/pyang/pyang_plugins
@@ -45,14 +42,10 @@ PYANG             ?= pyang
 
 ALL_TARGETS := allyangs.tree allyangs_tree.html
 ALL_TARGETS += sonic_allyangs.tree sonic_allyangs_tree.html
-ALL_TARGETS += $(YANG_API_IGNORES) #$(YANG_ANNOTS_CHK)
+ALL_TARGETS += #$(YANG_ANNOTS_CHK)
 
 all: $(ALL_TARGETS)
 
-%/.:
-	mkdir -p $@
-
-.SECONDEXPANSION:
 
 #======================================================================
 # Syntax check for annotation files
@@ -61,7 +54,7 @@ all: $(ALL_TARGETS)
 .PHONY: annot
 annot: $(YANG_ANNOTS_CHK)
 
-$(YANG_ANNOTS_CHK): $(YANG_ANNOTATION_FILES) $(YANG_MOD_FILES) $(YANG_COMMON_FILES) | $$(@D)/.
+$(YANG_ANNOTS_CHK): $(YANG_ANNOTATION_FILES) $(YANG_MOD_FILES) $(YANG_COMMON_FILES)
 	$(PYANG) --strict -f tree \
 		-p $(YANGDIR_COMMON):$(YANGDIR):$(YANGDIR_EXTENSIONS):$(YANGDIR_SONIC) \
 		$(YANG_ANNOTATION_FILES) > /dev/null
@@ -106,13 +99,6 @@ sonic_allyangs_tree.html: $(SONIC_YANG_MOD_FILES) $(SONIC_YANG_COMMON_FILES)
 		-p $(YANGDIR_SONIC_COMMON):$(YANGDIR_SONIC):$(YANGDIR_COMMON) \
 		$(SONIC_YANG_MOD_FILES)
 	@echo "+++++ Generation of  HTML tree for Sonic Yang modules completed +++++"
-
-#======================================================================
-# Generate api_ignore file
-#======================================================================
-$(YANG_API_IGNORES): $(YANG_ANNOTATION_FILES) | $$(@D)/.
-	echo "# Yangs ignored" > $@
-	(cd $(YANGDIR_ANNOTATIONS) && ls -f *.yang) >> $@
 
 #======================================================================
 # Cleanups
