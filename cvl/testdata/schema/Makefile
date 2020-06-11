@@ -25,7 +25,6 @@ sonic_yang_common=$(sonic_yang)/common
 pyang_plugin_dir=$(TOPDIR)/tools/pyang/pyang_plugins
 
 src_files=$(wildcard *.yang)
-src_files+=$(wildcard $(sonic_yang_common)/*.yang)
 
 out_dir=$(TOPDIR)/build/tests/cvl/testdata/schema
 out=$(patsubst %.yang, $(out_dir)/%.yin, $(notdir $(src_files)) )
@@ -48,9 +47,6 @@ $(out_dir)/%.yin:%.yang | $(out_dir)/.
 	if [ -f $$devFile ] ; then devOpt="--deviation-module $$devFile"; fi; \
 	pyang -p $(search_path) \
 		--plugindir $(pyang_plugin_dir) -f yin-cvl $$devOpt $< -o $@
-
-$(out_dir)/%.yin: $(sonic_yang_common)/%.yang | $(out_dir)/.
-	pyang -p $(search_path) --plugindir $(pyang_plugin_dir) -f yin-cvl $< -o $@
 
 %.tree:%.yang
 	@echo "Generating `basename $@` ..."

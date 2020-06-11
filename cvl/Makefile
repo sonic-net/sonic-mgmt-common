@@ -24,6 +24,7 @@ TOP_DIR := ..
 BUILD_DIR:=$(TOP_DIR)/build/cvl
 CVL_PKG=$(TOP_DIR)/build/pkg/linux_amd64/cvl.a
 
+CVL_SCHEMA_DIR = $(BUILD_DIR)/schema
 CVL_TEST_DIR = $(TOP_DIR)/build/tests/cvl
 CVL_TEST_BIN = $(CVL_TEST_DIR)/cvl.test
 CVL_TEST_SCHEMA_DIR = $(CVL_TEST_DIR)/testdata/schema
@@ -52,8 +53,9 @@ $(CVL_TEST_BIN): $(TEST_FILES) $(SRC_FILES) | test-schema
 schema:
 	$(MAKE) -C schema
 
-test-schema:
+test-schema: | schema
 	$(MAKE) -C testdata/schema
+	cp $(CVL_SCHEMA_DIR)/*.yin $(CVL_TEST_SCHEMA_DIR)/
 
 tests:
 	$(MAKE) -C tests
