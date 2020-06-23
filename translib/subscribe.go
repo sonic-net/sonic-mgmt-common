@@ -199,7 +199,8 @@ func startSubscribe(sInfo *subscribeInfo, dbNotificationMap map[db.DBNum][]*noti
 	stopMap[sInfo.stop] = sInfo
 
     for dbno, nInfoArr := range dbNotificationMap {
-        opt := getDBOptions(dbno)
+		isWriteDisabled := true
+        opt := getDBOptions(dbno, isWriteDisabled)
         err = startDBSubscribe(opt, nInfoArr, sInfo)
 
 		if err != nil {
@@ -238,7 +239,7 @@ func getJson (nInfo *notificationInfo) ([]byte, error) {
 	path := nInfo.path
 	appInfo := nInfo.appInfo
 
-    err := appInitialize(app, appInfo, path, nil, GET)
+    err := appInitialize(app, appInfo, path, nil, nil, GET)
 
     if  err != nil {
         return payload, err
