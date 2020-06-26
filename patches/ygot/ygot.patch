@@ -20,7 +20,7 @@ diff -ruN ygot-dir-orig/ygot/generator/generator.go ygot-dir/ygot/generator/gene
  	}
 diff -ruN ygot-dir-orig/ygot/genutil/common.go ygot-dir/ygot/genutil/common.go
 --- ygot-dir-orig/ygot/genutil/common.go	2020-06-21 15:35:13.763550000 -0700
-+++ ygot-dir/ygot/genutil/common.go	2020-06-21 15:27:34.925858000 -0700
++++ ygot-dir/ygot/genutil/common.go	2020-06-29 10:39:37.163621000 -0700
 @@ -18,9 +18,9 @@
  
  import (
@@ -33,19 +33,11 @@ diff -ruN ygot-dir-orig/ygot/genutil/common.go ygot-dir/ygot/genutil/common.go
  	"github.com/openconfig/goyang/pkg/yang"
  	"github.com/openconfig/ygot/util"
  	"github.com/openconfig/ygot/ygot"
-@@ -42,7 +42,15 @@
+@@ -42,7 +42,7 @@
  )
  
  // WriteIfNotEmpty writes the string s to b if it has a non-zero length.
 -func WriteIfNotEmpty(b io.StringWriter, s string) {
-+// commented out the below method, since we don't support go 1.12 currently
-+//func WriteIfNotEmpty(b io.StringWriter, s string) {
-+//	if len(s) != 0 {
-+//		b.WriteString(s)
-+//	}
-+//}
-+
-+// temp. - remove this method when we support go 1.12, and uncomment above method
 +func WriteIfNotEmpty(b *strings.Builder, s string) {
  	if len(s) != 0 {
  		b.WriteString(s)
@@ -358,7 +350,7 @@ diff -ruN ygot-dir-orig/ygot/ygen/genstate.go ygot-dir/ygot/ygen/genstate.go
  
 diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/struct_validation_map.go
 --- ygot-dir-orig/ygot/ygot/struct_validation_map.go	2020-06-21 15:35:13.614961000 -0700
-+++ ygot-dir/ygot/ygot/struct_validation_map.go	2020-06-21 15:27:34.776361000 -0700
++++ ygot-dir/ygot/ygot/struct_validation_map.go	2020-06-29 10:40:06.589481000 -0700
 @@ -19,6 +19,10 @@
  //	  to return pointers to a type.
  //	- Renders structs to other output formats such as JSON, or gNMI
@@ -370,7 +362,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/st
  package ygot
  
  import (
-@@ -336,19 +340,20 @@
+@@ -336,20 +340,6 @@
  // EmitJSON takes an input ValidatedGoStruct (produced by ygen with validation enabled)
  // and serialises it to a JSON string. By default, produces the Internal format JSON.
  func EmitJSON(s ValidatedGoStruct, opts *EmitJSONConfig) (string, error) {
@@ -387,24 +379,11 @@ diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/st
 -	if err := s.Validate(vopts...); !skipValidation && err != nil {
 -		return "", fmt.Errorf("validation err: %v", err)
 -	}
-+//	var (
-+//		vopts          []ValidationOption
-+//		skipValidation bool
-+//	)
-+//
-+//	if opts != nil {
-+//		vopts = opts.ValidationOpts
-+//		skipValidation = opts.SkipValidation
-+//	}
-+//
-+//   commenting out the validation block since its not needed, and also to improve the performance
-+//	if err := s.Validate(vopts...); !skipValidation && err != nil {
-+//		return "", fmt.Errorf("validation err: %v", err)
-+//	}
- 
+-
  	v, err := makeJSON(s, opts)
  	if err != nil {
-@@ -555,7 +560,13 @@
+ 		return "", err
+@@ -555,7 +545,13 @@
  				dstField.Set(srcField)
  			}
  		default:
