@@ -18,7 +18,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 /*
-Package translib defines the interface for all the app modules 
+Package translib defines the interface for all the app modules
 
 It exposes register function for all the app modules to register
 
@@ -31,19 +31,19 @@ package translib
 
 import (
 	"errors"
+	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 	"reflect"
 	"strings"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
-	log "github.com/golang/glog"
-	"github.com/openconfig/ygot/ygot"
 )
 
 //Structure containing app module information
 type appInfo struct {
-	appType			reflect.Type
-	ygotRootType	reflect.Type
-	isNative		bool
-	tablesToWatch   []*db.TableSpec
+	appType       reflect.Type
+	ygotRootType  reflect.Type
+	isNative      bool
+	tablesToWatch []*db.TableSpec
 }
 
 //Structure containing the app data coming from translib infra
@@ -52,6 +52,17 @@ type appData struct {
 	payload    []byte
 	ygotRoot   *ygot.GoStruct
 	ygotTarget *interface{}
+	appOptions
+}
+
+// appOptions holds additional options for appInterface APIs.
+// These include RESTCONF query parameters like - depth, fields etc.
+type appOptions struct {
+
+    // depth limits subtree levels in the response data.
+    // 0 indicates unlimited depth.
+    // Valid for GET API only.
+    depth uint
 }
 
 //map containing the base path to app module info
@@ -79,13 +90,13 @@ type appInterface interface {
 //App modules will use this function to register with App interface during boot up
 func register(path string, info *appInfo) error {
 	var err error
-    log.Info("Registering for path =", path)
+	log.Info("Registering for path =", path)
 
 	if appMap == nil {
 		appMap = make(map[string]*appInfo)
 	}
 
-	if _, ok := appMap[path]; ok == false {
+	if _, ok := appMap[path]; !ok {
 
 		appMap[path] = info
 
@@ -107,24 +118,8 @@ func addModel(model *ModelData) error {
 	return err
 }
 
-//App modules can use this function to unregister itself from the app interface
-func unregister(path string) error {
-	var err error
-	log.Info("Unregister for path =", path)
-
-	_, ok := appMap[path]
-
-	if ok {
-		log.Info("deleting for path =", path)
-		delete(appMap, path)
-	}
-
-	return err
-}
-
 //Translib infra will use this function get the app info for a given path
 func getAppModuleInfo(path string) (*appInfo, error) {
-	var err error
 	log.Info("getAppModule called for path =", path)
 
 	for pattern, app := range appMap {
@@ -134,17 +129,14 @@ func getAppModuleInfo(path string) (*appInfo, error) {
 
 		log.Info("found the entry in the map for path =", pattern)
 
-		return app, err
+		return app, nil 
 	}
 
-	errStr := "Unsupported path=" + path
+	/* If no specific app registered fallback to default/common app */
+	log.Infof("No app module registered for path %s hence fallback to default/common app", path)
+	app := appMap["*"]
 
-	err = errors.New(errStr)
-	log.Error(errStr)
-
-	var app *appInfo
-
-	return app, err
+	return app, nil 
 }
 
 //Get all the supported models
@@ -155,16 +147,16 @@ func getModels() []ModelData {
 
 //Creates a new app from the appType and returns it as an appInterface
 func getAppInterface(appType reflect.Type) (appInterface, error) {
-    var err error
-    appInstance := reflect.New(appType)
-    app, ok := appInstance.Interface().(appInterface)
+	var err error
+	appInstance := reflect.New(appType)
+	app, ok := appInstance.Interface().(appInterface)
 
-    if !ok {
-        err = errors.New("Invalid appType")
-        log.Fatal("Appmodule does not confirm to appInterface method conventions for appType=", appType)
-    } else {
-        log.Info("cast to appInterface worked", app)
-    }
+	if !ok {
+		err = errors.New("Invalid appType")
+		log.Fatal("Appmodule does not confirm to appInterface method conventions for appType=", appType)
+	} else {
+		log.Info("cast to appInterface worked", app)
+	}
 
 	return app, err
 }
