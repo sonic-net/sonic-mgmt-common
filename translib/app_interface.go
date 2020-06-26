@@ -120,7 +120,6 @@ func addModel(model *ModelData) error {
 
 //Translib infra will use this function get the app info for a given path
 func getAppModuleInfo(path string) (*appInfo, error) {
-	var err error
 	log.Info("getAppModule called for path =", path)
 
 	for pattern, app := range appMap {
@@ -130,14 +129,14 @@ func getAppModuleInfo(path string) (*appInfo, error) {
 
 		log.Info("found the entry in the map for path =", pattern)
 
-		return app, err
+		return app, nil 
 	}
 
 	/* If no specific app registered fallback to default/common app */
 	log.Infof("No app module registered for path %s hence fallback to default/common app", path)
 	app := appMap["*"]
 
-	return app, err
+	return app, nil 
 }
 
 //Get all the supported models
