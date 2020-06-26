@@ -118,21 +118,6 @@ func addModel(model *ModelData) error {
 	return err
 }
 
-//App modules can use this function to unregister itself from the app interface
-/*func unregister(path string) error {
-	var err error
-	log.Info("Unregister for path =", path)
-
-	_, ok := appMap[path]
-
-	if ok {
-		log.Info("deleting for path =", path)
-		delete(appMap, path)
-	}
-
-	return err
-}*/
-
 //Translib infra will use this function get the app info for a given path
 func getAppModuleInfo(path string) (*appInfo, error) {
 	var err error

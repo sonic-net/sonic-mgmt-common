@@ -44,8 +44,10 @@ import (
 //Write lock for all write operations to be synchronized
 var writeMutex = &sync.Mutex{}
 
-//minimum global interval for subscribe in secs
+//Interval value for interval based subscription needs to be within the min and max
+//minimum global interval for interval based subscribe in secs
 var minSubsInterval = 20
+//minimum global interval for interval based subscribe in secs
 var maxSubsInterval = 600
 
 type ErrSource int
