@@ -32,7 +32,7 @@ import (
 	log "github.com/golang/glog"
 )
 
-var CVL_SCHEMA string = "schema/"
+var CVL_SCHEMA string = "/usr/sbin/schema/"
 var CVL_CFG_FILE string = "/usr/sbin/cvl_cfg.json"
 
 //package init function 
