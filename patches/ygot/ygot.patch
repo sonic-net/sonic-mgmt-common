@@ -1,19 +1,11 @@
 diff -ruN ygot-dir-orig/ygot/generator/generator.go ygot-dir/ygot/generator/generator.go
 --- ygot-dir-orig/ygot/generator/generator.go	2020-06-21 15:35:13.777667000 -0700
-+++ ygot-dir/ygot/generator/generator.go	2020-06-21 15:27:34.931674000 -0700
-@@ -109,7 +109,15 @@
++++ ygot-dir/ygot/generator/generator.go	2020-06-29 10:58:06.102616000 -0700
+@@ -109,7 +109,7 @@
  }
  
  // writeIfNotEmpty writes the string s to b if it has a non-zero length.
 -func writeIfNotEmpty(b io.StringWriter, s string) {
-+// commented out the below method, since "io.StringWriter" is introduced in go 1.12
-+//func writeIfNotEmpty(b io.StringWriter, s string) {
-+//	if len(s) != 0 {
-+//		b.WriteString(s)
-+//	}
-+//}
-+
-+// temp. - remove this method when we support go 1.12, and uncomment above method
 +func writeIfNotEmpty(b *strings.Builder, s string) {
  	if len(s) != 0 {
  		b.WriteString(s)
