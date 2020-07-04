@@ -15,7 +15,6 @@ require (
 	github.com/openconfig/ygot v0.7.1
 	github.com/pborman/getopt v0.0.0-20190409184431-ee0cd42419d3 // indirect
 	golang.org/x/text v0.3.0
-	google.golang.org/grpc v1.25.1 // indirect
 )
 
 go 1.13
