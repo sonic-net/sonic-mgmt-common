@@ -1,6 +1,42 @@
+diff -ruN ygot-dir-orig/ygot/generator/generator.go ygot-dir/ygot/generator/generator.go
+--- ygot-dir-orig/ygot/generator/generator.go	2020-06-21 15:35:13.777667000 -0700
++++ ygot-dir/ygot/generator/generator.go	2020-06-29 10:58:06.102616000 -0700
+@@ -109,7 +109,7 @@
+ }
+ 
+ // writeIfNotEmpty writes the string s to b if it has a non-zero length.
+-func writeIfNotEmpty(b io.StringWriter, s string) {
++func writeIfNotEmpty(b *strings.Builder, s string) {
+ 	if len(s) != 0 {
+ 		b.WriteString(s)
+ 	}
+diff -ruN ygot-dir-orig/ygot/genutil/common.go ygot-dir/ygot/genutil/common.go
+--- ygot-dir-orig/ygot/genutil/common.go	2020-06-21 15:35:13.763550000 -0700
++++ ygot-dir/ygot/genutil/common.go	2020-06-29 10:39:37.163621000 -0700
+@@ -18,9 +18,9 @@
+ 
+ import (
+ 	"fmt"
+-	"io"
+ 	"sort"
+-
++	"strings"
++	
+ 	"github.com/openconfig/goyang/pkg/yang"
+ 	"github.com/openconfig/ygot/util"
+ 	"github.com/openconfig/ygot/ygot"
+@@ -42,7 +42,7 @@
+ )
+ 
+ // WriteIfNotEmpty writes the string s to b if it has a non-zero length.
+-func WriteIfNotEmpty(b io.StringWriter, s string) {
++func WriteIfNotEmpty(b *strings.Builder, s string) {
+ 	if len(s) != 0 {
+ 		b.WriteString(s)
+ 	}
 diff -ruN ygot-dir-orig/ygot/util/debug.go ygot-dir/ygot/util/debug.go
---- ygot-dir-orig/ygot/util/debug.go	2019-10-24 12:30:06.378629000 -0700
-+++ ygot-dir/ygot/util/debug.go	2019-10-24 12:31:25.059277000 -0700
+--- ygot-dir-orig/ygot/util/debug.go	2020-06-21 15:35:13.562106000 -0700
++++ ygot-dir/ygot/util/debug.go	2020-06-21 15:27:34.732928000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -36,9 +72,9 @@ diff -ruN ygot-dir-orig/ygot/util/debug.go ygot-dir/ygot/util/debug.go
  	out := fmt.Sprintf("(TypeKind: %s", yang.TypeKindToName[yt.Kind])
  	if len(yt.Pattern) != 0 {
  		out += fmt.Sprintf(", Pattern: %s", strings.Join(yt.Pattern, " or "))
-diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
---- ygot-dir-orig/ygot/util/reflect.go	2019-10-24 12:30:06.403914000 -0700
-+++ ygot-dir/ygot/util/reflect.go	2019-10-24 12:31:25.063424000 -0700
+diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
+--- ygot-dir-orig/ygot/util/path.go	2020-06-21 15:35:13.572583000 -0700
++++ ygot-dir/ygot/util/path.go	2020-06-21 15:27:34.736766000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -49,7 +85,89 @@ diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
  package util
  
  import (
-@@ -196,8 +199,10 @@
+@@ -23,6 +26,8 @@
+ 	"github.com/openconfig/goyang/pkg/yang"
+ )
+ 
++var pathToSchemaCache map[reflect.StructTag][]string = make(map[reflect.StructTag][]string)
++
+ // SchemaPaths returns all the paths in the path tag.
+ func SchemaPaths(f reflect.StructField) ([][]string, error) {
+ 	var out [][]string
+@@ -49,25 +54,32 @@
+ // leafref; the schema *yang.Entry for the field is given by
+ // schema.Dir["config"].Dir["a"].
+ func RelativeSchemaPath(f reflect.StructField) ([]string, error) {
+-	pathTag, ok := f.Tag.Lookup("path")
+-	if !ok || pathTag == "" {
+-		return nil, fmt.Errorf("field %s did not specify a path", f.Name)
+-	}
++	if pe, ok := pathToSchemaCache[f.Tag]; ok {
++		return pe, nil
++	} else {
++		pathTag, ok := f.Tag.Lookup("path")
++		if !ok || pathTag == "" {
++			return nil, fmt.Errorf("field %s did not specify a path", f.Name)
++		}
+ 
+-	paths := strings.Split(pathTag, "|")
+-	if len(paths) == 1 {
+-		pathTag = strings.TrimPrefix(pathTag, "/")
+-		return strings.Split(pathTag, "/"), nil
+-	}
+-	for _, pv := range paths {
+-		pv = strings.TrimPrefix(pv, "/")
+-		pe := strings.Split(pv, "/")
+-		if len(pe) > 1 {
+-			return pe, nil
++		paths := strings.Split(pathTag, "|")
++		if len(paths) == 1 {
++			pathTag = strings.TrimPrefix(pathTag, "/")
++			retPath := strings.Split(pathTag, "/")
++			pathToSchemaCache[f.Tag] = retPath
++			return retPath, nil
++		}
++		for _, pv := range paths {
++			pv = strings.TrimPrefix(pv, "/")
++			pe := strings.Split(pv, "/")
++			if len(pe) > 1 {
++				pathToSchemaCache[f.Tag] = pe
++				return pe, nil
++			}
+ 		}
+-	}
+ 
+-	return nil, fmt.Errorf("field %s had path tag %s with |, but no elements of form a/b", f.Name, pathTag)
++		return nil, fmt.Errorf("field %s had path tag %s with |, but no elements of form a/b", f.Name, pathTag)
++	}
+ }
+ 
+ // SchemaTreePath returns the schema tree path of the supplied yang.Entry
+@@ -215,6 +227,10 @@
+ 		refSchema = refSchema.Dir[pe]
+ 	}
+ 
++	if refSchema.Type.Kind == yang.Yleafref {
++		return FindLeafRefSchema(refSchema, refSchema.Type.Path)
++	}
++
+ 	return refSchema, nil
+ }
+ 
+diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
+--- ygot-dir-orig/ygot/util/reflect.go	2020-06-21 15:35:13.578335000 -0700
++++ ygot-dir/ygot/util/reflect.go	2020-06-21 15:27:34.740951000 -0700
+@@ -12,6 +12,9 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
++// This file is changed by Broadcom.
++// Modifications - Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.
++
+ package util
+ 
+ import (
+@@ -191,8 +194,10 @@
  
  // InsertIntoMap inserts value with key into parent which must be a map.
  func InsertIntoMap(parentMap interface{}, key interface{}, value interface{}) error {
@@ -62,7 +180,7 @@ diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
  
  	v := reflect.ValueOf(parentMap)
  	t := reflect.TypeOf(parentMap)
-@@ -288,7 +293,7 @@
+@@ -283,7 +288,7 @@
  		n = reflect.Zero(ft.Type)
  	}
  
@@ -71,9 +189,91 @@ diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
  		return fmt.Errorf("cannot assign value %v (type %T) to struct field %s (type %v) in struct %T", fieldValue, fieldValue, fieldName, ft.Type, parentStruct)
  	}
  
-diff -ruN ygot-dir-orig/ygot/util/schema.go ygot-dir/ygot/util/schema.go
---- ygot-dir-orig/ygot/util/schema.go	2019-10-24 12:30:06.417942000 -0700
-+++ ygot-dir/ygot/util/schema.go	2019-10-24 12:31:25.069042000 -0700
+@@ -458,8 +463,17 @@
+ // found in the tree at the specified path.
+ // TODO(wenbli): need unit test
+ func ChildSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error) {
+-	pathTag, _ := f.Tag.Lookup("path")
+-	DbgSchema("childSchema for schema %s, field %s, tag %s\n", schema.Name, f.Name, pathTag)
++	if (schema.ChildSchemaCache == nil) {
++		schema.ChildSchemaCache = make(map[reflect.StructTag]*yang.Entry)
++	} else if cschema, ok := schema.ChildSchemaCache[f.Tag]; ok {
++		return cschema, nil
++	}
++	
++	if IsDebugSchemaEnabled() {
++		pathTag, _ := f.Tag.Lookup("path")
++		DbgSchema("childSchema for schema %s, field %s, tag %s\n", schema.Name, f.Name, pathTag)	
++	}
++	
+ 	p, err := RelativeSchemaPath(f)
+ 	if err != nil {
+ 		return nil, err
+@@ -490,6 +504,7 @@
+ 	}
+ 	if foundSchema {
+ 		DbgSchema(" - found\n")
++		schema.ChildSchemaCache[f.Tag] = childSchema
+ 		return childSchema, nil
+ 	}
+ 	DbgSchema(" - not found\n")
+@@ -505,11 +520,15 @@
+ 		// path element i.e. choice1/case1/leaf1 path in the schema will have
+ 		// struct tag `path:"leaf1"`. This implies that only paths with length
+ 		// 1 are eligible for this matching.
++		schema.ChildSchemaCache[f.Tag] = nil
+ 		return nil, nil
+ 	}
+ 	entries := FindFirstNonChoiceOrCase(schema)
+ 
+-	DbgSchema("checking for %s against non choice/case entries: %v\n", p[0], stringMapKeys(entries))
++    if IsDebugSchemaEnabled() {
++		DbgSchema("checking for %s against non choice/case entries: %v\n", p[0], stringMapKeys(entries))
++    }
++    
+ 	for path, entry := range entries {
+ 		splitPath := SplitPath(path)
+ 		name := splitPath[len(splitPath)-1]
+@@ -517,11 +536,13 @@
+ 
+ 		if StripModulePrefix(name) == p[0] {
+ 			DbgSchema(" - match\n")
++			schema.ChildSchemaCache[f.Tag] = entry
+ 			return entry, nil
+ 		}
+ 	}
+ 
+ 	DbgSchema(" - no matches\n")
++	schema.ChildSchemaCache[f.Tag] = nil
+ 	return nil, nil
+ }
+ 
+diff -ruN ygot-dir-orig/ygot/ygen/codegen.go ygot-dir/ygot/ygen/codegen.go
+--- ygot-dir-orig/ygot/ygen/codegen.go	2020-06-21 15:35:13.714871000 -0700
++++ ygot-dir/ygot/ygen/codegen.go	2020-06-21 15:27:34.908325000 -0700
+@@ -15,6 +15,10 @@
+ // Package ygen contains a library to generate Go structs from a YANG model.
+ // The Goyang parsing library is used to parse YANG. The output can consider
+ // OpenConfig-specific conventions such that the schema is compressed.
++
++// This file is changed by Broadcom.
++// Modifications - Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.
++
+ package ygen
+ 
+ import (
+@@ -946,7 +950,7 @@
+ 			dirs[ch.Path()] = ch
+ 			// Recurse down the tree.
+ 			errs = util.AppendErrs(errs, findMappableEntities(ch, dirs, enums, excludeModules, compressPaths, modules))
+-		case ch.Kind == yang.AnyDataEntry:
++		case (ch.Kind == yang.AnyDataEntry), (ch.Kind == yang.NotificationEntry):	
+ 			continue
+ 		default:
+ 			errs = util.AppendErr(errs, fmt.Errorf("unknown type of entry %v in findMappableEntities for %s", e.Kind, e.Path()))
+diff -ruN ygot-dir-orig/ygot/ygen/genstate.go ygot-dir/ygot/ygen/genstate.go
+--- ygot-dir-orig/ygot/ygen/genstate.go	2020-06-21 15:35:13.722530000 -0700
++++ ygot-dir/ygot/ygen/genstate.go	2020-06-21 15:27:34.911877000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -81,83 +281,119 @@ diff -ruN ygot-dir-orig/ygot/util/schema.go ygot-dir/ygot/util/schema.go
 +// This file is changed by Broadcom.
 +// Modifications - Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.
 +
- package util
+ package ygen
  
  import (
-@@ -22,6 +25,8 @@
- 	"github.com/openconfig/goyang/pkg/yang"
- )
+@@ -83,6 +86,7 @@
+ // noUnderscores boolean.
+ func (s *enumGenState) enumeratedUnionEntry(e *yang.Entry, compressPaths, noUnderscores bool) ([]*yangEnum, error) {
+ 	var es []*yangEnum
++	enumSet := make(map[string]*yangEnum)
  
-+var schemaPathCache map[reflect.StructTag][][]string = make(map[reflect.StructTag][][]string)
+ 	for _, t := range util.EnumeratedUnionTypes(e.Type.Type) {
+ 		var en *yangEnum
+@@ -111,20 +115,36 @@
+ 				}
+ 			}
+ 
+-			en = &yangEnum{
+-				name: enumName,
+-				entry: &yang.Entry{
+-					Name: e.Name,
+-					Type: &yang.YangType{
+-						Name: e.Type.Name,
+-						Kind: yang.Yenum,
+-						Enum: t.Enum,
++			if tmpEn, ok := enumSet[enumName]; ok {
++				enumTmp := yang.NewEnumType()
++				for eNm, eVal := range t.Enum.NameMap() {
++					if err := enumTmp.Set(eNm, eVal); err != nil {
++						return nil, fmt.Errorf("%v", err)
++					}
++				}
++				for eNm, eVal := range tmpEn.entry.Type.Enum.NameMap() {
++					if err := enumTmp.Set(eNm, eVal); err != nil {
++						return nil, fmt.Errorf("%v", err)
++					}
++				}
++				tmpEn.entry.Type.Enum = enumTmp
++				continue
++			} else {
++				en = &yangEnum{
++					name: enumName,
++					entry: &yang.Entry{
++						Name: e.Name,
++						Type: &yang.YangType{
++							Name: e.Type.Name,
++							Kind: yang.Yenum,
++							Enum: t.Enum,
++						},
++						Annotation: map[string]interface{}{"valuePrefix": util.SchemaPathNoChoiceCase(e)},
+ 					},
+-					Annotation: map[string]interface{}{"valuePrefix": util.SchemaPathNoChoiceCase(e)},
+-				},
++				}
++				enumSet[enumName] = en
+ 			}
+ 		}
+-
+ 		es = append(es, en)
+ 	}
+ 
+diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/struct_validation_map.go
+--- ygot-dir-orig/ygot/ygot/struct_validation_map.go	2020-06-21 15:35:13.614961000 -0700
++++ ygot-dir/ygot/ygot/struct_validation_map.go	2020-06-29 10:40:06.589481000 -0700
+@@ -19,6 +19,10 @@
+ //	  to return pointers to a type.
+ //	- Renders structs to other output formats such as JSON, or gNMI
+ //	  notifications.
 +
- // IsLeafRef reports whether schema is a leafref schema node type.
- func IsLeafRef(schema *yang.Entry) bool {
- 	if schema == nil || schema.Type == nil {
-@@ -68,17 +73,22 @@
++// This file is changed by Broadcom.
++// Modifications - Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.
++
+ package ygot
  
- // SchemaPaths returns all the paths in the path tag.
- func SchemaPaths(f reflect.StructField) ([][]string, error) {
--	var out [][]string
--	pathTag, ok := f.Tag.Lookup("path")
--	if !ok || pathTag == "" {
--		return nil, fmt.Errorf("field %s did not specify a path", f.Name)
+ import (
+@@ -336,20 +340,6 @@
+ // EmitJSON takes an input ValidatedGoStruct (produced by ygen with validation enabled)
+ // and serialises it to a JSON string. By default, produces the Internal format JSON.
+ func EmitJSON(s ValidatedGoStruct, opts *EmitJSONConfig) (string, error) {
+-	var (
+-		vopts          []ValidationOption
+-		skipValidation bool
+-	)
+-
+-	if opts != nil {
+-		vopts = opts.ValidationOpts
+-		skipValidation = opts.SkipValidation
 -	}
 -
--	ps := strings.Split(pathTag, "|")
--	for _, p := range ps {
--		out = append(out, StripModulePrefixes(strings.Split(p, "/")))
-+	if tmpOut, ok := schemaPathCache[f.Tag]; ok {
-+		return tmpOut, nil
-+	} else {
-+		var out [][]string
-+		pathTag, ok := f.Tag.Lookup("path")
-+		if !ok || pathTag == "" {
-+			return nil, fmt.Errorf("field %s did not specify a path", f.Name)
-+		}
-+	
-+		ps := strings.Split(pathTag, "|")
-+		for _, p := range ps {
-+			out = append(out, StripModulePrefixes(strings.Split(p, "/")))
-+		}
-+		schemaPathCache[f.Tag] = out
-+		return out, nil
- 	}
--	return out, nil
- }
- 
- // ChildSchema returns the first child schema that matches path from the given
-@@ -233,7 +243,9 @@
- 	found := true
- 	DbgSchema("traversing schema Dirs...")
- 	for ; len(p) > 0; p = p[1:] {
--		DbgSchema("/%s", p[0])
-+		if IsDebugSchemaEnabled() {
-+			DbgSchema("/%s", p[0])	
-+		}
- 		var ok bool
- 		s, ok = s.Dir[p[0]]
- 		if !ok {
-@@ -261,10 +273,13 @@
- 		return nil, nil
- 	}
- 	entries := FindFirstNonChoiceOrCase(schema)
+-	if err := s.Validate(vopts...); !skipValidation && err != nil {
+-		return "", fmt.Errorf("validation err: %v", err)
+-	}
 -
--	DbgSchema("checking for %s against non choice/case entries: %v\n", p[0], stringMapKeys(entries))
-+	if IsDebugSchemaEnabled() {
-+		DbgSchema("checking for %s against non choice/case entries: %v\n", p[0], stringMapKeys(entries))	
-+	}
- 	for pe, entry := range entries {
--		DbgSchema("%s ? ", pe)
-+		if IsDebugSchemaEnabled() {
-+			DbgSchema("%s ? ", pe)	
-+		}
- 		if pe == p[0] {
- 			DbgSchema(" - match\n")
- 			return entry, nil
+ 	v, err := makeJSON(s, opts)
+ 	if err != nil {
+ 		return "", err
+@@ -555,7 +545,13 @@
+ 				dstField.Set(srcField)
+ 			}
+ 		default:
+-			dstField.Set(srcField)
++                    if srcField.Type().Implements(reflect.TypeOf((*GoEnum)(nil)).Elem()) == true {
++                        if srcField.Int() != 0 {
++                            dstField.Set(srcField)
++                        }
++                    } else {
++                        dstField.Set(srcField)
++                    }
+ 		}
+ 	}
+ 	return nil
 diff -ruN ygot-dir-orig/ygot/ytypes/container.go ygot-dir/ygot/ytypes/container.go
---- ygot-dir-orig/ygot/ytypes/container.go	2019-10-24 12:30:07.700737000 -0700
-+++ ygot-dir/ygot/ytypes/container.go	2019-10-24 12:31:26.682226000 -0700
-@@ -12,12 +12,15 @@
+--- ygot-dir-orig/ygot/ytypes/container.go	2020-06-21 15:35:13.644909000 -0700
++++ ygot-dir/ygot/ytypes/container.go	2020-06-21 15:27:34.835482000 -0700
+@@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
  
@@ -167,23 +403,34 @@ diff -ruN ygot-dir-orig/ygot/ytypes/container.go ygot-dir/ygot/ytypes/container.
  package ytypes
  
  import (
- 	"fmt"
- 	"reflect"
--
-+	
- 	"github.com/kylelemons/godebug/pretty"
- 	"github.com/openconfig/goyang/pkg/yang"
- 	"github.com/openconfig/ygot/util"
-@@ -71,7 +74,7 @@
+@@ -69,9 +72,13 @@
+ 			case cschema != nil:
+ 				// Regular named child.
  				if errs := Validate(cschema, fieldValue); errs != nil {
- 					errors = util.AppendErrs(errors, util.PrefixErrors(errs, cschema.Path()))
+-					errors = util.AppendErrs(errors, util.PrefixErrors(errs, cschema.Path()))
++					if errs.Error() != "ERROR_READONLY_OBJECT_FOUND" {
++						errors = util.AppendErrs(errors, util.PrefixErrors(errs, cschema.Path()))	
++					} else if len(errors) == 0 {
++						errors = util.AppendErrs(errors, errs)
++					}
  				}
 -			case !util.IsValueNilOrDefault(structElems.Field(i).Interface()):
 +			case !structElems.Field(i).IsNil():
  				// Either an element in choice schema subtree, or bad field.
  				// If the former, it will be found in the choice check below.
  				extraFields[fieldName] = nil
-@@ -217,7 +220,10 @@
+@@ -100,6 +107,10 @@
+ 	if len(extraFields) > 0 {
+ 		errors = util.AppendErr(errors, fmt.Errorf("fields %v are not found in the container schema %s", stringMapSetToSlice(extraFields), schema.Name))
+ 	}
++	
++	if len(errors) == 0 && schema.ReadOnly() == true {
++		errors = util.AppendErrs(errors, util.NewErrs(fmt.Errorf("ERROR_READONLY_OBJECT_FOUND")))
++	}
+ 
+ 	return util.UniqueErrors(errors)
+ }
+@@ -217,7 +228,10 @@
  		}
  	}
  
@@ -196,8 +443,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/container.go ygot-dir/ygot/ytypes/container.
  }
  
 diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
---- ygot-dir-orig/ygot/ytypes/leaf.go	2019-10-24 12:30:07.705496000 -0700
-+++ ygot-dir/ygot/ytypes/leaf.go	2019-10-24 12:31:26.691433000 -0700
+--- ygot-dir-orig/ygot/ytypes/leaf.go	2020-06-21 15:35:13.659910000 -0700
++++ ygot-dir/ygot/ytypes/leaf.go	2020-06-21 17:19:38.561565000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -208,7 +455,21 @@ diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
  package ytypes
  
  import (
-@@ -79,7 +82,7 @@
+@@ -20,11 +23,13 @@
+ 	"math/big"
+ 	"reflect"
+ 	"strconv"
++	"strings"
+ 
+ 	log "github.com/golang/glog"
+ 	"github.com/openconfig/goyang/pkg/yang"
+ 	"github.com/openconfig/ygot/util"
+ 	"github.com/openconfig/ygot/ygot"
++	"github.com/openconfig/gnmi/value"
+ 
+ 	gpb "github.com/openconfig/gnmi/proto/gnmi"
+ )
+@@ -77,7 +82,7 @@
  
  	switch ykind {
  	case yang.Ybinary:
@@ -217,7 +478,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
  	case yang.Ybits:
  		return nil
  		// TODO(mostrowski): restore when representation is decided.
-@@ -252,7 +255,7 @@
+@@ -258,7 +263,7 @@
  // during validation against each matching schema otherwise.
  func validateMatchingSchemas(schema *yang.Entry, value interface{}) util.Errors {
  	var errors []error
@@ -226,7 +487,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
  	var kk []yang.TypeKind
  	for _, s := range ss {
  		kk = append(kk, s.Type.Kind)
-@@ -283,17 +286,25 @@
+@@ -289,17 +294,25 @@
  // findMatchingSchemasInUnion returns all schemas in the given union type,
  // including those within nested unions, that match the Go type of value.
  // value must not be nil.
@@ -244,7 +505,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
  		}
  
 +		if t.Kind == yang.Yleafref {
-+			ns, err := findLeafRefSchema(schema, t.Path)
++			ns, err := util.FindLeafRefSchema(schema, t.Path)
 +			if err != nil {
 +				log.Warningf("not found base Go type for type %v in union value %s", t.Kind, util.ValueStr(value))
 +				continue
@@ -254,23 +515,50 @@ diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
  		ybt := yangBuiltinTypeToGoType(t.Kind)
  		if reflect.ValueOf(value).Kind() == reflect.Ptr {
  			ybt = ygot.ToPtr(yangBuiltinTypeToGoType(t.Kind))
-@@ -418,12 +429,10 @@
- 	return nil
- }
- 
--// YANGEmpty is a derived type which is used to represent the YANG empty type.
-+// YANGEmpty is a derived type which is used to represent the YANG
-+// empty type.
- type YANGEmpty bool
- 
--// Binary is a derived type which is used to represent the YANG binary type.
--type Binary []byte
+@@ -467,8 +480,11 @@
+ 		default:
+ 			return fmt.Errorf("got %v non-enum types and %v enum types for union schema %s for type %T, expect just one type in total", sks, ets, fieldName, parent)
+ 		}
 -
- // unmarshalLeaf unmarshals a scalar value (determined by json.Unmarshal) into
- // the parent containing the leaf.
- //   schema points to the schema for the leaf type.
-@@ -720,7 +729,9 @@
- 		return nil, fmt.Errorf("%s ΛEnumTypes function returned wrong type %T, want map[string][]reflect.Type", t, ei)
+-		goValue, err := unmarshalScalar(parent, yangKindToLeafEntry(yk), fieldName, value, enc)
++		
++		ygEntry := yangKindToLeafEntry(yk)
++		ygEntry.Name = schema.Name
++		ygEntry.Parent = schema.Parent
++		goValue, err := unmarshalScalar(parent, ygEntry, fieldName, value, enc)
+ 		if err != nil {
+ 			return fmt.Errorf("could not unmarshal %v into type %s", value, yk)
+ 		}
+@@ -533,6 +549,8 @@
+ 	for _, sk := range sks {
+ 		util.DbgPrint("try to unmarshal into type %s", sk)
+ 		sch := yangKindToLeafEntry(sk)
++		sch.Parent = schema.Parent
++		sch.Name = schema.Name
+ 		gv, err := unmarshalScalar(parent, sch, fieldName, value, enc)
+ 		if err == nil {
+ 			return setFieldWithTypedValue(parentT, destUnionFieldV, destUnionFieldElemT, gv)
+@@ -632,22 +650,24 @@
+ // type) for a given schema, which must be for an enum type. t is the type of
+ // the containing parent struct.
+ func schemaToEnumTypes(schema *yang.Entry, t reflect.Type) ([]reflect.Type, error) {
+-	enumTypesMethod := reflect.New(t).Elem().MethodByName("ΛEnumTypeMap")
++	enumTypesMethod := reflect.New(t).Elem().MethodByName("\u039bEnumTypeMap")
+ 	if !enumTypesMethod.IsValid() {
+-		return nil, fmt.Errorf("type %s does not have a ΛEnumTypesMap function", t)
++		return nil, fmt.Errorf("type %s does not have a \u039bEnumTypesMap function", t)
+ 	}
+ 
+ 	ec := enumTypesMethod.Call(nil)
+ 	if len(ec) == 0 {
+-		return nil, fmt.Errorf("%s ΛEnumTypes function returns empty value", t)
++		return nil, fmt.Errorf("%s \u039bEnumTypes function returns empty value", t)
+ 	}
+ 	ei := ec[0].Interface()
+ 	enumTypesMap, ok := ei.(map[string][]reflect.Type)
+ 	if !ok {
+-		return nil, fmt.Errorf("%s ΛEnumTypes function returned wrong type %T, want map[string][]reflect.Type", t, ei)
++		return nil, fmt.Errorf("%s \u039bEnumTypes function returned wrong type %T, want map[string][]reflect.Type", t, ei)
  	}
  
 -	util.DbgPrint("path is %s for schema %s", absoluteSchemaDataPath(schema), schema.Name)
@@ -280,9 +568,101 @@ diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
  
  	return enumTypesMap[absoluteSchemaDataPath(schema)], nil
  }
+@@ -770,6 +790,65 @@
+ 	return nil, fmt.Errorf("unmarshalScalar: unsupported type %v in schema node %s", ykind, schema.Name)
+ }
+ 
++func yangTypeToGoTypeVal (parent interface{}, schema *yang.Entry, fieldName string, value interface{}) (interface{}, error) {
++	ykind := schema.Type.Kind
++
++	switch ykind {
++	case yang.Ybinary:
++		v, err := base64.StdEncoding.DecodeString(value.(string))
++		if err != nil {
++			return nil, fmt.Errorf("Error in Decode String for \n%v\n for schema %s: %v", value, schema.Name, err)
++		}
++		return []byte(v), nil
++
++	case yang.Ybool:
++		if strings.ToLower(value.(string)) == "false" {
++			return false, nil
++		} else if strings.ToLower(value.(string)) == "true" {
++			return true, nil
++		} else {
++			return nil, fmt.Errorf("Error in converting to yang bool type for the value for \n%v\n for schema %s", value, schema.Name)
++		}
++
++	case yang.Ystring:
++		return value.(string), nil
++
++	case yang.Ydecimal64:
++		floatV, err := strconv.ParseFloat(value.(string), 64)
++		if err != nil {
++			return nil, fmt.Errorf("Error parsing %v for schema %s: %v", value, schema.Name, err)
++		}
++		return floatV, nil
++
++	case yang.Yenum, yang.Yidentityref:
++		return enumStringToValue(parent, fieldName, value.(string))
++
++	case yang.Yint64:
++		// TODO(b/64812268): value types are different for internal style JSON.
++		intV, err := strconv.ParseInt(value.(string), 10, 64)
++		if err != nil {
++			return nil, fmt.Errorf("Error parsing %v for schema %s: %v", value, schema.Name, err)
++		}
++		return intV, nil
++
++	case yang.Yuint64:
++		uintV, err := strconv.ParseUint(value.(string), 10, 64)
++		if err != nil {
++			return nil, fmt.Errorf("Error parsing %v for schema %s: %v", value, schema.Name, err)
++		}
++		return uintV, nil
++
++	case yang.Yint8, yang.Yint16, yang.Yint32, yang.Yuint8, yang.Yuint16, yang.Yuint32:
++		gt := reflect.TypeOf(yangBuiltinTypeToGoType(ykind))
++		if rv, err := StringToType(gt, value.(string)); err != nil {
++			return nil, fmt.Errorf("Error StringToType:parsing %v for schema %s: %v", value, schema.Name, err)
++		} else {
++			return rv.Interface(), nil
++		}
++	}
++	return nil, fmt.Errorf("Error: unsupported type %v in schema node %s", ykind, schema.Name)
++}
++
+ // sanitizeGNMI decodes the GNMI TypedValue encoded value into a field of the
+ // corresponding type in GoStruct. Parent is the parent struct containing the
+ // field being unmarshaled. schema is *yang.Entry corresponding to the field.
+@@ -780,6 +859,18 @@
+ func sanitizeGNMI(parent interface{}, schema *yang.Entry, fieldName string, tv *gpb.TypedValue, jsonTolerance bool) (interface{}, error) {
+ 	ykind := schema.Type.Kind
+ 
++	//get the original schema of the node and check whether it is leaf-list
++	if ygNode := schema.Parent.Dir[schema.Name]; ygNode != nil && ygNode.IsLeafList() {
++		// convert the leaf-list's value only if its of type string(TypedValue_StringVal)
++		if len(tv.GetStringVal()) > 0 {
++			if goVal, err := yangTypeToGoTypeVal (parent, schema, fieldName, tv.GetStringVal()); err == nil {
++				if gnmiTypeVal, err := value.FromScalar(goVal); err == nil {
++					tv = gnmiTypeVal
++				}			
++			}
++		}
++	}
++	
+ 	var ok bool
+ 	if ok = gNMIToYANGTypeMatches(ykind, tv, jsonTolerance); !ok {
+ 		return nil, fmt.Errorf("failed to unmarshal %v into %v", tv.GetValue(), yang.TypeKindToName[ykind])
+@@ -875,4 +966,4 @@
+ 	v = v.Elem()
+ 
+ 	return v.Kind() == reflect.Int64
+-}
++}
+\ No newline at end of file
 diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
---- ygot-dir-orig/ygot/ytypes/list.go	2019-10-24 12:30:07.712731000 -0700
-+++ ygot-dir/ygot/ytypes/list.go	2019-10-24 12:31:26.696852000 -0700
+--- ygot-dir-orig/ygot/ytypes/list.go	2020-06-21 15:35:13.671135000 -0700
++++ ygot-dir/ygot/ytypes/list.go	2020-06-21 15:27:34.842669000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -300,7 +680,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
 +		if schema.IsSchemaValidated == true {
 +			return nil
 +		}
- 		keys := strings.Split(schema.Key, " ")
+ 		keys := strings.Fields(schema.Key)
  		keysMissing := make(map[string]bool)
  		for _, v := range keys {
 @@ -232,6 +238,7 @@
@@ -310,19 +690,6 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
 +	schema.IsSchemaValidated = true
  	return nil
  }
- 
-@@ -282,10 +289,10 @@
- 	if util.IsValueNil(jsonList) {
- 		return nil
- 	}
--	// Check that the schema itself is valid.
-+
- 	if err := validateListSchema(schema); err != nil {
- 		return err
--	}
-+	}	
- 
- 	util.DbgPrint("unmarshalList jsonList %v, type %T, into parent type %T, schema name %s", util.ValueStrDebug(jsonList), jsonList, parent, schema.Name)
  
 @@ -350,7 +357,9 @@
  			return err
@@ -335,13 +702,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  
  	return nil
  }
-@@ -388,17 +397,96 @@
- 		if err != nil {
- 			return err
- 		}
--
- 		fv := val.Elem().FieldByName(fn)
- 		ft := fv.Type()
+@@ -394,11 +403,91 @@
  		if util.IsValuePtr(fv) {
  			ft = ft.Elem()
  		}
@@ -351,13 +712,13 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
 +		if ok == false {
 +			return fmt.Errorf("Field %s not present in the struct %s", fn, val.Elem())
 +		}
-+		cschema, err := childSchema(schema, sf)
++		cschema, err := util.ChildSchema(schema, sf)
  		if err != nil {
  			return err
  		}
 +		keyLeafKind := cschema.Type.Kind
 +		if keyLeafKind == yang.Yleafref {
-+			lrfschema, err := resolveLeafRef(cschema)
++			lrfschema, err := util.ResolveIfLeafRef(cschema)
 +			if err != nil {
 +				return err
 +			}
@@ -365,7 +726,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
 +		}
 +
 +		var nv reflect.Value
-+		if keyLeafKind == yang.Yunion && strings.HasSuffix(keyT.Name(), "_Union") {
++		if keyLeafKind == yang.Yunion && strings.HasSuffix(ft.Name(), "_Union") {
 +			sks, err := getUnionKindsNotEnums(cschema)
 +			if err != nil {
 +				return err
@@ -393,7 +754,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
 +			}
 +			
 +			if nv.IsValid() == false {
-+				ets, err := schemaToEnumTypes(cschema, elmT)
++				ets, err := schemaToEnumTypes(cschema, val.Type())
 +				if err != nil {
 +					return err
 +				}
@@ -435,7 +796,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  		return util.InsertIntoStruct(val.Interface(), fn, nv.Interface())
  	}
  
-@@ -494,6 +582,9 @@
+@@ -494,6 +583,9 @@
  	}
  
  	// TODO(yusufsn): When the key is a leafref, its target should be filled out.
@@ -446,9 +807,9 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  	if err != nil {
  		return nil, fmt.Errorf("failed to create map value for insert, root %T, keys %v: %v", root, keys, err)
 diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
---- ygot-dir-orig/ygot/ytypes/node.go	2019-10-24 12:30:07.727365000 -0700
-+++ ygot-dir/ygot/ytypes/node.go	2019-10-24 12:31:26.701328000 -0700
-@@ -12,17 +12,19 @@
+--- ygot-dir-orig/ygot/ytypes/node.go	2020-06-21 15:35:13.674994000 -0700
++++ ygot-dir/ygot/ytypes/node.go	2020-06-21 15:27:34.846733000 -0700
+@@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
  
@@ -458,19 +819,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
  package ytypes
  
  import (
--	"reflect"
--
- 	"github.com/golang/protobuf/proto"
- 	"github.com/openconfig/goyang/pkg/yang"
- 	"github.com/openconfig/ygot/util"
- 	"github.com/openconfig/ygot/ygot"
- 	"google.golang.org/grpc/codes"
- 	"google.golang.org/grpc/status"
-+	"reflect"
- 
- 	gpb "github.com/openconfig/gnmi/proto/gnmi"
- )
-@@ -129,6 +131,16 @@
+@@ -140,6 +143,16 @@
  				if err := util.InitializeStructField(root, ft.Name); err != nil {
  					return nil, status.Errorf(codes.Unknown, "failed to initialize struct field %s in %T, child schema %v, path %v", ft.Name, root, cschema, path)
  				}
@@ -486,8 +835,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
 +				}
  			}
  
- 			// If val in args is set to a non-nil value and the path is exhausted, we
-@@ -286,6 +298,11 @@
+ 			// If delete is specified, and the path is exhausted, then we set the
+@@ -319,6 +332,11 @@
  		if err != nil {
  			return nil, err
  		}
@@ -500,8 +849,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
  		if err != nil {
  			return nil, err
 diff -ruN ygot-dir-orig/ygot/ytypes/string_type.go ygot-dir/ygot/ytypes/string_type.go
---- ygot-dir-orig/ygot/ytypes/string_type.go	2019-10-24 12:30:07.734288000 -0700
-+++ ygot-dir/ygot/ytypes/string_type.go	2019-10-24 12:31:26.705649000 -0700
+--- ygot-dir-orig/ygot/ytypes/string_type.go	2020-06-21 15:35:13.679051000 -0700
++++ ygot-dir/ygot/ytypes/string_type.go	2020-06-21 15:27:34.850341000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -578,8 +927,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/string_type.go ygot-dir/ygot/ytypes/string_t
  
  // fixYangRegexp takes a pattern regular expression from a YANG module and
 diff -ruN ygot-dir-orig/ygot/ytypes/unmarshal.go ygot-dir/ygot/ytypes/unmarshal.go
---- ygot-dir-orig/ygot/ytypes/unmarshal.go	2019-10-24 12:30:07.753024000 -0700
-+++ ygot-dir/ygot/ytypes/unmarshal.go	2019-10-24 12:31:26.710027000 -0700
+--- ygot-dir-orig/ygot/ytypes/unmarshal.go	2020-06-21 15:35:13.685260000 -0700
++++ ygot-dir/ygot/ytypes/unmarshal.go	2020-06-21 15:27:34.854241000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -590,7 +939,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/unmarshal.go ygot-dir/ygot/ytypes/unmarshal.
  package ytypes
  
  import (
-@@ -73,7 +76,10 @@
+@@ -81,7 +84,10 @@
  	if schema == nil {
  		return fmt.Errorf("nil schema for parent type %T, value %v (%T)", parent, value, value)
  	}
@@ -602,135 +951,9 @@ diff -ruN ygot-dir-orig/ygot/ytypes/unmarshal.go ygot-dir/ygot/ytypes/unmarshal.
  
  	if enc == GNMIEncoding && !(schema.IsLeaf() || schema.IsLeafList()) {
  		return errors.New("unmarshalling a non leaf node isn't supported in GNMIEncoding mode")
-diff -ruN ygot-dir-orig/ygot/ytypes/util_schema.go ygot-dir/ygot/ytypes/util_schema.go
---- ygot-dir-orig/ygot/ytypes/util_schema.go	2019-10-24 12:30:07.763728000 -0700
-+++ ygot-dir/ygot/ytypes/util_schema.go	2019-10-24 12:31:26.715104000 -0700
-@@ -12,6 +12,9 @@
- // See the License for the specific language governing permissions and
- // limitations under the License.
- 
-+// This file is changed by Broadcom.
-+// Modifications - Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or its subsidiaries.
-+
- package ytypes
- 
- import (
-@@ -23,6 +26,8 @@
- 	"github.com/openconfig/ygot/util"
- )
- 
-+var pathToSchemaCache map[reflect.StructTag][]string = make(map[reflect.StructTag][]string)
-+
- // validateLengthSchema validates whether the given schema has a valid length
- // specification.
- func validateLengthSchema(schema *yang.Entry) error {
-@@ -137,8 +142,16 @@
- // if the struct tag is invalid, or nil if tag is valid but the schema is not
- // found in the tree at the specified path.
- func childSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error) {
--	pathTag, _ := f.Tag.Lookup("path")
--	util.DbgSchema("childSchema for schema %s, field %s, tag %s\n", schema.Name, f.Name, pathTag)
-+	if (schema.ChildSchemaCache == nil) {
-+		schema.ChildSchemaCache = make(map[reflect.StructTag]*yang.Entry)
-+	} else if cschema, ok := schema.ChildSchemaCache[f.Tag]; ok {
-+		return cschema, nil
-+	}
-+	
-+	if util.IsDebugSchemaEnabled() {
-+		pathTag, _ := f.Tag.Lookup("path")
-+		util.DbgSchema("childSchema for schema %s, field %s, tag %s\n", schema.Name, f.Name, pathTag)	
-+	}
- 	p, err := pathToSchema(f)
- 	if err != nil {
- 		return nil, err
-@@ -168,6 +181,7 @@
- 	}
- 	if foundSchema {
- 		util.DbgSchema(" - found\n")
-+		schema.ChildSchemaCache[f.Tag] = childSchema
- 		return childSchema, nil
- 	}
- 	util.DbgSchema(" - not found\n")
-@@ -183,21 +197,25 @@
- 		// path element i.e. choice1/case1/leaf1 path in the schema will have
- 		// struct tag `path:"leaf1"`. This implies that only paths with length
- 		// 1 are eligible for this matching.
-+		schema.ChildSchemaCache[f.Tag] = nil
- 		return nil, nil
- 	}
- 	entries := util.FindFirstNonChoiceOrCase(schema)
--
--	util.DbgSchema("checking for %s against non choice/case entries: %v\n", p[0], stringMapKeys(entries))
-+	if util.IsDebugSchemaEnabled() {
-+		util.DbgSchema("checking for %s against non choice/case entries: %v\n", p[0], stringMapKeys(entries))
-+	}
- 	for name, entry := range entries {
- 		util.DbgSchema("%s ? ", name)
- 
- 		if util.StripModulePrefix(name) == p[0] {
- 			util.DbgSchema(" - match\n")
-+			schema.ChildSchemaCache[f.Tag] = entry
- 			return entry, nil
- 		}
- 	}
- 
- 	util.DbgSchema(" - no matches\n")
-+	schema.ChildSchemaCache[f.Tag] = nil
- 	return nil, nil
- }
- 
-@@ -239,25 +257,32 @@
- // leafref. In the latter case, this function returns {"config", "a"}, and the
- // schema *yang.Entry for the field is given by schema.Dir["config"].Dir["a"].
- func pathToSchema(f reflect.StructField) ([]string, error) {
--	pathAnnotation, ok := f.Tag.Lookup("path")
--	if !ok {
--		return nil, fmt.Errorf("field %s did not specify a path", f.Name)
--	}
--
--	paths := strings.Split(pathAnnotation, "|")
--	if len(paths) == 1 {
--		pathAnnotation = strings.TrimPrefix(pathAnnotation, "/")
--		return strings.Split(pathAnnotation, "/"), nil
--	}
--	for _, pv := range paths {
--		pv = strings.TrimPrefix(pv, "/")
--		pe := strings.Split(pv, "/")
--		if len(pe) > 1 {
-+	if pe, ok := pathToSchemaCache[f.Tag]; ok {
-+		return pe, nil
-+	} else {
-+		pathAnnotation, ok := f.Tag.Lookup("path")
-+		if !ok {
-+			return nil, fmt.Errorf("field %s did not specify a path", f.Name)
-+		}
-+	
-+		paths := strings.Split(pathAnnotation, "|")
-+		if len(paths) == 1 {
-+			pathAnnotation = strings.TrimPrefix(pathAnnotation, "/")
-+			pe := strings.Split(pathAnnotation, "/")
-+			pathToSchemaCache[f.Tag] = pe
- 			return pe, nil
- 		}
-+		for _, pv := range paths {
-+			pv = strings.TrimPrefix(pv, "/")
-+			pe := strings.Split(pv, "/")
-+			if len(pe) > 1 {
-+				pathToSchemaCache[f.Tag] = pe
-+				return pe, nil
-+			}
-+		}
-+	
-+		return nil, fmt.Errorf("field %s had path tag %s with |, but no elements of form a/b", f.Name, pathAnnotation)
- 	}
--
--	return nil, fmt.Errorf("field %s had path tag %s with |, but no elements of form a/b", f.Name, pathAnnotation)
- }
- 
- // directDescendantSchema returns the direct descendant schema for the struct
 diff -ruN ygot-dir-orig/ygot/ytypes/validate.go ygot-dir/ygot/ytypes/validate.go
---- ygot-dir-orig/ygot/ytypes/validate.go	2019-10-24 12:30:07.778829000 -0700
-+++ ygot-dir/ygot/ytypes/validate.go	2019-10-24 12:31:26.719650000 -0700
+--- ygot-dir-orig/ygot/ytypes/validate.go	2020-06-21 15:35:13.699446000 -0700
++++ ygot-dir/ygot/ytypes/validate.go	2020-06-21 15:27:34.857802000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
