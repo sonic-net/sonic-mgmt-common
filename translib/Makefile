@@ -37,7 +37,7 @@ $(TRANSLIB_PKG): $(TRANSLIB_MAIN_SRCS) $(YGOT_BINDS)
 	$(GO) build -mod=vendor -gcflags="all=-N -l" -v -o $@ ../translib
 
 $(TRANSLIB_TEST_BIN): $(TRANSLIB_MAIN_SRCS) $(TRANSLIB_TEST_SRCS) $(YGOT_BINDS)
-	$(GO) test -mod=vendor -cover -coverpkg=../translib,../translib/tlerr -c ../translib -o $@
+	$(GO) test -mod=vendor -tags test -cover -coverpkg=../translib,../translib/tlerr -c ../translib -o $@
 
 $(TRANSL_DB_TEST_BIN) : $(TRANSL_DB_ALL_SRCS)
 	$(GO) test -mod=vendor -cover -c ../translib/db -o $@
