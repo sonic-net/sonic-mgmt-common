@@ -105,7 +105,7 @@ func initYangModelsPath() {
 		YangPath = path
 	}
 
-	fmt.Println("Yang modles path:", YangPath)
+	fmt.Println("Yang models path:", YangPath)
 }
 
 func loadYangModules(files ...string) error {
