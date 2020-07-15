@@ -32,7 +32,7 @@ import (
 	"testing"
 	"runtime"
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
-	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
+//	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 )
 
 type testEditCfgData struct {
@@ -2861,6 +2861,7 @@ func TestValidateEditConfig_Delete_Entry_Then_Dep_Leafref_Positive(t *testing.T)
 	unloadConfigDB(rclient, depDataMap)
 }
 
+/*
 func TestBadSchema(t *testing.T) {
 	env := os.Environ()
 	env[0] = env[0] + " "
@@ -2892,7 +2893,7 @@ func TestBadSchema(t *testing.T) {
 	}
 
 }
-
+*/
 
 func TestServicability_Debug_Trace(t *testing.T) {
 
