@@ -78,6 +78,7 @@ type modelTableInfo struct {
 				//multiple leafref possible for union 
 	mustExp map[string]string
 	tablesForMustExp map[string]CVLOperation
+	dfltLeafVal map[string]string //map of leaf names and default value
 }
 
 
@@ -94,14 +95,21 @@ type CVLErrorInfo struct {
 	ErrAppTag string
 }
 
+// Struct for request data and YANG data
+type requestCacheType struct {
+	reqData CVLEditConfigData
+	yangData *xmlquery.Node
+}
+
 type CVL struct {
 	redisClient *redis.Client
 	yp *yparser.YParser
 	tmpDbCache map[string]interface{} //map of table storing map of key-value pair
-	requestCache map[string]map[string][]CVLEditConfigData //Cache of validated data,
-						//might be used as dependent data in next request
+	requestCache map[string]map[string][]*requestCacheType//Cache of validated data,
+				//per table, per key. Can be used as dependent data in next request
 	batchLeaf string
 	chkLeafRefWithOthCache bool
+	yv *YValidator //Custom YANG validator for validating external dependencies
 }
 
 type modelNamespace struct {
@@ -205,6 +213,11 @@ func Debug(on bool) {
 	yparser.Debug(on)
 }
 
+// isLeafListNode checks if the xml node represents a leaf-list field
+func isLeafListNode(node *xmlquery.Node) bool {
+	return len(node.Attr) != 0 && node.Attr[0].Name.Local == "leaf-list"
+}
+
 //Get attribute value of xml node
 func getXmlNodeAttr(node *xmlquery.Node, attrName string) string {
 	for _, attr := range node.Attr {
@@ -214,6 +227,14 @@ func getXmlNodeAttr(node *xmlquery.Node, attrName string) string {
 	}
 
 	return ""
+}
+
+// getNodeName returns database field name for the xml node.
+func getNodeName(node *xmlquery.Node) string {
+	if isLeafListNode(node) {
+		return node.Data + "@"
+	}
+	return node.Data
 }
 
 //Store useful schema data during initialization
@@ -394,6 +415,20 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 	}
 }
 
+// Get YANG list to Redis table name
+func getYangListToRedisTbl(yangListName string) string {
+	if (strings.HasSuffix(yangListName, "_LIST")) {
+		yangListName = yangListName[0:len(yangListName) - len("_LIST")]
+	}
+	tInfo, exists := modelInfo.tableInfo[yangListName]
+
+	if exists && (tInfo.redisTableName != "") {
+		return tInfo.redisTableName
+	}
+
+	return yangListName
+}
+
 //Find the tables names in must expression, these tables data need to be fetched 
 //during semantic validation
 func addTableNamesForMustExp() {
@@ -475,6 +510,56 @@ func splitRedisKey(key string) (string, string) {
 	return tblName, key[prefixLen:]
 }
 
+//Get the YANG list name from Redis key and table name
+//This just returns same YANG list name as Redis table name
+//when 1:1 mapping is there. For one Redis table to 
+//multiple YANG list, it returns appropriate YANG list name
+//INTERFACE:Ethernet12 returns ==> INTERFACE
+//INTERFACE:Ethernet12:1.1.1.0/32 ==> INTERFACE_IPADDR
+func getRedisTblToYangList(tableName, key string) (yangList string) {
+	defer func() {
+		pYangList := &yangList
+		TRACE_LOG(INFO_API, TRACE_SYNTAX, "Got YANG list '%s' " +
+		"from Redis Table '%s', Key '%s'", *pYangList, tableName, key)
+	}()
+
+	mapArr, exists := modelInfo.redisTableToYangList[tableName]
+
+	if !exists || (len(mapArr) == 1) { //no map or only one
+		//1:1 mapping case
+		return tableName
+	}
+
+	//As of now determine the mapping based on number of keys
+	var foundIdx int = -1
+	numOfKeys := 1 //Assume only one key initially
+	for keyDelim := range modelInfo.allKeyDelims {
+		foundIdx = strings.Index(key, keyDelim)
+		if (foundIdx >= 0) {
+			//Matched with key delim
+			keyComps := strings.Split(key, keyDelim)
+			numOfKeys = len(keyComps)
+			break
+		}
+	}
+
+	//Check which list has number of keys as 'numOfKeys' 
+	for i := 0; i < len(mapArr); i++ {
+		tblInfo, exists := modelInfo.tableInfo[mapArr[i]]
+		if exists {
+			if (len(tblInfo.keys) == numOfKeys) {
+				//Found the YANG list matching the number of keys
+				return mapArr[i]
+			}
+		}
+	}
+
+	//No matches
+	return tableName
+}
+
+/*
+//Convert Redis key to Yang keys, if multiple key components are there,
 //Get the YANG list name from Redis key
 //This just returns same YANG list name as Redis table name
 //when 1:1 mapping is there. For one Redis table to 
@@ -516,6 +601,7 @@ func getRedisKeyToYangList(tableName, key string) string {
 	//No matches
 	return tableName
 }
+*/
 
 //Convert Redis key to Yang keys, if multiple key components are there,
 //they are separated based on Yang schema
