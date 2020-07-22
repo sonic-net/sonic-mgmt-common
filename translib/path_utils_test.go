@@ -95,7 +95,7 @@ func TestGetNodeName(t *testing.T) {
 		tid:         4, // Negative test case
 		targetUri:   "/openconfig-acl:acl/acl-sets/acl-set[name=Sample][type=ACL_IPV4]/state/descriptXX",
 		appRootType: reflect.TypeOf(ocbinds.OpenconfigAcl_Acl{}),
-		want:        "rpc error: code = InvalidArgument desc = no match found in *ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_State, for path elem:<name:\"descriptXX",
+		want:        "rpc error: code = InvalidArgument desc = no match found in *ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_State, for path elem:{name:\"descriptXX\"}",
 	}}
 
 	for _, tt := range tests {
@@ -142,7 +142,7 @@ func TestGetObjectFieldName(t *testing.T) {
 		tid:         4, // Negative test case
 		targetUri:   "/openconfig-acl:acl/acl-sets/acl-set[name=Sample][type=ACL_IPV4]/state/descriptXX",
 		appRootType: reflect.TypeOf(ocbinds.OpenconfigAcl_Acl{}),
-		want:        "rpc error: code = InvalidArgument desc = no match found in *ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_State, for path elem:<name:\"descriptXX",
+		want:        "rpc error: code = InvalidArgument desc = no match found in *ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_State, for path elem:{name:\"descriptXX\"}",
 	}}
 
 	for _, tt := range tests {
