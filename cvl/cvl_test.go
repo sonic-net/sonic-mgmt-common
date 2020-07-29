@@ -20,7 +20,6 @@
 package cvl_test
 
 import (
-	"github.com/Azure/sonic-mgmt-common/cvl"
 	"encoding/json"
 	"fmt"
 	"github.com/go-redis/redis"
@@ -31,6 +30,7 @@ import (
 	"syscall"
 	"testing"
 	"runtime"
+	"github.com/Azure/sonic-mgmt-common/cvl"
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 )
 

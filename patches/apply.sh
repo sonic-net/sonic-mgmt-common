@@ -30,11 +30,11 @@ function copy() {
 
 set -x
 
-copy github.com/openconfig/ygot v0.6.1-0.20190723223108-724a6b18a922 ygen generator
+copy github.com/openconfig/ygot v0.7.1 ygen genutil generator
 
-copy github.com/openconfig/goyang v0.0.0-20190924211109-064f9690516f .
+copy github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc .
 
-copy github.com/openconfig/gnmi v0.0.0-20190823184014-89b2bf29312c .
+copy github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802 .
 
 # Apply patches
 

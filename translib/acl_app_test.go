@@ -17,35 +17,23 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+// +build !test
+
 package translib
 
 import (
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
+
 	db "github.com/Azure/sonic-mgmt-common/translib/db"
 )
 
 func init() {
 	fmt.Println("+++++  Init acl_app_test  +++++")
-}
-
-func TestMain(m *testing.M) {
-	if err := clearAclDataFromDb(); err != nil {
-		os.Exit(-1)
-	}
-	fmt.Println("+++++  Removed All Acl Data from Db  +++++")
-
-	ret := m.Run()
-
-	if err := clearAclDataFromDb(); err != nil {
-		os.Exit(-1)
-	}
-
-	os.Exit(ret)
+	addCleanupFunc("ACL", clearAclDataFromDb)
 }
 
 // This will test GET on /openconfig-acl:acl
@@ -344,48 +332,6 @@ func Test_AclApp_NegativeTests(t *testing.T) {
 	t.Run("Verify_Top_Level_Delete", processGetRequest(topLevelUrl, emptyJson, false))
 }
 
-func processGetRequest(url string, expectedRespJson string, errorCase bool) func(*testing.T) {
-	return func(t *testing.T) {
-		response, err := Get(GetRequest{url})
-		if err != nil && !errorCase {
-			t.Errorf("Error %v received for Url: %s", err, url)
-		}
-
-		respJson := response.Payload
-		if string(respJson) != expectedRespJson {
-			t.Errorf("Response for Url: %s received is not expected:\n%s", url, string(respJson))
-		}
-	}
-}
-
-func processSetRequest(url string, jsonPayload string, oper string, errorCase bool) func(*testing.T) {
-	return func(t *testing.T) {
-		var err error
-		switch oper {
-		case "POST":
-			_, err = Create(SetRequest{Path: url, Payload: []byte(jsonPayload)})
-		case "PATCH":
-			_, err = Update(SetRequest{Path: url, Payload: []byte(jsonPayload)})
-		case "PUT":
-			_, err = Replace(SetRequest{Path: url, Payload: []byte(jsonPayload)})
-		default:
-			t.Errorf("Operation not supported")
-		}
-		if err != nil && !errorCase {
-			t.Errorf("Error %v received for Url: %s", err, url)
-		}
-	}
-}
-
-func processDeleteRequest(url string) func(*testing.T) {
-	return func(t *testing.T) {
-		_, err := Delete(SetRequest{Path: url})
-		if err != nil {
-			t.Errorf("Error %v received for Url: %s", err, url)
-		}
-	}
-}
-
 // THis will delete ACL table and Rules Table from DB
 func clearAclDataFromDb() error {
 	var err error
@@ -406,17 +352,6 @@ func clearAclDataFromDb() error {
 		return err
 	}
 	return err
-}
-
-func getConfigDb() *db.DB {
-	configDb, _ := db.NewDB(db.Options{
-		DBNo:               db.ConfigDB,
-		InitIndicator:      "CONFIG_DB_INITIALIZED",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-	})
-
-	return configDb
 }
 
 func Test_AclApp_Subscribe(t *testing.T) {
