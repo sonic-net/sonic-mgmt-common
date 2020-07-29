@@ -32,7 +32,6 @@ import (
 	"testing"
 	"runtime"
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
-//	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 )
 
 type testEditCfgData struct {
@@ -2860,40 +2859,6 @@ func TestValidateEditConfig_Delete_Entry_Then_Dep_Leafref_Positive(t *testing.T)
 
 	unloadConfigDB(rclient, depDataMap)
 }
-
-/*
-func TestBadSchema(t *testing.T) {
-	env := os.Environ()
-	env[0] = env[0] + " "
-
-	if _, err := os.Stat("/usr/sbin/schema"); os.IsNotExist(err) {
-		//Corrupt some schema file 
-		exec.Command("/bin/sh", "-c", "/bin/cp testdata/schema/sonic-port.yin testdata/schema/sonic-port.yin.bad" + 
-		" && /bin/sed -i '1 a <junk>' testdata/schema/sonic-port.yin.bad").Output()
-
-		//Parse bad schema file
-		if module, _ := yparser.ParseSchemaFile("testdata/schema/sonic-port.yin.bad"); module != nil { //should fail
-			t.Errorf("Bad schema parsing should fail.")
-		}
-
-		//Revert to 
-		exec.Command("/bin/sh",  "-c", "/bin/rm testdata/schema/sonic-port.yin.bad").Output()
-	} else {
-		//Corrupt some schema file 
-		exec.Command("/bin/sh", "-c", "/bin/cp /usr/sbin/schema/sonic-port.yin /usr/sbin/schema/sonic-port.yin.bad" + 
-		" && /bin/sed -i '1 a <junk>' /usr/sbin/schema/sonic-port.yin.bad").Output()
-
-		//Parse bad schema file
-		if module, _ := yparser.ParseSchemaFile("/usr/sbin/schema/sonic-port.yin.bad"); module != nil { //should fail
-			t.Errorf("Bad schema parsing should fail.")
-		}
-
-		//Revert to 
-		exec.Command("/bin/sh",  "-c", "/bin/rm /usr/sbin/schema/sonic-port.yin.bad").Output()
-	}
-
-}
-*/
 
 func TestServicability_Debug_Trace(t *testing.T) {
 

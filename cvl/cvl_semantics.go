@@ -32,7 +32,6 @@ import (
 type YValidator struct {
 	root *xmlquery.Node    //Top evel root for data
 	current *xmlquery.Node //Current position
-	//operation string     //Edit operation
 }
 
 //Check delete constraint for leafref if key/field is deleted

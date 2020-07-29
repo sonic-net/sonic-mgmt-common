@@ -25,7 +25,6 @@ import (
 	"regexp"
 	"time"
 	 log "github.com/golang/glog"
-	//"encoding/json"
 	"github.com/go-redis/redis"
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/jsonquery"
@@ -33,7 +32,6 @@ import (
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 	"sync"
 	"flag"
-	//"runtime"
 )
 
 //DB number 
