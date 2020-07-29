@@ -222,7 +222,7 @@ func testPathInfo(t *testing.T, path, expTemplate string, expVars map[string]str
 
 func mkmap(args ...string) map[string]string {
 	m := make(map[string]string)
-	for i := 0; i < len(args); i += 2 {
+	for i := 0; (i + 1) < len(args); i += 2 {
 		m[args[i]] = args[i+1]
 	}
 	return m

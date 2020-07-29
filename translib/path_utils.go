@@ -99,12 +99,10 @@ func NewPathInfo(path string) *PathInfo {
 		value := readUntil(r, ']')
 
 		// Handle duplicate parameter names by suffixing "#N" to it.
-		// N is the number of occurance of that parameter name.
-		if info.HasVar(name) {
-			namePrefix := name
-			for k := 2; info.HasVar(name); k++ {
-				name = fmt.Sprintf("%s#%d", namePrefix, k)
-			}
+		// N is the number of occurance of that parameter name from left.
+		namePrefix := name
+		for k := 2; info.HasVar(name); k++ {
+			name = fmt.Sprintf("%s#%d", namePrefix, k)
 		}
 
 		if len(name) != 0 {
