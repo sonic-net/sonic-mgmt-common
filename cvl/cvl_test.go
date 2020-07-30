@@ -32,7 +32,6 @@ import (
 	"runtime"
 	"github.com/Azure/sonic-mgmt-common/cvl"
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
-	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 )
 
 type testEditCfgData struct {
@@ -2860,22 +2859,6 @@ func TestValidateEditConfig_Delete_Entry_Then_Dep_Leafref_Positive(t *testing.T)
 
 	unloadConfigDB(rclient, depDataMap)
 }
-
-func TestBadSchema(t *testing.T) {
-	badSchema, err := ioutil.TempFile("", "sonic-test-*.yin")
-	if err != nil {
-		t.Fatalf("could not create temp file")
-	}
-
-	// write incomplete module data to temporary schema file
-	badSchema.WriteString("<module name=\"sonic-test\"></module>")
-	badSchema.Close()
-
-	if module, _ := yparser.ParseSchemaFile(badSchema.Name()); module != nil { //should fail
-		t.Errorf("Bad schema parsing should fail.")
-	}
-}
-
 
 func TestServicability_Debug_Trace(t *testing.T) {
 

@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
+	"time"
 )
 
 type CVLValidateType uint
@@ -107,6 +108,26 @@ type CVLEditConfigData struct {
 	Key string      //Key format : "PORT|Ethernet4"
 	Data map[string]string //Value :  {"alias": "40GE0/28", "mtu" : 9100,  "admin_status":  down}
 }
+
+// ValidationTimeStats CVL validations stats 
+//Maintain time stats for call to ValidateEditConfig().
+//Hits : Total number of times ValidateEditConfig() called
+//Time : Total time spent in ValidateEditConfig()
+//Peak : Highest time spent in ValidateEditConfig()
+type ValidationTimeStats struct {
+	Hits uint
+	Time time.Duration
+	Peak time.Duration
+}
+
+//CVLDepDataForDelete Structure for dependent entry to be deleted
+type CVLDepDataForDelete struct {
+	RefKey string //Ref Key which is getting deleted
+	Entry  map[string]map[string]string //Entry or field which should be deleted as a result
+}
+
+//Global data structure for maintaining validation stats
+var cfgValidationStats ValidationTimeStats
 
 func Initialize() CVLRetCode {
 	if (cvlInitialized == true) {
@@ -511,4 +532,35 @@ func (c *CVL) ValidateKeyData(key string, data string) CVLRetCode {
 //Validate key, field and value
 func (c *CVL) ValidateFields(key string, field string, value string) CVLRetCode {
 	return CVL_NOT_IMPLEMENTED
+}
+
+//SortDepTables Sort list of given tables as per their dependency
+func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
+	return []string{}, CVL_NOT_IMPLEMENTED
+}
+
+//GetOrderedTables Get the order list(parent then child) of tables in a given YANG module
+//within a single model this is obtained using leafref relation
+func (c *CVL) GetOrderedTables(yangModule string) ([]string, CVLRetCode) {
+	return []string{}, CVL_NOT_IMPLEMENTED
+}
+
+//GetDepTables Get the list of dependent tables for a given table in a YANG module
+func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRetCode) {
+	return []string{}, CVL_NOT_IMPLEMENTED
+}
+
+//GetDepDataForDelete Get the dependent (Redis keys) to be deleted or modified
+//for a given entry getting deleted
+func (c *CVL) GetDepDataForDelete(redisKey string) ([]CVLDepDataForDelete) {
+	return []CVLDepDataForDelete{}
+}
+
+//GetValidationTimeStats Retrieve global stats
+func GetValidationTimeStats() ValidationTimeStats {
+	return cfgValidationStats
+}
+
+//ClearValidationTimeStats Clear global stats
+func ClearValidationTimeStats() {
 }
