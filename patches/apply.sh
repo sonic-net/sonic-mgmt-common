@@ -34,7 +34,7 @@ copy github.com/openconfig/ygot v0.7.1 ygen genutil generator
 
 copy github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc .
 
-copy github.com/openconfig/gnmi v0.0.0-20200307010808-e7106f7f5493 .
+copy github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802 .
 
 # Apply patches
 

@@ -531,6 +531,7 @@ func Action(req ActionRequest) (ActionResponse, error) {
 	var payload []byte
 	var resp ActionResponse
 	path := req.Path
+
 	if !isAuthorizedForAction(req) {
 		return resp, tlerr.AuthorizationError{
 			Format: "User is unauthorized for Action Operation",
@@ -597,6 +598,7 @@ func Bulk(req BulkRequest) (BulkResponse, error) {
 		ReplaceResponse: replaceResp,
 		UpdateResponse: updateResp,
 		CreateResponse: createResp}
+
 
     if (!isAuthorizedForBulk(req)) {
 		return resp, tlerr.AuthorizationError{

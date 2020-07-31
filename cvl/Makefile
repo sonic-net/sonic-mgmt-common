@@ -70,3 +70,5 @@ clean:
 	$(RM) -r $(CVL_PKG)
 	$(RM) -r $(CVL_TEST_DIR)
 
+cleanall:clean
+
