@@ -29,11 +29,15 @@ import (
         "syscall"
 	"strings"
 	"flag"
+	"github.com/go-redis/redis"
 	log "github.com/golang/glog"
 )
 
 var CVL_SCHEMA string = "/usr/sbin/schema/"
 var CVL_CFG_FILE string = "/usr/sbin/cvl_cfg.json"
+const SONIC_DB_CONFIG_FILE string = "/var/run/redis/sonic-db/database_config.json"
+const ENV_VAR_SONIC_DB_CONFIG_FILE = "DB_CONFIG_PATH"
+var sonic_db_config = make(map[string]interface{})
 
 //package init function 
 func init() {
@@ -44,6 +48,9 @@ func init() {
 	if (os.Getenv("CVL_CFG_FILE") != "") {
 		CVL_CFG_FILE = os.Getenv("CVL_CFG_FILE")
 	}
+
+	//Initialize DB settings
+	dbCfgInit()
 }
 
 var cvlCfgMap map[string]string
@@ -252,4 +259,185 @@ func SkipSemanticValidation() bool {
 	}
 
 	return false
+}
+
+//Function to read Redis DB configuration from file.
+//In absence of the file, it uses default config for CONFIG_DB
+//so that CVL UT will pass in development environment.
+func dbCfgInit() {
+	defaultDBConfig := `{
+		"INSTANCES": {
+			"redis":{
+				"hostname" : "127.0.0.1",
+				"port" : 6379
+			}
+		},
+		"DATABASES" : {
+			"CONFIG_DB" : {
+				"id" : 4,
+				"separator": "|",
+				"instance" : "redis"
+			},
+			"STATE_DB" : {
+				"id" : 6,
+				"separator": "|",
+				"instance" : "redis"
+			}
+		}
+	}`
+
+	dbCfgFile := ""
+
+	//Check if multi-db config file is present
+	if _, errF := os.Stat(SONIC_DB_CONFIG_FILE); !os.IsNotExist(errF) {
+		dbCfgFile = SONIC_DB_CONFIG_FILE
+	} else {
+		//Check if multi-db config file is specified in environment
+		if fileName := os.Getenv(ENV_VAR_SONIC_DB_CONFIG_FILE); fileName != "" {
+			if _, errF := os.Stat(fileName); !os.IsNotExist(errF) {
+				dbCfgFile = fileName
+			}
+		}
+	}
+
+	if dbCfgFile != "" {
+		//Read from multi-db config file
+		data, err := ioutil.ReadFile(dbCfgFile)
+		if err != nil {
+			panic(err)
+		} else {
+			err = json.Unmarshal([]byte(data), &sonic_db_config)
+			if err != nil {
+				panic(err)
+			}
+		}
+	} else {
+		//No multi-db config file is present.
+		//Use default config for CONFIG_DB setting, this avoids CVL UT failure
+		//in absence of at multi-db config file
+		err := json.Unmarshal([]byte(defaultDBConfig), &sonic_db_config)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+//Get list of DB
+func getDbList()(map[string]interface{}) {
+	db_list, ok := sonic_db_config["DATABASES"].(map[string]interface{})
+	if !ok {
+		panic(fmt.Errorf("DATABASES' is not valid key in %s!",
+		SONIC_DB_CONFIG_FILE))
+	}
+	return db_list
+}
+
+//Get DB instance based on given DB name
+func getDbInst(dbName string)(map[string]interface{}) {
+	db, ok := sonic_db_config["DATABASES"].(map[string]interface{})[dbName]
+	if !ok {
+		panic(fmt.Errorf("database name '%v' is not valid in %s !",
+		dbName, SONIC_DB_CONFIG_FILE))
+	}
+	inst_name, ok := db.(map[string]interface{})["instance"]
+	if !ok {
+		panic(fmt.Errorf("'instance' is not a valid field in %s !",
+		SONIC_DB_CONFIG_FILE))
+	}
+	inst, ok := sonic_db_config["INSTANCES"].(map[string]interface{})[inst_name.(string)]
+	if !ok {
+		panic(fmt.Errorf("instance name '%v' is not valid in %s !",
+		inst_name, SONIC_DB_CONFIG_FILE))
+	}
+	return inst.(map[string]interface{})
+}
+
+//GetDbSeparator Get DB separator based on given DB name
+func GetDbSeparator(dbName string)(string) {
+	db_list := getDbList()
+	separator, ok := db_list[dbName].(map[string]interface{})["separator"]
+	if !ok {
+		panic(fmt.Errorf("'separator' is not a valid field in %s !",
+		SONIC_DB_CONFIG_FILE))
+	}
+	return separator.(string)
+}
+
+//GetDbId Get DB id on given db name
+func GetDbId(dbName string)(int) {
+	db_list := getDbList()
+	id, ok := db_list[dbName].(map[string]interface{})["id"]
+	if !ok {
+		panic(fmt.Errorf("'id' is not a valid field in %s !",
+		SONIC_DB_CONFIG_FILE))
+	}
+	return int(id.(float64))
+}
+
+//GetDbSock Get DB socket path
+func GetDbSock(dbName string)(string) {
+	inst := getDbInst(dbName)
+	unix_socket_path, ok := inst["unix_socket_path"]
+	if !ok {
+		CVL_LEVEL_LOG(INFO, "'unix_socket_path' is not " +
+		"a valid field in %s !", SONIC_DB_CONFIG_FILE)
+
+		return ""
+	}
+
+	return unix_socket_path.(string)
+}
+
+//GetDbTcpAddr Get DB TCP endpoint
+func GetDbTcpAddr(dbName string)(string) {
+	inst := getDbInst(dbName)
+	hostname, ok := inst["hostname"]
+	if !ok {
+		panic(fmt.Errorf("'hostname' is not a valid field in %s !",
+		SONIC_DB_CONFIG_FILE))
+	}
+
+	port, ok1 := inst["port"]
+	if !ok1 {
+		panic(fmt.Errorf("'port' is not a valid field in %s !",
+		SONIC_DB_CONFIG_FILE))
+	}
+
+	return fmt.Sprintf("%v:%v", hostname, port)
+}
+
+//NewDbClient Get new redis client 
+func NewDbClient(dbName string) *redis.Client {
+	var redisClient *redis.Client = nil
+
+	//Try unix domain socket first
+	if dbSock := GetDbSock(dbName); dbSock != "" {
+		redisClient = redis.NewClient(&redis.Options{
+			Network:  "unix",
+			Addr:     dbSock,
+			Password: "",
+			DB:       GetDbId(dbName),
+		})
+	} else {
+	//Otherwise, use TCP socket
+		redisClient = redis.NewClient(&redis.Options{
+			Network:  "tcp",
+			Addr:     GetDbTcpAddr(dbName),
+			Password: "",
+			DB:       GetDbId(dbName),
+		})
+	}
+
+	if (redisClient == nil) {
+		return nil
+	}
+
+	//Check the connectivity
+	_, err := redisClient.Ping().Result()
+	if err != nil {
+		CVL_LEVEL_LOG(ERROR, "Failed to connect to Redis server %v", err)
+		return nil
+	}
+
+	return redisClient
 }

@@ -196,17 +196,12 @@ func compareErrorDetails(cvlErr cvl.CVLErrorInfo, expCode cvl.CVLRetCode, errApp
 }
 
 func getConfigDbClient() *redis.Client {
-	rclient := redis.NewClient(&redis.Options{
-		Network:     "tcp",
-		Addr:        "localhost:6379",
-		Password:    "", // no password set
-		DB:          4,
-		DialTimeout: 0,
-	})
-	_, err := rclient.Ping().Result()
-	if err != nil {
-		fmt.Printf("failed to connect to redis server %v", err)
+	rclient := NewDbClient("CONFIG_DB")
+
+	if rclient == nil {
+		panic("Unable to connect to Redis Config DB Server")
 	}
+
 	return rclient
 }
 
