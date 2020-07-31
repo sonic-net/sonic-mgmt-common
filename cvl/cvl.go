@@ -62,6 +62,13 @@ var dbNameToDbNum map[string]uint8
 //map of lua script loaded
 var luaScripts map[string]*redis.Script
 
+type leafRefInfo struct {
+	path string //leafref path
+	//exprTree *xpath.Expr //compiled expression tree
+	yangListNames []string //all yang list in path
+	targetNodeName string //target node name
+}
+
 //var tmpDbCache map[string]interface{} //map of table storing map of key-value pair
 					//m["PORT_TABLE] = {"key" : {"f1": "v1"}}
 //Important schema information to be loaded at bootup time
@@ -74,10 +81,11 @@ type modelTableInfo struct {
 	redisKeyDelim string
 	redisKeyPattern string
 	mapLeaf []string //for 'mapping  list'
-	leafRef map[string][]string //for storing all leafrefs for a leaf in a table, 
+	leafRef map[string][]*leafRefInfo //for storing all leafrefs for a leaf in a table, 
 				//multiple leafref possible for union 
 	mustExp map[string]string
 	tablesForMustExp map[string]CVLOperation
+	refFromTables []tblFieldPair //list of table or table/field referring to this table
 }
 
 
@@ -338,7 +346,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 			continue
 		}
 
-		tableInfo.leafRef = make(map[string][]string)
+		tableInfo.leafRef = make(map[string][]*leafRefInfo)
 		for _, leafRefNode := range leafRefNodes {
 			if (leafRefNode.Parent == nil || leafRefNode.FirstChild == nil) {
 				continue
@@ -392,6 +400,83 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 		modelInfo.tableInfo[tableName] = &tableInfo
 
 	}
+}
+
+// Get YANG list to Redis table name
+func getYangListToRedisTbl(yangListName string) string {
+	if (strings.HasSuffix(yangListName, "_LIST")) {
+		yangListName = yangListName[0:len(yangListName) - len("_LIST")]
+	}
+	tInfo, exists := modelInfo.tableInfo[yangListName]
+
+	if exists && (tInfo.redisTableName != "") {
+		return tInfo.redisTableName
+	}
+
+	return yangListName
+}
+
+//This functions build info of dependent table/fields 
+//which uses a particular table through leafref
+func buildRefTableInfo() {
+
+	CVL_LOG(INFO_API, "Building reverse reference info from leafref")
+
+	for tblName, tblInfo := range modelInfo.tableInfo {
+		if (len(tblInfo.leafRef) == 0) {
+			continue
+		}
+
+		//For each leafref update the table used through leafref
+		for fieldName, leafRefs  := range tblInfo.leafRef {
+			for _, leafRef := range leafRefs {
+
+				for _, yangListName := range leafRef.yangListNames {
+					refTblInfo :=  modelInfo.tableInfo[yangListName]
+
+					refFromTables := &refTblInfo.refFromTables
+					 *refFromTables = append(*refFromTables, tblFieldPair{tblName, fieldName})
+					 modelInfo.tableInfo[yangListName] = refTblInfo
+				}
+
+			}
+		}
+
+	}
+
+	//Now sort list 'refFromTables' under each table based on dependency among them 
+	for tblName, tblInfo := range modelInfo.tableInfo {
+		if (len(tblInfo.refFromTables) == 0) {
+			continue
+		}
+
+		depTableList := []string{}
+		for i:=0; i < len(tblInfo.refFromTables); i++ {
+			depTableList = append(depTableList, tblInfo.refFromTables[i].tableName)
+		}
+
+		sortedTableList, _ := cvg.cv.SortDepTables(depTableList)
+		if (len(sortedTableList) == 0) {
+			continue
+		}
+
+		newRefFromTables := []tblFieldPair{}
+
+		for i:=0; i < len(sortedTableList); i++ {
+			//Find fieldName
+			fieldName := ""
+			for j :=0; j < len(tblInfo.refFromTables); j++ {
+				if (sortedTableList[i] == tblInfo.refFromTables[j].tableName) {
+					fieldName =  tblInfo.refFromTables[j].field
+					newRefFromTables = append(newRefFromTables, tblFieldPair{sortedTableList[i], fieldName})
+				}
+			}
+		}
+		//Update sorted refFromTables
+		tblInfo.refFromTables = newRefFromTables
+		modelInfo.tableInfo[tblName] = tblInfo
+	}
+
 }
 
 //Find the tables names in must expression, these tables data need to be fetched 
@@ -475,16 +560,22 @@ func splitRedisKey(key string) (string, string) {
 	return tblName, key[prefixLen:]
 }
 
-//Get the YANG list name from Redis key
+//Get the YANG list name from Redis key and table name
 //This just returns same YANG list name as Redis table name
 //when 1:1 mapping is there. For one Redis table to 
 //multiple YANG list, it returns appropriate YANG list name
 //INTERFACE:Ethernet12 returns ==> INTERFACE
 //INTERFACE:Ethernet12:1.1.1.0/32 ==> INTERFACE_IPADDR
-func getRedisKeyToYangList(tableName, key string) string {
+func getRedisTblToYangList(tableName, key string) (yangList string) {
+	defer func() {
+		pYangList := &yangList
+		TRACE_LOG(INFO_API, TRACE_SYNTAX, "Got YANG list '%s' " +
+		"from Redis Table '%s', Key '%s'", *pYangList, tableName, key)
+	}()
+
 	mapArr, exists := modelInfo.redisTableToYangList[tableName]
 
-	if exists == false {
+	if !exists || (len(mapArr) == 1) { //no map or only one
 		//1:1 mapping case
 		return tableName
 	}
@@ -492,7 +583,7 @@ func getRedisKeyToYangList(tableName, key string) string {
 	//As of now determine the mapping based on number of keys
 	var foundIdx int = -1
 	numOfKeys := 1 //Assume only one key initially
-	for keyDelim, _ := range modelInfo.allKeyDelims {
+	for keyDelim := range modelInfo.allKeyDelims {
 		foundIdx = strings.Index(key, keyDelim)
 		if (foundIdx >= 0) {
 			//Matched with key delim
@@ -505,7 +596,7 @@ func getRedisKeyToYangList(tableName, key string) string {
 	//Check which list has number of keys as 'numOfKeys' 
 	for i := 0; i < len(mapArr); i++ {
 		tblInfo, exists := modelInfo.tableInfo[mapArr[i]]
-		if exists == true {
+		if exists {
 			if (len(tblInfo.keys) == numOfKeys) {
 				//Found the YANG list matching the number of keys
 				return mapArr[i]
