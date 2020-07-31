@@ -558,51 +558,6 @@ func getRedisTblToYangList(tableName, key string) (yangList string) {
 	return tableName
 }
 
-/*
-//Convert Redis key to Yang keys, if multiple key components are there,
-//Get the YANG list name from Redis key
-//This just returns same YANG list name as Redis table name
-//when 1:1 mapping is there. For one Redis table to 
-//multiple YANG list, it returns appropriate YANG list name
-//INTERFACE:Ethernet12 returns ==> INTERFACE
-//INTERFACE:Ethernet12:1.1.1.0/32 ==> INTERFACE_IPADDR
-func getRedisKeyToYangList(tableName, key string) string {
-	mapArr, exists := modelInfo.redisTableToYangList[tableName]
-
-	if exists == false {
-		//1:1 mapping case
-		return tableName
-	}
-
-	//As of now determine the mapping based on number of keys
-	var foundIdx int = -1
-	numOfKeys := 1 //Assume only one key initially
-	for keyDelim, _ := range modelInfo.allKeyDelims {
-		foundIdx = strings.Index(key, keyDelim)
-		if (foundIdx >= 0) {
-			//Matched with key delim
-			keyComps := strings.Split(key, keyDelim)
-			numOfKeys = len(keyComps)
-			break
-		}
-	}
-
-	//Check which list has number of keys as 'numOfKeys' 
-	for i := 0; i < len(mapArr); i++ {
-		tblInfo, exists := modelInfo.tableInfo[mapArr[i]]
-		if exists == true {
-			if (len(tblInfo.keys) == numOfKeys) {
-				//Found the YANG list matching the number of keys
-				return mapArr[i]
-			}
-		}
-	}
-
-	//No matches
-	return tableName
-}
-*/
-
 //Convert Redis key to Yang keys, if multiple key components are there,
 //they are separated based on Yang schema
 func getRedisToYangKeys(tableName string, redisKey string)[]keyValuePairStruct{
