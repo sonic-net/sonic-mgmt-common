@@ -72,6 +72,11 @@ func (app *PlatformApp) getAppRootObject() (*ocbinds.OpenconfigPlatform_Componen
     return deviceObj.Components
 }
 
+func (app *PlatformApp) translateAction(dbs [db.MaxDB]*db.DB) error {
+    err := errors.New("Not supported")
+    return err
+}
+
 func (app *PlatformApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
 
     var err error
@@ -188,6 +193,14 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error)  {
     err := errors.New("Not supported component")
     return GetResponse{Payload: payload}, err
 }
+
+func (app *PlatformApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
+    var resp ActionResponse
+    err := errors.New("Not implemented")
+
+    return resp, err
+}
+
 
 ///////////////////////////
 

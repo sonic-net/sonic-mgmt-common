@@ -147,8 +147,9 @@ func(dbNo DBNum) String() string {
 type Options struct {
 	DBNo               DBNum
 	InitIndicator      string
-	TableNameSeparator string
-	KeySeparator       string
+	TableNameSeparator string //Overriden by the DB config file's separator.
+	KeySeparator       string //Overriden by the DB config file's separator.
+	IsWriteDisabled    bool //Indicated if write is allowed
 
 	DisableCVLCheck    bool
 }
@@ -580,18 +581,20 @@ func (d *DB) doWrite(ts * TableSpec, op _txOp, key Key, val interface{}) error {
 	var e error = nil
 	var value Value
 
+	if d.Opts.IsWriteDisabled {
+		glog.Error("doWrite: Write to DB disabled")
+		e = errors.New("Write to DB disabled during this operation")
+		goto doWriteExit
+	}
+
 	switch d.txState {
 	case txStateNone:
-		if glog.V(2) {
-			glog.Info("doWrite: No Transaction.")
-		}
-		break
+		glog.Info("doWrite: No Transaction.")
 	case txStateWatch:
 		if glog.V(2) {
 			glog.Info("doWrite: Change to txStateSet, txState: ", d.txState)
 		}
 		d.txState = txStateSet
-		break
 	case txStateSet:
 		if glog.V(5) {
 			glog.Info("doWrite: Remain in txStateSet, txState: ", d.txState)
@@ -653,7 +656,7 @@ func (d *DB) doWrite(ts * TableSpec, op _txOp, key Key, val interface{}) error {
 
 	// Transaction case.
 
-	glog.Info("doWrite: op: ", op, "  ", key, " : ", value)
+	glog.Info("doWrite: op: ", op, "  ", d.key2redis(ts, key), " : ", value)
 
 	switch op {
 	case txOpHMSet, txOpHDel:
@@ -1099,7 +1102,6 @@ func (d *DB) StartTx(w []WatchKeys, tss []*TableSpec) error {
 	}
 
 	var e error = nil
-	var args []interface{}
 	var ret cvl.CVLRetCode
 
 	//Start CVL session
@@ -1114,6 +1116,44 @@ func (d *DB) StartTx(w []WatchKeys, tss []*TableSpec) error {
 		e = errors.New("Transaction already in progress")
 		goto StartTxExit
 	}
+
+	e = d.performWatch(w, tss)
+
+StartTxExit:
+
+	if glog.V(3) {
+		glog.Info("StartTx: End: e: ", e)
+	}
+	return e
+}
+
+func (d *DB) AppendWatchTx(w []WatchKeys, tss []*TableSpec) error {
+	if glog.V(3) {
+		glog.Info("AppendWatchTx: Begin: w: ", w, " tss: ", tss)
+	}
+
+	var e error = nil
+
+	// Validate State
+	if d.txState == txStateNone {
+		glog.Error("AppendWatchTx: Incorrect State, txState: ", d.txState)
+		e = errors.New("Transaction has not started")
+		goto AppendWatchTxExit
+	}
+
+	e = d.performWatch(w, tss)
+
+AppendWatchTxExit:
+
+	if glog.V(3) {
+		glog.Info("AppendWatchTx: End: e: ", e)
+	}
+	return e
+}
+
+func (d *DB) performWatch(w []WatchKeys, tss []*TableSpec) error {
+	var e error
+	var args []interface{}
 
 	// For each watchkey
 	//   If a pattern, Get the keys, appending results to Cmd args.
@@ -1133,7 +1173,7 @@ func (d *DB) StartTx(w []WatchKeys, tss []*TableSpec) error {
 
 		redisKeys, e := d.client.Keys(redisKey).Result()
 		if e != nil {
-			glog.Warning("StartTx: Keys: " + e.Error())
+			glog.Warning("performWatch: Keys: " + e.Error())
 			continue
 		}
 		for j := 0; j < len(redisKeys); j++ {
@@ -1148,27 +1188,22 @@ func (d *DB) StartTx(w []WatchKeys, tss []*TableSpec) error {
 	}
 
 	if len(args) == 1 {
-		glog.Warning("StartTx: Empty WatchKeys. Skipping WATCH")
-		goto StartTxSkipWatch
+		glog.Warning("performWatch: Empty WatchKeys. Skipping WATCH")
+		goto SkipWatch
 	}
 
 	// Issue the WATCH
 	_, e = d.client.Do(args...).Result()
 
 	if e != nil {
-		glog.Warning("StartTx: Do: WATCH ", args, " e: ", e.Error())
+		glog.Warning("performWatch: Do: WATCH ", args, " e: ", e.Error())
 	}
 
-StartTxSkipWatch:
+SkipWatch:
 
 	// Switch State
 	d.txState = txStateWatch
 
-StartTxExit:
-
-	if glog.V(3) {
-		glog.Info("StartTx: End: e: ", e)
-	}
 	return e
 }
 
