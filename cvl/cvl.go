@@ -64,7 +64,6 @@ var luaScripts map[string]*redis.Script
 
 type leafRefInfo struct {
 	path string //leafref path
-	//exprTree *xpath.Expr //compiled expression tree
 	yangListNames []string //all yang list in path
 	targetNodeName string //target node name
 }
