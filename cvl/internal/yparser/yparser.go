@@ -23,9 +23,11 @@ package yparser
 
 import (
 	"os"
+	"fmt"
 	"strings"
 	log "github.com/golang/glog"
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
+	"unsafe"
 )
 
 /*
@@ -139,9 +141,58 @@ struct lyd_node *lyd_find_node(struct lyd_node *root, const char *xpath)
 	return node;
 }
 
+struct lys_node* lys_get_snode(struct ly_set *set, int idx) {
+	if (set == NULL || set->number == 0) {
+		return NULL;
+	}
+
+	return set->set.s[idx];
+}
+
 int lyd_change_leaf_data(struct lyd_node *leaf, const char *val_str)
 {
   return lyd_change_leaf((struct lyd_node_leaf_list *)leaf, val_str);
+}
+
+struct lys_leaf_ref_path {
+	const char *path[10]; //max 10 path
+	int count; //actual path count
+};
+
+const char *nonLeafRef = "non-leafref";
+struct lys_leaf_ref_path* lys_get_leafrefs(struct lys_node_leaf *node) {
+	static struct lys_leaf_ref_path leafrefs;
+	memset(&leafrefs, 0, sizeof(leafrefs));
+
+	int nonLeafRefCnt = 0;
+
+	if (node->type.base == LY_TYPE_LEAFREF) {
+		leafrefs.path[0] = node->type.info.lref.path;
+		leafrefs.count = 1;
+
+	} else if (node->type.base == LY_TYPE_UNION) {
+		int typeCnt = 0;
+		for (; typeCnt < node->type.info.uni.count; typeCnt++) {
+			if (node->type.info.uni.types[typeCnt].base != LY_TYPE_LEAFREF) {
+				if (nonLeafRefCnt == 0) {
+					leafrefs.path[leafrefs.count] = nonLeafRef; //data type, not leafref
+					leafrefs.count += 1;
+					nonLeafRefCnt++;
+				}
+
+				continue;
+			}
+
+			leafrefs.path[leafrefs.count] = node->type.info.uni.types[typeCnt].info.lref.path;
+			leafrefs.count += 1;
+		}
+	}
+
+	if ((leafrefs.count - nonLeafRefCnt) > 0) {
+		return &leafrefs;
+	} else {
+		return NULL;
+	}
 }
 
 */
@@ -149,6 +200,7 @@ import "C"
 
 type YParserCtx C.struct_ly_ctx
 type YParserNode C.struct_lyd_node
+type YParserSNode C.struct_lys_node
 type YParserModule C.struct_lys_module
 
 var ypCtx *YParserCtx
@@ -156,6 +208,41 @@ var ypOpModule *YParserModule
 var ypOpRoot *YParserNode  //Operation root
 var ypOpNode *YParserNode  //Operation node 
 
+type XpathExpression struct {
+	Expr string
+	ErrCode string
+	ErrStr string
+}
+
+type WhenExpression struct {
+	Expr string //when expression
+	NodeNames []string //node names under when condition
+}
+
+//YParserListInfo Important schema information to be loaded at bootup time
+type YParserListInfo struct {
+	ListName string
+	Module *YParserModule
+	DbName string
+	ModelName string
+	RedisTableName string //To which Redis table it belongs to, used for 1 Redis to N Yang List
+	Keys []string
+	RedisKeyDelim string
+	RedisKeyPattern string
+	RedisTableSize int
+	MapLeaf []string //for 'mapping  list'
+	LeafRef map[string][]string //for storing all leafrefs for a leaf in a table, 
+				//multiple leafref possible for union 
+	DfltLeafVal map[string]string //Default value for leaf/leaf-list
+	XpathExpr map[string][]*XpathExpression
+	CustValidation map[string]string
+	WhenExpr map[string][]*WhenExpression //multiple when expression for choice/case etc
+}
+
+type YParserLeafValue struct {
+	Name string
+	Value string
+}
 
 type YParser struct {
 	ctx *YParserCtx      //Parser context
@@ -200,6 +287,13 @@ const (
 	YP_INTERNAL_UNKNOWN
 )
 
+const (
+	YP_NOP = 1 + iota
+	YP_OP_CREATE
+	YP_OP_UPDATE
+	YP_OP_DELETE
+)
+
 var yparserInitialized bool = false
 
 func TRACE_LOG(level log.Level, tracelevel CVLTraceLevel, fmtStr string, args ...interface{}) {
@@ -218,7 +312,7 @@ func init() {
 }
 
 func Debug(on bool) {
-	if  (on == true) {
+	if  on {
 		C.ly_verb(C.LY_LLDBG)
 	} else {
 		C.ly_verb(C.LY_LLERR)
@@ -226,7 +320,7 @@ func Debug(on bool) {
 }
 
 func Initialize() {
-	if (yparserInitialized != true) {
+	if !yparserInitialized {
 		ypCtx = (*YParserCtx)(C.ly_ctx_new(C.CString(CVL_SCHEMA), 0))
 		C.ly_verb(C.LY_LLERR)
 	//	yparserInitialized = true
@@ -234,13 +328,13 @@ func Initialize() {
 }
 
 func Finish() {
-	if (yparserInitialized == true) {
+	if yparserInitialized {
 		C.ly_ctx_destroy((*C.struct_ly_ctx)(ypCtx), nil)
 	//	yparserInitialized = false
 	}
 }
 
-//Parse YIN schema file
+//ParseSchemaFile Parse YIN schema file
 func ParseSchemaFile(modelFile string) (*YParserModule, YParserError) {
 	/* schema */
 	TRACE_LOG(INFO_DEBUG, TRACE_YPARSER, "Parsing schema file %s ...\n", modelFile)
@@ -250,7 +344,7 @@ func ParseSchemaFile(modelFile string) (*YParserModule, YParserError) {
 		return nil, getErrorDetails()
 	}
 
-	if (strings.Contains(modelFile, "sonic-common.yin") == true) {
+	if strings.Contains(modelFile, "sonic-common.yin") {
 		ypOpModule = (*YParserModule)(module)
 		ypOpRoot = (*YParserNode)(C.lyd_new(nil, (*C.struct_lys_module)(ypOpModule), C.CString("operation")))
 		ypOpNode = (*YParserNode)(C.lyd_new_leaf((*C.struct_lyd_node)(ypOpRoot), (*C.struct_lys_module)(ypOpModule), C.CString("operation"), C.CString("NOP")))
@@ -259,7 +353,7 @@ func ParseSchemaFile(modelFile string) (*YParserModule, YParserError) {
 	return (*YParserModule)(module), YParserError {ErrCode : YP_SUCCESS,}
 }
 
-//Add child node to a parent node
+//AddChildNode Add child node to a parent node
 func(yp *YParser) AddChildNode(module *YParserModule, parent *YParserNode, name string) *YParserNode {
 
 	ret := (*YParserNode)(C.lyd_new((*C.struct_lyd_node)(parent), (*C.struct_lys_module)(module), C.CString(name)))
@@ -697,3 +791,267 @@ func getErrorDetails() YParserError {
 func FindNode(root *YParserNode, xpath string) *YParserNode {
 	return  (*YParserNode)(C.lyd_find_node((*C.struct_lyd_node)(root), C.CString(xpath)))
 }
+
+func GetModelNs(module *YParserModule) (ns, prefix string) {
+	return C.GoString(((*C.struct_lys_module)(module)).ns),
+	 C.GoString(((*C.struct_lys_module)(module)).prefix)
+}
+
+//Get model details for child under list/choice/case
+func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
+	underWhen bool, whenExpr *WhenExpression) {
+
+	for sChild := node.child; sChild != nil; sChild = sChild.next {
+		switch sChild.nodetype {
+		case C.LYS_USES:
+			nodeUses := (*C.struct_lys_node_uses)(unsafe.Pointer(sChild))
+			if (nodeUses.when != nil) {
+				usesWhenExp := WhenExpression {
+					Expr: C.GoString(nodeUses.when.cond),
+				}
+				listName := l.ListName + "_LIST"
+				l.WhenExpr[listName] = append(l.WhenExpr[listName],
+				&usesWhenExp)
+				getModelChildInfo(l, sChild, true, &usesWhenExp)
+			} else {
+				getModelChildInfo(l, sChild, false, nil)
+			}
+		case C.LYS_CHOICE:
+			nodeChoice := (*C.struct_lys_node_choice)(unsafe.Pointer(sChild))
+			if (nodeChoice.when != nil) {
+				chWhenExp := WhenExpression {
+					Expr: C.GoString(nodeChoice.when.cond),
+				}
+				listName := l.ListName + "_LIST"
+				l.WhenExpr[listName] = append(l.WhenExpr[listName],
+				&chWhenExp)
+				getModelChildInfo(l, sChild, true, &chWhenExp)
+			} else {
+				getModelChildInfo(l, sChild, false, nil)
+			}
+		case C.LYS_CASE:
+			nodeCase := (*C.struct_lys_node_case)(unsafe.Pointer(sChild))
+			if (nodeCase.when != nil) {
+				csWhenExp := WhenExpression {
+					Expr: C.GoString(nodeCase.when.cond),
+				}
+				listName := l.ListName + "_LIST"
+				l.WhenExpr[listName] = append(l.WhenExpr[listName],
+				&csWhenExp)
+				getModelChildInfo(l, sChild, true, &csWhenExp)
+			} else {
+				if underWhen {
+					getModelChildInfo(l, sChild, underWhen, whenExpr)
+				} else {
+					getModelChildInfo(l, sChild, false, nil)
+				}
+			}
+		case C.LYS_LEAF, C.LYS_LEAFLIST:
+			sleaf := (*C.struct_lys_node_leaf)(unsafe.Pointer(sChild))
+			if sleaf == nil {
+				continue
+			}
+
+			leafName := C.GoString(sleaf.name)
+
+			if (sChild.nodetype == C.LYS_LEAF) {
+				if (sleaf.dflt != nil) {
+					l.DfltLeafVal[leafName] = C.GoString(sleaf.dflt)
+				}
+			} else {
+				sLeafList := (*C.struct_lys_node_leaflist)(unsafe.Pointer(sChild))
+				if (sleaf.dflt != nil) {
+					//array of default values
+					dfltValArr := (*[256]*C.char)(unsafe.Pointer(sLeafList.dflt))
+
+					tmpValStr := ""
+					for idx := 0; idx < int(sLeafList.dflt_size); idx++ {
+						if (idx > 0) {
+							//Separate multiple values by ,
+							tmpValStr = tmpValStr + ","
+						}
+
+						tmpValStr = tmpValStr + C.GoString(dfltValArr[idx])
+					}
+
+					//Remove last ','
+					l.DfltLeafVal[leafName] = tmpValStr
+				}
+			}
+
+			//If parent has when expression, 
+			//just add leaf to when expression node list
+			if underWhen {
+				whenExpr.NodeNames = append(whenExpr.NodeNames, leafName)
+			}
+
+			//Check for leafref expression
+			leafRefs := C.lys_get_leafrefs(sleaf)
+			if (leafRefs != nil) {
+				leafRefPaths := (*[10]*C.char)(unsafe.Pointer(&leafRefs.path))
+				for idx := 0; idx < int(leafRefs.count); idx++ {
+					l.LeafRef[leafName] = append(l.LeafRef[leafName],
+					C.GoString(leafRefPaths[idx]))
+				}
+			}
+
+			//Check for must expression; one must expession only per leaf
+			if (sleaf.must_size > 0) {
+				must := (*[10]C.struct_lys_restr)(unsafe.Pointer(sleaf.must))
+				for  idx := 0; idx < int(sleaf.must_size); idx++ {
+					exp := XpathExpression{Expr: C.GoString(must[idx].expr)}
+
+					if (must[idx].eapptag != nil) {
+						exp.ErrCode = C.GoString(must[idx].eapptag)
+					}
+					if (must[idx].emsg != nil) {
+						exp.ErrStr = C.GoString(must[idx].emsg)
+					}
+
+					l.XpathExpr[leafName] = append(l.XpathExpr[leafName],
+					&exp)
+				}
+			}
+
+			//Check for when expression
+			if (sleaf.when != nil) {
+				l.WhenExpr[leafName] = append(l.WhenExpr[leafName],
+				&WhenExpression {
+					Expr: C.GoString(sleaf.when.cond),
+					NodeNames: []string{leafName},
+				})
+			}
+
+			//Check for custom extension
+			if (sleaf.ext_size > 0) {
+				exts := (*[10]*C.struct_lys_ext_instance)(unsafe.Pointer(sleaf.ext))
+				for  idx := 0; idx < int(sleaf.ext_size); idx++ {
+					if (C.GoString(exts[idx].def.name) == "custom-validation") {
+						argVal := C.GoString(exts[idx].arg_value)
+						if (argVal != "") {
+							l.CustValidation[leafName] = argVal
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+//GetModelListInfo Get model info for YANG list and its subtree
+func GetModelListInfo(module *YParserModule) []*YParserListInfo {
+	var list []*YParserListInfo
+
+	mod := (*C.struct_lys_module)(module)
+	set := C.lys_find_path(mod, nil,
+	C.CString(fmt.Sprintf("/%s/*", C.GoString(mod.name))))
+
+	if (set == nil) {
+		return nil
+	}
+
+	for idx := 0; idx < int(set.number); idx++ { //for each container
+
+		snode := C.lys_get_snode(set, C.int(idx))
+		snodec := (*C.struct_lys_node_container)(unsafe.Pointer(snode))
+		slist := (*C.struct_lys_node_list)(unsafe.Pointer(snodec.child))
+
+		//for each list
+		for ; slist != nil; slist = (*C.struct_lys_node_list)(unsafe.Pointer(slist.next)) {
+			var l YParserListInfo
+			listName :=  C.GoString(slist.name)
+			l.RedisTableName = C.GoString(snodec.name)
+
+			tableName := listName
+			if (strings.HasSuffix(tableName, "_LIST")) {
+				tableName = tableName[0:len(tableName) - len("_LIST")]
+			}
+			l.ListName = tableName
+			l.ModelName = C.GoString(mod.name)
+			//Default database is CONFIG_DB since CVL works with config db mainly
+			l.Module = module
+			l.DbName = "CONFIG_DB"
+			//default delim '|'
+			l.RedisKeyDelim = "|"
+			//Default table size is -1 i.e. size limit
+			l.RedisTableSize = -1
+			if (slist.max  > 0) {
+				l.RedisTableSize = int(slist.max)
+			}
+
+			l.LeafRef = make(map[string][]string)
+			l.XpathExpr = make(map[string][]*XpathExpression)
+			l.CustValidation = make(map[string]string)
+			l.WhenExpr = make(map[string][]*WhenExpression)
+			l.DfltLeafVal = make(map[string]string)
+
+			//Add keys
+			keys := (*[10]*C.struct_lys_node_leaf)(unsafe.Pointer(slist.keys))
+			for idx := 0; idx < int(slist.keys_size); idx++ {
+				keyName := C.GoString(keys[idx].name)
+				l.Keys = append(l.Keys, keyName)
+			}
+
+			//Check for must expression
+			if (slist.must_size > 0) {
+				must := (*[10]C.struct_lys_restr)(unsafe.Pointer(slist.must))
+				for  idx := 0; idx < int(slist.must_size); idx++ {
+					exp := XpathExpression{Expr: C.GoString(must[idx].expr)}
+					if (must[idx].eapptag != nil) {
+						exp.ErrCode = C.GoString(must[idx].eapptag)
+					}
+					if (must[idx].emsg != nil) {
+						exp.ErrStr = C.GoString(must[idx].emsg)
+					}
+
+					l.XpathExpr[listName] = append(l.XpathExpr[listName],
+					&exp)
+				}
+			}
+
+			//Check for custom extension
+			if (slist.ext_size > 0) {
+				exts := (*[10]*C.struct_lys_ext_instance)(unsafe.Pointer(slist.ext))
+				for  idx := 0; idx < int(slist.ext_size); idx++ {
+
+					extName := C.GoString(exts[idx].def.name)
+					argVal := C.GoString(exts[idx].arg_value)
+
+					switch extName {
+					case "custom-validation":
+						if (argVal != "") {
+							l.CustValidation[listName] = argVal
+						}
+					case "db-name":
+						l.DbName = argVal
+					case "key-delim":
+						l.RedisKeyDelim = argVal
+					case "key-pattern":
+						l.RedisKeyPattern = argVal
+					case "map-leaf":
+						l.MapLeaf = strings.Split(argVal, " ")
+					}
+				}
+
+			}
+
+			//Add default key pattern
+			if l.RedisKeyPattern == "" {
+				keyPattern := []string{tableName}
+				for idx := 0; idx < len(l.Keys); idx++ {
+					keyPattern = append(keyPattern, fmt.Sprintf("{%s}", l.Keys[idx]))
+				}
+				l.RedisKeyPattern = strings.Join(keyPattern, l.RedisKeyDelim)
+			}
+
+			getModelChildInfo(&l,
+			(*C.struct_lys_node)(unsafe.Pointer(slist)), false, nil)
+
+			list = append(list, &l)
+		}//each list inside a container
+	}//each container
+
+	C.free(unsafe.Pointer(set))
+	return list
+}
+
