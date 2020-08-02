@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"strings"
 	log "github.com/golang/glog"
+	//lint:ignore ST1001 This is safe to dot import for util package
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 	"unsafe"
 )
@@ -94,27 +95,54 @@ int lyd_data_validate_all(const char *data, const char *depData, const char *oth
 	return lyd_validate(&pData, LYD_OPT_CONFIG, ctx);
 }
 
-int lyd_multi_new_leaf(struct lyd_node *parent, const struct lys_module *module, const char *leafVal)
+struct leaf_value {
+	const char *name;
+	const char *value;
+};
+
+int lyd_multi_new_leaf(struct lyd_node *parent, const struct lys_module *module, 
+	struct leaf_value *leafValArr, int size)
 {
-	char s[4048];
-	char *name, *val, *saveptr;
+        const char *name, *val;
+	struct lyd_node *leaf;
+	struct lys_type *type = NULL;
+	int has_ptr_type = 0;
+	int idx = 0;
 
-	strcpy(s, leafVal);
-
-	name = strtok_r(s, "#", &saveptr);
-
-	while (name != NULL)
+	for (idx = 0; idx < size; idx++)
 	{
-		val = strtok_r(NULL, "#", &saveptr);
-		if (val != NULL)
+		if ((leafValArr[idx].name == NULL) || (leafValArr[idx].value == NULL)) 
 		{
-			if (NULL == lyd_new_leaf(parent, module, name, val))
+			continue;
+		}
+
+		name = leafValArr[idx].name;
+		val = leafValArr[idx].value;
+		
+		if (NULL == (leaf = lyd_new_leaf(parent, module, name, val)))
+		{
+			return -1;
+		}
+
+		//Validate all union types as it is skipped for LYD_OPT_EDIT
+		if (((struct lys_node_leaflist*)leaf->schema)->type.base == LY_TYPE_UNION)
+		{
+			type = &((struct lys_node_leaflist*)leaf->schema)->type;
+
+			//save the has_ptr_type field
+			has_ptr_type = type->info.uni.has_ptr_type;
+
+			//Work around, set to 0 to check all union types
+			type->info.uni.has_ptr_type = 0;
+
+			if (lyd_validate_value(leaf->schema, val))
 			{
 				return -1;
 			}
-		}
 
-		name = strtok_r(NULL, "#", &saveptr);
+			//Restore has_ptr_type
+			type->info.uni.has_ptr_type = has_ptr_type;
+		}
 	}
 
 	return 0;
@@ -141,6 +169,47 @@ struct lyd_node *lyd_find_node(struct lyd_node *root, const char *xpath)
 	return node;
 }
 
+int lyd_node_leafref_match_in_union(struct lys_module *module, const char *xpath, const char *value) 
+{
+	struct ly_set *set = NULL;
+	struct lys_node *node = NULL;
+	int idx = 0;
+	struct lys_node_leaflist* lNode;
+
+	if (module == NULL)
+	{
+		return -1;
+	}
+
+	set = lys_find_path(module, NULL, xpath);
+	if (set == NULL || set->number == 0) {
+		return  -1;
+	}
+
+	node = set->set.s[0];
+	ly_set_free(set);
+
+	//Now check if it matches with any leafref node
+	lNode = (struct lys_node_leaflist*)node;
+
+	for (idx = 0; idx < lNode->type.info.uni.count; idx++) 
+	{
+		if (lNode->type.info.uni.types[idx].base != LY_TYPE_LEAFREF)  
+		{
+			//Look for leafref type only
+			continue;
+		}
+
+		if (0 == lyd_validate_value((struct lys_node*)
+		    lNode->type.info.uni.types[idx].info.lref.target, value))
+		{
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 struct lys_node* lys_get_snode(struct ly_set *set, int idx) {
 	if (set == NULL || set->number == 0) {
 		return NULL;
@@ -149,8 +218,7 @@ struct lys_node* lys_get_snode(struct ly_set *set, int idx) {
 	return set->set.s[idx];
 }
 
-int lyd_change_leaf_data(struct lyd_node *leaf, const char *val_str)
-{
+int lyd_change_leaf_data(struct lyd_node *leaf, const char *val_str) {
   return lyd_change_leaf((struct lyd_node_leaf_list *)leaf, val_str);
 }
 
@@ -250,7 +318,7 @@ type YParser struct {
 	operation string     //Edit operation
 }
 
-/* YParser Error Structure */
+//YParserError YParser Error Structure
 type YParserError struct {
 	ErrCode  YParserRetCode   /* Error Code describing type of error. */
 	Msg     string        /* Detailed error message. */
@@ -364,10 +432,31 @@ func(yp *YParser) AddChildNode(module *YParserModule, parent *YParserNode, name 
 	return ret
 }
 
-//Add child node to a parent node
-func(yp *YParser) AddMultiLeafNodes(module *YParserModule, parent *YParserNode, multiLeaf string) YParserError {
-	if (0 != C.lyd_multi_new_leaf((*C.struct_lyd_node)(parent), (*C.struct_lys_module)(module), C.CString(multiLeaf))) {
-		if (Tracing == true) {
+//IsLeafrefMatchedInUnion Check if value matches with leafref node in union
+func (yp *YParser) IsLeafrefMatchedInUnion(module *YParserModule, xpath, value string) bool {
+
+	return C.lyd_node_leafref_match_in_union((*C.struct_lys_module)(module), C.CString(xpath), C.CString(value)) == 0
+}
+
+//AddMultiLeafNodes Add child node to a parent node
+func(yp *YParser) AddMultiLeafNodes(module *YParserModule, parent *YParserNode, multiLeaf []*YParserLeafValue) YParserError {
+
+	leafValArr := make([]C.struct_leaf_value, len(multiLeaf))
+
+	size := C.int(0)
+	for index := 0; index < len(multiLeaf); index++ {
+		if (multiLeaf[index] == nil) || (multiLeaf[index].Name == "") {
+			break
+		}
+
+		//Accumulate all name/value in array to be passed in lyd_multi_new_leaf()
+		leafValArr[index].name = C.CString(multiLeaf[index].Name)
+		leafValArr[index].value = C.CString(multiLeaf[index].Value)
+		size++
+	}
+
+	if C.lyd_multi_new_leaf((*C.struct_lyd_node)(parent), (*C.struct_lys_module)(module), (*C.struct_leaf_value)(unsafe.Pointer(&leafValArr[0])), size) != 0 {
+		if Tracing {
 			TRACE_LOG(INFO_API, TRACE_ONERROR, "Failed to create Multi Leaf Data = %v", multiLeaf)
 		}
 		return getErrorDetails()
@@ -377,7 +466,7 @@ func(yp *YParser) AddMultiLeafNodes(module *YParserModule, parent *YParserNode, 
 
 }
 
-//Return entire subtree in XML format in string
+//NodeDump Return entire subtree in XML format in string
 func (yp *YParser) NodeDump(root *YParserNode) string {
 	if (root == nil) {
 		return ""
@@ -388,7 +477,7 @@ func (yp *YParser) NodeDump(root *YParserNode) string {
 	}
 }
 
-//Merge source with destination
+//MergeSubtree Merge source with destination
 func (yp *YParser) MergeSubtree(root, node *YParserNode) (*YParserNode, YParserError) {
 	rootTmp := (*C.struct_lyd_node)(root)
 
@@ -396,17 +485,16 @@ func (yp *YParser) MergeSubtree(root, node *YParserNode) (*YParserNode, YParserE
 		return root, YParserError {ErrCode: YP_SUCCESS}
 	}
 
-	if (Tracing == true) {
+	if Tracing {
 		rootdumpStr := yp.NodeDump((*YParserNode)(rootTmp))
 		TRACE_LOG(INFO_API, TRACE_YPARSER, "Root subtree = %v\n", rootdumpStr)
 	}
 
-	if (0 != C.lyd_merge_to_ctx(&rootTmp, (*C.struct_lyd_node)(node), C.LYD_OPT_DESTRUCT,
-	(*C.struct_ly_ctx)(ypCtx))) {
+	if C.lyd_merge_to_ctx(&rootTmp, (*C.struct_lyd_node)(node), C.LYD_OPT_DESTRUCT, (*C.struct_ly_ctx)(ypCtx)) != 0 {
 		return (*YParserNode)(rootTmp), getErrorDetails()
 	}
 
-	if (Tracing == true) {
+	if Tracing {
 		dumpStr := yp.NodeDump((*YParserNode)(rootTmp))
 		TRACE_LOG(INFO_API, TRACE_YPARSER, "Merged subtree = %v\n", dumpStr)
 	}
@@ -457,7 +545,7 @@ func (yp *YParser) DestroyCache() YParserError {
 	return YParserError {ErrCode : YP_SUCCESS,}
 }
 
-//Set operation 
+//SetOperation Set operation 
 func (yp *YParser) SetOperation(op string) YParserError {
 	if (ypOpNode == nil) {
 		return YParserError {ErrCode : YP_INTERNAL_UNKNOWN,}

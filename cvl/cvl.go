@@ -100,7 +100,7 @@ type CVL struct {
 	tmpDbCache map[string]interface{} //map of table storing map of key-value pair
 	requestCache map[string]map[string][]CVLEditConfigData //Cache of validated data,
 						//might be used as dependent data in next request
-	batchLeaf string
+	batchLeaf []*yparser.YParserLeafValue //field name and value
 	chkLeafRefWithOthCache bool
 }
 
@@ -1118,7 +1118,7 @@ func (c *CVL) validate (data *yparser.YParserNode) CVLRetCode {
 	return CVL_SUCCESS
 }
 
-func  CreateCVLErrObj(errObj yparser.YParserError) CVLErrorInfo {
+func  createCVLErrObj(errObj yparser.YParserError) CVLErrorInfo {
 
 	cvlErrObj :=  CVLErrorInfo {
 		TableName : errObj.TableName,
