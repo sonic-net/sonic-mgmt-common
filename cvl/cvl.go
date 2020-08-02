@@ -365,7 +365,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 			//Store the leafref path
 			if (leafName != "") {
 				tableInfo.leafRef[leafName] = append(tableInfo.leafRef[leafName],
-				getXmlNodeAttr(leafRefNode.FirstChild, "value"))
+				&leafRefInfo{path: getXmlNodeAttr(leafRefNode.FirstChild, "value")})
 			}
 		}
 
@@ -1048,8 +1048,8 @@ func (c *CVL) findUsedAsLeafRef(tableName, field string) []tblFieldPair {
 			found := false
 			//Find leafref by searching table and field name
 			for _, leafRef := range leafRefs {
-				if ((strings.Contains(leafRef, tableName) == true) &&
-				(strings.Contains(leafRef, field) == true)) {
+				if ((strings.Contains(leafRef.path, tableName) == true) &&
+				(strings.Contains(leafRef.path, field) == true)) {
 					tblFieldPairArr = append(tblFieldPairArr,
 					tblFieldPair{tblName, fieldName})
 					//Found as leafref, no need to search further
@@ -1080,7 +1080,7 @@ func (c *CVL) addLeafRef(config bool, tableName string, name string, value strin
 		for _, leafRef  := range modelInfo.tableInfo[tableName].leafRef[name] {
 
 			//Get reference table name from the path and the leaf name
-			matches := reLeafRef.FindStringSubmatch(leafRef)
+			matches := reLeafRef.FindStringSubmatch(leafRef.path)
 
 			//We have the leafref table name and the leaf name as well
 			if (matches != nil && len(matches) == 5) { //whole + 4 sub matches
