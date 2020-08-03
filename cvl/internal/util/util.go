@@ -126,6 +126,10 @@ func IsTraceSet() bool {
 	}
 }
 
+func IsTraceLevelSet(tracelevel CVLTraceLevel) bool {
+	return (cvlTraceFlags & (uint32)(tracelevel)) != 0
+}
+
 func TRACE_LEVEL_LOG(level log.Level, tracelevel CVLTraceLevel, fmtStr string, args ...interface{}) {
 
 	if (IsTraceSet() == false) {

@@ -27,6 +27,7 @@ import (
 	 log "github.com/golang/glog"
 	"github.com/go-redis/redis"
 	"github.com/antchfx/xmlquery"
+	"github.com/antchfx/xpath"
 	"github.com/antchfx/jsonquery"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
@@ -170,6 +171,15 @@ func init() {
 		SetTrace(true)
 	}
 
+	xpath.SetKeyGetClbk(func(listName string) []string {
+		if modelInfo.tableInfo[listName] != nil {
+			return modelInfo.tableInfo[listName].keys
+		}
+
+		return nil
+	})
+
+
 	ConfigFileSyncHandler()
 
 	cvlCfgMap := ReadConfFile()
@@ -207,6 +217,14 @@ func init() {
 	}
 
 	dbCacheSet(false, "PORT", 0)
+
+	xpath.SetLogCallback(func(fmt string, args ...interface{}) {
+		if !IsTraceLevelSet(TRACE_SEMANTIC) {
+			return
+		}
+
+		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "XPATH: " + fmt, args...)
+	})
 }
 
 func Debug(on bool) {
