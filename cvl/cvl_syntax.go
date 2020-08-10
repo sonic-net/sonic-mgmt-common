@@ -146,7 +146,7 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node)(*yparser.
 		//For each field check if is key 
 		//If it is key, create list as child of top container
 		// Get all key name/value pairs
-		if yangListName := getRedisKeyToYangList(tableName, jsonNode.Data); yangListName!= "" {
+		if yangListName := getRedisTblToYangList(tableName, jsonNode.Data); yangListName!= "" {
 			tableName = yangListName
 		}
 		keyValuePair := getRedisToYangKeys(tableName, jsonNode.Data)
