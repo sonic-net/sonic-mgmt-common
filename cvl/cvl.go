@@ -105,8 +105,8 @@ type CVL struct {
 	redisClient *redis.Client
 	yp *yparser.YParser
 	tmpDbCache map[string]interface{} //map of table storing map of key-value pair
-	requestCache map[string]map[string][]CVLEditConfigData //Cache of validated data,
-						//might be used as dependent data in next request
+	requestCache map[string]map[string][]*requestCacheType//Cache of validated data,
+	                       //per table, per key. Can be used as dependent data in next request
 	batchLeaf []*yparser.YParserLeafValue //field name and value
 	chkLeafRefWithOthCache bool
 	yv *YValidator //Custom YANG validator for validating external dependencies
