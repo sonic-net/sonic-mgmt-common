@@ -46,10 +46,10 @@ func (c *CVL) fetchDataFromRequestCache(tableName string, key string) (d map[str
 	if (cfgDataArr != nil) {
 		for _, cfgReqData := range cfgDataArr {
 			//Delete request doesn't have depedent data
-			if (cfgReqData.VOp == OP_CREATE) {
-				return cfgReqData.Data, false
-			} else	if (cfgReqData.VOp == OP_UPDATE) {
-				return cfgReqData.Data, true
+			if (cfgReqData.reqData.VOp == OP_CREATE) {
+				return cfgReqData.reqData.Data, false
+			} else	if (cfgReqData.reqData.VOp == OP_UPDATE) {
+				return cfgReqData.reqData.Data, true
 			}
 		}
 	}

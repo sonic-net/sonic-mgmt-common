@@ -85,6 +85,7 @@ type modelTableInfo struct {
 	mustExp map[string]string
 	tablesForMustExp map[string]CVLOperation
 	refFromTables []tblFieldPair //list of table or table/field referring to this table
+	dfltLeafVal map[string]string //map of leaf names and default value
 }
 
 
@@ -101,14 +102,21 @@ type CVLErrorInfo struct {
 	ErrAppTag string
 }
 
+// Struct for request data and YANG data
+type requestCacheType struct {
+	reqData CVLEditConfigData
+	yangData *xmlquery.Node
+}
+
 type CVL struct {
 	redisClient *redis.Client
 	yp *yparser.YParser
 	tmpDbCache map[string]interface{} //map of table storing map of key-value pair
-	requestCache map[string]map[string][]CVLEditConfigData //Cache of validated data,
-						//might be used as dependent data in next request
+	requestCache map[string]map[string][]*requestCacheType//Cache of validated data,
+				//per table, per key. Can be used as dependent data in next request
 	batchLeaf string
 	chkLeafRefWithOthCache bool
+	yv *YValidator //Custom YANG validator for validating external dependencies
 }
 
 type modelNamespace struct {
@@ -212,6 +220,11 @@ func Debug(on bool) {
 	yparser.Debug(on)
 }
 
+// isLeafListNode checks if the xml node represents a leaf-list field
+func isLeafListNode(node *xmlquery.Node) bool {
+	return len(node.Attr) != 0 && node.Attr[0].Name.Local == "leaf-list"
+}
+
 //Get attribute value of xml node
 func getXmlNodeAttr(node *xmlquery.Node, attrName string) string {
 	for _, attr := range node.Attr {
@@ -221,6 +234,14 @@ func getXmlNodeAttr(node *xmlquery.Node, attrName string) string {
 	}
 
 	return ""
+}
+
+// getNodeName returns database field name for the xml node.
+func getNodeName(node *xmlquery.Node) string {
+	if isLeafListNode(node) {
+		return node.Data + "@"
+	}
+	return node.Data
 }
 
 //Store useful schema data during initialization

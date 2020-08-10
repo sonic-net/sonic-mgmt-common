@@ -199,7 +199,7 @@ func Finish() {
 func ValidationSessOpen() (*CVL, CVLRetCode) {
 	cvl :=  &CVL{}
 	cvl.tmpDbCache = make(map[string]interface{})
-	cvl.requestCache = make(map[string]map[string][]CVLEditConfigData)
+	cvl.requestCache = make(map[string]map[string][]*requestCacheType)
 	cvl.yp = &yparser.YParser{}
 
 	if (cvl == nil || cvl.yp == nil) {
@@ -328,10 +328,10 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (CVLErrorInfo, CVL
 		reqTbl, exists := c.requestCache[tbl]
 		if (exists == false) {
 			//Create new table key data
-			reqTbl = make(map[string][]CVLEditConfigData)
+			reqTbl = make(map[string][]*requestCacheType)
 		}
 		cfgDataItemArr, _ := reqTbl[key]
-		cfgDataItemArr = append(cfgDataItemArr, cfgDataItem)
+		cfgDataItemArr = append(cfgDataItemArr, &requestCacheType{cfgDataItem, nil})
 		reqTbl[key] = cfgDataItemArr
 		c.requestCache[tbl] = reqTbl
 
@@ -435,7 +435,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (CVLErrorInfo, CVL
 					deletedInSameSession := false
 					if  tbl != ""  && key != "" {
 						for _, cachedCfgData := range c.requestCache[tbl][key] {
-							if cachedCfgData.VOp == OP_DELETE {
+							if cachedCfgData.reqData.VOp == OP_DELETE {
 								deletedInSameSession = true
 								break
 							}
