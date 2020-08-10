@@ -103,7 +103,7 @@ struct leaf_value {
 int lyd_multi_new_leaf(struct lyd_node *parent, const struct lys_module *module, 
 	struct leaf_value *leafValArr, int size)
 {
-        const char *name, *val;
+	const char *name, *val;
 	struct lyd_node *leaf;
 	struct lys_type *type = NULL;
 	int has_ptr_type = 0;
