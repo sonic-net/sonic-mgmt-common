@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/golang/glog"
-	"github.com/Azure/sonic-mgmt-common/translib/transformer"
 )
 
 // theYangBundleVersion indicates the current yang bundle version.
@@ -182,10 +181,3 @@ func GetYangBundleVersion() Version {
 func GetYangBaseVersion() Version {
 	return theYangBaseVersion
 }
-
-// GetYangPath returns directory containing yang files. Use 
-// transformer.YangPath for now.
-func GetYangPath() string {
-    return transformer.YangPath
-}
-
