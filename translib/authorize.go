@@ -11,14 +11,14 @@
 //                                                                            //
 //  Unless required by applicable law or agreed to in writing, software       //
 //  distributed under the License is distributed on an "AS IS" BASIS,         //
-//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  //  
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  //
 //  See the License for the specific language governing permissions and       //
 //  limitations under the License.                                            //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 /*
-Package translib defines the functions to be used to authorize 
+Package translib defines the functions to be used to authorize
 
 an incoming user. It also includes caching of the UserDB data
 
@@ -28,61 +28,54 @@ needed to authorize the user.
 
 package translib
 
-import (
-	//"strconv"
-	//log "github.com/golang/glog"
-)
-
-func init() {
-}
-
 func isAuthorizedForSet(req SetRequest) bool {
 	if !req.AuthEnabled {
 		return true
 	}
 	for _, r := range req.User.Roles {
-        if r == "admin" {
-            return true
-        }
-    }
+		if r == "admin" {
+			return true
+		}
+	}
 	return false
 }
+
 func isAuthorizedForBulk(req BulkRequest) bool {
 	if !req.AuthEnabled {
 		return true
 	}
 	for _, r := range req.User.Roles {
-        if r == "admin" {
-            return true
-        }
-    }
+		if r == "admin" {
+			return true
+		}
+	}
 	return false
 }
-
-//For full fledged RBAC support to be implemented later
 
 func isAuthorizedForGet(req GetRequest) bool {
 	if !req.AuthEnabled {
 		return true
 	}
-	return  true
+	return true
 }
+
 func isAuthorizedForSubscribe(req SubscribeRequest) bool {
 	if !req.AuthEnabled {
 		return true
 	}
-	return  true
+	return true
 }
+
 func isAuthorizedForIsSubscribe(req IsSubscribeRequest) bool {
 	if !req.AuthEnabled {
 		return true
 	}
-	return  true
+	return true
 }
 
 func isAuthorizedForAction(req ActionRequest) bool {
 	if !req.AuthEnabled {
 		return true
 	}
-	return  true
+	return true
 }
