@@ -1,0 +1,36 @@
+<version-config>
+  <!--
+  yang-bundle-version configuration indicates the version
+  for the collection of all yang modules.
+
+  Update the version numbers here for every yang change.
+
+  Bump up MAJOR version only if the yang change are not
+  backward compatible.
+    + Renaming or relocating of data nodes
+    + Deleting unsupported configs
+    + Changing list key attributes
+    + Incompatible data type changes
+    + Changing leafref target
+
+  Bump up MINOR version number for all backward compatible
+  API changes.
+    + Add new config node
+    + Data type changes like pattern, range (that are backward compatibile)
+    + Adding new enum/identity
+
+  Bump up PATCH number for cosmetic fixes that do not affect any API
+    + Description changes, beautification
+    + Must expression and validations that are backward compatibile
+    + error-tag, error-message
+    + max-elements, min-elements
+    + Mark a node as deprecated
+  -->
+  <yang-bundle-version>
+    <Major>1</Major>
+    <Minor>0</Minor>
+    <Patch>0</Patch>
+  </yang-bundle-version>
+
+</version-config>
+
