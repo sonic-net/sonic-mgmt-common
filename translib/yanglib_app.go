@@ -508,5 +508,5 @@ func GetYangPath() string {
 
 // GetYangModuleSetID returns the ietf-yang-library's module-set-id value.
 func GetYangModuleSetID() string {
-	return "0.1.0" //FIXME use YangBundleVersion when API versioning is available.
+	return GetYangBundleVersion().String()
 }

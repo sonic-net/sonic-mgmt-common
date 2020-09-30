@@ -6,6 +6,7 @@ models/yang/sonic/*.yang            usr/models/yang
 models/yang/sonic/common/*.yang     usr/models/yang
 models/yang/annotations/*.yang      usr/models/yang
 config/transformer/models_list      usr/models/yang
+models/yang/version.xml             usr/models/yang
 
 # CVL files
 build/cvl/schema        usr/sbin
