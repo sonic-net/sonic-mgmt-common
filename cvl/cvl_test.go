@@ -759,7 +759,7 @@ func TestValidateEditConfig_Create_Syntax_CableLength(t *testing.T) {
 			map[string]string{
 			  "Ethernet8": "5m",
 			  "Ethernet12": "5m",
-			  "Ethernet16": "5m",
+			  "PortChannel16": "5m",
 			},
 		},
 	 }
