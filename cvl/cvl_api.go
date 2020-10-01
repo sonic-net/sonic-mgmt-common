@@ -139,6 +139,13 @@ func Initialize() CVLRetCode {
 		return CVL_SUCCESS
 	}
 
+	//Initialize redis Client 
+	redisClient = NewDbClient("CONFIG_DB")
+
+	if (redisClient == nil) {
+		CVL_LOG(FATAL, "Unable to connect to Redis Config DB Server")
+		return CVL_ERROR
+	}
 	//Scan schema directory to get all schema files
 	modelFiles, err := filepath.Glob(CVL_SCHEMA + "/*.yin")
 	if err != nil {
@@ -173,16 +180,6 @@ func Initialize() CVLRetCode {
 
 	//Initialize redis Client 
 
-	redisClient = redis.NewClient(&redis.Options{
-		Addr:     ":6379",
-		Password: "", // no password set
-		DB:       int(CONFIG_DB),  // use APP DB
-	})
-
-	if (redisClient == nil) {
-		CVL_LOG(FATAL, "Unable to connect with Redis Config DB")
-		return CVL_ERROR
-	}
 
 	//Load lua script into redis
 	loadLuaScript()

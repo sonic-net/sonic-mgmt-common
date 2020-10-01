@@ -63,6 +63,10 @@ type appOptions struct {
     // 0 indicates unlimited depth.
     // Valid for GET API only.
     depth uint
+
+    // deleteEmptyEntry indicates if the db entry should be deleted upon
+    // deletion of last field. This is a non standard option.
+    deleteEmptyEntry bool
 }
 
 //map containing the base path to app module info
