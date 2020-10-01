@@ -182,7 +182,7 @@ func TestUnMarshallUri(t *testing.T) {
 		opcode:      1,
 		payload:     []byte{},
 		appRootType: reflect.TypeOf(ocbinds.OpenconfigAcl_Acl{}),
-		want:        "rpc error: code = InvalidArgument desc = no match found in *ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_State, for path elem:<name:\"descriptXX\"",
+		want:        "rpc error: code = InvalidArgument desc = no match found in *ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_State, for path elem:{name:\"descriptXX\"}",
 	}, {
 		tid:         10,
 		uri:         "openconfig-system:system/cpus/cpu[index=3]/",

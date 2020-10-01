@@ -17,44 +17,38 @@
 #                                                                              #
 ################################################################################
 
-TOPDIR := ../../..
-YANGDIR=$(TOPDIR)/models/yang
-sonic_yang=$(YANGDIR)/sonic
-std_yang_common=$(YANGDIR)/common/
-sonic_yang_common=$(sonic_yang)/common
-pyang_plugin_dir=$(TOPDIR)/tools/pyang/pyang_plugins
+TOPDIR?=$(abspath ../../../)
 
+sonic_yang=../../../models/yang/sonic
+pyang_plugin_dir=../../../tools/pyang/pyang_plugins
 src_files=$(wildcard *.yang)
+out_dir=$(TOPDIR)/build/tests/cvl/testdata/schema/
+out=$(patsubst %.yang, $(out_dir)/%.yin, $(src_files)) 
+out_ext=$(patsubst %.yang, $(out_dir)/%.tree, $(src_files)) 
 
-out_dir=$(TOPDIR)/build/tests/cvl/testdata/schema
-out=$(patsubst %.yang, $(out_dir)/%.yin, $(notdir $(src_files)) )
-out_ext=$(patsubst %.yang, %.tree, $(src_files)) 
-search_path=$(std_yang_common):$(sonic_yang):$(sonic_yang_common)
+all:precheck schema
 
-all:schema
+precheck:
+	mkdir -p $(out_dir) 
 
 schema: $(out)
 
 schema-tree: $(out_ext)
 
-.PRECIOUS: %/.
-%/.:
-	mkdir -p $(@D)
-
-$(out_dir)/%.yin:%.yang | $(out_dir)/.
+$(out_dir)/%.yin:%.yang
 	@echo "Generating `basename $@` ..."
-	@devFile="`echo $< | cut -d . -f1`-dev.yang"; \
+	@devFile="`echo $< | cut -d . -f1`-deviation.yang"; \
 	if [ -f $$devFile ] ; then devOpt="--deviation-module $$devFile"; fi; \
-	pyang -p $(search_path) \
+	pyang -p $(sonic_yang)/common:$(sonic_yang)/common/ietf \
 		--plugindir $(pyang_plugin_dir) -f yin-cvl $$devOpt $< -o $@
 
-%.tree:%.yang
+$(out_dir)/%.tree:%.yang
 	@echo "Generating `basename $@` ..."
-	@devFile="`echo $< | cut -d . -f1`-dev.yang"; \
+	@devFile="`echo $< | cut -d . -f1`-deviation.yang"; \
 	if [ -f $$devFile ] ; then devOpt="--deviation-module $$devFile"; fi; \
-	pyang -p $(search_path) \
-       		-f tree $$devOpt $< -o `basename $@`
+	pyang -p $(sonic_yang)/common:$(sonic_yang)/common/ietf \
+			-f tree $$devOpt $< -o $@
 
 clean:
-	$(RM) -r $(out_dir)
-	$(RM) *.tree
+	@echo "Removing files ..."
+	rm -rf platform

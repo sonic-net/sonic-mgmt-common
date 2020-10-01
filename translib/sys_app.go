@@ -76,6 +76,11 @@ func (app *SysApp) getAppRootObject() *ocbinds.OpenconfigSystem_System {
 	return deviceObj.System
 }
 
+func (app *SysApp) translateAction(dbs [db.MaxDB]*db.DB) error {
+    err := errors.New("Not supported")
+    return err
+}
+
 func (app *SysApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
 	var err error
 
@@ -339,3 +344,11 @@ func (app *SysApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
 	}
 	return GetResponse{Payload: payload}, err
 }
+
+func (app *SysApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
+    var resp ActionResponse
+    err := errors.New("Not implemented")
+
+    return resp, err
+}
+

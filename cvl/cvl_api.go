@@ -22,10 +22,10 @@ package cvl
 import (
 	"fmt"
 	"encoding/json"
-	"github.com/go-redis/redis"
 	"path/filepath"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
+	"time"
 )
 
 type CVLValidateType uint
@@ -108,12 +108,39 @@ type CVLEditConfigData struct {
 	Data map[string]string //Value :  {"alias": "40GE0/28", "mtu" : 9100,  "admin_status":  down}
 }
 
+// ValidationTimeStats CVL validations stats 
+//Maintain time stats for call to ValidateEditConfig().
+//Hits : Total number of times ValidateEditConfig() called
+//Time : Total time spent in ValidateEditConfig()
+//Peak : Highest time spent in ValidateEditConfig()
+type ValidationTimeStats struct {
+	Hits uint
+	Time time.Duration
+	Peak time.Duration
+}
+
+//CVLDepDataForDelete Structure for dependent entry to be deleted
+type CVLDepDataForDelete struct {
+	RefKey string //Ref Key which is getting deleted
+	Entry  map[string]map[string]string //Entry or field which should be deleted as a result
+}
+
+//Global data structure for maintaining validation stats
+var cfgValidationStats ValidationTimeStats
+
 func Initialize() CVLRetCode {
 	if (cvlInitialized == true) {
 		//CVL has already been initialized
 		return CVL_SUCCESS
 	}
 
+	//Initialize redis Client 
+	redisClient = NewDbClient("CONFIG_DB")
+
+	if (redisClient == nil) {
+		CVL_LOG(FATAL, "Unable to connect to Redis Config DB Server")
+		return CVL_ERROR
+	}
 	//Scan schema directory to get all schema files
 	modelFiles, err := filepath.Glob(CVL_SCHEMA + "/*.yin")
 	if err != nil {
@@ -148,16 +175,6 @@ func Initialize() CVLRetCode {
 
 	//Initialize redis Client 
 
-	redisClient = redis.NewClient(&redis.Options{
-		Addr:     ":6379",
-		Password: "", // no password set
-		DB:       int(CONFIG_DB),  // use APP DB
-	})
-
-	if (redisClient == nil) {
-		CVL_LOG(FATAL, "Unable to connect with Redis Config DB")
-		return CVL_ERROR
-	}
 
 	//Load lua script into redis
 	loadLuaScript()
@@ -174,7 +191,7 @@ func Finish() {
 func ValidationSessOpen() (*CVL, CVLRetCode) {
 	cvl :=  &CVL{}
 	cvl.tmpDbCache = make(map[string]interface{})
-	cvl.requestCache = make(map[string]map[string][]CVLEditConfigData)
+	cvl.requestCache = make(map[string]map[string][]*requestCacheType)
 	cvl.yp = &yparser.YParser{}
 
 	if (cvl == nil || cvl.yp == nil) {
@@ -303,10 +320,10 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (CVLErrorInfo, CVL
 		reqTbl, exists := c.requestCache[tbl]
 		if (exists == false) {
 			//Create new table key data
-			reqTbl = make(map[string][]CVLEditConfigData)
+			reqTbl = make(map[string][]*requestCacheType)
 		}
 		cfgDataItemArr, _ := reqTbl[key]
-		cfgDataItemArr = append(cfgDataItemArr, cfgDataItem)
+		cfgDataItemArr = append(cfgDataItemArr, &requestCacheType{cfgDataItem, nil})
 		reqTbl[key] = cfgDataItemArr
 		c.requestCache[tbl] = reqTbl
 
@@ -410,7 +427,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (CVLErrorInfo, CVL
 					deletedInSameSession := false
 					if  tbl != ""  && key != "" {
 						for _, cachedCfgData := range c.requestCache[tbl][key] {
-							if cachedCfgData.VOp == OP_DELETE {
+							if cachedCfgData.reqData.VOp == OP_DELETE {
 								deletedInSameSession = true
 								break
 							}
@@ -511,4 +528,35 @@ func (c *CVL) ValidateKeyData(key string, data string) CVLRetCode {
 //Validate key, field and value
 func (c *CVL) ValidateFields(key string, field string, value string) CVLRetCode {
 	return CVL_NOT_IMPLEMENTED
+}
+
+//SortDepTables Sort list of given tables as per their dependency
+func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
+	return []string{}, CVL_NOT_IMPLEMENTED
+}
+
+//GetOrderedTables Get the order list(parent then child) of tables in a given YANG module
+//within a single model this is obtained using leafref relation
+func (c *CVL) GetOrderedTables(yangModule string) ([]string, CVLRetCode) {
+	return []string{}, CVL_NOT_IMPLEMENTED
+}
+
+//GetDepTables Get the list of dependent tables for a given table in a YANG module
+func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRetCode) {
+	return []string{}, CVL_NOT_IMPLEMENTED
+}
+
+//GetDepDataForDelete Get the dependent (Redis keys) to be deleted or modified
+//for a given entry getting deleted
+func (c *CVL) GetDepDataForDelete(redisKey string) ([]CVLDepDataForDelete) {
+	return []CVLDepDataForDelete{}
+}
+
+//GetValidationTimeStats Retrieve global stats
+func GetValidationTimeStats() ValidationTimeStats {
+	return cfgValidationStats
+}
+
+//ClearValidationTimeStats Clear global stats
+func ClearValidationTimeStats() {
 }
