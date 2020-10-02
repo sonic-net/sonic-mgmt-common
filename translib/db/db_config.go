@@ -34,6 +34,18 @@ func dbConfigInit() {
 	if path, ok := os.LookupEnv("DB_CONFIG_PATH"); ok {
 		dbConfigPath = path
 	}
+
+	// If the path does not exist, it could be a go lang jenkins test with
+	// an uninitialized/missing DB_CONFIG_PATH. Use the path
+	// ${PWD}/../../../tools/test/database_config.json if it exists
+	if _, e := os.Stat(dbConfigPath); e != nil {
+		cwd, e := os.Getwd()
+		goTestDBConfigPath := cwd + "/../../../tools/test/database_config.json"
+		if _, e = os.Stat(goTestDBConfigPath); e == nil {
+			dbConfigPath = goTestDBConfigPath
+		}
+	}
+
 	data, err := io.ReadFile(dbConfigPath)
 	if err != nil {
 		assert(err)
