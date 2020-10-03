@@ -101,3 +101,14 @@ type TranslibSyntaxValidationError struct {
 func (e TranslibSyntaxValidationError) Error() string {
 	return p.Sprintf("%s", e.ErrorStr)
 }
+
+type TranslibUnsupportedClientVersion struct {
+    ClientVersion string
+    ServerVersion string
+    ServerBaseVersion string
+}
+
+func (e TranslibUnsupportedClientVersion) Error() string {
+    return p.Sprintf("Unsupported client version %s", e.ClientVersion)
+}
+

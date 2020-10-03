@@ -47,7 +47,7 @@ var writeMutex = &sync.Mutex{}
 //Interval value for interval based subscription needs to be within the min and max
 //minimum global interval for interval based subscribe in secs
 var minSubsInterval = 20
-//minimum global interval for interval based subscribe in secs
+//maximum global interval for interval based subscribe in secs
 var maxSubsInterval = 600
 
 type ErrSource int
@@ -68,6 +68,7 @@ type SetRequest struct {
 	User    UserRoles
 	AuthEnabled bool
 	ClientVersion Version
+	DeleteEmptyEntry bool
 }
 
 type SetResponse struct {
@@ -183,6 +184,12 @@ func Create(req SetRequest) (SetResponse, error) {
 	var resp SetResponse
 	path := req.Path
 	payload := req.Payload
+	if !isAuthorizedForSet(req) {
+		return resp, tlerr.AuthorizationError{
+			Format: "User is unauthorized for Create Operation",
+			Path: path,
+		}
+	}
 
 	log.Info("Create request received with path =", path)
 	log.Info("Create request received with payload =", string(payload))
@@ -251,6 +258,13 @@ func Update(req SetRequest) (SetResponse, error) {
 	var resp SetResponse
 	path := req.Path
 	payload := req.Payload
+	if !isAuthorizedForSet(req) {
+		return resp, tlerr.AuthorizationError{
+			Format: "User is unauthorized for Update Operation",
+			Path: path,
+		}
+	}
+
 
 	log.Info("Update request received with path =", path)
 	log.Info("Update request received with payload =", string(payload))
@@ -320,6 +334,12 @@ func Replace(req SetRequest) (SetResponse, error) {
 	var resp SetResponse
 	path := req.Path
 	payload := req.Payload
+	if !isAuthorizedForSet(req) {
+		return resp, tlerr.AuthorizationError{
+			Format: "User is unauthorized for Replace Operation",
+			Path: path,
+		}
+	}
 
 	log.Info("Replace request received with path =", path)
 	log.Info("Replace request received with payload =", string(payload))
@@ -388,6 +408,12 @@ func Delete(req SetRequest) (SetResponse, error) {
 	var keys []db.WatchKeys
 	var resp SetResponse
 	path := req.Path
+	if !isAuthorizedForSet(req) {
+		return resp, tlerr.AuthorizationError{
+			Format: "User is unauthorized for Delete Operation",
+			Path: path,
+		}
+	}
 
 	log.Info("Delete request received with path =", path)
 
@@ -398,7 +424,8 @@ func Delete(req SetRequest) (SetResponse, error) {
 		return resp, err
 	}
 
-	err = appInitialize(app, appInfo, path, nil, nil, DELETE)
+	opts := appOptions{deleteEmptyEntry: req.DeleteEmptyEntry}
+	err = appInitialize(app, appInfo, path, nil, &opts, DELETE)
 
 	if err != nil {
 		resp.ErrSrc = AppErr
@@ -454,6 +481,12 @@ func Get(req GetRequest) (GetResponse, error) {
 	var payload []byte
 	var resp GetResponse
 	path := req.Path
+	if !isAuthorizedForGet(req) {
+		return resp, tlerr.AuthorizationError{
+			Format: "User is unauthorized for Get Operation",
+			Path: path,
+		}
+	}
 
 	log.Info("Received Get request for path = ", path)
 
@@ -499,6 +532,12 @@ func Action(req ActionRequest) (ActionResponse, error) {
 	var resp ActionResponse
 	path := req.Path
 
+	if !isAuthorizedForAction(req) {
+		return resp, tlerr.AuthorizationError{
+			Format: "User is unauthorized for Action Operation",
+			Path: path,
+		}
+	}
 
 	log.Info("Received Action request for path = ", path)
 
@@ -560,6 +599,13 @@ func Bulk(req BulkRequest) (BulkResponse, error) {
 		UpdateResponse: updateResp,
 		CreateResponse: createResp}
 
+
+    if (!isAuthorizedForBulk(req)) {
+		return resp, tlerr.AuthorizationError{
+			Format: "User is unauthorized for Action Operation",
+		}
+    }
+
 	writeMutex.Lock()
 	defer writeMutex.Unlock()
 
@@ -581,6 +627,7 @@ func Bulk(req BulkRequest) (BulkResponse, error) {
 
 	for i := range req.DeleteRequest {
 		path := req.DeleteRequest[i].Path
+		opts := appOptions{deleteEmptyEntry: req.DeleteRequest[i].DeleteEmptyEntry}
 
 		log.Info("Delete request received with path =", path)
 
@@ -591,7 +638,7 @@ func Bulk(req BulkRequest) (BulkResponse, error) {
 			goto BulkDeleteError
 		}
 
-		err = appInitialize(app, appInfo, path, nil, nil, DELETE)
+		err = appInitialize(app, appInfo, path, nil, &opts, DELETE)
 
 		if err != nil {
 			errSrc = AppErr
@@ -807,6 +854,12 @@ func Subscribe(req SubscribeRequest) ([]*IsSubscribeResponse, error) {
 			Err:                 nil}
 	}
 
+    if (!isAuthorizedForSubscribe(req)) {
+		return resp, tlerr.AuthorizationError{
+			Format: "User is unauthorized for Action Operation",
+		}
+    }
+
 	isGetCase := true
 	dbs, err := getAllDbs(isGetCase)
 
@@ -902,6 +955,12 @@ func IsSubscribeSupported(req IsSubscribeRequest) ([]*IsSubscribeResponse, error
 			PreferredType:       Sample,
 			Err:                 nil}
 	}
+
+    if (!isAuthorizedForIsSubscribe(req)) {
+		return resp, tlerr.AuthorizationError{
+			Format: "User is unauthorized for Action Operation",
+		}
+    }
 
 	isGetCase := true
 	dbs, err := getAllDbs(isGetCase)
@@ -1075,7 +1134,7 @@ func getDBOptionsWithSeparator(dbNo db.DBNum, initIndicator string, tableSeparat
 		InitIndicator:      initIndicator,
 		TableNameSeparator: tableSeparator,
 		KeySeparator:       keySeparator,
-		//IsWriteDisabled:    isWriteDisabled, //Will be enabled once the DB access layer changes are checked in
+		IsWriteDisabled:    isWriteDisabled,
 	})
 }
 
@@ -1085,6 +1144,10 @@ func getAppModule(path string, clientVer Version) (*appInterface, *appInfo, erro
 	aInfo, err := getAppModuleInfo(path)
 
 	if err != nil {
+		return nil, aInfo, err
+	}
+
+	if err := validateClientVersion(clientVer, path, aInfo); err != nil {
 		return nil, aInfo, err
 	}
 
