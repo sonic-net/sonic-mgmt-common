@@ -22,6 +22,7 @@ package cvl
 import (
 	"strings"
 	"encoding/xml"
+	"encoding/json"
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/jsonquery"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
@@ -689,6 +690,97 @@ func (c *CVL) setOperation(op CVLOperation) {
 	default:
 		opNode.FirstChild.Data = "NONE"
 	}
+}
+
+//Add given YANG data buffer to Yang Validator
+//redisKeys - Set of redis keys
+//redisKeyFilter - Redis key filter in glob style pattern
+//keyNames - Names of all keys separated by "|"
+//predicate - Condition on keys/fields
+//fields - Fields to retrieve, separated by "|"
+//Return "," separated list of leaf nodes if only one leaf is requested
+//One leaf is used as xpath query result in other nested xpath
+func (c *CVL) addDepYangData(redisKeys []string, redisKeyFilter,
+		keyNames, predicate, fields, count string) string {
+
+	var v interface{}
+	tmpPredicate := ""
+
+	//Get filtered Redis data based on lua script 
+	//filter derived from Xpath predicate
+	if (predicate != "") {
+		tmpPredicate = "return (" + predicate + ")"
+	}
+
+	cfgData, err := luaScripts["filter_entries"].Run(redisClient, []string{},
+	redisKeyFilter, keyNames, tmpPredicate, fields, count).Result()
+
+	singleLeaf := "" //leaf data for single leaf
+
+	TRACE_LOG(INFO_API, TRACE_SEMANTIC, "addDepYangData() with redisKeyFilter=%s, " +
+	"predicate=%s, fields=%s, returned cfgData = %s, err=%v",
+	redisKeyFilter, predicate, fields, cfgData, err)
+
+	if (cfgData == nil) {
+		return ""
+	}
+
+	//Parse the JSON map received from lua script
+	b := []byte(cfgData.(string))
+	if err := json.Unmarshal(b, &v); err != nil {
+		return ""
+	}
+
+	var dataMap map[string]interface{} = v.(map[string]interface{})
+
+	dataTop, _ := jsonquery.ParseJsonMap(&dataMap)
+
+	for jsonNode := dataTop.FirstChild; jsonNode != nil; jsonNode=jsonNode.NextSibling {
+		//Generate YANG data for Yang Validator from Redis JSON
+		topYangNode, _ := c.generateYangListData(jsonNode, false)
+
+		if  topYangNode == nil {
+			continue
+		}
+
+		if (topYangNode.FirstChild != nil) &&
+		(topYangNode.FirstChild.FirstChild != nil) {
+			//Add attribute mentioning that data is from db
+			addAttrNode(topYangNode.FirstChild.FirstChild, "db", "")
+		}
+
+		//Build single leaf data requested
+		singleLeaf = ""
+		for redisKey := topYangNode.FirstChild.FirstChild;
+		redisKey != nil; redisKey = redisKey.NextSibling {
+
+			for field := redisKey.FirstChild; field != nil;
+			field = field.NextSibling {
+				if (field.Data == fields) {
+					//Single field requested
+					singleLeaf = singleLeaf + field.FirstChild.Data + ","
+					break
+				}
+			}
+		}
+
+		//Merge with main YANG data cache
+		doc := &xmlquery.Node{Type: xmlquery.DocumentNode}
+		doc.FirstChild = topYangNode
+		doc.LastChild = topYangNode
+		topYangNode.Parent = doc
+		if c.mergeYangData(c.yv.root, doc) != CVL_SUCCESS {
+			continue
+		}
+	}
+
+
+	//remove last comma in case mulitple values returned
+	if (singleLeaf != "") {
+		return singleLeaf[:len(singleLeaf) - 1]
+	}
+
+	return ""
 }
 
 //Check delete constraint for leafref if key/field is deleted
