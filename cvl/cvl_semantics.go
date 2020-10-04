@@ -20,9 +20,11 @@
 package cvl
 
 import (
-	"strings"
 	"encoding/xml"
 	"encoding/json"
+	"strings"
+	"regexp"
+	"github.com/antchfx/xpath"
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/jsonquery"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
@@ -201,8 +203,8 @@ func (c *CVL) generateYangListData(jsonNode *jsonquery.Node,
 	var cvlErrObj CVLErrorInfo
 
 	tableName := jsonNode.Data
-	//c.batchLeaf = nil
-	//c.batchLeaf = make([]*yparser.YParserLeafValue, 0)
+	c.batchLeaf = nil
+	c.batchLeaf = make([]*yparser.YParserLeafValue, 0)
 
 	//Every Redis table is mapped as list within a container,
 	//E.g. ACL_RULE is mapped as 
@@ -210,7 +212,7 @@ func (c *CVL) generateYangListData(jsonNode *jsonquery.Node,
 	var topNode *xmlquery.Node
 
 	if _, exists := modelInfo.tableInfo[tableName]; !exists {
-		CVL_LOG(ERROR, "Failed to find schema details for table %s", tableName)
+		CVL_LOG(WARNING, "Failed to find schema details for table %s", tableName)
 		cvlErrObj.ErrCode = CVL_SYNTAX_ERROR
 		cvlErrObj.TableName = tableName 
 		cvlErrObj.Msg ="Schema details not found"
@@ -781,6 +783,129 @@ func (c *CVL) addDepYangData(redisKeys []string, redisKeyFilter,
 	}
 
 	return ""
+}
+
+//Compile all when expression and save the expression tree
+func compileWhenExps() {
+	reMultiPred := regexp.MustCompile(`\][ ]*\[`)
+
+	for _, tInfo := range modelInfo.tableInfo {
+		if (tInfo.whenExpr == nil) {
+			continue
+		}
+
+		// Replace multiple predicate using 'and' expressiona
+		// xpath engine not accepting multiple predicates
+		for  _, whenExprArr := range tInfo.whenExpr {
+			for _, whenExpr := range whenExprArr {
+				whenExpr.exprTree = xpath.MustCompile(
+				reMultiPred.ReplaceAllString(whenExpr.expr, " and "))
+				//Store all YANG list used in the expression
+				whenExpr.yangListNames = getYangListNamesInExpr(whenExpr.expr)
+			}
+		}
+	}
+}
+
+//Currently supports when expression with current table only
+func (c *CVL) validateWhenExp(node *xmlquery.Node,
+	tableName, key string, op CVLOperation) (r CVLErrorInfo) {
+
+	defer func() {
+		ret := &r
+		CVL_LOG(INFO_API, "validateWhenExp(): table name = %s, " +
+		"return value = %v", tableName, *ret)
+	}()
+
+	if (op == OP_DELETE) {
+		//No new node getting added so skip when validation
+		return CVLErrorInfo{ErrCode:CVL_SUCCESS}
+	}
+
+	//Set xpath callback for retreiving dependent data
+	xpath.SetDepDataClbk(c, func(ctxt interface{}, redisKeys []string,
+	redisKeyFilter, keyNames, pred, fields, count string) string {
+		c := ctxt.(*CVL)
+		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "validateWhenExp(): calling addDepYangData()")
+		return c.addDepYangData(redisKeys, redisKeyFilter, keyNames, pred, fields, "")
+	})
+
+	if (node == nil || node.FirstChild == nil) {
+		return CVLErrorInfo{
+			TableName: tableName,
+			ErrCode: CVL_SEMANTIC_ERROR,
+			CVLErrDetails: cvlErrorMap[CVL_SEMANTIC_ERROR],
+			Msg: "Failed to find YANG data for must expression validation",
+		}
+	}
+
+	//Find the node where when expression is attached
+	for nodeName, whenExpArr := range modelInfo.tableInfo[tableName].whenExpr {
+		for _, whenExp := range whenExpArr { //for each when expression
+			ctxNode := node
+			if (ctxNode.Data != nodeName) { //when expression not at list level
+				ctxNode = ctxNode.FirstChild
+				for (ctxNode !=nil) && (ctxNode.Data != nodeName) {
+					ctxNode = ctxNode.NextSibling //whent expression at leaf level
+				}
+			}
+
+			//Add data for dependent table in when expression
+			//Add one entry only
+			for _, refListName := range whenExp.yangListNames {
+				refRedisTableName := getYangListToRedisTbl(refListName)
+
+				filter := refRedisTableName +
+				modelInfo.tableInfo[refListName].redisKeyDelim + "*"
+
+				c.addDepYangData([]string{}, filter,
+				strings.Join(modelInfo.tableInfo[refListName].keys, "|"),
+				"true", "", "1") //fetch one entry only
+			}
+
+			//Validate the when expression
+			if (ctxNode != nil) && !(xmlquery.Eval(c.yv.root, ctxNode, whenExp.exprTree)) {
+				keys := []string{}
+				if (len(ctxNode.Parent.Attr) > 0) {
+					keys =  strings.Split(ctxNode.Parent.Attr[0].Value,
+					modelInfo.tableInfo[tableName].redisKeyDelim)
+				}
+
+				if (len(whenExp.nodeNames) == 1) && //when in leaf
+				(nodeName == whenExp.nodeNames[0]) {
+					return CVLErrorInfo{
+						TableName: tableName,
+						ErrCode: CVL_SEMANTIC_ERROR,
+						CVLErrDetails: cvlErrorMap[CVL_SEMANTIC_ERROR],
+						Keys: keys,
+						Value: ctxNode.FirstChild.Data,
+						Field: nodeName,
+						Msg: "When expression validation failed",
+					}
+				} else {
+					//check if any nodes in whenExp.nodeNames
+					//present in request data, when at list level
+					whenNodeList := strings.Join(whenExp.nodeNames, ",") + ","
+					for cNode := node.FirstChild; cNode !=nil;
+					cNode = cNode.NextSibling {
+						if strings.Contains(whenNodeList, (cNode.Data + ",")) {
+							return CVLErrorInfo{
+								TableName: tableName,
+								ErrCode: CVL_SEMANTIC_ERROR,
+								CVLErrDetails: cvlErrorMap[CVL_SEMANTIC_ERROR],
+								Keys: keys,
+								Value: cNode.FirstChild.Data,
+								Field: cNode.Data,
+								Msg: "When expression validation failed",
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return CVLErrorInfo{ErrCode:CVL_SUCCESS}
 }
 
 //Check delete constraint for leafref if key/field is deleted

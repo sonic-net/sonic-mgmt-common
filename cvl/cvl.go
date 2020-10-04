@@ -63,8 +63,13 @@ var dbNameToDbNum map[string]uint8
 //map of lua script loaded
 var luaScripts map[string]*redis.Script
 
-//var tmpDbCache map[string]interface{} //map of table storing map of key-value pair
-					//m["PORT_TABLE] = {"key" : {"f1": "v1"}}
+type whenInfo struct {
+	expr string //when expression
+	exprTree *xpath.Expr //compiled expression tree
+	nodeNames []string //list of nodes under when condition
+	yangListNames []string //all yang list in expression
+}
+
 //Important schema information to be loaded at bootup time
 type modelTableInfo struct {
 	dbNum uint8
@@ -78,6 +83,7 @@ type modelTableInfo struct {
 	leafRef map[string][]string //for storing all leafrefs for a leaf in a table, 
 				//multiple leafref possible for union 
 	mustExp map[string]string
+	whenExpr map[string][]*whenInfo
 	tablesForMustExp map[string]CVLOperation
 	dfltLeafVal map[string]string //map of leaf names and default value
 }
@@ -253,6 +259,23 @@ func getNodeName(node *xmlquery.Node) string {
 		return node.Data + "@"
 	}
 	return node.Data
+}
+
+//Get list of YANG list names used in xpath expression
+func getYangListNamesInExpr(expr string) []string {
+	tbl := []string{}
+
+	//Check with all table names
+	for tblName := range modelInfo.tableInfo {
+
+		//Match 1 - Prefix is used in path
+		//Match 2 - Prefix is not used in path, it is in same YANG model
+		if strings.Contains(expr, ":" + tblName + "_LIST") || strings.Contains(expr, "/" + tblName + "_LIST") {
+			tbl = append(tbl, tblName)
+		}
+	}
+
+	return tbl
 }
 
 //Store useful schema data during initialization
