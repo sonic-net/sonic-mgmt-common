@@ -407,7 +407,6 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 			continue
 		}
 
-		//tableInfo.mustExp = make(map[string]string)
 		tableInfo.mustExpr = make(map[string][]*mustInfo)
 		for _, mustExp := range mustExps {
 			if (mustExp.Parent == nil) {
@@ -423,7 +422,6 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 				}
 			}
 			if (parentName != "") {
-				//tableInfo.mustExpr[parentName].expr = getXmlNodeAttr(mustExp, "condition")
 				tableInfo.mustExpr[parentName] = append(tableInfo.mustExpr[parentName],
 				&mustInfo{
 					expr: getXmlNodeAttr(mustExp, "condition"),
