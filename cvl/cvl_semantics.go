@@ -21,8 +21,10 @@ package cvl
 
 import (
 	"strings"
+	"regexp"
 	"encoding/xml"
 	"encoding/json"
+	"github.com/antchfx/xpath"
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/jsonquery"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
@@ -781,6 +783,249 @@ func (c *CVL) addDepYangData(redisKeys []string, redisKeyFilter,
 	}
 
 	return ""
+}
+
+//Add all other table data for validating all 'must' exp for tableName
+//One entry is needed for incremental loading of must tables
+func (c *CVL) addYangDataForMustExp(op CVLOperation, tableName string, oneEntry bool) CVLRetCode {
+	if (modelInfo.tableInfo[tableName].mustExpr == nil) {
+		return CVL_SUCCESS
+	}
+
+	for mustTblName, mustOp := range modelInfo.tableInfo[tableName].tablesForMustExp {
+		//First check if must expression should be executed for the given operation
+		if (mustOp != OP_NONE) && ((mustOp & op) == OP_NONE) {
+			//must to be excuted for particular operation, but current operation 
+			//is not the same one
+			continue
+		}
+
+		//If one entry is needed and it is already availale in c.yv.root cache
+		//just ignore and continue
+		if oneEntry {
+			node := c.moveToYangList(mustTblName, "")
+			if node != nil {
+				//One entry exists, continue
+				continue
+			}
+		}
+
+		redisTblName := getYangListToRedisTbl(mustTblName) //1 yang to N Redis table case
+		tableKeys, err:= redisClient.Keys(redisTblName +
+		modelInfo.tableInfo[mustTblName].redisKeyDelim + "*").Result()
+
+		if (err != nil) {
+			return CVL_FAILURE
+		}
+
+		if (len(tableKeys) == 0) {
+			//No dependent data for mustTable available
+			continue
+		}
+
+		cvg.cv.clearTmpDbCache()
+
+		//fill all keys; TBD Optimize based on predicate in Xpath
+		tablePrefixLen := len(redisTblName + modelInfo.tableInfo[mustTblName].redisKeyDelim)
+		for _, tableKey := range tableKeys {
+			tableKey = tableKey[tablePrefixLen:] //remove table prefix
+
+			tmpKeyArr := strings.Split(tableKey, modelInfo.tableInfo[mustTblName].redisKeyDelim)
+			if (len(tmpKeyArr) != len(modelInfo.tableInfo[mustTblName].keys)) {
+				//Number of keys should be same as in YANG list keys
+				//Need to check this for one Redis table to many YANG list case
+				continue
+			}
+
+			if (cvg.cv.tmpDbCache[redisTblName] == nil) {
+				cvg.cv.tmpDbCache[redisTblName] = map[string]interface{}{tableKey: nil}
+			} else {
+				tblMap := cvg.cv.tmpDbCache[redisTblName]
+				tblMap.(map[string]interface{})[tableKey] =nil
+				cvg.cv.tmpDbCache[redisTblName] = tblMap
+			}
+			//Load only one entry 
+			if oneEntry {
+				TRACE_LOG(INFO_API, TRACE_SEMANTIC, "addYangDataForMustExp(): Adding one entry table %s, key %s",
+				redisTblName, tableKey)
+				break
+			}
+		}
+
+		if (cvg.cv.tmpDbCache[redisTblName] == nil) {
+			//No entry present in DB
+			continue
+		}
+
+		//fetch using pipeline
+		cvg.cv.fetchTableDataToTmpCache(redisTblName, cvg.cv.tmpDbCache[redisTblName].(map[string]interface{}))
+		data, err := jsonquery.ParseJsonMap(&cvg.cv.tmpDbCache)
+
+		if (err != nil) {
+			return CVL_FAILURE
+		}
+
+		//Build yang tree for each table and cache it
+		for jsonNode := data.FirstChild; jsonNode != nil; jsonNode=jsonNode.NextSibling {
+			//Visit each top level list in a loop for creating table data
+			topYangNode, _ := c.generateYangListData(jsonNode, false)
+
+			if (topYangNode == nil) {
+				//No entry found, check next entry
+				continue
+			}
+
+			if (topYangNode.FirstChild != nil) &&
+			(topYangNode.FirstChild.FirstChild != nil) {
+				//Add attribute mentioning that data is from db
+				addAttrNode(topYangNode.FirstChild.FirstChild, "db", "")
+			}
+
+			//Create full document by adding document node
+			doc := &xmlquery.Node{Type: xmlquery.DocumentNode}
+			doc.FirstChild = topYangNode
+			doc.LastChild = topYangNode
+			topYangNode.Parent = doc
+			if c.mergeYangData(c.yv.root, doc) != CVL_SUCCESS {
+				return CVL_INTERNAL_UNKNOWN
+			}
+		}
+
+	}
+
+	return CVL_SUCCESS
+}
+
+//Compile all must expression and save the expression tree
+func compileMustExps() {
+	reMultiPred := regexp.MustCompile(`\][ ]*\[`)
+
+	for _, tInfo := range modelInfo.tableInfo {
+		if (tInfo.mustExpr == nil) {
+			continue
+		}
+
+		// Replace multiple predicate using 'and' expressiona
+		// xpath engine not accepting multiple predicates
+		for  _, mustExprArr := range tInfo.mustExpr {
+			for  _, mustExpr := range mustExprArr {
+				mustExpr.exprTree = xpath.MustCompile(
+				reMultiPred.ReplaceAllString(mustExpr.expr, " and "))
+			}
+		}
+	}
+}
+
+//Validate must expression
+func (c *CVL) validateMustExp(node *xmlquery.Node,
+	tableName, key string, op CVLOperation) (r CVLErrorInfo) {
+	defer func() {
+		ret := &r
+		CVL_LOG(INFO_API, "validateMustExp(): table name = %s, " +
+		"return value = %v", tableName, *ret)
+	}()
+
+	c.setOperation(op)
+
+	//Set xpath callback for retreiving dependent data
+	xpath.SetDepDataClbk(c, func(ctxt interface{}, redisKeys []string,
+	redisKeyFilter, keyNames, pred, fields, count string) string {
+		c := ctxt.(*CVL)
+
+		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "validateMustExp(): calling addDepYangData()")
+		return c.addDepYangData(redisKeys, redisKeyFilter, keyNames, pred, fields, "")
+	})
+
+	//Set xpath callback for retriving dependent data count
+	xpath.SetDepDataCntClbk(c, func(ctxt interface{},
+	redisKeyFilter, keyNames, pred, field string) float64 {
+
+		if (pred != "") {
+			pred = "return (" + pred + ")"
+		}
+
+		redisEntries, err := luaScripts["count_entries"].Run(redisClient,
+		[]string{}, redisKeyFilter, keyNames, pred, field).Result()
+
+		count := float64(0)
+
+		if (err == nil) && (redisEntries.(int64) > 0) {
+			count = float64(redisEntries.(int64))
+		}
+
+		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "validateMustExp(): depDataCntClbk() with redisKeyFilter=%s, " +
+		"keyNames= %s, predicate=%s, fields=%s, returned = %v",
+		redisKeyFilter, keyNames, pred, field, count)
+
+		return count
+	})
+
+	if (node == nil || node.FirstChild == nil) {
+		return CVLErrorInfo{
+			TableName: tableName,
+			ErrCode: CVL_SEMANTIC_ERROR,
+			CVLErrDetails: cvlErrorMap[CVL_SEMANTIC_ERROR],
+			Msg: "Failed to find YANG data for must expression validation",
+		}
+	}
+
+	//Load all table's any one entry for 'must' expression execution.
+	//This helps building full YANG tree for tables needed.
+	//Other instances/entries would be fetched as per xpath predicate execution 
+	//during expression evaluation
+	c.addYangDataForMustExp(op, tableName, true)
+
+	//Find the node where must expression is attached
+	for nodeName, mustExpArr := range modelInfo.tableInfo[tableName].mustExpr {
+		for _, mustExp := range mustExpArr {
+			ctxNode := node
+			if (ctxNode.Data != nodeName) { //must expression at list level
+				ctxNode = ctxNode.FirstChild
+				for (ctxNode !=nil) && (ctxNode.Data != nodeName) {
+					ctxNode = ctxNode.NextSibling //must expression at leaf level
+				}
+				if ctxNode != nil && op == OP_UPDATE {
+					addAttrNode(ctxNode, "db", "")
+				}
+			}
+
+			//Check leafref for each leaf-list node
+			/*for ;(ctxNode != nil) && (ctxNode.Data == nodeName);
+			ctxNode = ctxNode.NextSibling {
+				//Load first data for each referred table. 
+				//c.yv.root has all requested data merged and any depdendent
+				//data needed for leafref validation should be available from this.
+
+				leafRefSuccess := false*/
+
+			if (ctxNode != nil) {
+				CVL_LOG(INFO_DEBUG, "Eval must \"%s\"; ctxNode=%s",
+					mustExp.expr, ctxNode.Data)
+
+				if (!xmlquery.Eval(c.yv.root, ctxNode, mustExp.exprTree)) {
+					keys := []string{}
+					if (len(ctxNode.Parent.Attr) > 0) {
+						keys =  strings.Split(ctxNode.Parent.Attr[0].Value,
+						modelInfo.tableInfo[tableName].redisKeyDelim)
+					}
+
+					return CVLErrorInfo{
+						TableName: tableName,
+						ErrCode: CVL_SEMANTIC_ERROR,
+						CVLErrDetails: cvlErrorMap[CVL_SEMANTIC_ERROR],
+						Keys: keys,
+						Value: ctxNode.FirstChild.Data,
+						Field: nodeName,
+						Msg: "Must expression validation failed",
+						ConstraintErrMsg: mustExp.errStr,
+						ErrAppTag: mustExp.errCode,
+					}
+				}
+			}
+		} //for each must exp
+	} //all must exp under one node
+
+	return CVLErrorInfo{ErrCode:CVL_SUCCESS}
 }
 
 //Check delete constraint for leafref if key/field is deleted
