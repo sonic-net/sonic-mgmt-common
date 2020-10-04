@@ -65,6 +65,14 @@ var luaScripts map[string]*redis.Script
 
 //var tmpDbCache map[string]interface{} //map of table storing map of key-value pair
 					//m["PORT_TABLE] = {"key" : {"f1": "v1"}}
+
+type leafRefInfo struct {
+	path string //leafref path
+	exprTree *xpath.Expr //compiled expression tree
+	yangListNames []string //all yang list in path
+	targetNodeName string //target node name
+}
+
 //Important schema information to be loaded at bootup time
 type modelTableInfo struct {
 	dbNum uint8
@@ -75,8 +83,10 @@ type modelTableInfo struct {
 	redisKeyDelim string
 	redisKeyPattern string
 	mapLeaf []string //for 'mapping  list'
-	leafRef map[string][]string //for storing all leafrefs for a leaf in a table, 
+	leafRef map[string][]*leafRefInfo //for storing all leafrefs for a leaf in a table, 
 				//multiple leafref possible for union 
+	/*leafRef map[string][]string //for storing all leafrefs for a leaf in a table, 
+				//multiple leafref possible for union */
 	mustExp map[string]string
 	tablesForMustExp map[string]CVLOperation
 	dfltLeafVal map[string]string //map of leaf names and default value
@@ -255,6 +265,43 @@ func getNodeName(node *xmlquery.Node) string {
 	return node.Data
 }
 
+//Get list of YANG list names used in xpath expression
+func getYangListNamesInExpr(expr string) []string {
+	tbl := []string{}
+
+	//Check with all table names
+	for tblName := range modelInfo.tableInfo {
+
+		//Match 1 - Prefix is used in path
+		//Match 2 - Prefix is not used in path, it is in same YANG model
+		if strings.Contains(expr, ":" + tblName + "_LIST") || strings.Contains(expr, "/" + tblName + "_LIST") {
+			tbl = append(tbl, tblName)
+		}
+	}
+
+	return tbl
+}
+
+//Get all YANG lists referred and the target node for leafref
+//Ex: leafref { path "../../../ACL_TABLE/ACL_TABLE_LIST[aclname=current()]/aclname";}
+//will return [ACL_TABLE] and aclname
+func getLeafRefTargetInfo(path string) ([]string, string) {
+	target := ""
+
+	//Get list of all YANG list used in the path
+	tbl := getYangListNamesInExpr(path)
+
+	//Get the target node name from end of the path
+	idx := strings.LastIndex(path, ":") //check with prefix first
+	if idx > 0 {
+		target = path[idx+1:]
+	} else if idx = strings.LastIndex(path, "/"); idx > 0{ //no prefix there
+		target = path[idx+1:]
+	}
+
+	return tbl, target
+}
+
 //Store useful schema data during initialization
 func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such model info can be maintained in C code and fetched from there 
 	f, err := os.Open(CVL_SCHEMA + modelFile)
@@ -377,7 +424,8 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 			continue
 		}
 
-		tableInfo.leafRef = make(map[string][]string)
+		//tableInfo.leafRef = make(map[string][]string)
+		tInfo.leafRef =  make(map[string][]*leafRefInfo, len(lInfo.LeafRef))
 		for _, leafRefNode := range leafRefNodes {
 			if (leafRefNode.Parent == nil || leafRefNode.FirstChild == nil) {
 				continue
