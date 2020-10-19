@@ -30,7 +30,7 @@ import (
 	"errors"
 	"strings"
 
-	// "github.com/go-redis/redis"
+	// "github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
 	// "github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
@@ -162,7 +162,7 @@ func SubscribeDB(opt Options, skeys []*SKey, handler HFunc) (*DB, error) {
 
 		// Send the Close|Err notification.
 		var sEvent = SEventClose
-		if d.sCIP == false {
+		if !d.sCIP {
 			sEvent = SEventErr
 		}
 		glog.Info("SubscribeDB: SEventClose|Err: ", sEvent)
