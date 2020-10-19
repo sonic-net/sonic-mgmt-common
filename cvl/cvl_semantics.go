@@ -760,7 +760,7 @@ func (c *CVL) addDepYangData(redisKeys []string, redisKeyFilter,
 			for field := redisKey.FirstChild; field != nil;
 			field = field.NextSibling {
 				if (field.Data == fields && field.FirstChild != nil) {
-				//Single field requested
+					//Single field requested
 					singleLeaf = singleLeaf + field.FirstChild.Data + ","
 					break
 				}
