@@ -65,15 +65,6 @@ var luaScripts map[string]*redis.Script
 
 type leafRefInfo struct {
 	path string //leafref path
-	yangListNames []string //all yang list in path
-	targetNodeName string //target node name
-}
-
-//var tmpDbCache map[string]interface{} //map of table storing map of key-value pair
-					//m["PORT_TABLE] = {"key" : {"f1": "v1"}}
-
-type leafRefInfo struct {
-	path string //leafref path
 	exprTree *xpath.Expr //compiled expression tree
 	yangListNames []string //all yang list in path
 	targetNodeName string //target node name
