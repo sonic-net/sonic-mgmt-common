@@ -916,6 +916,7 @@ func compileMustExps() {
 	}
 }
 
+
 //Validate must expression
 func (c *CVL) validateMustExp(node *xmlquery.Node,
 	tableName, key string, op CVLOperation) (r CVLErrorInfo) {
@@ -1027,6 +1028,7 @@ func (c *CVL) validateMustExp(node *xmlquery.Node,
 
 	return CVLErrorInfo{ErrCode:CVL_SUCCESS}
 }
+
 
 //Check delete constraint for leafref if key/field is deleted
 func (c *CVL) checkDeleteConstraint(cfgData []CVLEditConfigData,
