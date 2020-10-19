@@ -30,7 +30,7 @@ import (
 	// "errors"
 	// "strings"
 
-	// "github.com/go-redis/redis"
+	// "github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
 	// "github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
@@ -84,7 +84,8 @@ func (d *DB) GetMapAll(ts *TableSpec) (Value, error) {
 }
 
 // For Testing only. Do Not Use!!! ==============================
-// There is no transaction support on these.
+
+// SetMap - There is no transaction support on these.
 func (d *DB) SetMap(ts *TableSpec, mapKey string, mapValue string) error {
 
 	if glog.V(3) {
@@ -102,8 +103,7 @@ func (d *DB) SetMap(ts *TableSpec, mapKey string, mapValue string) error {
 }
 // For Testing only. Do Not Use!!! ==============================
 
-// For Testing only. Do Not Use!!!
-// There is no transaction support on these.
+// DeleteMapAll - There is no transaction support on these.
 func (d *DB) DeleteMapAll(ts *TableSpec) error {
 
 	if glog.V(3) {

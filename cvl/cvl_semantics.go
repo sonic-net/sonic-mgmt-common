@@ -785,6 +785,7 @@ func (c *CVL) addDepYangData(redisKeys []string, redisKeyFilter,
 	return ""
 }
 
+
 //Compile all when expression and save the expression tree
 func compileWhenExps() {
 	reMultiPred := regexp.MustCompile(`\][ ]*\[`)
@@ -907,6 +908,7 @@ func (c *CVL) validateWhenExp(node *xmlquery.Node,
 
 	return CVLErrorInfo{ErrCode:CVL_SUCCESS}
 }
+
 
 //Check delete constraint for leafref if key/field is deleted
 func (c *CVL) checkDeleteConstraint(cfgData []CVLEditConfigData,

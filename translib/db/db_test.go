@@ -26,13 +26,97 @@ import (
 	// "flag"
 	// "github.com/golang/glog"
 	"time"
-	// "github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	// "os/exec"
+	"io/ioutil"
 	"os"
 	"testing"
 	"strconv"
 	"reflect"
 )
+
+var dbConfig = `
+{
+    "INSTANCES": {
+        "redis":{
+            "hostname" : "127.0.0.1",
+            "port" : 6379,
+            "unix_socket_path" : "/var/run/redis/redis.sock",
+            "persistence_for_warm_boot" : "yes"
+        },
+        "redis2":{
+            "hostname" : "127.0.0.1",
+            "port" : 63792,
+            "unix_socket_path" : "/var/run/redis/redis2.sock",
+            "persistence_for_warm_boot" : "yes"
+        },
+        "redis3":{
+           "hostname" : "127.0.0.1",
+            "port" : 63793,
+            "unix_socket_path" : "/var/run/redis/redis3.sock",
+            "persistence_for_warm_boot" : "yes"
+        },
+        "rediswb":{
+            "hostname" : "127.0.0.1",
+            "port" : 63970,
+            "unix_socket_path" : "/var/run/redis/rediswb.sock",
+            "persistence_for_warm_boot" : "yes"
+        }
+    },
+    "DATABASES" : {
+        "APPL_DB" : {
+            "id" : 0,
+            "separator": ":",
+            "instance" : "redis2"
+        },
+        "ASIC_DB" : {
+            "id" : 1,
+            "separator": ":",
+            "instance" : "redis3"
+        },
+        "COUNTERS_DB" : {
+            "id" : 2,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "LOGLEVEL_DB" : {
+            "id" : 3,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "CONFIG_DB" : {
+            "id" : 4,
+            "separator": "|",
+            "instance" : "redis"
+        },
+        "PFC_WD_DB" : {
+            "id" : 5,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "FLEX_COUNTER_DB" : {
+            "id" : 5,
+            "separator": ":",
+            "instance" : "redis"
+        },
+        "STATE_DB" : {
+            "id" : 6,
+            "separator": "|",
+            "instance" : "redis"
+        },
+        "SNMP_OVERLAY_DB" : {
+            "id" : 7,
+            "separator": "|",
+            "instance" : "redis"
+        },
+        "ERROR_DB" : {
+            "id" : 8,
+            "separator": ":",
+            "instance" : "redis"
+        }
+    },
+    "VERSION" : "1.0"
+}
+`
+
 
 func TestMain(m * testing.M) {
 
@@ -64,6 +148,26 @@ TestMainRedo:
 		goto TestMainRedo
 	}
 */
+
+	// Create Temporary DB Config File
+	dbContent := []byte(dbConfig)
+	dbFile, e := ioutil.TempFile("/tmp", "dbConfig")
+	if e != nil {
+		exitCode = 1
+	} else {
+		defer os.Remove(dbFile.Name())
+	}
+
+	if _,e := dbFile.Write(dbContent); e != nil {
+		exitCode = 2
+	}
+
+	if e := dbFile.Close(); e != nil {
+		exitCode = 3
+	}
+
+	// Set the environment variable to it
+	os.Setenv("DB_CONFIG_PATH", dbFile.Name())
 
 	if exitCode == 0 {
 		exitCode = m.Run()

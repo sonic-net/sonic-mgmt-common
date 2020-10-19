@@ -70,6 +70,15 @@ type whenInfo struct {
 	yangListNames []string //all yang list in expression
 }
 
+type leafRefInfo struct {
+	path string //leafref path
+	yangListNames []string //all yang list in path
+	targetNodeName string //target node name
+}
+
+//var tmpDbCache map[string]interface{} //map of table storing map of key-value pair
+					//m["PORT_TABLE] = {"key" : {"f1": "v1"}}
+
 //Important schema information to be loaded at bootup time
 type modelTableInfo struct {
 	dbNum uint8
@@ -80,11 +89,12 @@ type modelTableInfo struct {
 	redisKeyDelim string
 	redisKeyPattern string
 	mapLeaf []string //for 'mapping  list'
-	leafRef map[string][]string //for storing all leafrefs for a leaf in a table, 
+	leafRef map[string][]*leafRefInfo //for storing all leafrefs for a leaf in a table, 
 				//multiple leafref possible for union 
 	mustExp map[string]string
 	whenExpr map[string][]*whenInfo
 	tablesForMustExp map[string]CVLOperation
+	refFromTables []tblFieldPair //list of table or table/field referring to this table
 	dfltLeafVal map[string]string //map of leaf names and default value
 }
 
@@ -400,7 +410,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 			continue
 		}
 
-		tableInfo.leafRef = make(map[string][]string)
+		tableInfo.leafRef = make(map[string][]*leafRefInfo)
 		for _, leafRefNode := range leafRefNodes {
 			if (leafRefNode.Parent == nil || leafRefNode.FirstChild == nil) {
 				continue
@@ -419,7 +429,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 			//Store the leafref path
 			if (leafName != "") {
 				tableInfo.leafRef[leafName] = append(tableInfo.leafRef[leafName],
-				getXmlNodeAttr(leafRefNode.FirstChild, "value"))
+				&leafRefInfo{path: getXmlNodeAttr(leafRefNode.FirstChild, "value")})
 			}
 		}
 
@@ -468,6 +478,69 @@ func getYangListToRedisTbl(yangListName string) string {
 	}
 
 	return yangListName
+}
+
+//This functions build info of dependent table/fields 
+//which uses a particular table through leafref
+func buildRefTableInfo() {
+
+	CVL_LOG(INFO_API, "Building reverse reference info from leafref")
+
+	for tblName, tblInfo := range modelInfo.tableInfo {
+		if (len(tblInfo.leafRef) == 0) {
+			continue
+		}
+
+		//For each leafref update the table used through leafref
+		for fieldName, leafRefs  := range tblInfo.leafRef {
+			for _, leafRef := range leafRefs {
+
+				for _, yangListName := range leafRef.yangListNames {
+					refTblInfo :=  modelInfo.tableInfo[yangListName]
+
+					refFromTables := &refTblInfo.refFromTables
+					 *refFromTables = append(*refFromTables, tblFieldPair{tblName, fieldName})
+					 modelInfo.tableInfo[yangListName] = refTblInfo
+				}
+
+			}
+		}
+
+	}
+
+	//Now sort list 'refFromTables' under each table based on dependency among them 
+	for tblName, tblInfo := range modelInfo.tableInfo {
+		if (len(tblInfo.refFromTables) == 0) {
+			continue
+		}
+
+		depTableList := []string{}
+		for i:=0; i < len(tblInfo.refFromTables); i++ {
+			depTableList = append(depTableList, tblInfo.refFromTables[i].tableName)
+		}
+
+		sortedTableList, _ := cvg.cv.SortDepTables(depTableList)
+		if (len(sortedTableList) == 0) {
+			continue
+		}
+
+		newRefFromTables := []tblFieldPair{}
+
+		for i:=0; i < len(sortedTableList); i++ {
+			//Find fieldName
+			fieldName := ""
+			for j :=0; j < len(tblInfo.refFromTables); j++ {
+				if (sortedTableList[i] == tblInfo.refFromTables[j].tableName) {
+					fieldName =  tblInfo.refFromTables[j].field
+					newRefFromTables = append(newRefFromTables, tblFieldPair{sortedTableList[i], fieldName})
+				}
+			}
+		}
+		//Update sorted refFromTables
+		tblInfo.refFromTables = newRefFromTables
+		modelInfo.tableInfo[tblName] = tblInfo
+	}
+
 }
 
 //Find the tables names in must expression, these tables data need to be fetched 
@@ -1039,8 +1112,8 @@ func (c *CVL) findUsedAsLeafRef(tableName, field string) []tblFieldPair {
 			found := false
 			//Find leafref by searching table and field name
 			for _, leafRef := range leafRefs {
-				if ((strings.Contains(leafRef, tableName) == true) &&
-				(strings.Contains(leafRef, field) == true)) {
+				if ((strings.Contains(leafRef.path, tableName) == true) &&
+				(strings.Contains(leafRef.path, field) == true)) {
 					tblFieldPairArr = append(tblFieldPairArr,
 					tblFieldPair{tblName, fieldName})
 					//Found as leafref, no need to search further
@@ -1071,7 +1144,7 @@ func (c *CVL) addLeafRef(config bool, tableName string, name string, value strin
 		for _, leafRef  := range modelInfo.tableInfo[tableName].leafRef[name] {
 
 			//Get reference table name from the path and the leaf name
-			matches := reLeafRef.FindStringSubmatch(leafRef)
+			matches := reLeafRef.FindStringSubmatch(leafRef.path)
 
 			//We have the leafref table name and the leaf name as well
 			if (matches != nil && len(matches) == 5) { //whole + 4 sub matches
