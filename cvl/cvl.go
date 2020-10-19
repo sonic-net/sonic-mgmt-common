@@ -429,11 +429,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 			continue
 		}
 
-<<<<<<< yvalidator_leafref
-		//tableInfo.leafRef = make(map[string][]string)
 		tableInfo.leafRef =  make(map[string][]*leafRefInfo)
-=======
-		tableInfo.leafRef = make(map[string][]*leafRefInfo)
 
 		for _, leafRefNode := range leafRefNodes {
 			if (leafRefNode.Parent == nil || leafRefNode.FirstChild == nil) {
