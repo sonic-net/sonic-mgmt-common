@@ -25,8 +25,6 @@ import (
 	"encoding/json"
 	"strings"
 	"regexp"
-	"encoding/xml"
-	"encoding/json"
 	"github.com/antchfx/xpath"
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/jsonquery"
