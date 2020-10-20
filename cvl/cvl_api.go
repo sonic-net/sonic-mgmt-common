@@ -22,10 +22,14 @@ package cvl
 import (
 	"fmt"
 	"encoding/json"
+	"github.com/go-redis/redis"
+	toposort "github.com/philopon/go-toposort"
 	"path/filepath"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
+	"strings"
 	"time"
+	"sync"
 )
 
 type CVLValidateType uint
@@ -127,6 +131,7 @@ type CVLDepDataForDelete struct {
 
 //Global data structure for maintaining validation stats
 var cfgValidationStats ValidationTimeStats
+var statsMutex *sync.Mutex
 
 func Initialize() CVLRetCode {
 	if (cvlInitialized == true) {
@@ -508,48 +513,482 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (CVLErrorInfo, CVL
 	return cvlErrObj, CVL_SUCCESS
 }
 
-/* Fetch the Error Message from CVL Return Code. */
+//GetErrorString Fetch the Error Message from CVL Return Code.
 func GetErrorString(retCode CVLRetCode) string{
 
-	return cvlErrorMap[retCode] 
+	return cvlErrorMap[retCode]
 
 }
 
-//Validate key only
+//ValidateKeys Validate key only
 func (c *CVL) ValidateKeys(key []string) CVLRetCode {
 	return CVL_NOT_IMPLEMENTED
 }
 
-//Validate key and data
+//ValidateKeyData Validate key and data
 func (c *CVL) ValidateKeyData(key string, data string) CVLRetCode {
 	return CVL_NOT_IMPLEMENTED
 }
 
-//Validate key, field and value
+//ValidateFields Validate key, field and value
 func (c *CVL) ValidateFields(key string, field string, value string) CVLRetCode {
 	return CVL_NOT_IMPLEMENTED
 }
 
+func (c *CVL) addDepEdges(graph *toposort.Graph, tableList []string) {
+	//Add all the depedency edges for graph nodes
+	for ti :=0; ti < len(tableList); ti++ {
+
+		redisTblTo := getYangListToRedisTbl(tableList[ti])
+
+		for tj :=0; tj < len(tableList); tj++ {
+
+			if (tableList[ti] == tableList[tj]) {
+				//same table, continue
+				continue
+			}
+
+			redisTblFrom := getYangListToRedisTbl(tableList[tj])
+
+			//map for checking duplicate edge
+			dupEdgeCheck := map[string]string{}
+
+			for _, leafRefs := range modelInfo.tableInfo[tableList[tj]].leafRef {
+				for _, leafRef := range leafRefs {
+					if !(strings.Contains(leafRef.path, tableList[ti] + "_LIST")) {
+						continue
+					}
+
+					toName, exists := dupEdgeCheck[redisTblFrom]
+					if exists && (toName == redisTblTo) {
+						//Don't add duplicate edge
+						continue
+					}
+
+					//Add and store the edge in map
+					graph.AddEdge(redisTblFrom, redisTblTo)
+					dupEdgeCheck[redisTblFrom] = redisTblTo
+
+					CVL_LOG(INFO_DEBUG,
+					"addDepEdges(): Adding edge %s -> %s", redisTblFrom, redisTblTo)
+				}
+			}
+		}
+	}
+}
+
 //SortDepTables Sort list of given tables as per their dependency
 func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
-	return []string{}, CVL_NOT_IMPLEMENTED
+
+	tableListMap :=  make(map[string]bool)
+
+	//Skip all unknown tables
+	for ti := 0; ti < len(inTableList); ti++ {
+		_, exists := modelInfo.tableInfo[inTableList[ti]]
+		if !exists {
+			continue
+		}
+
+		//Add to map to avoid duplicate nodes
+		tableListMap[inTableList[ti]] = true
+	}
+
+	tableList := []string{}
+
+	//Add all the table names in graph nodes
+	graph := toposort.NewGraph(len(tableListMap))
+	for tbl := range tableListMap {
+		graph.AddNodes(tbl)
+		tableList = append(tableList, tbl)
+	}
+
+	//Add all dependency egdes
+	c.addDepEdges(graph, tableList)
+
+	//Now perform topological sort
+	result, ret := graph.Toposort()
+	if !ret {
+		return nil, CVL_ERROR
+	}
+
+	return result, CVL_SUCCESS
 }
 
 //GetOrderedTables Get the order list(parent then child) of tables in a given YANG module
 //within a single model this is obtained using leafref relation
 func (c *CVL) GetOrderedTables(yangModule string) ([]string, CVLRetCode) {
-	return []string{}, CVL_NOT_IMPLEMENTED
+	tableList := []string{}
+
+	//Get all the table names under this model
+	for tblName, tblNameInfo := range modelInfo.tableInfo {
+		if (tblNameInfo.modelName == yangModule) {
+			tableList = append(tableList, tblName)
+		}
+	}
+
+	return c.SortDepTables(tableList)
+}
+
+func (c *CVL) GetOrderedDepTables(yangModule, tableName string) ([]string, CVLRetCode) {
+	tableList := []string{}
+
+	if _, exists := modelInfo.tableInfo[tableName]; !exists {
+		return nil, CVL_ERROR
+	}
+
+	//Get all the table names under this yang module
+	for tblName, tblNameInfo := range modelInfo.tableInfo {
+		if (tblNameInfo.modelName == yangModule) {
+			tableList = append(tableList, tblName)
+		}
+	}
+
+	graph := toposort.NewGraph(len(tableList))
+	redisTblTo := getYangListToRedisTbl(tableName)
+	graph.AddNodes(redisTblTo)
+
+	for _, tbl := range tableList {
+		if (tableName == tbl) {
+			//same table, continue
+			continue
+		}
+		redisTblFrom := getYangListToRedisTbl(tbl)
+
+		//map for checking duplicate edge
+		dupEdgeCheck := map[string]string{}
+
+		for _, leafRefs := range modelInfo.tableInfo[tbl].leafRef {
+			for _, leafRef := range leafRefs {
+				// If no relation through leaf-ref, then skip
+				if !(strings.Contains(leafRef.path, tableName + "_LIST")) {
+					continue
+				}
+
+				// if target node of leaf-ref is not key, then skip
+				var isLeafrefTargetIsKey bool
+				for _, key := range modelInfo.tableInfo[tbl].keys {
+					if key == leafRef.targetNodeName {
+						isLeafrefTargetIsKey = true
+					}
+				}
+				if !(isLeafrefTargetIsKey) {
+					continue
+				}
+
+				toName, exists := dupEdgeCheck[redisTblFrom]
+				if exists && (toName == redisTblTo) {
+					//Don't add duplicate edge
+					continue
+				}
+
+				//Add and store the edge in map
+				graph.AddNodes(redisTblFrom)
+				graph.AddEdge(redisTblFrom, redisTblTo)
+				dupEdgeCheck[redisTblFrom] = redisTblTo
+			}
+		}
+	}
+
+	//Now perform topological sort
+	result, ret := graph.Toposort()
+	if !ret {
+		return nil, CVL_ERROR
+	}
+
+	return result, CVL_SUCCESS
+}
+
+func (c *CVL) addDepTables(tableMap map[string]bool, tableName string) {
+
+	//Mark it is added in list
+	tableMap[tableName] = true
+
+	//Now find all tables referred in leafref from this table
+	for _, leafRefs := range modelInfo.tableInfo[tableName].leafRef {
+		for _, leafRef := range leafRefs {
+			for _, refTbl := range leafRef.yangListNames {
+				c.addDepTables(tableMap, getYangListToRedisTbl(refTbl)) //call recursively
+			}
+		}
+	}
 }
 
 //GetDepTables Get the list of dependent tables for a given table in a YANG module
 func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRetCode) {
-	return []string{}, CVL_NOT_IMPLEMENTED
+	tableList := []string{}
+	tblMap := make(map[string]bool)
+
+	if _, exists := modelInfo.tableInfo[tableName]; !exists {
+		CVL_LOG(INFO_DEBUG, "GetDepTables(): Unknown table %s\n", tableName)
+		return []string{}, CVL_ERROR
+	}
+
+	c.addDepTables(tblMap, tableName)
+
+	for tblName := range tblMap {
+		tableList = append(tableList, tblName)
+	}
+
+	//Add all the table names in graph nodes
+	graph := toposort.NewGraph(len(tableList))
+	for ti := 0; ti < len(tableList); ti++ {
+		CVL_LOG(INFO_DEBUG, "GetDepTables(): Adding node %s\n", tableList[ti])
+		graph.AddNodes(tableList[ti])
+	}
+
+	//Add all dependency egdes
+	c.addDepEdges(graph, tableList)
+
+	//Now perform topological sort
+	result, ret := graph.Toposort()
+	if !ret {
+		return nil, CVL_ERROR
+	}
+
+	return result, CVL_SUCCESS
+}
+
+//Parses the JSON string buffer and returns
+//array of dependent fields to be deleted
+func getDepDeleteField(refKey, hField, hValue, jsonBuf string) ([]CVLDepDataForDelete) {
+	//Parse the JSON map received from lua script
+	var v interface{}
+	b := []byte(jsonBuf)
+	if err := json.Unmarshal(b, &v); err != nil {
+		return []CVLDepDataForDelete{}
+	}
+
+	depEntries := []CVLDepDataForDelete{}
+
+	var dataMap map[string]interface{} = v.(map[string]interface{})
+
+	for tbl, keys := range dataMap {
+		for key, fields := range keys.(map[string]interface{}) {
+			tblKey := tbl + modelInfo.tableInfo[getRedisTblToYangList(tbl, key)].redisKeyDelim + key
+			entryMap := make(map[string]map[string]string)
+			entryMap[tblKey] = make(map[string]string)
+
+			for field := range fields.(map[string]interface{}) {
+				if ((field != hField) && (field != (hField + "@"))){
+					continue
+				}
+
+				if (field == (hField + "@")) {
+					//leaf-list - specific value to be deleted
+					entryMap[tblKey][field]= hValue
+				} else {
+					//leaf - specific field to be deleted
+					entryMap[tblKey][field]= ""
+				}
+			}
+			depEntries = append(depEntries, CVLDepDataForDelete{
+				RefKey: refKey,
+				Entry: entryMap,
+			})
+		}
+	}
+
+	return depEntries
 }
 
 //GetDepDataForDelete Get the dependent (Redis keys) to be deleted or modified
 //for a given entry getting deleted
 func (c *CVL) GetDepDataForDelete(redisKey string) ([]CVLDepDataForDelete) {
-	return []CVLDepDataForDelete{}
+
+	type filterScript struct {
+		script string
+		field string
+		value string
+	}
+
+	tableName, key := splitRedisKey(redisKey)
+	// Determine the correct redis table name
+	// For ex. LOOPBACK_INTERFACE_LIST and LOOPBACK_INTERFACE_IPADDR_LIST are
+	// present in same container LOOPBACK_INTERFACE
+	tableName = getRedisTblToYangList(tableName, key)
+
+	if (tableName == "") || (key == "") {
+		CVL_LOG(INFO_DEBUG, "GetDepDataForDelete(): Unknown or invalid table %s\n",
+		tableName)
+	}
+
+	if _, exists := modelInfo.tableInfo[tableName]; !exists {
+		CVL_LOG(INFO_DEBUG, "GetDepDataForDelete(): Unknown table %s\n", tableName)
+		return []CVLDepDataForDelete{}
+	}
+
+	redisKeySep := modelInfo.tableInfo[tableName].redisKeyDelim
+	redisMultiKeys := strings.Split(key, redisKeySep)
+
+	// There can be multiple leaf in Reference table with leaf-ref to same target field
+	// Hence using array of filterScript and redis.StringSliceCmd
+	mCmd := map[string][]*redis.StringSliceCmd{}
+	mFilterScripts := map[string][]filterScript{}
+	pipe := redisClient.Pipeline()
+
+	for _, refTbl := range modelInfo.tableInfo[tableName].refFromTables {
+
+		//check if ref field is a key
+		numKeys := len(modelInfo.tableInfo[refTbl.tableName].keys)
+		refRedisTblName := getYangListToRedisTbl(refTbl.tableName)
+		idx := 0
+
+		if (refRedisTblName == "") {
+			continue
+		}
+
+		// Find the targetnode from leaf-refs on refTbl.field
+		var refTblTargetNodeName string
+		for _, refTblLeafRef := range modelInfo.tableInfo[refTbl.tableName].leafRef[refTbl.field] {
+			if (refTblLeafRef.path != "non-leafref") && (len(refTblLeafRef.yangListNames) > 0) {
+				var isTargetNodeFound bool
+				for k := range refTblLeafRef.yangListNames {
+					if refTblLeafRef.yangListNames[k] == tableName {
+						refTblTargetNodeName = refTblLeafRef.targetNodeName
+						isTargetNodeFound = true
+						break
+					}
+				}
+				if isTargetNodeFound {
+					break
+				}
+			}
+		}
+
+		// Determine the correct value of key in case of composite key
+		if len(redisMultiKeys) > 1 {
+			rediskeyTblKeyPatterns := strings.Split(modelInfo.tableInfo[tableName].redisKeyPattern, redisKeySep)
+			for z := 1; z < len(rediskeyTblKeyPatterns); z++ { // Skipping 0th position, as it is a tableName
+				if rediskeyTblKeyPatterns[z] == fmt.Sprintf("{%s}", refTblTargetNodeName) {
+					key = redisMultiKeys[z - 1]
+					break
+				}
+			}
+		}
+
+		if _, exists := mCmd[refTbl.tableName]; !exists {
+			mCmd[refTbl.tableName] = make([]*redis.StringSliceCmd, 0)
+		}
+		mCmdArr := mCmd[refTbl.tableName]
+
+		for ; idx < numKeys; idx++ {
+			if (modelInfo.tableInfo[refTbl.tableName].keys[idx] != refTbl.field) {
+				continue
+			}
+
+			expr := CreateFindKeyExpression(refTbl.tableName, map[string]string{refTbl.field: key})
+			CVL_LOG(INFO_DEBUG, "GetDepDataForDelete()->CreateFindKeyExpression: %s\n", expr)
+
+			mCmdArr = append(mCmdArr, pipe.Keys(expr))
+			break
+		}
+		mCmd[refTbl.tableName] = mCmdArr
+
+		if (idx == numKeys) {
+			//field is hash-set field, not a key, match with hash-set field
+			//prepare the lua filter script
+			// ex: (h['members'] == 'Ethernet4' or h['members@'] == 'Ethernet4' or
+			//(string.find(h['members@'], 'Ethernet4,') != nil)
+			//',' to include leaf-list case
+			if _, exists := mFilterScripts[refTbl.tableName]; !exists {
+				mFilterScripts[refTbl.tableName] = make([]filterScript, 0)
+			}
+			fltScrs := mFilterScripts[refTbl.tableName]
+			fltScrs = append(fltScrs, filterScript {
+				script: fmt.Sprintf("return (h['%s'] ~= nil and (h['%s'] == '%s' or h['%s'] == '[%s|%s]')) or " +
+				"(h['%s@'] ~= nil and ((h['%s@'] == '%s') or " +
+				"(string.find(h['%s@']..',', '%s,') ~= nil)))",
+				refTbl.field, refTbl.field, key, refTbl.field, tableName, key,
+				refTbl.field, refTbl.field, key,
+				refTbl.field, key),
+				field: refTbl.field,
+				value: key,
+			} )
+			mFilterScripts[refTbl.tableName] = fltScrs
+		}
+	}
+
+	_, err := pipe.Exec()
+	if err != nil {
+		CVL_LOG(WARNING, "Failed to fetch dependent key details for table %s", tableName)
+	}
+	pipe.Close()
+
+	depEntries := []CVLDepDataForDelete{}
+
+	//Add dependent keys which should be modified
+	for tableName, mFilterScriptArr := range mFilterScripts {
+		for _, mFilterScript := range mFilterScriptArr {
+			refEntries, err := luaScripts["filter_entries"].Run(redisClient, []string{},
+			tableName + "|*", strings.Join(modelInfo.tableInfo[tableName].keys, "|"),
+			mFilterScript.script, mFilterScript.field).Result()
+
+			if (err != nil) {
+				CVL_LOG(WARNING, "Lua script status: (%v)", err)
+			}
+			if (refEntries == nil) {
+				//No reference field found
+				continue
+			}
+
+			refEntriesJson := string(refEntries.(string))
+
+			if (refEntriesJson != "") {
+				//Add all keys whose fields to be deleted 
+				depEntries = append(depEntries, getDepDeleteField(redisKey,
+				mFilterScript.field, mFilterScript.value, refEntriesJson)...)
+			}
+		}
+	}
+
+	keysArr := []string{}
+	for tblName, mCmdArr := range mCmd {
+		for idx := range mCmdArr {
+			keys := mCmdArr[idx]
+			res, err := keys.Result()
+			if (err != nil) {
+				CVL_LOG(WARNING, "Failed to fetch dependent key details for table %s", tblName)
+				continue
+			}
+
+			//Add keys found
+			for _, k := range res {
+				entryMap := make(map[string]map[string]string)
+				entryMap[k] = make(map[string]string)
+				depEntries = append(depEntries, CVLDepDataForDelete{
+					RefKey: redisKey,
+					Entry: entryMap,
+				})
+			}
+
+			keysArr  = append(keysArr, res...)
+		}
+	}
+
+	TRACE_LOG(INFO_API, INFO_TRACE, "GetDepDataForDelete() : input key %s, " +
+	"entries to be deleted : %v", redisKey, depEntries)
+
+	//For each key, find dependent data for delete recursively
+	for i :=0; i< len(keysArr); i++ {
+		retDepEntries := c.GetDepDataForDelete(keysArr[i])
+		depEntries = append(depEntries, retDepEntries...)
+	}
+
+	return depEntries
+}
+
+//Update global stats for all sessions
+func updateValidationTimeStats(td time.Duration) {
+	statsMutex.Lock()
+
+	cfgValidationStats.Hits++
+	if (td > cfgValidationStats.Peak) {
+		cfgValidationStats.Peak = td
+	}
+
+	cfgValidationStats.Time += td
+
+	statsMutex.Unlock()
 }
 
 //GetValidationTimeStats Retrieve global stats
@@ -559,4 +998,51 @@ func GetValidationTimeStats() ValidationTimeStats {
 
 //ClearValidationTimeStats Clear global stats
 func ClearValidationTimeStats() {
+	statsMutex.Lock()
+
+	cfgValidationStats.Hits = 0
+	cfgValidationStats.Peak = 0
+	cfgValidationStats.Time = 0
+
+	statsMutex.Unlock()
+}
+
+//CreateFindKeyExpression Create expression for searching DB entries based on given key fields and values.
+// Expressions created will be like CFG_L2MC_STATIC_MEMBER_TABLE|*|*|Ethernet0
+func CreateFindKeyExpression(tableName string, keyFldValPair map[string]string) string {
+	var expr string
+
+	refRedisTblName := getYangListToRedisTbl(tableName)
+	tempSlice := []string{refRedisTblName}
+	sep := modelInfo.tableInfo[tableName].redisKeyDelim
+
+	tblKeyPatterns := strings.Split(modelInfo.tableInfo[tableName].redisKeyPattern, sep)
+	for z := 1; z < len(tblKeyPatterns); z++ {
+		fldFromPattern := tblKeyPatterns[z][1:len(tblKeyPatterns[z])-1] //remove "{" and "}"
+		if val, exists := keyFldValPair[fldFromPattern]; exists {
+			tempSlice = append(tempSlice, val)
+		} else {
+			tempSlice = append(tempSlice, "*")
+		}
+	}
+
+	expr = strings.Join(tempSlice, sep)
+
+	return expr
+}
+
+// GetAllReferringTables Returns list of all tables and fields which has leaf-ref
+// to given table. For ex. tableName="PORT" will return all tables and fields
+// which has leaf-ref to "PORT" table.
+func (c *CVL) GetAllReferringTables(tableName string) (map[string][]string) {
+	var refTbls = make(map[string][]string)
+	if tblInfo, exists := modelInfo.tableInfo[tableName]; exists {
+		for _, refTbl := range tblInfo.refFromTables {
+			fldArr := refTbls[refTbl.tableName]
+			fldArr = append(fldArr, refTbl.field)
+			refTbls[refTbl.tableName] = fldArr
+		}
+	}
+
+	return refTbls
 }
