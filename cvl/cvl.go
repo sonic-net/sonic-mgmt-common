@@ -77,8 +77,6 @@ type leafRefInfo struct {
 	targetNodeName string //target node name
 }
 
-//var tmpDbCache map[string]interface{} //map of table storing map of key-value pair
-					//m["PORT_TABLE] = {"key" : {"f1": "v1"}}
 type mustInfo struct {
 	expr string //must expression
 	exprTree *xpath.Expr //compiled expression tree
