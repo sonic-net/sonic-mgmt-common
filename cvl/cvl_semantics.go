@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -38,6 +38,7 @@ import (
 type YValidator struct {
 	root *xmlquery.Node    //Top evel root for data
 	current *xmlquery.Node //Current position
+	//operation string     //Edit operation
 }
 
 //Generate leaf/leaf-list YANG data
@@ -415,7 +416,7 @@ func (c *CVL) detachNode(node *xmlquery.Node) CVLRetCode {
 //destination
 func (c *CVL) deleteDestLeafList(dest *xmlquery.Node)  {
 
-	TRACE_LOG(INFO_API, TRACE_CACHE, "Updating leaf-list by " + 
+	TRACE_LOG(TRACE_CACHE, "Updating leaf-list by " + 
 	"removing and then adding leaf-list")
 
 	//find start and end of dest leaf list
@@ -490,7 +491,7 @@ func (c *CVL) mergeYangData(dest, src *xmlquery.Node) CVLRetCode {
 		return CVL_FAILURE
 	}
 
-	TRACE_LOG(INFO_API, (TRACE_SYNTAX | TRACE_SEMANTIC),
+	TRACE_LOG((TRACE_SYNTAX | TRACE_SEMANTIC),
 	 "Merging YANG data %s %s", dest.Data, src.Data)
 
 	if (dest.Type == xmlquery.TextNode) && (src.Type == xmlquery.TextNode) {
@@ -625,7 +626,7 @@ func (c *CVL) moveToYangList(tableName string, redisKey string) *xmlquery.Node {
 	}
 
 	if (nodeTbl == nil) {
-		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "YANG data for table %s, key %s is not present in YANG tree",
+		TRACE_LOG(TRACE_SEMANTIC, "YANG data for table %s, key %s is not present in YANG tree",
 		tableName, redisKey)
 		return nil
 	}
@@ -720,7 +721,7 @@ func (c *CVL) addDepYangData(redisKeys []string, redisKeyFilter,
 
 	singleLeaf := "" //leaf data for single leaf
 
-	TRACE_LOG(INFO_API, TRACE_SEMANTIC, "addDepYangData() with redisKeyFilter=%s, " +
+	TRACE_LOG(TRACE_SEMANTIC, "addDepYangData() with redisKeyFilter=%s, " +
 	"predicate=%s, fields=%s, returned cfgData = %s, err=%v",
 	redisKeyFilter, predicate, fields, cfgData, err)
 
@@ -847,7 +848,7 @@ func (c *CVL) addYangDataForMustExp(op CVLOperation, tableName string, oneEntry 
 			}
 			//Load only one entry 
 			if oneEntry {
-				TRACE_LOG(INFO_API, TRACE_SEMANTIC, "addYangDataForMustExp(): Adding one entry table %s, key %s",
+				TRACE_LOG(TRACE_SEMANTIC, "addYangDataForMustExp(): Adding one entry table %s, key %s",
 				redisTblName, tableKey)
 				break
 			}
@@ -992,7 +993,7 @@ func (c *CVL) validateMustExp(node *xmlquery.Node,
 	redisKeyFilter, keyNames, pred, fields, count string) string {
 		c := ctxt.(*CVL)
 
-		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "validateMustExp(): calling addDepYangData()")
+		TRACE_LOG(TRACE_SEMANTIC, "validateMustExp(): calling addDepYangData()")
 		return c.addDepYangData(redisKeys, redisKeyFilter, keyNames, pred, fields, "")
 	})
 
@@ -1013,7 +1014,7 @@ func (c *CVL) validateMustExp(node *xmlquery.Node,
 			count = float64(redisEntries.(int64))
 		}
 
-		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "validateMustExp(): depDataCntClbk() with redisKeyFilter=%s, " +
+		TRACE_LOG(TRACE_SEMANTIC, "validateMustExp(): depDataCntClbk() with redisKeyFilter=%s, " +
 		"keyNames= %s, predicate=%s, fields=%s, returned = %v",
 		redisKeyFilter, keyNames, pred, field, count)
 
@@ -1094,7 +1095,7 @@ func (c *CVL) validateWhenExp(node *xmlquery.Node,
 
 	defer func() {
 		ret := &r
-		CVL_LOG(INFO_API, "validateWhenExp(): table name = %s, " +
+		CVL_LOG(INFO_API, "validateWhenExp(): table name = %s, " + 
 		"return value = %v", tableName, *ret)
 	}()
 
@@ -1107,7 +1108,7 @@ func (c *CVL) validateWhenExp(node *xmlquery.Node,
 	xpath.SetDepDataClbk(c, func(ctxt interface{}, redisKeys []string,
 	redisKeyFilter, keyNames, pred, fields, count string) string {
 		c := ctxt.(*CVL)
-		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "validateWhenExp(): calling addDepYangData()")
+		TRACE_LOG(TRACE_SEMANTIC, "validateWhenExp(): calling addDepYangData()")
 		return c.addDepYangData(redisKeys, redisKeyFilter, keyNames, pred, fields, "")
 	})
 
@@ -1210,7 +1211,7 @@ func (c *CVL) validateLeafRef(node *xmlquery.Node,
 	xpath.SetDepDataClbk(c, func(ctxt interface{}, redisKeys []string,
 	redisKeyFilter, keyNames, pred, fields, count string) string {
 		c := ctxt.(*CVL)
-		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "validateLeafRef(): calling addDepYangData()")
+		TRACE_LOG(TRACE_SEMANTIC, "validateLeafRef(): calling addDepYangData()")
 		return c.addDepYangData(redisKeys, redisKeyFilter, keyNames, pred, fields, "")
 	})
 
@@ -1289,7 +1290,7 @@ func (c *CVL) validateLeafRef(node *xmlquery.Node,
 
 					if (err != nil) || (len(tableKeys) == 0) {
 						//There must be at least one entry in the ref table
-						TRACE_LOG(INFO_API, TRACE_SEMANTIC, "Leafref dependent data " +
+						TRACE_LOG(TRACE_SEMANTIC, "Leafref dependent data " +
 						"table %s, key %s not found in Redis", refRedisTableName,
 						ctxtVal)
 
@@ -1353,7 +1354,7 @@ func (c *CVL) validateLeafRef(node *xmlquery.Node,
 					ConstraintErrMsg: "No instance found for '" + ctxtVal + "'",
 				}
 			} else if !leafRefSuccess {
-				TRACE_LOG(INFO_API, TRACE_SEMANTIC, "validateLeafRef(): " +
+				TRACE_LOG(TRACE_SEMANTIC, "validateLeafRef(): " +
 				"Leafref dependent data not found but leaf has " +
 				"other data type in union, returning success.")
 			}
@@ -1363,90 +1364,293 @@ func (c *CVL) validateLeafRef(node *xmlquery.Node,
 	return CVLErrorInfo{ErrCode:CVL_SUCCESS}
 }
 
+//Find which all tables (and which field) is using given (tableName/field)
+// as leafref
+//Use LUA script to find if table has any entry for this leafref
+/*func (c *CVL) findUsedAsLeafRef(tableName, field string) []tblFieldPair {
+
+	var tblFieldPairArr []tblFieldPair
+
+	for tblName, tblInfo := range  modelInfo.tableInfo {
+		if (tableName == tblName) {
+			continue
+		}
+		if (len(tblInfo.leafRef) == 0) {
+			continue
+		}
+
+		for fieldName, leafRefs  := range tblInfo.leafRef {
+			found := false
+			//Find leafref by searching table and field name
+			for _, leafRef := range leafRefs {
+				if (strings.Contains(leafRef.path, tableName) && strings.Contains(leafRef.path, field)) {
+					tblFieldPairArr = append(tblFieldPairArr,
+					tblFieldPair{tblName, fieldName})
+					//Found as leafref, no need to search further
+					found = true
+					break
+				}
+			}
+
+			if found {
+				break
+			}
+		}
+	}
+
+	return tblFieldPairArr
+}*/
+
+//This function returns true if any entry 
+//in request cache is using the given entry
+//getting deleted. The given entry can be found
+//either in key or in hash-field.
+//Example : If T1|K1 is getting deleted,
+//check if T2*|K1 or T2|*:{H1: K1}
+//was using T1|K1 and getting deleted
+//in same session also.
+func (c *CVL) checkDeleteInRequestCache(cfgData []CVLEditConfigData,
+	leafRef *tblFieldPair, depDataKey, keyVal string) bool {
+
+	for _, cfgDataItem := range cfgData {
+		// All cfgDataItems which have VType as VALIDATE_NONE should be
+		// checked in cache
+		if (cfgDataItem.VType != VALIDATE_NONE) {
+			continue
+		}
+
+		//If any entry is using the given entry
+		//getting deleted, break immediately
+
+		//Find in request key, case - T2*|K1
+		if cfgDataItem.Key == depDataKey &&
+			(cfgDataItem.VOp != OP_DELETE || (cfgDataItem.VOp == OP_DELETE && len(cfgDataItem.Data) == 0)) {
+			return true
+		}
+
+		//Find in request hash-field, case - T2*|K2:{H1: K1}
+		val, exists := cfgDataItem.Data[leafRef.field]
+		if !exists {
+			// Leaf-lists field names are suffixed by "@".
+			val, exists = cfgDataItem.Data[leafRef.field+"@"]
+		}
+		// For delete cases, val sent is empty.
+		if exists && ((val == keyVal) || (val == "")) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// checkDepDataCompatible This function evaluates relationship between two table
+// keys based on leafref
+func (c *CVL) checkDepDataCompatible(tblName, key, reftblName, refTblKey, leafRefField string, depEntry map[string]string) bool {
+	CVL_LOG(INFO_DEBUG, "checkDepDataCompatible--> TargetTbl: %s[%s] referred by refTbl: %s[%s] through field: %s", tblName, key, reftblName, refTblKey, leafRefField)
+
+	// Key compatibility to be checked only if no. of keys are more than 1
+	if len(modelInfo.tableInfo[tblName].keys) <= 1 {
+		return true
+	}
+
+	// Fetch key value pair for both current table and ref table
+	tblKeysKVP := getRedisToYangKeys(tblName, key)
+	refTblKeysKVP := getRedisToYangKeys(reftblName, refTblKey)
+
+	// Determine the leafref
+	leafRef := getLeafRefInfo(reftblName, leafRefField, tblName)
+
+	// If depEntry map is Empty, it means leafRefField is one of key of RefTable.
+	// So RefTblKey should equal to targetTbl key plus additional 1 or more key
+	// For ex. BGP_NEIGHBOR|Vrf1|2114::2 referred by BGP_NEIGHBOR_AF|Vrf1|2114::2|ipv4_unicast
+	if len(depEntry) == 0 {
+		// TODO Need to revisit. For now assumed that orderof keys are same.
+		return strings.Contains(refTblKey, key)
+	} else {
+		// leafRefField is NOT key but a normal leaf node
+		if _, exists := depEntry[leafRefField]; exists {
+			// Compare keys of table and refTable
+			//LeafRef: /sonic-bgp-peergroup:sonic-bgp-peergroup/sonic-bgp-peergroup:BGP_PEER_GROUP/sonic-bgp-peergroup:BGP_PEER_GROUP_LIST[sonic-bgp-peergroup:vrf_name=current()/../vrf_name]/sonic-bgp-peergroup:peer_group_name
+			if leafRef != nil && leafRef.exprTree != nil {
+				leafrefExpr := leafRef.exprTree.String()
+				if len(leafrefExpr) > 0 {
+					// TODO Assumed that predicate will have one expression without any 'and'/'or' operators
+					// predicate looks like [sonic-bgp-peergroup:vrf_name=current()/../vrf_name]
+					predicate := leafrefExpr[strings.Index(leafrefExpr, "[")+1 : strings.Index(leafrefExpr, "]")]
+					if strings.Contains(predicate, "=") {
+						// target tbl key is left of '='
+						leafrefTargetTblkey := predicate[:strings.Index(predicate, "=")]
+						if strings.Contains(leafrefTargetTblkey, ":") {
+							leafrefTargetTblkey = leafrefTargetTblkey[strings.Index(leafrefTargetTblkey, ":")+1 :]
+						}
+						// current tbl key is right of '=' after last '/'('current()/../vrf_name")
+						leafrefCurrentTblkey := predicate[strings.LastIndex(predicate, "/")+1:]
+
+						var leafrefTargetKeyVal, leafrefCurrentKeyVal string
+						for _, kvp := range refTblKeysKVP {
+							if kvp.key == leafrefTargetTblkey {
+								leafrefTargetKeyVal = kvp.values[0]
+							}
+						}
+
+						for _, kvp := range tblKeysKVP {
+							if kvp.key == leafrefCurrentTblkey {
+								leafrefCurrentKeyVal = kvp.values[0]
+							}
+						}
+
+						return leafrefTargetKeyVal == leafrefCurrentKeyVal
+					}
+				}
+			}
+		}
+	}
+
+	return true
+}
+
 //Check delete constraint for leafref if key/field is deleted
 func (c *CVL) checkDeleteConstraint(cfgData []CVLEditConfigData,
 			tableName, keyVal, field string) CVLRetCode {
-	var leafRefs []tblFieldPair
-	if (field != "") {
-		//Leaf or field is getting deleted
-		leafRefs = c.findUsedAsLeafRef(tableName, field)
-	} else {
-		//Entire entry is getting deleted
-		leafRefs = c.findUsedAsLeafRef(tableName, modelInfo.tableInfo[tableName].keys[0])
+
+	// Creating a map of leaf-ref referred tableName and associated fields array
+	refTableFieldsMap := map[string][]string{}
+	for _, leafRef := range modelInfo.tableInfo[tableName].refFromTables {
+		// If field is getting deleted, then collect only those leaf-refs that
+		// refers that field
+		if (field != "") && ((field != leafRef.field) || (field != leafRef.field + "@")) {
+			continue
+		}
+
+		if _, ok := refTableFieldsMap[leafRef.tableName]; !ok {
+			refTableFieldsMap[leafRef.tableName] = make([]string, 0)
+		}
+		refFieldsArr := refTableFieldsMap[leafRef.tableName]
+		refFieldsArr = append(refFieldsArr, leafRef.field)
+		refTableFieldsMap[leafRef.tableName] = refFieldsArr
+	}
+
+	if len(refTableFieldsMap) == 0 {
+		return CVL_SUCCESS
 	}
 
 	//The entry getting deleted might have been referred from multiple tables
 	//Return failure if at-least one table is using this entry
-	for _, leafRef := range leafRefs {
-		TRACE_LOG(INFO_API, (TRACE_DELETE | TRACE_SEMANTIC), "Checking delete constraint for leafRef %s/%s", leafRef.tableName, leafRef.field)
-		//Check in dependent data first, if the referred entry is already deleted
-		leafRefDeleted := false
-		for _, cfgDataItem := range cfgData {
-			if (cfgDataItem.VType == VALIDATE_NONE) &&
-			(cfgDataItem.VOp == OP_DELETE ) &&
-			(strings.HasPrefix(cfgDataItem.Key, (leafRef.tableName + modelInfo.tableInfo[leafRef.tableName].redisKeyDelim + keyVal + modelInfo.tableInfo[leafRef.tableName].redisKeyDelim))) {
-				//Currently, checking for one entry is being deleted in same session
-				//We should check for all entries
-				leafRefDeleted = true
-				break
+
+	// Retrieve all dependent DB entries referring the given entry tableName and keyVal
+	redisKeyForDepData := tableName + "|" + keyVal
+	depDataArr := c.GetDepDataForDelete(redisKeyForDepData)
+	TRACE_LOG(TRACE_SEMANTIC, "checkDeleteConstraint--> All Data for deletion: %v", depDataArr)
+
+	// Iterate through dependent DB entries and check if it already present in delete request cache
+	for _, depData := range depDataArr {
+		if len(depData.Entry) > 0 && depData.RefKey == redisKeyForDepData {
+			TRACE_LOG(TRACE_SEMANTIC, "checkDeleteConstraint--> DepData: %v", depData.Entry)
+			for depEntkey := range depData.Entry {
+				depEntkeyList := strings.SplitN(depEntkey, "|", 2)
+				refTblName := depEntkeyList[0]
+				refTblKey := depEntkeyList[1]
+
+				var isRefTblKeyNotCompatible bool
+				var isEntryInRequestCache bool
+				leafRefFieldsArr := refTableFieldsMap[refTblName]
+				// Verify each dependent data with help of its associated leaf-ref
+				for _, leafRefField := range leafRefFieldsArr {
+					TRACE_LOG(TRACE_SEMANTIC, "checkDeleteConstraint--> Checking delete constraint for leafRef %s/%s", refTblName, leafRefField)
+					// Key compatibility to be checked only if no. of keys are more than 1
+					// because dep data for key like "BGP_PEER_GROUP|Vrf1|PG1" can be returned as 
+					// BGP_NEIGHBOR|Vrf1|11.1.1.1 or BGP_NEIGHBOR|default|11.1.1.1 or BGP_NEIGHBOR|Vrf2|11.1.1.1
+					// So we have to discard imcompatible dep data
+					if !c.checkDepDataCompatible(tableName, keyVal, refTblName, refTblKey, leafRefField, depData.Entry[depEntkey]) {
+						isRefTblKeyNotCompatible = true
+						TRACE_LOG(TRACE_SEMANTIC, "checkDeleteConstraint--> %s is NOT compatible with %s", redisKeyForDepData, depEntkey)
+						break
+					}
+					tempLeafRef := tblFieldPair{refTblName, leafRefField}
+					if c.checkDeleteInRequestCache(cfgData, &tempLeafRef, depEntkey, keyVal) {
+						isEntryInRequestCache = true
+						break
+					}
+				}
+
+				if isRefTblKeyNotCompatible {
+					continue
+				}
+
+				if isEntryInRequestCache {
+					// Entry already in delete request cache, proceed for next dep data
+					continue
+				} else {
+					CVL_LOG(WARNING, "Delete will violate the constraint as entry %s is referred in %v", redisKeyForDepData, depEntkey)
+					return CVL_SEMANTIC_ERROR
+				}
 			}
 		}
-
-		if (leafRefDeleted == true) {
-			continue //check next leafref
-		}
-
-		//Else, check if any referred enrty is present in DB
-		var nokey []string
-		refKeyVal, err := luaScripts["find_key"].Run(redisClient, nokey, leafRef.tableName,
-		modelInfo.tableInfo[leafRef.tableName].redisKeyDelim, leafRef.field, keyVal).Result()
-		if (err == nil &&  refKeyVal != "") {
-			CVL_LOG(ERROR, "Delete will violate the constraint as entry %s is referred in %s", tableName, refKeyVal)
-
-			return CVL_SEMANTIC_ERROR
-		}
 	}
-
 
 	return CVL_SUCCESS
 }
 
-//Perform semantic checks 
-func (c *CVL) validateSemantics(data *yparser.YParserNode, appDepData *yparser.YParserNode) (CVLErrorInfo, CVLRetCode) {
-	var cvlErrObj CVLErrorInfo
-	
-	if (SkipSemanticValidation() == true) {
-		return cvlErrObj, CVL_SUCCESS
+//Validate external dependency using leafref, must and when expression
+func (c *CVL) validateSemantics(node *xmlquery.Node,
+	yangListName, key string,
+	cfgData *CVLEditConfigData) (r CVLErrorInfo) {
+
+	//Mark the list entries from DB if OP_DELETE operation when complete list delete requested
+	if (node != nil) && (cfgData.VOp == OP_DELETE) && (len(cfgData.Data) == 0) {
+		addAttrNode(node, "db", "")
 	}
 
-	//Get dependent data from 
-	depData := c.fetchDataToTmpCache() //fetch data to temp cache for temporary validation
-
-	if (Tracing == true) {
-		TRACE_LOG(INFO_API, TRACE_SEMANTIC, "Validating semantics data=%s\n depData =%s\n, appDepData=%s\n....", c.yp.NodeDump(data), c.yp.NodeDump(depData), c.yp.NodeDump(appDepData))
+	//Check all leafref
+	if errObj := c.validateLeafRef(node, yangListName, key, cfgData.VOp) ;
+	errObj.ErrCode != CVL_SUCCESS {
+		return errObj
 	}
 
-	if errObj := c.yp.ValidateSemantics(data, depData, appDepData); errObj.ErrCode != yparser.YP_SUCCESS {
+	//Validate when expression
+	if errObj := c.validateWhenExp(node, yangListName, key, cfgData.VOp) ;
+	errObj.ErrCode != CVL_SUCCESS {
+		return errObj
+	}
 
-		retCode := CVLRetCode(errObj.ErrCode)
-
-		cvlErrObj =  CVLErrorInfo {
-			TableName : errObj.TableName,
-		        ErrCode   : CVLRetCode(errObj.ErrCode),		
-			CVLErrDetails : cvlErrorMap[retCode], 
-			Keys      : errObj.Keys,
-			Value     : errObj.Value,
-			Field     : errObj.Field,
-			Msg       : errObj.Msg,
-			ConstraintErrMsg : errObj.ErrTxt,
-			ErrAppTag	: errObj.ErrAppTag,
+	//Validate must expression
+	if (cfgData.VOp == OP_DELETE) {
+		if (len(cfgData.Data) > 0) {
+			// Delete leaf nodes from tree. This ensures validateMustExp will
+			// skip all must expressions defined for deleted nodes; and other
+			// must expressions get correct context.
+			c.deleteLeafNodes(node, cfgData.Data)
 		}
-
-
-
-		return  cvlErrObj, retCode
 	}
 
-	return cvlErrObj ,CVL_SUCCESS
+	if errObj := c.validateMustExp(node, yangListName, key, cfgData.VOp) ;
+	errObj.ErrCode != CVL_SUCCESS {
+		return errObj
+	}
+
+	return CVLErrorInfo{ErrCode:CVL_SUCCESS}
+}
+
+//Validate external dependency using leafref, must and when expression
+func (c *CVL) validateCfgSemantics(root *xmlquery.Node) (r CVLErrorInfo) {
+	if (strings.HasSuffix(root.Data, "_LIST")) {
+		if (len(root.Attr) == 0) {
+			return CVLErrorInfo{ErrCode:CVL_SUCCESS}
+		}
+		yangListName := root.Data[:len(root.Data) - 5]
+		return c.validateSemantics(root, yangListName, root.Attr[0].Value,
+		&CVLEditConfigData{VType: VALIDATE_NONE, VOp: OP_NONE})
+	}
+
+	//Traverse through all list instances and validate
+	ret := CVLErrorInfo{}
+	for node := root.FirstChild; node != nil ; node = node.NextSibling {
+		ret = c.validateCfgSemantics(node)
+		if (ret.ErrCode != CVL_SUCCESS) {
+			break
+		}
+	}
+
+	return ret
 }
 

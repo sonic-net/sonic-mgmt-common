@@ -22,7 +22,7 @@ package cvl_test
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v7"
 	"io/ioutil"
 	"os"
 	"os/exec"

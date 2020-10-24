@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -25,6 +25,75 @@ import (
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 )
 
+//This function should be called before adding any new entry
+//Checks max-elements defined with (current number of entries
+//getting added + entries already added and present in request
+//cache + entries present in Redis DB)
+func (c *CVL) checkMaxElemConstraint(op CVLOperation, tableName string) CVLRetCode {
+	var nokey []string
+
+	if (op != OP_CREATE) && (op != OP_DELETE) {
+		//Nothing to do, just return
+		return CVL_SUCCESS
+	}
+
+	if modelInfo.tableInfo[tableName].redisTableSize == -1 {
+		//No limit for table size
+		return CVL_SUCCESS
+	}
+
+	curSize, exists := c.maxTableElem[tableName]
+
+	if !exists { //fetch from Redis first time in the session
+		redisEntries, err := luaScripts["count_entries"].Run(redisClient, nokey, tableName + "|*").Result()
+		if err != nil {
+			CVL_LOG(WARNING,"Unable to fetch current size of table %s from Redis, err= %v",
+			tableName, err)
+			return CVL_FAILURE
+		}
+
+		curSize = int(redisEntries.(int64))
+
+		//Store the current table size
+		c.maxTableElem[tableName] = curSize
+	}
+
+	if (op == OP_DELETE) {
+		//For delete operation we need to reduce the count.
+		//Because same table can be deleted and added back 
+		//in same session.
+
+		if (curSize > 0) {
+			c.maxTableElem[tableName] = (curSize - 1)
+		}
+		return CVL_SUCCESS
+	}
+
+	//Otherwise CREATE case
+	if curSize >=  modelInfo.tableInfo[tableName].redisTableSize {
+		CVL_LOG(WARNING, "%s table size has already reached to max-elements %d",
+		tableName, modelInfo.tableInfo[tableName].redisTableSize)
+
+		return CVL_SYNTAX_ERROR
+	}
+
+	curSize = curSize + 1
+	if (curSize >  modelInfo.tableInfo[tableName].redisTableSize) {
+		//Does not meet the constraint
+		CVL_LOG(WARNING, "Max-elements check failed for table '%s'," +
+		" current size = %v, size in schema = %v",
+		tableName, curSize, modelInfo.tableInfo[tableName].redisTableSize)
+
+		return CVL_SYNTAX_ERROR
+	}
+
+	//Update current size
+	c.maxTableElem[tableName] = curSize
+
+	return CVL_SUCCESS
+}
+
+
 //Add child node to a parent node
 func(c *CVL) addChildNode(tableName string, parent *yparser.YParserNode, name string) *yparser.YParserNode {
 
@@ -41,12 +110,6 @@ func (c *CVL) addChildLeaf(config bool, tableName string, parent *yparser.YParse
 
 	//Batch leaf creation
 	*multileaf = append(*multileaf, &yparser.YParserLeafValue{Name: name, Value: value})
-
-	//Check if this leaf has leafref,
-	//If so add the add redis key to its table so that those 
-	// details can be fetched for dependency validation
-
-	c.addLeafRef(config, tableName, name, value)
 }
 
 func (c *CVL) generateTableFieldsData(config bool, tableName string, jsonNode *jsonquery.Node,
@@ -75,7 +138,7 @@ parent *yparser.YParserNode, multileaf *[]*yparser.YParserLeafValue) CVLErrorInf
 
 				if errObj := c.yp.AddMultiLeafNodes(modelInfo.tableInfo[tableName].module, listNode, batchInnerListLeaf); errObj.ErrCode != yparser.YP_SUCCESS {
 					cvlErrObj = createCVLErrObj(errObj)
-					CVL_LOG(ERROR, "Failed to create innner list leaf nodes, data = %v", batchInnerListLeaf)
+					CVL_LOG(WARNING, "Failed to create innner list leaf nodes, data = %v", batchInnerListLeaf)
 					return cvlErrObj
 				}
 			} else {
@@ -126,7 +189,7 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node)(*yparser.
 
 	// Add top most conatiner e.g. 'container sonic-acl {...}'
 	if _, exists := modelInfo.tableInfo[tableName]; !exists {
-		CVL_LOG(ERROR, "Schema details not found for %s", tableName)
+		CVL_LOG(WARNING, "Schema details not found for %s", tableName)
 		cvlErrObj.ErrCode = CVL_SYNTAX_ERROR
 		cvlErrObj.TableName = tableName 
 		cvlErrObj.Msg ="Schema details not found"
@@ -200,12 +263,11 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node)(*yparser.
 				keyIndices[idx] = 0
 			}
 
-			TRACE_LOG(INFO_API, TRACE_CACHE, "Starting batch leaf creation - %v\n", c.batchLeaf)
+			TRACE_LOG(TRACE_CACHE, "Starting batch leaf creation - %v\n", c.batchLeaf)
 			//process batch leaf creation
 			if errObj := c.yp.AddMultiLeafNodes(modelInfo.tableInfo[tableName].module, listNode, c.batchLeaf); errObj.ErrCode != yparser.YP_SUCCESS {
 				cvlErrObj = createCVLErrObj(errObj)
-				CVL_LOG(ERROR, "Failed to create leaf nodes, data = %v",
-				c.batchLeaf)
+				CVL_LOG(WARNING, "Failed to create leaf nodes, data = %v", c.batchLeaf)
 				return nil, cvlErrObj
 			}
 

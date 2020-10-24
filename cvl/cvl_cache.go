@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -20,14 +20,42 @@
 package cvl
 import (
 	"encoding/json"
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v7"
 	//lint:ignore ST1001 This is safe to dot import for util package
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 	"time"
 	"runtime"
 	"github.com/antchfx/jsonquery"
+	"github.com/antchfx/xmlquery"
 )
+
+func (c *CVL) addTableEntryToCache(tableName string, redisKey string) {
+	if (tableName == "" || redisKey == "") {
+		return
+	}
+
+	if (c.tmpDbCache[tableName] == nil) {
+		c.tmpDbCache[tableName] = map[string]interface{}{redisKey: nil}
+	} else {
+		tblMap := c.tmpDbCache[tableName]
+		tblMap.(map[string]interface{})[redisKey] =nil
+		c.tmpDbCache[tableName] = tblMap
+	}
+}
+
+//Add the data which are referring this key
+/*func (c *CVL) updateDeleteDataToCache(tableName string, redisKey string) {
+	if _, existing := c.tmpDbCache[tableName]; !existing {
+		return
+	} else {
+		tblMap := c.tmpDbCache[tableName]
+		if _, existing := tblMap.(map[string]interface{})[redisKey]; existing {
+			delete(tblMap.(map[string]interface{}), redisKey)
+			c.tmpDbCache[tableName] = tblMap
+		}
+	}
+}*/
 
 // Fetch dependent data from validated data cache,
 // Returns the data and flag to indicate that if requested data 
@@ -37,20 +65,18 @@ func (c *CVL) fetchDataFromRequestCache(tableName string, key string) (d map[str
 		pd := &d
 		pm := &m
 
-		TRACE_LOG(INFO_API, TRACE_CACHE,
+		TRACE_LOG(TRACE_CACHE,
 		"Returning data from request cache, data = %v, merge needed = %v",
 		*pd, *pm)
 	}()
 
 	cfgDataArr := c.requestCache[tableName][key]
-	if (cfgDataArr != nil) {
-		for _, cfgReqData := range cfgDataArr {
-			//Delete request doesn't have depedent data
-			if (cfgReqData.reqData.VOp == OP_CREATE) {
-				return cfgReqData.reqData.Data, false
-			} else	if (cfgReqData.reqData.VOp == OP_UPDATE) {
-				return cfgReqData.reqData.Data, true
-			}
+	for _, cfgReqData := range cfgDataArr {
+		//Delete request doesn't have depedent data
+		if (cfgReqData.reqData.VOp == OP_CREATE) {
+			return cfgReqData.reqData.Data, false
+		} else	if (cfgReqData.reqData.VOp == OP_UPDATE) {
+			return cfgReqData.reqData.Data, true
 		}
 	}
 
@@ -60,7 +86,7 @@ func (c *CVL) fetchDataFromRequestCache(tableName string, key string) (d map[str
 //Fetch given table entries using pipeline
 func (c *CVL) fetchTableDataToTmpCache(tableName string, dbKeys map[string]interface{}) int {
 
-	TRACE_LOG(INFO_API, TRACE_CACHE, "\n%v, Entered fetchTableDataToTmpCache", time.Now())
+	TRACE_LOG(TRACE_CACHE, "\n%v, Entered fetchTableDataToTmpCache", time.Now())
 
 	totalCount := len(dbKeys)
 	if (totalCount == 0) {
@@ -102,25 +128,27 @@ func (c *CVL) fetchTableDataToTmpCache(tableName string, dbKeys map[string]inter
 			redisKey := tableName + modelInfo.tableInfo[tableName].redisKeyDelim + dbKey
 			//Check in validated cache first and add as dependent data
 			if entry, mergeNeeded := c.fetchDataFromRequestCache(tableName, dbKey); (entry != nil) {
-				 c.tmpDbCache[tableName].(map[string]interface{})[dbKey] = entry 
-				 entryFetched = entryFetched + 1
-				 //Entry found in validated cache, so skip fetching from Redis
-				 //if merging is not required with Redis DB
-				 if (mergeNeeded == false) {
-					 continue
-				 }
+				entryFetched = entryFetched + 1
+				//Entry found in validated cache, so skip fetching from Redis
+				//if merging is not required with Redis DB
+				if !mergeNeeded {
+					fieldMap := c.checkFieldMap(&entry)
+					c.tmpDbCache[tableName].(map[string]interface{})[dbKey] = fieldMap
+					continue
+				}
+				c.tmpDbCache[tableName].(map[string]interface{})[dbKey] = entry
 			}
 
 			//Otherwise fetch it from Redis
 			mCmd[dbKey] = pipe.HGetAll(redisKey) //write into pipeline
 			if mCmd[dbKey] == nil {
-				CVL_LOG(ERROR, "Failed pipe.HGetAll('%s')", redisKey)
+				CVL_LOG(WARNING, "Failed pipe.HGetAll('%s')", redisKey)
 			}
 		}
 
 		_, err := pipe.Exec()
 		if err != nil {
-			CVL_LOG(ERROR, "Failed to fetch details for table %s", tableName)
+			CVL_LOG(WARNING, "Failed to fetch details for table %s", tableName)
 			return 0
 		}
 		pipe.Close()
@@ -130,6 +158,11 @@ func (c *CVL) fetchTableDataToTmpCache(tableName string, dbKeys map[string]inter
 
 		for key, val := range mCmd {
 			res, err := val.Result()
+
+			if (mapTable == nil) {
+				break
+			}
+
 			if (err != nil || len(res) == 0) {
 				//no data found, don't keep blank entry
 				delete(mapTable.(map[string]interface{}), key)
@@ -155,14 +188,14 @@ func (c *CVL) fetchTableDataToTmpCache(tableName string, dbKeys map[string]inter
 		runtime.Gosched()
 	}
 
-	TRACE_LOG(INFO_API, TRACE_CACHE,"\n%v, Exiting fetchTableDataToTmpCache", time.Now())
+	TRACE_LOG(TRACE_CACHE,"\n%v, Exiting fetchTableDataToTmpCache", time.Now())
 
 	return entryFetched
 }
 
 //populate redis data to cache
 func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
-	TRACE_LOG(INFO_API, TRACE_CACHE, "\n%v, Entered fetchToTmpCache", time.Now())
+	TRACE_LOG(TRACE_CACHE, "\n%v, Entered fetchToTmpCache", time.Now())
 
 	entryToFetch := 0
 	var root *yparser.YParserNode = nil
@@ -191,7 +224,7 @@ func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
 		if Tracing {
 			jsonDataBytes, _ := json.Marshal(c.tmpDbCache)
 			jsonData := string(jsonDataBytes)
-			TRACE_LOG(INFO_API, TRACE_CACHE, "Top Node=%v\n", jsonData)
+			TRACE_LOG(TRACE_CACHE, "Top Node=%v\n", jsonData)
 		}
 
 		data, err := jsonquery.ParseJsonMap(&c.tmpDbCache)
@@ -202,7 +235,7 @@ func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
 
 		//Build yang tree for each table and cache it
 		for jsonNode := data.FirstChild; jsonNode != nil; jsonNode=jsonNode.NextSibling {
-			TRACE_LOG(INFO_API, TRACE_CACHE, "Top Node=%v\n", jsonNode.Data)
+			TRACE_LOG(TRACE_CACHE, "Top Node=%v\n", jsonNode.Data)
 			//Visit each top level list in a loop for creating table data
 			topNode, _ := c.generateTableData(true, jsonNode)
 			if (root == nil) {
@@ -212,15 +245,46 @@ func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
 					return nil
 				}
 			}
+
+			//Generate YANG data for Yang Validator
+			topYangNode, cvlYErrObj := c.generateYangListData(jsonNode, true)
+			if  topYangNode == nil {
+				cvlYErrObj.ErrCode = CVL_SYNTAX_ERROR
+				CVL_LOG(WARNING, "Unable to translate cache data to YANG format")
+				return nil
+			}
+
+			//Create a full document and merge with main YANG data
+			doc := &xmlquery.Node{Type: xmlquery.DocumentNode}
+			doc.FirstChild = topYangNode
+			doc.LastChild = topYangNode
+			topYangNode.Parent = doc
+
+			if (IsTraceLevelSet(TRACE_CACHE)) {
+				TRACE_LOG(TRACE_CACHE, "Before cache merge = %s, source = %s",
+				c.yv.root.OutputXML(false),
+				doc.OutputXML(false))
+			}
+
+			if c.mergeYangData(c.yv.root, doc) != CVL_SUCCESS {
+				CVL_LOG(WARNING, "Unable to merge translated YANG data while " +
+				"translating from cache data to YANG format")
+				cvlYErrObj.ErrCode = CVL_SYNTAX_ERROR
+				return nil
+			}
+			if (IsTraceLevelSet(TRACE_CACHE)) {
+				TRACE_LOG(TRACE_CACHE, "After cache merge = %s",
+				c.yv.root.OutputXML(false))
+			}
 		}
 	} // until all dependent data is fetched
 
 	if root != nil && Tracing {
 		dumpStr := c.yp.NodeDump(root)
-		TRACE_LOG(INFO_API, TRACE_CACHE, "Dependent Data = %v\n", dumpStr)
+		TRACE_LOG(TRACE_CACHE, "Dependent Data = %v\n", dumpStr)
 	}
 
-	TRACE_LOG(INFO_API, TRACE_CACHE, "\n%v, Exiting fetchToTmpCache", time.Now())
+	TRACE_LOG(TRACE_CACHE, "\n%v, Exiting fetchToTmpCache", time.Now())
 	return root
 }
 
@@ -230,5 +294,3 @@ func (c *CVL) clearTmpDbCache() {
 		delete(c.tmpDbCache, key)
 	}
 }
-
-
