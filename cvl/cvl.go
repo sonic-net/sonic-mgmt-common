@@ -63,11 +63,25 @@ var dbNameToDbNum map[string]uint8
 //map of lua script loaded
 var luaScripts map[string]*redis.Script
 
+type whenInfo struct {
+	expr string //when expression
+	exprTree *xpath.Expr //compiled expression tree
+	nodeNames []string //list of nodes under when condition
+	yangListNames []string //all yang list in expression
+}
+
 type leafRefInfo struct {
 	path string //leafref path
 	exprTree *xpath.Expr //compiled expression tree
 	yangListNames []string //all yang list in path
 	targetNodeName string //target node name
+}
+
+type mustInfo struct {
+	expr string //must expression
+	exprTree *xpath.Expr //compiled expression tree
+	errCode string //err-app-tag
+	errStr string //error message
 }
 
 //Important schema information to be loaded at bootup time
@@ -82,7 +96,8 @@ type modelTableInfo struct {
 	mapLeaf []string //for 'mapping  list'
 	leafRef map[string][]*leafRefInfo //for storing all leafrefs for a leaf in a table, 
 				//multiple leafref possible for union 
-	mustExp map[string]string
+	mustExpr map[string][]*mustInfo
+	whenExpr map[string][]*whenInfo
 	tablesForMustExp map[string]CVLOperation
 	refFromTables []tblFieldPair //list of table or table/field referring to this table
 	dfltLeafVal map[string]string //map of leaf names and default value
@@ -370,7 +385,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 				fieldCount++
 				keypattern := []string{tableName}
 
-				/* Create the default key pattern of the form Table Name|{key1}|{key2}. */
+				// Create the default key pattern of the form Table Name|{key1}|{key2}. 
 				for _ , key := range tableInfo.keys {
 					keypattern = append(keypattern, fmt.Sprintf("{%s}",key))
 				}
@@ -420,7 +435,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 			continue
 		}
 
-		tableInfo.leafRef =  make(map[string][]*leafRefInfo)
+		tableInfo.leafRef = make(map[string][]*leafRefInfo)
 
 		for _, leafRefNode := range leafRefNodes {
 			if (leafRefNode.Parent == nil || leafRefNode.FirstChild == nil) {
@@ -452,7 +467,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 			continue
 		}
 
-		tableInfo.mustExp = make(map[string]string)
+		tableInfo.mustExpr = make(map[string][]*mustInfo)
 		for _, mustExp := range mustExps {
 			if (mustExp.Parent == nil) {
 				continue
@@ -467,7 +482,10 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) { //such mo
 				}
 			}
 			if (parentName != "") {
-				tableInfo.mustExp[parentName] = getXmlNodeAttr(mustExp, "condition")
+				tableInfo.mustExpr[parentName] = append(tableInfo.mustExpr[parentName],
+				&mustInfo{
+					expr: getXmlNodeAttr(mustExp, "condition"),
+				})
 			}
 		}
 
@@ -559,22 +577,22 @@ func buildRefTableInfo() {
 func addTableNamesForMustExp() {
 
 	for tblName, tblInfo := range  modelInfo.tableInfo {
-		if (tblInfo.mustExp == nil) {
+		if (tblInfo.mustExpr == nil) {
 			continue
 		}
 
 		tblInfo.tablesForMustExp = make(map[string]CVLOperation)
 
-		for _, mustExp := range tblInfo.mustExp {
+		for _, mustExp := range tblInfo.mustExpr {
 			var op CVLOperation = OP_NONE
 			//Check if 'must' expression should be executed for a particular operation
-			if (strings.Contains(mustExp,
+			if (strings.Contains(mustExp[0].expr,
 			"/scommon:operation/scommon:operation != CREATE") == true) {
 				op = op | OP_CREATE
-			} else if (strings.Contains(mustExp,
+			} else if (strings.Contains(mustExp[0].expr,
 			"/scommon:operation/scommon:operation != UPDATE") == true) {
 				op = op | OP_UPDATE
-			} else if (strings.Contains(mustExp,
+			} else if (strings.Contains(mustExp[0].expr,
 			"/scommon:operation/scommon:operation != DELETE") == true) {
 				op = op | OP_DELETE
 			}
@@ -592,7 +610,7 @@ func addTableNamesForMustExp() {
 				//Table name should appear like "../VLAN_MEMBER/tagging_mode' or '
 				// "/prt:PORT/prt:ifname"
 				re := regexp.MustCompile(fmt.Sprintf(".*[/]([a-zA-Z]*:)?%s[\\[/]", tblNameSrch))
-				matches := re.FindStringSubmatch(mustExp)
+				matches := re.FindStringSubmatch(mustExp[0].expr)
 				if (len(matches) > 0) {
 					//stores the table name 
 					tblInfo.tablesForMustExp[tblNameSrch] = op
@@ -881,11 +899,11 @@ func (c *CVL) checkPathForTableEntry(tableName string, currentValue string, cfgD
 //Node-set function such count() can be quite expensive and 
 //should be avoided through this function
 func (c *CVL) addTableEntryForMustExp(cfgData *CVLEditConfigData, tableName string) CVLRetCode {
-	if (modelInfo.tableInfo[tableName].mustExp == nil) {
+	if (modelInfo.tableInfo[tableName].mustExpr == nil) {
 		return CVL_SUCCESS
 	}
 
-	for fieldName, mustExp := range modelInfo.tableInfo[tableName].mustExp {
+	for fieldName, mustExp := range modelInfo.tableInfo[tableName].mustExpr {
 
 		currentValue := "" // Current value for current() function
 
@@ -927,7 +945,7 @@ func (c *CVL) addTableEntryForMustExp(cfgData *CVLEditConfigData, tableName stri
 		}
 
 		mustExpStk := []string{} //Use the string slice as stack
-		mustExpStr := "(" + mustExp + ")"
+		mustExpStr := "(" + mustExp[0].expr + ")"
 		strLen :=  len(mustExpStr)
 		strTmp := ""
 		//Parse the xpath expression and fetch Redis entry by looking at xpath,
@@ -1005,7 +1023,7 @@ func (c *CVL) addTableEntryForMustExp(cfgData *CVLEditConfigData, tableName stri
 
 //Add all other table data for validating all 'must' exp for tableName
 func (c *CVL) addTableDataForMustExp(op CVLOperation, tableName string) CVLRetCode {
-	if (modelInfo.tableInfo[tableName].mustExp == nil) {
+	if (modelInfo.tableInfo[tableName].mustExpr == nil) {
 		return CVL_SUCCESS
 	}
 
