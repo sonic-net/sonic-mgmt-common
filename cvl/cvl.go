@@ -55,10 +55,7 @@ const MAX_BULK_ENTRIES_IN_PIPELINE int = 50
 const MAX_DEVICE_METADATA_FETCH_RETRY = 60
 const PLATFORM_SCHEMA_PATH = "platform/"
 
-//var reLeafRef *regexp.Regexp = nil
 var reHashRef *regexp.Regexp = nil
-//var reSelKeyVal *regexp.Regexp = nil
-//var reLeafInXpath *regexp.Regexp = nil
 
 var cvlInitialized bool
 var dbNameToDbNum map[string]uint8
@@ -142,9 +139,7 @@ type CVL struct {
 				//per table, per key. Can be used as dependent data in next request
 	maxTableElem map[string]int //max element count per table
 	batchLeaf []*yparser.YParserLeafValue //field name and value
-	//chkLeafRefWithOthCache bool
 	yv *YValidator //Custom YANG validator for validating external dependencies
-	//custvCache custv.CustValidationCache //Custom validation cache per session
 }
 
 // Struct for model namepsace and prefix
@@ -161,17 +156,8 @@ type modelDataInfo struct {
 	allKeyDelims map[string]bool
 }
 
-//Struct for storing global DB cache to store DB which are needed frequently like PORT
-/*type dbCachedData struct {
-	root *yparser.YParserNode //Root of the cached data
-	startTime time.Time  //When cache started
-	expiry uint16    //How long cache should be maintained in sec
-}*/
-
 //Global data cache for redis table
 type cvlGlobalSessionType struct {
-	//db map[string]dbCachedData
-	//pubsub *redis.PubSub
 	stopChan chan int //stop channel to stop notification listener
 	cv *CVL
 	mutex *sync.Mutex
@@ -227,18 +213,13 @@ func init() {
 	}
 
 	//regular expression for leafref and hashref finding
-	//reLeafRef = regexp.MustCompile(`.*[/]([-_a-zA-Z]*:)?(.*)[/]([-_a-zA-Z]*:)?(.*)`)
 	reHashRef = regexp.MustCompile(`\[(.*)\|(.*)\]`)
 	//Regular expression to select key value
-	//reSelKeyVal = regexp.MustCompile("=[ ]*['\"]?([0-9_a-zA-Z]+)['\"]?|(current[(][)])")
 	//Regular expression to find leafref in xpath
-	//reLeafInXpath = regexp.MustCompile("(.*[:/]{1})([a-zA-Z0-9_-]+)([^a-zA-Z0-9_-]*)")
 
 	if Initialize() != CVL_SUCCESS {
 		CVL_LOG(FATAL, "CVL initialization failed")
 	}
-
-	//cvg.db = make(map[string]dbCachedData)
 
 	//Global session keeps the global cache
 	cvg.cv, _ = ValidationSessOpen()
@@ -266,17 +247,6 @@ func init() {
 func Debug(on bool) {
 	yparser.Debug(on)
 }
-
-//Get attribute value of xml node
-/*func getXmlNodeAttr(node *xmlquery.Node, attrName string) string {
-	for _, attr := range node.Attr {
-		if (attrName == attr.Name.Local) {
-			return attr.Value
-		}
-	}
-
-	return ""
-}*/
 
 // isLeafListNode checks if the xml node represents a leaf-list field
 func isLeafListNode(node *xmlquery.Node) bool {

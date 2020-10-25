@@ -44,19 +44,6 @@ func (c *CVL) addTableEntryToCache(tableName string, redisKey string) {
 	}
 }
 
-//Add the data which are referring this key
-/*func (c *CVL) updateDeleteDataToCache(tableName string, redisKey string) {
-	if _, existing := c.tmpDbCache[tableName]; !existing {
-		return
-	} else {
-		tblMap := c.tmpDbCache[tableName]
-		if _, existing := tblMap.(map[string]interface{})[redisKey]; existing {
-			delete(tblMap.(map[string]interface{}), redisKey)
-			c.tmpDbCache[tableName] = tblMap
-		}
-	}
-}*/
-
 // Fetch dependent data from validated data cache,
 // Returns the data and flag to indicate that if requested data 
 // is found in update request, the data should be merged with Redis data

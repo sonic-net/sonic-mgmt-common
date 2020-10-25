@@ -1364,43 +1364,6 @@ func (c *CVL) validateLeafRef(node *xmlquery.Node,
 	return CVLErrorInfo{ErrCode:CVL_SUCCESS}
 }
 
-//Find which all tables (and which field) is using given (tableName/field)
-// as leafref
-//Use LUA script to find if table has any entry for this leafref
-/*func (c *CVL) findUsedAsLeafRef(tableName, field string) []tblFieldPair {
-
-	var tblFieldPairArr []tblFieldPair
-
-	for tblName, tblInfo := range  modelInfo.tableInfo {
-		if (tableName == tblName) {
-			continue
-		}
-		if (len(tblInfo.leafRef) == 0) {
-			continue
-		}
-
-		for fieldName, leafRefs  := range tblInfo.leafRef {
-			found := false
-			//Find leafref by searching table and field name
-			for _, leafRef := range leafRefs {
-				if (strings.Contains(leafRef.path, tableName) && strings.Contains(leafRef.path, field)) {
-					tblFieldPairArr = append(tblFieldPairArr,
-					tblFieldPair{tblName, fieldName})
-					//Found as leafref, no need to search further
-					found = true
-					break
-				}
-			}
-
-			if found {
-				break
-			}
-		}
-	}
-
-	return tblFieldPairArr
-}*/
-
 //This function returns true if any entry 
 //in request cache is using the given entry
 //getting deleted. The given entry can be found
