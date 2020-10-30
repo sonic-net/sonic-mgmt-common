@@ -64,7 +64,7 @@ type requestBinder struct {
 	pathTmp            *gnmi.Path
 	targetNodePath     *gnmi.Path
 	targetNodeListInst bool
-	isOpenconfig       bool
+	isSonicModel       bool
 }
 
 func getRequestBinder(uri *string, payload *[]byte, opcode int, appRootNodeType *reflect.Type) *requestBinder {
@@ -102,7 +102,7 @@ func (binder *requestBinder) validateObjectType (errObj error) error {
 	
 	errStr := errObj.Error()
 
-	if binder.opcode == GET || !binder.isOpenconfig {
+	if binder.opcode == GET || binder.isSonicModel {
 		tmpStr := strings.Replace(errStr, "ERROR_READONLY_OBJECT_FOUND", "", -1)
 		if len (tmpStr) > 0 {
 			log.Info("validateObjectType ==> GET == return err string ==> ", tmpStr)
@@ -124,7 +124,7 @@ func (binder *requestBinder) validateObjectType (errObj error) error {
 func (binder *requestBinder) validateRequest(deviceObj *ocbinds.Device) error {
 
 	// Skipping the validation for the sonic yang model
-	if !binder.isOpenconfig {
+	if binder.isSonicModel {
 	  log.Warning("Translib: RequestBinder: Skipping the vaidatiion of the given sonic yang model request..")
 		return nil
 	}
@@ -251,7 +251,7 @@ func (binder *requestBinder) unMarshall() (*ygot.GoStruct, *interface{}, error) 
 
 		targetObj, ok := (*tmpTargetNode).(ygot.ValidatedGoStruct)
 		if ok {
-			if binder.isOpenconfig {
+			if !binder.isSonicModel {
 				err := targetObj.Validate(&ytypes.LeafrefOptions{IgnoreMissingData: true})
 				err = binder.validateObjectType (err)
 				if err != nil {
@@ -306,9 +306,8 @@ func (binder *requestBinder) unMarshallUri(deviceObj *ocbinds.Device) (*interfac
 	
 	for idx, p := range path.Elem {
 		pathSlice := strings.Split(p.Name, ":")
-		if idx == 0 && len(pathSlice) > 0 && strings.HasPrefix(pathSlice[0], "openconfig-") {
-			log.Info("URI path - setting isOpenconfig flag ==> ", pathSlice[0])
-			binder.isOpenconfig = true
+		if idx == 0 && len(pathSlice) > 0 && strings.HasPrefix(pathSlice[0], "sonic-") {
+			binder.isSonicModel = true
 		}
 		p.Name = pathSlice[len(pathSlice)-1]
 	}
@@ -330,14 +329,13 @@ func (binder *requestBinder) unMarshallUri(deviceObj *ocbinds.Device) (*interfac
 		gpath := &gnmi.Path{}
 
 		for i := 0; i < (len(pathList) - 1); i++ {
-			log.Info("pathList[i] ", pathList[i])
 			gpath.Elem = append(gpath.Elem, pathList[i])
 		}
 
 		binder.targetNodePath = &gnmi.Path{}
 		binder.targetNodePath.Elem = append(binder.targetNodePath.Elem, pathList[(len(pathList)-1)])
 
-		log.Info("modified path is: ", gpath)
+		log.Info("requestBinder: modified path is: ", gpath)
 
 		binder.pathTmp = gpath
 	}
