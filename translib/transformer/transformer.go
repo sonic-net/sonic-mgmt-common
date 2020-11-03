@@ -21,7 +21,6 @@ package transformer
 import (
 	"fmt"
 	"github.com/openconfig/goyang/pkg/yang"
-	"github.com/openconfig/ygot/ygot"
 	"os"
 	"strings"
         "bufio"
@@ -30,15 +29,8 @@ import (
 )
 
 var YangPath = "/usr/models/yang/" // OpenConfig-*.yang and sonic yang models path
-
-var entries = map[string]*yang.Entry{}
-
-//Interface for xfmr methods
-type xfmrInterface interface {
-	tableXfmr(s *ygot.GoStruct, t *interface{}) (string, error)
-	keyXfmr(s *ygot.GoStruct, t *interface{}) (string, error)
-	fieldXfmr(s *ygot.GoStruct, t *interface{}) (string, error)
-}
+var ModelsListFile  = "models_list"
+var TblInfoJsonFile = "sonic_table_info.json"
 
 func reportIfError(errs []error) {
 	if len(errs) > 0 {
@@ -50,7 +42,7 @@ func reportIfError(errs []error) {
 
 func getOcModelsList () ([]string) {
     var fileList []string
-    file, err := os.Open(YangPath + "models_list")
+    file, err := os.Open(YangPath + ModelsListFile)
     if err != nil {
         return fileList
     }
@@ -58,7 +50,7 @@ func getOcModelsList () ([]string) {
     scanner := bufio.NewScanner(file)
     for scanner.Scan() {
         fileEntry := scanner.Text()
-        if strings.HasPrefix(fileEntry, "#") != true {
+        if !strings.HasPrefix(fileEntry, "#") {
             _, err := os.Stat(YangPath + fileEntry)
             if err != nil {
                 continue
@@ -86,9 +78,9 @@ func getDefaultModelsList () ([]string) {
 
 func init() {
 	initYangModelsPath()
-	yangFiles := []string{}
+	initRegex()
         ocList := getOcModelsList()
-        yangFiles = getDefaultModelsList()
+	yangFiles := getDefaultModelsList()
         yangFiles = append(yangFiles, ocList...)
         fmt.Println("Yang model List:", yangFiles)
 	err := loadYangModules(yangFiles...)
@@ -105,7 +97,7 @@ func initYangModelsPath() {
 		YangPath = path
 	}
 
-	fmt.Println("Yang models path:", YangPath)
+	fmt.Println("Yang modles path:", YangPath)
 }
 
 func loadYangModules(files ...string) error {
@@ -147,15 +139,19 @@ func loadYangModules(files ...string) error {
 		}
 	}
 
-	sonic_entries       := make([]*yang.Entry, len(names))
+	sonic_entries       := make([]*yang.Entry, 0)
 	oc_entries          := make(map[string]*yang.Entry)
-	oc_annot_entries    := make([]*yang.Entry, len(names))
-	sonic_annot_entries := make([]*yang.Entry, len(names))
+	oc_annot_entries    := make([]*yang.Entry, 0)
+	sonic_annot_entries := make([]*yang.Entry, 0)
 
 	for _, n := range names {
 		if strings.Contains(n, "annot") && strings.Contains(n, "sonic") {
 			sonic_annot_entries = append(sonic_annot_entries, yang.ToEntry(mods[n]))
 		} else if strings.Contains(n, "annot") {
+			yangMdlNmDt := strings.Split(n, "-annot")
+			if len(yangMdlNmDt) > 0 {
+				addMdlCpbltEntry(yangMdlNmDt[0])
+			}
 			oc_annot_entries = append(oc_annot_entries, yang.ToEntry(mods[n]))
 		} else if strings.Contains(n, "sonic") {
 			sonic_entries = append(sonic_entries, yang.ToEntry(mods[n]))
@@ -164,6 +160,37 @@ func loadYangModules(files ...string) error {
 		}
 	}
 
+	// populate model capabilities data
+	for yngMdlNm := range(xMdlCpbltMap) {
+		org := ""
+		ver := ""
+		ocVerSet := false
+		yngEntry := oc_entries[yngMdlNm]
+		if (yngEntry != nil) {
+			// OC yang has version in standard extension oc-ext:openconfig-version
+			if strings.HasPrefix(yngMdlNm, "openconfig-") {
+				for _, ext := range yngEntry.Exts {
+					dataTagArr := strings.Split(ext.Keyword, ":")
+					tagType := dataTagArr[len(dataTagArr)-1]
+					if tagType == "openconfig-version" {
+						ver = ext.NName()
+						fmt.Printf("Found version %v for yang module %v", ver, yngMdlNm)
+						if len(strings.TrimSpace(ver)) > 0 {
+							ocVerSet = true
+						}
+					break
+					}
+
+				}
+			}
+		}
+		if ((strings.HasPrefix(yngMdlNm, "ietf-")) || (!ocVerSet)) {
+			// as per RFC7895 revision date to be used as version
+			ver = mods[yngMdlNm].Current() //gives the most recent revision date for yang module
+		}
+		org = mods[yngMdlNm].Organization.Name
+		addMdlCpbltData(yngMdlNm, ver, org)
+	}
 	dbMapBuild(sonic_entries)
 	annotDbSpecMap(sonic_annot_entries)
 	annotToDbMapBuild(oc_annot_entries)
