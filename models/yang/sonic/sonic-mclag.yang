@@ -139,7 +139,7 @@ module sonic-mclag {
                 }
 
                 must "count(/svlan-intf:sonic-vlan-interface/svlan-intf:VLAN_INTERFACE/svlan-intf:VLAN_INTERFACE_IPADDR_LIST[svlan-intf:vlanName=current()/if_name]) = 0" {
-                    error-message "remove configured ip/v6 address and reconfigure after seperate ip configuration";
+                    error-message "remove configured ip/v6 address and reconfigure after separate ip configuration";
                     error-app-tag vlan-intf-ip-invalid;
                 }
 
