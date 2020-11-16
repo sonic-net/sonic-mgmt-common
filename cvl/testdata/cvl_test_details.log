@@ -1,0 +1,210 @@
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_ErrAppTag_In_Must_Negative
+
+CVL Error Info is  {VLAN 1002 Config Validation Semantic Error [] name VLAN_LIST Must expression validation failed  vlan-invalid}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_Invalid_PacketAction_Negative
+
+CVL Error Info is  { 1001 Invalid Field Received [] FORWARD777 PACKET_ACTION  with keys[] has field PACKET_ACTION with invalid value FORWARD777  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_Invalid_SrcPrefix_Negative
+
+CVL Error Info is  { 1001  [] 10.1.1.1/3288888   with keys[] has field  with invalid value 10.1.1.1/3288888  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_InvalidIPAddress_Negative
+
+CVL Error Info is  { 1001  [] 10.1a.1.1/32   with keys[] has field  with invalid value 10.1a.1.1/32  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_OutofBound_Negative
+
+CVL Error Info is  { 1001 Invalid Field Received [] 19099090909090 L4_SRC_PORT  with keys[] has field L4_SRC_PORT with invalid value 19099090909090  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_InvalidProtocol_Negative
+
+CVL Error Info is  { 1001 Invalid Field Received [] 10388888 IP_PROTOCOL  with keys[] has field IP_PROTOCOL with invalid value 10388888  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_InvalidRange_Negative
+
+CVL Error Info is  { 1001  [] 777779000-12000   with keys[] has field  with invalid value 777779000-12000  dst-port-range-invalid}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_InvalidCharNEw_Negative
+
+CVL Error Info is  {ACL_RULE 1014 Dependent Data is missing [TestACL1jjjj Rule1]    No instance found for 'TestACL1jjjj' instance-required}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_InvalidKeyName_Negative
+
+CVL Error Info is  { 1001 Config Validation Syntax Error []   Invalid table or key for AC&&***L_RULE|TestACL1|Rule1  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Semantic_AdditionalInvalidNode_Negative
+
+CVL Error Info is  { 1001  []    with keys[] has field  with invalid value  Invalid value }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Semantic_MissingMandatoryNode_Negative
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_Invalid_Negative
+
+CVL Error Info is  { 1001 Config Validation Syntax Error []   Invalid table or key for ACL_RULERule1  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_IncompleteKey_Negative
+
+CVL Error Info is  { 1003 Required Field is Missing []    with keys[] has field  with invalid value   }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_InvalidKey_Negative
+
+CVL Error Info is  { 1001 Config Validation Syntax Error []   Invalid table or key for |Rule1  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Delete_Syntax_InvalidKey_Negative
+
+CVL Error Info is  { 1001 Config Validation Syntax Error []   Invalid table or key for |Rule1  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Update_Syntax_InvalidKey_Negative
+
+CVL Error Info is  { 1001 Config Validation Syntax Error []   Invalid table or key for |Rule1  }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Delete_InvalidKey_Negative
+
+CVL Error Info is  {ACL_RULE 1002 Config Validation Semantic Error []  IP_TYPE Mandatory field getting deleted Mandatory field getting deleted mandatory-field-delete}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Update_Semantic_Invalid_Key_Negative
+
+CVL Error Info is  { 1003 Required Field is Missing []    with keys[] has field  with invalid value   }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Delete_Semantic_KeyNotExisting_Negative
+
+CVL Error Info is  { 1017 Key is missing. []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Update_Semantic_MissingKey_Negative
+
+CVL Error Info is  { 1001  []    with keys[] has field  with invalid value  Invalid value }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Duplicate_Key_Negative
+
+CVL Error Info is  { 1016 Key already existing. []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Update_Syntax_DependentData_Redis_Negative
+
+CVL Error Info is  { 1001  []    with keys[] has field  with invalid value  Invalid value }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Delete_Semantic_ACLTableReference_Negative
+
+CVL Error Info is  { 1017 Key is missing. []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_DepData_From_Redis_Negative11
+
+CVL Error Info is  {ACL_RULE 1014 Dependent Data is missing [TestACL188 Rule1]    No instance found for 'TestACL188' instance-required}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_ErrAppTag_In_Range_Negative
+
+CVL Error Info is  { 1001  []   Dependent data validation failed for table  with keys[] Vlan ID out of range vlanid-invalid}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_ErrAppTag_In_Length_Negative
+
+CVL Error Info is  { 1001  [] A12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890   with keys[] has field  with invalid value A12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890  policy-desc-invalid-length}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_ErrAppTag_In_Pattern_Negative
+
+CVL Error Info is  { 1001  []   Dependent data validation failed for table  with keys[] Invalid Vlan name pattern vlan-name-invalid}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_InValid_FieldValue
+
+CVL Error Info is  { 1003 Required Field is Missing []    with keys[] has field  with invalid value   }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Delete_Dep_Leafref_Negative
+
+CVL Error Info is  { 1002 Config Validation Semantic Error []   Validation failed for Delete operation, given instance is in use Validation failed for Delete operation, given instance is in use instance-in-use}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_InvalidVlanRange_Negative
+
+CVL Error Info is  { 1001  []   Dependent data validation failed for table  with keys[] Invalid Vlan name pattern vlan-name-invalid}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Delete_Entry_Then_Dep_Leafref_Positive
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Two_Updates_Positive
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_DependentData_PositivePortChannel
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_DependentData_PositivePortChannelIfName
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_DependentData_NegativePortChannelEthernet
+
+CVL Error Info is  {VLAN 1002 Config Validation Semantic Error [Vlan1001] PortChannel001 members Must expression validation failed A vlan interface member cannot be part of portchannel which is already a vlan member }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_DependentData_NegativePortChannelNew
+
+CVL Error Info is  {VLAN 1002 Config Validation Semantic Error [Vlan1001] Ethernet12 members Must expression validation failed A vlan interface member cannot be part of portchannel which is already a vlan member }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Use_Updated_Data_As_Create_DependentData_Positive
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Use_Updated_Data_As_Create_DependentData_Single_Call_Positive
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_Interface_AllKeys_Positive
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_Interface_OptionalKey_Positive
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_Create_Syntax_Interface_IncorrectKey_Negative
+
+CVL Error Info is  { 1001  []   Dependent data validation failed for table  with keys[] Invalid interface name interface-name-invalid}
+
+-------------------------------------------------
+github.com/Azure/sonic-mgmt-common/cvl_test.TestValidateEditConfig_EmptyNode_Positive
+
+CVL Error Info is  { 0  []     }
+
+-------------------------------------------------

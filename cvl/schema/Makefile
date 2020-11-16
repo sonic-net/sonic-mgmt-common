@@ -34,7 +34,7 @@ out_platform=$(patsubst %.yang, $(out_dir)/%.yin, $(shell find $(sonic_yang_plat
 out_platform_dep=$(shell find $(sonic_yang_platform) -name '*.yang')
 out_tree=$(patsubst %.yang, $(out_dir)/%.tree, $(src_files)) 
 
-search_path=$(sonic_yang):$(sonic_yang_common):$(sonic_yang_common)/ietf
+search_path=$(std_yang_common):$(sonic_yang):$(sonic_yang_common)
 
 
 all: precheck schema
