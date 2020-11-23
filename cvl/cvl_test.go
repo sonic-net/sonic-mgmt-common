@@ -3714,62 +3714,6 @@ func TestValidateEditConfig_Two_Delete_Requests_Positive(t *testing.T) {
 	unloadConfigDB(rclient, depDataMap)
 }
 
-func TestVailidateStaticPlatformLimits_YANG_Deviation_Ngeative(t *testing.T) {
-
-	//Get platform
-	platformName := ""
-	metaData, err:= rclient.HGetAll("DEVICE_METADATA|localhost").Result()
-
-	if (err == nil) {
-		platformName, _ = metaData["platform"]
-	}
-
-	depDataMapAcl := map[string]interface{}{
-		"ACL_TABLE": map[string]interface{}{
-			"TestACL901": map[string]interface{}{
-				"type": "L3",
-			},
-			"TestACL902": map[string]interface{}{
-				"type": "L3",
-			},
-		},
-	}
-
-	loadConfigDB(rclient, depDataMapAcl)
-
-	cvSess, _ := cvl.ValidationSessOpen()
-
-	cfgDataAcl := []cvl.CVLEditConfigData {
-		cvl.CVLEditConfigData {
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
-			"ACL_TABLE|TestACL903",
-			map[string]string {
-				"type": "L3",
-			},
-		},
-		cvl.CVLEditConfigData {
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
-			"ACL_TABLE|TestACL904",
-			map[string]string {
-				"type": "L3",
-			},
-		},
-	}
-
-	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgDataAcl)
-
-	if (strings.Contains(platformName, "quanta_ix8")) &&
-	(cvlErrInfo.ErrCode == cvl.CVL_SUCCESS) {
-		t.Errorf("Should not be able to create more than 3 ACL TABLEs")
-        }
-
-        cvl.ValidationSessClose(cvSess)
-
-	unloadConfigDB(rclient, depDataMapAcl)
-}
-
 //Check delete constraing with table having multiple keys
 func TestValidateEditConfig_Multi_Delete_MultiKey_Same_Session_Positive(t *testing.T) {
 	depDataMap := map[string]interface{}{
