@@ -9,12 +9,12 @@ Section: net
 
 Package: sonic-mgmt-common
 Priority: extra  
-Architecture: amd64
+Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}  
 Description: SONiC Management Infrastructure
 
 Package: sonic-mgmt-common-codegen
 Priority: extra  
-Architecture: amd64
+Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}  
 Description: SONiC Management Infrastructure generated code

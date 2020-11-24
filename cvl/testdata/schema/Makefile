@@ -41,7 +41,7 @@ $(out_dir)/%.yin:%.yang
 	@echo "Generating `basename $@` ..."
 	@devFile="`echo $< | cut -d . -f1`-deviation.yang"; \
 	if [ -f $$devFile ] ; then devOpt="--deviation-module $$devFile"; fi; \
-	pyang -p  $(search_path) \
+	pyang -p $(search_path) \
 		--plugindir $(pyang_plugin_dir) -f yin-cvl $$devOpt $< -o $@
 
 $(out_dir)/%.tree:%.yang
