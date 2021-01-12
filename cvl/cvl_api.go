@@ -324,7 +324,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 		caller = f.Name()
 	}
 
-        CVL_LOG(INFO_DEBUG, "ValidateEditConfig() called from %s() : %v", caller, cfgData)
+  CVL_LOG(INFO_DEBUG, "ValidateEditConfig() called from %s() : %v", caller, cfgData)
 
 	if SkipValidation() {
 		CVL_LOG(INFO_TRACE, "Skipping CVL validation.")
