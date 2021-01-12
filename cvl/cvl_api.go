@@ -21,6 +21,7 @@ package cvl
 
 import (
 	"fmt"
+	"reflect"
 	"encoding/json"
 	"github.com/go-redis/redis/v7"
 	toposort "github.com/philopon/go-toposort"
@@ -29,7 +30,9 @@ import (
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 	"strings"
 	"github.com/antchfx/xmlquery"
+	"unsafe"
 	"runtime"
+	custv "github.com/Azure/sonic-mgmt-common/cvl/custom_validation"
 	"time"
 	"sync"
 )
@@ -321,7 +324,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 		caller = f.Name()
 	}
 
-        CVL_LOG(INFO_DEBUG, "ValidateEditConfig() called from %s() : %v", caller, cfgData)
+  CVL_LOG(INFO_DEBUG, "ValidateEditConfig() called from %s() : %v", caller, cfgData)
 
 	if SkipValidation() {
 		CVL_LOG(INFO_TRACE, "Skipping CVL validation.")
@@ -329,6 +332,8 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 	}
 
 	//Type cast to custom validation cfg data
+	sliceHeader := *(*reflect.SliceHeader)(unsafe.Pointer(&cfgData))
+	custvCfg := *(*[]custv.CVLEditConfigData)(unsafe.Pointer(&sliceHeader))
 
 	c.clearTmpDbCache()
 	//c.yv.root.FirstChild = nil
@@ -542,6 +547,13 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 			CVL_LOG(WARNING, "Could not find data for semantic validation, " +
 			"table %s , key %s", tbl, key)
 			continue
+		}
+
+		//Step 3.2 : Run all custom validations
+		cvlErrObj= c.doCustomValidation(node, custvCfg, &custvCfg[i], yangListName,
+		tbl, key)
+		if cvlErrObj.ErrCode != CVL_SUCCESS {
+			return cvlErrObj,cvlErrObj.ErrCode
 		}
 
 		//Step 3.3 : Perform semantic validation

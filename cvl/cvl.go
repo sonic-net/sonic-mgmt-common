@@ -34,6 +34,8 @@ import (
 	"sync"
 	"io/ioutil"
 	"path/filepath"
+	custv "github.com/Azure/sonic-mgmt-common/cvl/custom_validation"
+	"unsafe"
 )
 
 //DB number 
@@ -106,6 +108,7 @@ type modelTableInfo struct {
 	whenExpr map[string][]*whenInfo
 	tablesForMustExp map[string]CVLOperation
 	refFromTables []tblFieldPair //list of table or table/field referring to this table
+	custValidation map[string]string // Map for custom validation node and function name
 	dfltLeafVal map[string]string //map of leaf names and default value
 	mandatoryNodes map[string]bool  //map of leaf names and mandatory flag
 }
@@ -140,6 +143,7 @@ type CVL struct {
 	maxTableElem map[string]int //max element count per table
 	batchLeaf []*yparser.YParserLeafValue //field name and value
 	yv *YValidator //Custom YANG validator for validating external dependencies
+	custvCache custv.CustValidationCache //Custom validation cache per session
 }
 
 // Struct for model namepsace and prefix
@@ -449,6 +453,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) {
 		tInfo.redisTableSize = lInfo.RedisTableSize
 		tInfo.keys = lInfo.Keys
 		tInfo.mapLeaf = lInfo.MapLeaf
+		tInfo.custValidation = lInfo.CustValidation
 		tInfo.mandatoryNodes = lInfo.MandatoryNodes
 
 		//store default values used in must and when exp
@@ -953,6 +958,62 @@ func (c *CVL) addCfgDataItem(configData *map[string]interface{},
 	}
 
 	return tblName, key
+}
+
+//Perform user defined custom validation
+func (c *CVL) doCustomValidation(node *xmlquery.Node,
+	custvCfg []custv.CVLEditConfigData,
+	curCustvCfg *custv.CVLEditConfigData, yangListName,
+	tbl, key string) CVLErrorInfo {
+
+	cvlErrObj := CVLErrorInfo{ErrCode : CVL_SUCCESS}
+
+	// yangListName provides the correct table name defined in sonic-yang
+	// For ex. VLAN_INTERFACE_LIST and VLAN_INTERFACE_IPADDR_LIST are in same container
+	for nodeName, custFunc := range modelInfo.tableInfo[yangListName].custValidation {
+		//find the node value
+		//node value is empty for custom validation function at list level
+		nodeVal := ""
+		if !strings.HasSuffix(nodeName, "_LIST") {
+			for nodeLeaf := node.FirstChild; nodeLeaf != nil;
+			nodeLeaf = nodeLeaf.NextSibling {
+				if (nodeName != nodeLeaf.Data) {
+					continue
+				}
+
+				if (len(nodeLeaf.Attr) > 0) &&
+				(nodeLeaf.Attr[0].Name.Local == "leaf-list") {
+					nodeVal = curCustvCfg.Data[nodeName]
+				} else {
+					nodeVal = nodeLeaf.FirstChild.Data
+				}
+			}
+
+		}
+
+		//Call custom validation functions
+		CVL_LOG(INFO_TRACE, "Calling custom validation function %s", custFunc)
+		pCustv := &custv.CustValidationCtxt{
+			ReqData: custvCfg,
+			CurCfg: curCustvCfg,
+			YNodeName: nodeName,
+			YNodeVal: nodeVal,
+			YCur: node,
+			SessCache: &(c.custvCache),
+			RClient: redisClient}
+
+		errObj := custv.InvokeCustomValidation(&custv.CustomValidation{},
+		custFunc, pCustv)
+
+		cvlErrObj = *(*CVLErrorInfo)(unsafe.Pointer(&errObj))
+
+		if (cvlErrObj.ErrCode != CVL_SUCCESS) {
+			CVL_LOG(WARNING, "Custom validation failed, Error = %v", cvlErrObj)
+			return cvlErrObj
+		}
+	}
+
+	return cvlErrObj
 }
 
 // getLeafRefInfo This function returns leafrefInfo structure based on table name,

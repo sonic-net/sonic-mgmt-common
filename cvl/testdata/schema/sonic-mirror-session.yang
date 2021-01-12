@@ -13,7 +13,7 @@ module sonic-mirror-session {
 		"SONiC";
 
 	description
-		"SONiC MIRROR SESSION";
+		"SONIC MIRROR SESSION";
 
 	revision 2019-05-15 {
 		description
