@@ -2299,7 +2299,7 @@ func TestValidateEditConfig_Create_ErrAppTag_In_Must_Negative(t *testing.T) {
 	WriteToFile(fmt.Sprintf("\nCVL Error Info is  %v\n", cvlErrInfo))
 
 	/* Compare expected error details and error tag. */
-	if compareErrorDetails(cvlErrInfo, cvl.CVL_SEMANTIC_DEPENDENT_DATA_MISSING ,"vlan-invalid", "") != true {
+	if compareErrorDetails(cvlErrInfo, cvl.CVL_SEMANTIC_ERROR ,"vlan-invalid", "") != true {
 		t.Errorf("Config Validation failed -- error details %v %v", cvlErrInfo, retCode)
 	}
 
@@ -2550,19 +2550,22 @@ func TestValidateEditConfig_Create_Chained_Leafref_DepData_Negative(t *testing.T
 				"index": "5",
 			},
 		},
-		"ACL_TABLE" : map[string]interface{} {
-			"TestACL1": map[string] interface{} {
-				"stage": "INGRESS",
-				"type": "L3",
-				"ports@":"Ethernet2",
-			},
-		},
 	}
 
 	//Prepare data in Redis
 	loadConfigDB(rclient, depDataMap)
 
-	cfgDataAclRule :=  []cvl.CVLEditConfigData {
+	cfgDataAclRule := []cvl.CVLEditConfigData {
+		cvl.CVLEditConfigData {
+			cvl.VALIDATE_ALL,
+			cvl.OP_CREATE,
+			"ACL_TABLE|TestACL1",
+			map[string]string {
+				"stage": "INGRESS",
+				"type": "L3",
+				"ports@":"Ethernet2",
+			},
+		},
 		cvl.CVLEditConfigData {
 			cvl.VALIDATE_ALL,
 			cvl.OP_CREATE,
@@ -3197,33 +3200,6 @@ func TestValidateEditConfig_Create_Syntax_DependentData_NegativePortChannelEther
 			map[string]string{
 				"vlanid":   "1001",
 				"members@": "PortChannel001,Ethernet4",
-			},
-		},
-	}
-
-	cvSess, _ := cvl.ValidationSessOpen()
-
-	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	WriteToFile(fmt.Sprintf("\nCVL Error Info is  %v\n", cvlErrInfo))
-
-	if cvlErrInfo.ErrCode == cvl.CVL_SUCCESS {
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-}
-
-func TestValidateEditConfig_Create_Syntax_DependentData_NegativePortChannelNew(t *testing.T) {
-
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
-			"VLAN|Vlan1001",
-			map[string]string{
-				"vlanid":   "1001",
-				"members@": "Ethernet12,PortChannel001",
 			},
 		},
 	}
