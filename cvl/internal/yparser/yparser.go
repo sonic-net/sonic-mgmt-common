@@ -38,7 +38,7 @@ import (
 #include <stdio.h>
 #include <string.h>
 
-//extern int lyd_check_mandatory_tree(struct lyd_node *root, struct ly_ctx *ctx, const struct lys_module **modules, int mod_count, int options);
+extern int lyd_check_mandatory_tree(struct lyd_node *root, struct ly_ctx *ctx, const struct lys_module **modules, int mod_count, int options);
 
 struct lyd_node* lyd_parse_data_path(struct ly_ctx *ctx,  const char *path, LYD_FORMAT format, int options) {
 	return lyd_parse_path(ctx, path, format, options);
@@ -54,8 +54,7 @@ int lyd_data_validate(struct lyd_node **node, int options, struct ly_ctx *ctx)
 	int ret = -1;
 
 	//Check mandatory elements as it is skipped for LYD_OPT_EDIT
-	//ret = lyd_check_mandatory_tree(*node, ctx, NULL, 0, LYD_OPT_CONFIG | LYD_OPT_NOEXTDEPS);
-	ret = 0;
+	ret = lyd_check_mandatory_tree(*node, ctx, NULL, 0, LYD_OPT_CONFIG | LYD_OPT_NOEXTDEPS);
 
 	if (ret != 0) 
 	{
