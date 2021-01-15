@@ -20,8 +20,6 @@
 package translib
 
 import (
-	"bytes"
-	"encoding/json"
 	"reflect"
 	"strings"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -179,15 +177,12 @@ func getTargetNodeYangSchema(targetUri string, deviceObj *ocbinds.Device) (*yang
 func dumpIetfJson(s ygot.ValidatedGoStruct, skipValidation bool) ([]byte, error) {
 	jsonStr, err := ygot.EmitJSON(s, &ygot.EmitJSONConfig{
 		Format:         ygot.RFC7951,
-		Indent:         "  ",
 		SkipValidation: skipValidation,
 		RFC7951Config: &ygot.RFC7951JSONConfig{
 			AppendModuleName: true,
 		},
 	})
-	var buf bytes.Buffer
-	json.Compact(&buf, []byte(jsonStr))
-	return []byte(buf.String()), err
+	return []byte(jsonStr), err
 }
 
 func contains(sl []string, str string) bool {

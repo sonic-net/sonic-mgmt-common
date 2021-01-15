@@ -1,48 +1,58 @@
 module sonic-portchannel-interface {
-	namespace "http://github.com/Azure/sonic-portchannel-interface";
-	prefix spchint;
+    namespace "http://github.com/Azure/sonic-portchannel-interface";
+    prefix spchint;
 
-	import ietf-inet-types {
-		prefix inet;
-	}
+    import ietf-inet-types {
+        prefix inet;
+    }
 
-	import sonic-portchannel {
-		prefix spc;
-	}
+    import sonic-portchannel {
+        prefix spc;
+    }
 
-	organization
-		"SONiC";
+    organization
+        "SONiC";
 
-	contact
-		"SONiC";
+    contact
+        "SONiC";
 
-	description
-		"SONIC PORTCHANNEL INTERFACE";
+    description
+        "SONIC PORTCHANNEL INTERFACE";
 
-	revision 2019-07-02 {
-		description
-			"Initial revision.";
-	}
+    revision 2019-07-02 {
+        description
+            "Initial revision.";
+    }
 
-	container sonic-portchannel-interface {
+    container sonic-portchannel-interface {
 
-		container PORTCHANNEL_INTERFACE {
+        container PORTCHANNEL_INTERFACE {
 
-			list PORTCHANNEL_INTERFACE_LIST {
-				key "pch_name ip_prefix";
+            list PORTCHANNEL_INTERFACE_LIST {
+                key "pch_name";
 
-				leaf pch_name{
-					type leafref {
-						path "/spc:sonic-portchannel/spc:PORTCHANNEL/spc:PORTCHANNEL_LIST/spc:name";
-					}
-				}
+                leaf pch_name{
+                    type leafref {
+                        path "/spc:sonic-portchannel/spc:PORTCHANNEL/spc:PORTCHANNEL_LIST/spc:name";
+                    }
+                }
 
-				leaf ip_prefix {
-					mandatory true;
-					type inet:ip-prefix;
+            }
+            list PORTCHANNEL_INTERFACE_IPADDR_LIST {
+                key "pch_name ip_prefix";
 
-				}
-			}
-		}
-	}
+                leaf pch_name{
+                    type leafref {
+                        path "/spc:sonic-portchannel/spc:PORTCHANNEL/spc:PORTCHANNEL_LIST/spc:name";
+                    }
+                }
+
+                leaf ip_prefix {
+                    mandatory true;
+                    type inet:ip-prefix;
+
+                }
+            }
+        }
+    }
 }

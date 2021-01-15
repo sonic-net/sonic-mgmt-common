@@ -1,6 +1,6 @@
 diff -ruN ygot-dir-orig/ygot/generator/generator.go ygot-dir/ygot/generator/generator.go
---- ygot-dir-orig/ygot/generator/generator.go	2020-06-21 15:35:13.777667000 -0700
-+++ ygot-dir/ygot/generator/generator.go	2020-06-29 10:58:06.102616000 -0700
+--- ygot-dir-orig/ygot/generator/generator.go	2020-10-07 14:33:58.430343000 -0700
++++ ygot-dir/ygot/generator/generator.go	2020-10-27 16:02:47.667985000 -0700
 @@ -109,7 +109,7 @@
  }
  
@@ -11,8 +11,8 @@ diff -ruN ygot-dir-orig/ygot/generator/generator.go ygot-dir/ygot/generator/gene
  		b.WriteString(s)
  	}
 diff -ruN ygot-dir-orig/ygot/genutil/common.go ygot-dir/ygot/genutil/common.go
---- ygot-dir-orig/ygot/genutil/common.go	2020-06-21 15:35:13.763550000 -0700
-+++ ygot-dir/ygot/genutil/common.go	2020-06-29 10:39:37.163621000 -0700
+--- ygot-dir-orig/ygot/genutil/common.go	2020-10-07 14:33:58.413742000 -0700
++++ ygot-dir/ygot/genutil/common.go	2020-10-27 16:02:47.683147000 -0700
 @@ -18,9 +18,9 @@
  
  import (
@@ -35,8 +35,8 @@ diff -ruN ygot-dir-orig/ygot/genutil/common.go ygot-dir/ygot/genutil/common.go
  		b.WriteString(s)
  	}
 diff -ruN ygot-dir-orig/ygot/util/debug.go ygot-dir/ygot/util/debug.go
---- ygot-dir-orig/ygot/util/debug.go	2020-06-21 15:35:13.562106000 -0700
-+++ ygot-dir/ygot/util/debug.go	2020-06-21 15:27:34.732928000 -0700
+--- ygot-dir-orig/ygot/util/debug.go	2020-10-07 14:33:58.180210000 -0700
++++ ygot-dir/ygot/util/debug.go	2020-10-27 16:02:47.497624000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -73,8 +73,8 @@ diff -ruN ygot-dir-orig/ygot/util/debug.go ygot-dir/ygot/util/debug.go
  	if len(yt.Pattern) != 0 {
  		out += fmt.Sprintf(", Pattern: %s", strings.Join(yt.Pattern, " or "))
 diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
---- ygot-dir-orig/ygot/util/path.go	2020-06-21 15:35:13.572583000 -0700
-+++ ygot-dir/ygot/util/path.go	2020-06-21 15:27:34.736766000 -0700
+--- ygot-dir-orig/ygot/util/path.go	2020-10-07 14:33:58.191131000 -0700
++++ ygot-dir/ygot/util/path.go	2020-10-27 16:02:47.508799000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -85,16 +85,22 @@ diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
  package util
  
  import (
-@@ -23,6 +26,8 @@
+@@ -19,10 +22,13 @@
+ 	"fmt"
+ 	"reflect"
+ 	"strings"
+-
++	"sync"
  	"github.com/openconfig/goyang/pkg/yang"
  )
  
 +var pathToSchemaCache map[reflect.StructTag][]string = make(map[reflect.StructTag][]string)
++var pathToSchemaMutex sync.RWMutex
 +
  // SchemaPaths returns all the paths in the path tag.
  func SchemaPaths(f reflect.StructField) ([][]string, error) {
  	var out [][]string
-@@ -49,25 +54,32 @@
+@@ -49,25 +55,39 @@
  // leafref; the schema *yang.Entry for the field is given by
  // schema.Dir["config"].Dir["a"].
  func RelativeSchemaPath(f reflect.StructField) ([]string, error) {
@@ -102,9 +108,12 @@ diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
 -	if !ok || pathTag == "" {
 -		return nil, fmt.Errorf("field %s did not specify a path", f.Name)
 -	}
++	pathToSchemaMutex.RLock()
 +	if pe, ok := pathToSchemaCache[f.Tag]; ok {
++		pathToSchemaMutex.RUnlock()
 +		return pe, nil
 +	} else {
++		pathToSchemaMutex.RUnlock()
 +		pathTag, ok := f.Tag.Lookup("path")
 +		if !ok || pathTag == "" {
 +			return nil, fmt.Errorf("field %s did not specify a path", f.Name)
@@ -124,14 +133,18 @@ diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
 +		if len(paths) == 1 {
 +			pathTag = strings.TrimPrefix(pathTag, "/")
 +			retPath := strings.Split(pathTag, "/")
++			pathToSchemaMutex.Lock()
 +			pathToSchemaCache[f.Tag] = retPath
++			pathToSchemaMutex.Unlock()
 +			return retPath, nil
 +		}
 +		for _, pv := range paths {
 +			pv = strings.TrimPrefix(pv, "/")
 +			pe := strings.Split(pv, "/")
 +			if len(pe) > 1 {
++				pathToSchemaMutex.Lock()
 +				pathToSchemaCache[f.Tag] = pe
++				pathToSchemaMutex.Unlock()
 +				return pe, nil
 +			}
  		}
@@ -143,7 +156,7 @@ diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
  }
  
  // SchemaTreePath returns the schema tree path of the supplied yang.Entry
-@@ -215,6 +227,10 @@
+@@ -215,6 +235,10 @@
  		refSchema = refSchema.Dir[pe]
  	}
  
@@ -155,8 +168,8 @@ diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
  }
  
 diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
---- ygot-dir-orig/ygot/util/reflect.go	2020-06-21 15:35:13.578335000 -0700
-+++ ygot-dir/ygot/util/reflect.go	2020-06-21 15:27:34.740951000 -0700
+--- ygot-dir-orig/ygot/util/reflect.go	2020-10-07 14:33:58.196912000 -0700
++++ ygot-dir/ygot/util/reflect.go	2020-10-27 16:02:47.512819000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -189,17 +202,36 @@ diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
  		return fmt.Errorf("cannot assign value %v (type %T) to struct field %s (type %v) in struct %T", fieldValue, fieldValue, fieldName, ft.Type, parentStruct)
  	}
  
-@@ -458,8 +463,17 @@
+@@ -452,14 +457,36 @@
+ 	return cmp.Equal(aa, bb)
+ }
+ 
++func updateChildSchemaCache (schema *yang.Entry, tagStr reflect.StructTag, ygEntry *yang.Entry) {
++	schema.ChildSchemaMutex.Lock()		
++	schema.ChildSchemaCache[tagStr] = ygEntry
++	schema.ChildSchemaMutex.Unlock()
++}
++
+ // ChildSchema returns the schema for the struct field f, if f contains a valid
+ // path tag and the schema path is found in the schema tree. It returns an error
+ // if the struct tag is invalid, or nil if tag is valid but the schema is not
  // found in the tree at the specified path.
  // TODO(wenbli): need unit test
  func ChildSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error) {
 -	pathTag, _ := f.Tag.Lookup("path")
 -	DbgSchema("childSchema for schema %s, field %s, tag %s\n", schema.Name, f.Name, pathTag)
++	schema.ChildSchemaMutex.Lock()
 +	if (schema.ChildSchemaCache == nil) {
 +		schema.ChildSchemaCache = make(map[reflect.StructTag]*yang.Entry)
-+	} else if cschema, ok := schema.ChildSchemaCache[f.Tag]; ok {
++	}
++	schema.ChildSchemaMutex.Unlock()
++
++	schema.ChildSchemaMutex.RLock()
++	if cschema, ok := schema.ChildSchemaCache[f.Tag]; ok {
++		schema.ChildSchemaMutex.RUnlock()
 +		return cschema, nil
 +	}
++	schema.ChildSchemaMutex.RUnlock()
 +	
 +	if IsDebugSchemaEnabled() {
 +		pathTag, _ := f.Tag.Lookup("path")
@@ -209,19 +241,19 @@ diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
  	p, err := RelativeSchemaPath(f)
  	if err != nil {
  		return nil, err
-@@ -490,6 +504,7 @@
+@@ -490,6 +517,7 @@
  	}
  	if foundSchema {
  		DbgSchema(" - found\n")
-+		schema.ChildSchemaCache[f.Tag] = childSchema
++		updateChildSchemaCache (schema, f.Tag, childSchema)
  		return childSchema, nil
  	}
  	DbgSchema(" - not found\n")
-@@ -505,11 +520,15 @@
+@@ -505,11 +533,15 @@
  		// path element i.e. choice1/case1/leaf1 path in the schema will have
  		// struct tag `path:"leaf1"`. This implies that only paths with length
  		// 1 are eligible for this matching.
-+		schema.ChildSchemaCache[f.Tag] = nil
++		updateChildSchemaCache (schema, f.Tag, nil)
  		return nil, nil
  	}
  	entries := FindFirstNonChoiceOrCase(schema)
@@ -234,23 +266,23 @@ diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
  	for path, entry := range entries {
  		splitPath := SplitPath(path)
  		name := splitPath[len(splitPath)-1]
-@@ -517,11 +536,13 @@
+@@ -517,11 +549,13 @@
  
  		if StripModulePrefix(name) == p[0] {
  			DbgSchema(" - match\n")
-+			schema.ChildSchemaCache[f.Tag] = entry
++			updateChildSchemaCache (schema, f.Tag, entry)
  			return entry, nil
  		}
  	}
  
  	DbgSchema(" - no matches\n")
-+	schema.ChildSchemaCache[f.Tag] = nil
++	updateChildSchemaCache (schema, f.Tag, nil)	
  	return nil, nil
  }
  
 diff -ruN ygot-dir-orig/ygot/ygen/codegen.go ygot-dir/ygot/ygen/codegen.go
---- ygot-dir-orig/ygot/ygen/codegen.go	2020-06-21 15:35:13.714871000 -0700
-+++ ygot-dir/ygot/ygen/codegen.go	2020-06-21 15:27:34.908325000 -0700
+--- ygot-dir-orig/ygot/ygen/codegen.go	2020-10-07 14:33:58.356199000 -0700
++++ ygot-dir/ygot/ygen/codegen.go	2020-10-27 16:02:47.723601000 -0700
 @@ -15,6 +15,10 @@
  // Package ygen contains a library to generate Go structs from a YANG model.
  // The Goyang parsing library is used to parse YANG. The output can consider
@@ -272,8 +304,8 @@ diff -ruN ygot-dir-orig/ygot/ygen/codegen.go ygot-dir/ygot/ygen/codegen.go
  		default:
  			errs = util.AppendErr(errs, fmt.Errorf("unknown type of entry %v in findMappableEntities for %s", e.Kind, e.Path()))
 diff -ruN ygot-dir-orig/ygot/ygen/genstate.go ygot-dir/ygot/ygen/genstate.go
---- ygot-dir-orig/ygot/ygen/genstate.go	2020-06-21 15:35:13.722530000 -0700
-+++ ygot-dir/ygot/ygen/genstate.go	2020-06-21 15:27:34.911877000 -0700
+--- ygot-dir-orig/ygot/ygen/genstate.go	2020-10-07 14:33:58.365616000 -0700
++++ ygot-dir/ygot/ygen/genstate.go	2020-10-27 16:02:47.741918000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -340,9 +372,221 @@ diff -ruN ygot-dir-orig/ygot/ygen/genstate.go ygot-dir/ygot/ygen/genstate.go
  		es = append(es, en)
  	}
  
+diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
+--- ygot-dir-orig/ygot/ygot/render.go	2020-10-07 14:33:58.224638000 -0700
++++ ygot-dir/ygot/ygot/render.go	2020-10-27 16:02:47.544072000 -0700
+@@ -45,6 +45,11 @@
+ 	p *gnmiPath
+ }
+ 
++type structTagInfo struct {
++	gPathList []*gnmiPath
++	chModName string
++}
++
+ func (p *path) String() string {
+ 	if p.p.isPathElemPath() {
+ 		return proto.MarshalTextString(&gnmipb.Path{Elem: p.p.pathElemPath})
+@@ -870,19 +875,21 @@
+ // the module name should be appended to entities that are defined in a different
+ // module to their parent.
+ func ConstructIETFJSON(s GoStruct, args *RFC7951JSONConfig) (map[string]interface{}, error) {
++	tagPaths := map[reflect.StructTag]*structTagInfo{}
+ 	return structJSON(s, "", jsonOutputConfig{
+ 		jType:         RFC7951,
+ 		rfc7951Config: args,
+-	})
++	}, tagPaths)
+ }
+ 
+ // ConstructInternalJSON marshals a supplied GoStruct to a map, suitable for handing
+-// to json.Marshal. It uses the loosely specified JSON format document in
++// to json.Marshal. It usstres the loosely specified JSON format document in
+ // go/yang-internal-json.
+ func ConstructInternalJSON(s GoStruct) (map[string]interface{}, error) {
++	tagPaths := map[reflect.StructTag]*structTagInfo{}
+ 	return structJSON(s, "", jsonOutputConfig{
+ 		jType: Internal,
+-	})
++	}, tagPaths)
+ }
+ 
+ // jsonOutputConfig is used to determine how constructJSON should generate
+@@ -902,7 +909,7 @@
+ // be produced and whether such module names are appended is controlled through the
+ // supplied jsonOutputConfig. Returns an error if the GoStruct cannot be rendered
+ // to JSON.
+-func structJSON(s GoStruct, parentMod string, args jsonOutputConfig) (map[string]interface{}, error) {
++func structJSON(s GoStruct, parentMod string, args jsonOutputConfig, tagPaths map[reflect.StructTag]*structTagInfo) (map[string]interface{}, error) {
+ 	var errs errlist.List
+ 
+ 	sval := reflect.ValueOf(s).Elem()
+@@ -916,20 +923,51 @@
+ 		field := sval.Field(i)
+ 		fType := stype.Field(i)
+ 
++		switch field.Kind() {
++		case reflect.Map, reflect.Slice, reflect.Ptr, reflect.Interface:
++			if field.IsNil() {
++				continue
++			}
++		}
++
+ 		// Determine whether we should append a module name to the path in RFC7951
+ 		// output mode.
+ 		var appmod string
++
+ 		pmod := parentMod
+-		if chMod, ok := fType.Tag.Lookup("module"); ok {
+-			// If the child module isn't the same as the parent module,
+-			// then appmod stores the name of the module to prefix to paths
+-			// within this context.
+-			if chMod != parentMod {
+-				appmod = chMod
+-			}
+-			// Update the parent module name to be used for subsequent
+-			// children.
+-			pmod = chMod
++
++		var mapPaths []*gnmiPath
++		var err error
++
++		if tagInfo, ok := tagPaths[fType.Tag]; !ok {
++			tagInfoObj := new (structTagInfo)
++			tagInfoObj.gPathList, err = structTagToLibPaths(fType, newStringSliceGNMIPath([]string{}))
++			if err != nil {
++				errs.Add(fmt.Errorf("%s: %v", fType.Name, err))
++				continue
++			}
++			if chMod, modOk := fType.Tag.Lookup("module"); modOk {
++				// If the child module isn't the same as the parent module,
++				// then appmod stores the name of the module to prefix to pathsmakejson
++				// within this context.
++				if chMod != parentMod {
++					appmod = chMod
++				}
++				// Update the parent module name to be used for subsequent
++				// children.
++				pmod = chMod
++				tagInfoObj.chModName = chMod
++			} else {
++				tagInfoObj.chModName = pmod
++			}
++			tagPaths[fType.Tag] = tagInfoObj
++			mapPaths = tagInfoObj.gPathList
++		} else {
++			mapPaths = tagInfo.gPathList
++			pmod = tagInfo.chModName
++			if tagInfo.chModName != parentMod {
++				appmod = tagInfo.chModName
++			}
+ 		}
+ 
+ 		var appendModName bool
+@@ -937,19 +975,8 @@
+ 			appendModName = true
+ 		}
+ 
+-		mapPaths, err := structTagToLibPaths(fType, newStringSliceGNMIPath([]string{}))
+-		if err != nil {
+-			errs.Add(fmt.Errorf("%s: %v", fType.Name, err))
+-			continue
+-		}
+-
+ 		var value interface{}
+-
+-		if util.IsYgotAnnotation(fType) {
+-			value, err = jsonAnnotationSlice(field)
+-		} else {
+-			value, err = jsonValue(field, pmod, args)
+-		}
++		value, err = jsonValue(field, pmod, args, tagPaths)
+ 
+ 		if err != nil {
+ 			errs.Add(err)
+@@ -1086,7 +1113,7 @@
+ // constructs the representation for JSON marshalling that corresponds to it.
+ // The module within which the map is defined is specified by the parentMod
+ // argument.
+-func mapJSON(field reflect.Value, parentMod string, args jsonOutputConfig) (interface{}, error) {
++func mapJSON(field reflect.Value, parentMod string, args jsonOutputConfig, tagPaths map[reflect.StructTag]*structTagInfo) (interface{}, error) {
+ 	var errs errlist.List
+ 	mapKeyMap := map[string]reflect.Value{}
+ 	// Order of elements determines the order in which keys will be processed.
+@@ -1155,6 +1182,7 @@
+ 	default:
+ 		return nil, fmt.Errorf("invalid JSON format specified: %v", args.jType)
+ 	}
++
+ 	for _, kn := range mapKeys {
+ 		k := mapKeyMap[kn]
+ 		goStruct, ok := field.MapIndex(k).Interface().(GoStruct)
+@@ -1163,7 +1191,7 @@
+ 			continue
+ 		}
+ 
+-		val, err := structJSON(goStruct, parentMod, args)
++		val, err := structJSON(goStruct, parentMod, args, tagPaths)
+ 		if err != nil {
+ 			errs.Add(err)
+ 			continue
+@@ -1191,7 +1219,7 @@
+ // The module within which the value is defined is specified by the parentMod string,
+ // and the type of JSON to be rendered controlled by the value of the jsonOutputConfig
+ // provided. Returns an error if one occurs during the mapping process.
+-func jsonValue(field reflect.Value, parentMod string, args jsonOutputConfig) (interface{}, error) {
++func jsonValue(field reflect.Value, parentMod string, args jsonOutputConfig, tagPaths map[reflect.StructTag]*structTagInfo) (interface{}, error) {
+ 	var value interface{}
+ 	var errs errlist.List
+ 
+@@ -1210,7 +1238,7 @@
+ 	switch field.Kind() {
+ 	case reflect.Map:
+ 		var err error
+-		value, err = mapJSON(field, parentMod, args)
++		value, err = mapJSON(field, parentMod, args, tagPaths)
+ 		if err != nil {
+ 			errs.Add(err)
+ 		}
+@@ -1223,7 +1251,7 @@
+ 			}
+ 
+ 			var err error
+-			value, err = structJSON(goStruct, parentMod, args)
++			value, err = structJSON(goStruct, parentMod, args, tagPaths)
+ 			if err != nil {
+ 				errs.Add(err)
+ 			}
+@@ -1235,7 +1263,7 @@
+ 		}
+ 	case reflect.Slice:
+ 		var err error
+-		value, err = jsonSlice(field, parentMod, args)
++		value, err = jsonSlice(field, parentMod, args, tagPaths)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+@@ -1289,7 +1317,7 @@
+ // GoStruct, a slice may be a binary field, leaf-list or an unkeyed list. The
+ // parentMod is used to track the name of the parent module in the case that
+ // module names should be appended.
+-func jsonSlice(field reflect.Value, parentMod string, args jsonOutputConfig) (interface{}, error) {
++func jsonSlice(field reflect.Value, parentMod string, args jsonOutputConfig, tagPaths map[reflect.StructTag]*structTagInfo) (interface{}, error) {
+ 	if field.Type().Name() == BinaryTypeName {
+ 		// Handle the case that that we have a Binary ([]byte) value,
+ 		// which must be returned as a JSON string.
+@@ -1305,7 +1333,7 @@
+ 			if !ok {
+ 				return nil, fmt.Errorf("invalid member of a slice, %s was not a valid GoStruct", c.Name())
+ 			}
+-			j, err := structJSON(gs, parentMod, args)
++			j, err := structJSON(gs, parentMod, args, tagPaths)
+ 			if err != nil {
+ 				return nil, err
+ 			}
 diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/struct_validation_map.go
---- ygot-dir-orig/ygot/ygot/struct_validation_map.go	2020-06-21 15:35:13.614961000 -0700
-+++ ygot-dir/ygot/ygot/struct_validation_map.go	2020-06-29 10:40:06.589481000 -0700
+--- ygot-dir-orig/ygot/ygot/struct_validation_map.go	2020-10-07 14:33:58.231818000 -0700
++++ ygot-dir/ygot/ygot/struct_validation_map.go	2020-10-27 16:02:47.553165000 -0700
 @@ -19,6 +19,10 @@
  //	  to return pointers to a type.
  //	- Renders structs to other output formats such as JSON, or gNMI
@@ -354,7 +598,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/st
  package ygot
  
  import (
-@@ -336,20 +340,6 @@
+@@ -336,31 +340,12 @@
  // EmitJSON takes an input ValidatedGoStruct (produced by ygen with validation enabled)
  // and serialises it to a JSON string. By default, produces the Internal format JSON.
  func EmitJSON(s ValidatedGoStruct, opts *EmitJSONConfig) (string, error) {
@@ -375,7 +619,27 @@ diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/st
  	v, err := makeJSON(s, opts)
  	if err != nil {
  		return "", err
-@@ -555,7 +545,13 @@
+ 	}
+ 
+-	indent := indentString
+-	if opts != nil && opts.Indent != "" {
+-		indent = opts.Indent
+-	}
+-
+-	j, err := json.MarshalIndent(v, "", indent)
++	j, err := json.Marshal(v)
+ 	if err != nil {
+ 		return "", fmt.Errorf("JSON marshalling error: %v", err)
+ 	}
+@@ -525,7 +510,6 @@
+ 	for i := 0; i < srcVal.NumField(); i++ {
+ 		srcField := srcVal.Field(i)
+ 		dstField := dstVal.Field(i)
+-
+ 		switch srcField.Kind() {
+ 		case reflect.Ptr:
+ 			if err := copyPtrField(dstField, srcField); err != nil {
+@@ -555,7 +539,13 @@
  				dstField.Set(srcField)
  			}
  		default:
@@ -390,9 +654,91 @@ diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/st
  		}
  	}
  	return nil
+@@ -595,6 +585,7 @@
+ 			return err
+ 		}
+ 		dstField.Set(d)
++		
+ 		return nil
+ 	}
+ 
+@@ -608,6 +599,7 @@
+ 	p := reflect.New(srcField.Type().Elem())
+ 	p.Elem().Set(srcField.Elem())
+ 	dstField.Set(p)
++	
+ 	return nil
+ }
+ 
+@@ -636,6 +628,7 @@
+ 		return err
+ 	}
+ 	dstField.Set(d)
++
+ 	return nil
+ }
+ 
+@@ -645,6 +638,7 @@
+ // key is populated in srcField and dstField, their contents are merged if they
+ // do not overlap, otherwise an error is returned.
+ func copyMapField(dstField, srcField reflect.Value) error {
++
+ 	if !util.IsValueMap(srcField) {
+ 		return fmt.Errorf("received a non-map type in src map field: %v", srcField.Kind())
+ 	}
+@@ -664,8 +658,6 @@
+ 	}
+ 
+ 	srcKeys := srcField.MapKeys()
+-	dstKeys := dstField.MapKeys()
+-
+ 	nm := reflect.MakeMapWithSize(reflect.MapOf(m.key, m.value), srcField.Len())
+ 
+ 	mapsToMap := []struct {
+@@ -673,20 +665,24 @@
+ 		field reflect.Value
+ 	}{
+ 		{srcKeys, srcField},
+-		{dstKeys, dstField},
+ 	}
+ 	existingKeys := map[interface{}]reflect.Value{}
+ 
++	for _, dstKey := range dstField.MapKeys()  {
++		existingKeys[dstKey.Interface()] = dstField.MapIndex(dstKey)
++	}
++	
+ 	for _, m := range mapsToMap {
+ 		for _, k := range m.keys {
+ 			// If the key already exists, then determine the existing item to merge
+ 			// into.
+ 			v := m.field.MapIndex(k)
+ 			var d reflect.Value
+-			var ok bool
+-			if d, ok = existingKeys[k.Interface()]; !ok {
++			if tmpVal, keyErr := compareMapKeys(existingKeys, k.Interface()); keyErr != nil {
+ 				d = reflect.New(v.Elem().Type())
+ 				existingKeys[k.Interface()] = v
++			} else {
++				d = *tmpVal
+ 			}
+ 
+ 			if err := copyStruct(d.Elem(), v.Elem()); err != nil {
+@@ -804,3 +800,12 @@
+ 	}
+ 	return true, nil
+ }
++
++func compareMapKeys(existingKeys map[interface{}]reflect.Value, searchKey interface{}) (*reflect.Value, error) {
++	for tmpKey, tmpVal := range existingKeys  {
++		if cmp.Equal(tmpKey, searchKey) {
++			return &tmpVal, nil
++		}		
++	}
++	return nil, fmt.Errorf("No match found in the existingKeys map.")
++}
 diff -ruN ygot-dir-orig/ygot/ytypes/container.go ygot-dir/ygot/ytypes/container.go
---- ygot-dir-orig/ygot/ytypes/container.go	2020-06-21 15:35:13.644909000 -0700
-+++ ygot-dir/ygot/ytypes/container.go	2020-06-21 15:27:34.835482000 -0700
+--- ygot-dir-orig/ygot/ytypes/container.go	2020-10-07 14:33:58.269626000 -0700
++++ ygot-dir/ygot/ytypes/container.go	2020-10-27 16:02:47.588487000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -430,7 +776,100 @@ diff -ruN ygot-dir-orig/ygot/ytypes/container.go ygot-dir/ygot/ytypes/container.
  
  	return util.UniqueErrors(errors)
  }
-@@ -217,7 +228,10 @@
+@@ -138,6 +149,92 @@
+ 	return unmarshalStruct(schema, parent, jt, enc, opts...)
+ }
+ 
++// unmarshalKeyFieldsInStruct unmarshals a JSON tree into a struct only for the Key fields.
++// schema is the YANG schema of the node corresponding to the struct being unmarshalled into.
++// mapParent is the interface which of type map holds this parent struct with the key 
++// parent is the parent struct, which must be a struct ptr.
++// jsonTree is a JSON data tree which must be a map[string]interface{}.
++func unmarshalKeyFieldsInStruct (schema *yang.Entry, mapParent interface{}, parent interface{}, jsonTree map[string]interface{}, enc Encoding, opts ...UnmarshalOpt) error {
++	destv := reflect.ValueOf(parent).Elem()
++
++	keySet := make(map[string]bool)
++	listKeyType := reflect.TypeOf(mapParent).Key()
++	if util.IsTypeStruct(listKeyType) {
++		newKey := reflect.New(listKeyType).Elem()
++		for i := 0; i < newKey.NumField(); i++ {
++			keySet[listKeyType.Field(i).Name] = true
++		}
++	} else {
++		if fName, err := schemaNameToFieldName(destv, schema.Key); err == nil {
++			keySet[fName] = true
++		}
++	}
++			
++	// Range over the parent struct fields. For each field, check if the data
++	// is present in the JSON tree and if so unmarshal it into the field.
++	for i := 0; i < destv.NumField(); i++ {
++		f := destv.Field(i)
++		ft := destv.Type().Field(i)
++		if _, ok := keySet[ft.Name]; !ok {
++			continue
++		} 
++		// Skip annotation fields since they do not have a schema.
++		// TODO(robjs): Implement unmarshalling annotations.
++		if util.IsYgotAnnotation(ft) {
++			continue
++		}
++
++		cschema, err := util.ChildSchema(schema, ft)
++		if err != nil {
++			return err
++		}
++		if cschema == nil {
++			return fmt.Errorf("unmarshalContainer could not find schema for type %T, field name %s", parent, ft.Name)
++		}
++		jsonValue, err := getJSONTreeValForField(schema, cschema, ft, jsonTree)
++		if err != nil {
++			return err
++		}
++		// Store the data tree path of the current field. These will be used
++		// at the end to ensure that there are no excess elements in the JSON
++		// tree not covered by any data path.
++		sp, err := dataTreePaths(schema, cschema, ft)
++		if err != nil {
++			return err
++		}
++		if jsonValue == nil {
++			util.DbgPrint("field %s paths %v not present in tree", ft.Name, sp)
++			continue
++		}
++
++		util.DbgPrint("populating field %s type %s with paths %v.", ft.Name, ft.Type, sp)
++		// Only create a new field if it is nil, otherwise update just the
++		// fields that are in the data tree being passed to unmarshal, and
++		// preserve all other existing values.
++		if util.IsNilOrInvalidValue(f) {
++			makeField(destv, ft)
++		}
++
++		p := parent
++		switch {
++		case util.IsUnkeyedList(cschema):
++			// For unkeyed list, we must pass in the addr of the slice to be
++			// able to append to it.
++			p = f.Addr().Interface()
++		case cschema.IsContainer() || cschema.IsList():
++			// For list and container, the new parent is the field we just
++			// created. For leaf and leaf-list, the parent is still the
++			// current container.
++			p = f.Interface()
++		}
++		if err := unmarshalGeneric(cschema, p, jsonValue, enc, opts...); err != nil {
++			return err
++		}
++	}
++	
++	return nil
++}
++
+ // unmarshalStruct unmarshals a JSON tree into a struct.
+ //   schema is the YANG schema of the node corresponding to the struct being
+ //     unmarshalled into.
+@@ -217,7 +314,10 @@
  		}
  	}
  
@@ -443,8 +882,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/container.go ygot-dir/ygot/ytypes/container.
  }
  
 diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
---- ygot-dir-orig/ygot/ytypes/leaf.go	2020-06-21 15:35:13.659910000 -0700
-+++ ygot-dir/ygot/ytypes/leaf.go	2020-06-21 17:19:38.561565000 -0700
+--- ygot-dir-orig/ygot/ytypes/leaf.go	2020-10-07 14:33:58.296548000 -0700
++++ ygot-dir/ygot/ytypes/leaf.go	2020-10-27 16:02:47.605111000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -661,8 +1100,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
 +}
 \ No newline at end of file
 diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
---- ygot-dir-orig/ygot/ytypes/list.go	2020-06-21 15:35:13.671135000 -0700
-+++ ygot-dir/ygot/ytypes/list.go	2020-06-21 15:27:34.842669000 -0700
+--- ygot-dir-orig/ygot/ytypes/list.go	2020-10-07 14:33:58.308948000 -0700
++++ ygot-dir/ygot/ytypes/list.go	2020-10-27 16:02:47.621524000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -673,7 +1112,15 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  package ytypes
  
  import (
-@@ -217,6 +220,9 @@
+@@ -22,6 +25,7 @@
+ 	"github.com/kylelemons/godebug/pretty"
+ 	"github.com/openconfig/goyang/pkg/yang"
+ 	"github.com/openconfig/ygot/util"
++	log "github.com/golang/glog"
+ )
+ 
+ // Refer to: https://tools.ietf.org/html/rfc6020#section-7.8.
+@@ -217,6 +221,9 @@
  		if len(schema.Key) == 0 {
  			return fmt.Errorf("list %s with config set must have a key", schema.Name)
  		}
@@ -683,7 +1130,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  		keys := strings.Fields(schema.Key)
  		keysMissing := make(map[string]bool)
  		for _, v := range keys {
-@@ -232,6 +238,7 @@
+@@ -232,6 +239,7 @@
  		}
  	}
  
@@ -691,7 +1138,62 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  	return nil
  }
  
-@@ -350,7 +357,9 @@
+@@ -317,6 +325,9 @@
+ 		return fmt.Errorf("unmarshalList for %s parent type %T, has bad field type %v", listElementType, parent, listElementType)
+ 	}
+ 
++	isListUpdate := (util.IsTypeMap(t) && isAllowUpdateInListMap(opts))
++	mapV := reflect.ValueOf(parent)
++	
+ 	// Iterate over JSON list. Each JSON list element is a map with the field
+ 	// name as the key. The JSON values must be unmarshaled and inserted into
+ 	// the new struct list element. When all fields of the new element have been
+@@ -330,16 +341,41 @@
+ 		jt := le.(map[string]interface{})
+ 		newVal := reflect.New(listElementType.Elem())
+ 		util.DbgPrint("creating a new list element val of type %v", newVal.Type())
+-		if err := unmarshalStruct(schema, newVal.Interface(), jt, enc, opts...); err != nil {
+-			return err
++		if !isListUpdate {
++			if err := unmarshalStruct(schema, newVal.Interface(), jt, enc, opts...); err != nil {
++				return err
++			}
+ 		}
+-
++		
+ 		switch {
+ 		case util.IsTypeMap(t):
++			if isListUpdate {
++				if err = unmarshalKeyFieldsInStruct(schema, parent, newVal.Interface(), jt, enc, opts...); err != nil {
++					log.Warning ("Error in unmarshaling key fields: ", err, " and the structure type: ", newVal.Type())
++					pretty.Print(newVal.Interface())
++					pretty.Print(jt)
++					log.Info("Error in unmarshaling: schema key: ", schema.Key, " - parent type : ", reflect.TypeOf(parent), " - key type", reflect.TypeOf(parent).Key())
++					return err
++				}
++			}
+ 			newKey, err := makeKeyForInsert(schema, parent, newVal)
+ 			if err != nil {
+ 				return err
+ 			}
++			if isListUpdate {
++				if listKV := mapV.MapIndex(newKey); listKV.IsValid() {
++					if log.V(6) {
++						log.Info("Unmarshaling: key's type: ",newKey.Type()," with value: ", newKey, " already exist in the map for the structure: ", listKV.Type())
++						log.Info("Unmarshaling: schema.Key: ",schema.Key," - parent type : ", reflect.TypeOf(parent), " - key type", reflect.TypeOf(parent).Key())
++						pretty.Print(listKV.Interface())
++						pretty.Print(jt)
++					}
++					newVal = listKV
++				}
++				if err := unmarshalStruct(schema, newVal.Interface(), jt, enc, opts...); err != nil {
++					return err
++				}
++			}
+ 			err = util.InsertIntoMap(parent, newKey.Interface(), newVal.Interface())
+ 		case util.IsTypeSlicePtr(t):
+ 			err = util.InsertIntoSlice(parent, newVal.Interface())
+@@ -350,7 +386,9 @@
  			return err
  		}
  	}
@@ -702,7 +1204,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  
  	return nil
  }
-@@ -394,11 +403,91 @@
+@@ -394,11 +432,91 @@
  		if util.IsValuePtr(fv) {
  			ft = ft.Elem()
  		}
@@ -796,7 +1298,7 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  		return util.InsertIntoStruct(val.Interface(), fn, nv.Interface())
  	}
  
-@@ -494,6 +583,9 @@
+@@ -494,6 +612,9 @@
  	}
  
  	// TODO(yusufsn): When the key is a leafref, its target should be filled out.
@@ -807,8 +1309,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  	if err != nil {
  		return nil, fmt.Errorf("failed to create map value for insert, root %T, keys %v: %v", root, keys, err)
 diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
---- ygot-dir-orig/ygot/ytypes/node.go	2020-06-21 15:35:13.674994000 -0700
-+++ ygot-dir/ygot/ytypes/node.go	2020-06-21 15:27:34.846733000 -0700
+--- ygot-dir-orig/ygot/ytypes/node.go	2020-10-07 14:33:58.312963000 -0700
++++ ygot-dir/ygot/ytypes/node.go	2020-10-27 16:02:47.626175000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -849,8 +1351,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
  		if err != nil {
  			return nil, err
 diff -ruN ygot-dir-orig/ygot/ytypes/string_type.go ygot-dir/ygot/ytypes/string_type.go
---- ygot-dir-orig/ygot/ytypes/string_type.go	2020-06-21 15:35:13.679051000 -0700
-+++ ygot-dir/ygot/ytypes/string_type.go	2020-06-21 15:27:34.850341000 -0700
+--- ygot-dir-orig/ygot/ytypes/string_type.go	2020-10-07 14:33:58.316659000 -0700
++++ ygot-dir/ygot/ytypes/string_type.go	2020-10-27 16:02:47.629911000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -861,16 +1363,22 @@ diff -ruN ygot-dir-orig/ygot/ytypes/string_type.go ygot-dir/ygot/ytypes/string_t
  package ytypes
  
  import (
-@@ -23,6 +26,8 @@
+@@ -19,10 +22,14 @@
+ 	"fmt"
+ 	"regexp"
+ 	"unicode/utf8"
++  "sync"
+ 
  	"github.com/openconfig/goyang/pkg/yang"
  )
  
 +var regexpCache map[string]*regexp.Regexp = make(map[string]*regexp.Regexp)
++var regexpMutex sync.RWMutex = sync.RWMutex{}
 +
  // Refer to: https://tools.ietf.org/html/rfc6020#section-9.4.
  
  // validateString validates value, which must be a Go string type, against the
-@@ -48,10 +53,18 @@
+@@ -48,10 +55,23 @@
  
  	// Check that the value satisfies any regex patterns.
  	for _, p := range schema.Type.Pattern {
@@ -878,21 +1386,26 @@ diff -ruN ygot-dir-orig/ygot/ytypes/string_type.go ygot-dir/ygot/ytypes/string_t
 -		if err != nil {
 -			return err
 +		var r *regexp.Regexp
++		regexpMutex.RLock()
 +		if val, ok := regexpCache[p]; ok {
++			regexpMutex.RUnlock()
 +			r = val
 +		} else {
++			regexpMutex.RUnlock()
 +			var err error
 +			r, err = regexp.Compile(fixYangRegexp(p))
 +			if err != nil {
 +				return err
 +			}
-+			regexpCache[p] = r	
++			regexpMutex.Lock()
++			regexpCache[p] = r
++			regexpMutex.Unlock()	
  		}
 +		
  		// fixYangRegexp adds ^(...)$ around the pattern - the result is
  		// equivalent to a full match of whole string.
  		if !r.MatchString(stringVal) {
-@@ -105,13 +118,29 @@
+@@ -105,13 +125,33 @@
  		return fmt.Errorf("string schema %s has wrong type %v", schema.Name, schema.Type.Kind)
  	}
  
@@ -906,13 +1419,17 @@ diff -ruN ygot-dir-orig/ygot/ytypes/string_type.go ygot-dir/ygot/ytypes/string_t
 -		if _, err := regexp.Compile(fixYangRegexp(p)); err != nil {
 -			return fmt.Errorf("error generating regexp %s %v for schema %s", p, err, schema.Name)
 -		}
++	  regexpMutex.RLock()
 +		_, ok := regexpCache[p]
++		regexpMutex.RUnlock()
 +		if (ok == false) {
 +			var r *regexp.Regexp
 +			if r, err = regexp.Compile(fixYangRegexp(p)); err != nil {
 +				return fmt.Errorf("error generating regexp %s %v for schema %s", p, err, schema.Name)
 +			} else {
++			  regexpMutex.Lock()
 +				regexpCache[p] = r
++				regexpMutex.Unlock()
 +			}
 +		}		
  	}
@@ -927,8 +1444,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/string_type.go ygot-dir/ygot/ytypes/string_t
  
  // fixYangRegexp takes a pattern regular expression from a YANG module and
 diff -ruN ygot-dir-orig/ygot/ytypes/unmarshal.go ygot-dir/ygot/ytypes/unmarshal.go
---- ygot-dir-orig/ygot/ytypes/unmarshal.go	2020-06-21 15:35:13.685260000 -0700
-+++ ygot-dir/ygot/ytypes/unmarshal.go	2020-06-21 15:27:34.854241000 -0700
+--- ygot-dir-orig/ygot/ytypes/unmarshal.go	2020-10-07 14:33:58.323984000 -0700
++++ ygot-dir/ygot/ytypes/unmarshal.go	2020-10-27 16:02:47.638332000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -939,7 +1456,21 @@ diff -ruN ygot-dir-orig/ygot/ytypes/unmarshal.go ygot-dir/ygot/ytypes/unmarshal.
  package ytypes
  
  import (
-@@ -81,7 +84,10 @@
+@@ -39,6 +42,13 @@
+ // IsUnmarshalOpt marks IgnoreExtraFields as a valid UnmarshalOpt.
+ func (*IgnoreExtraFields) IsUnmarshalOpt() {}
+ 
++// AllowUpdateInListMap is an unmarshal option to update the key and value
++// if it is present in the list map already
++type AllowUpdateInListMap struct{}
++
++// IsUnmarshalOpt marks AllowUpdateInListMap as a valid UnmarshalOpt.
++func (*AllowUpdateInListMap) IsUnmarshalOpt() {}
++
+ // Unmarshal recursively unmarshals JSON data tree in value into the given
+ // parent, using the given schema. Any values already in the parent that are
+ // not present in value are preserved. If provided schema is a leaf or leaf
+@@ -81,7 +91,10 @@
  	if schema == nil {
  		return fmt.Errorf("nil schema for parent type %T, value %v (%T)", parent, value, value)
  	}
@@ -951,9 +1482,24 @@ diff -ruN ygot-dir-orig/ygot/ytypes/unmarshal.go ygot-dir/ygot/ytypes/unmarshal.
  
  	if enc == GNMIEncoding && !(schema.IsLeaf() || schema.IsLeafList()) {
  		return errors.New("unmarshalling a non leaf node isn't supported in GNMIEncoding mode")
+@@ -112,3 +125,14 @@
+ 	}
+ 	return false
+ }
++
++// isAllowUpdateInListMap determines whether the supplied slice of UnmarshalOpts contains
++// the AllowUpdateInListMap option.
++func isAllowUpdateInListMap(opts []UnmarshalOpt) bool {
++	for _, o := range opts {
++		if _, ok := o.(*AllowUpdateInListMap); ok {
++			return true
++		}
++	}
++	return false
++}
 diff -ruN ygot-dir-orig/ygot/ytypes/validate.go ygot-dir/ygot/ytypes/validate.go
---- ygot-dir-orig/ygot/ytypes/validate.go	2020-06-21 15:35:13.699446000 -0700
-+++ ygot-dir/ygot/ytypes/validate.go	2020-06-21 15:27:34.857802000 -0700
+--- ygot-dir-orig/ygot/ytypes/validate.go	2020-10-07 14:33:58.340787000 -0700
++++ ygot-dir/ygot/ytypes/validate.go	2020-10-27 16:02:47.656540000 -0700
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.

@@ -55,7 +55,7 @@ schema:
 
 test-schema: | schema
 	$(MAKE) -C testdata/schema
-	cp $(CVL_SCHEMA_DIR)/*.yin $(CVL_TEST_SCHEMA_DIR)/
+	cp -n $(CVL_SCHEMA_DIR)/*.yin $(CVL_TEST_SCHEMA_DIR)/
 
 tests:
 	$(MAKE) -C tests
