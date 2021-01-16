@@ -1188,7 +1188,6 @@ func TestValidateEditConfig_Create_Semantic_AdditionalInvalidNode_Negative(t *te
 	unloadConfigDB(rclient, depDataMap)
 }
 
-/*
 func TestValidateEditConfig_Create_Semantic_MissingMandatoryNode_Negative(t *testing.T) {
 
 	cfgData := []cvl.CVLEditConfigData{
@@ -1214,7 +1213,6 @@ func TestValidateEditConfig_Create_Semantic_MissingMandatoryNode_Negative(t *tes
 		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
 	}
 }
-*/
 
 func TestValidateEditConfig_Create_Syntax_Invalid_Negative(t *testing.T) {
 
@@ -3819,7 +3817,6 @@ func TestValidateEditConfig_Multi_Delete_MultiKey_Same_Session_Positive(t *testi
 	unloadConfigDB(rclient, depDataMap)
 }
 
-/*
 func TestValidateEditConfig_Update_Leaf_List_Max_Elements_Negative(t *testing.T) {
 	depDataMap := map[string]interface{}{
 		"VLAN": map[string]interface{} {
@@ -3860,7 +3857,6 @@ func TestValidateEditConfig_Update_Leaf_List_Max_Elements_Negative(t *testing.T)
 	cvl.ValidationSessClose(cvSess)
 	unloadConfigDB(rclient, depDataMap)
 }
-*/
 
 func TestValidationTimeStats(t *testing.T) {
 	cvl.ClearValidationTimeStats()
