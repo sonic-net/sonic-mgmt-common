@@ -1,0 +1,27 @@
+module sonic-system-crm-annot {
+
+    yang-version "1.1";
+    namespace "http://openconfig.net/yang/annotation/sonic-system-crm-annot";
+    prefix "sonic-system-crm-annot";
+
+    import sonic-extensions { prefix sonic-ext; }
+    import sonic-system-crm { prefix sonic-crm; }
+
+    deviation /sonic-crm:crm-stats {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_crm_stats";
+        }
+    }
+
+    deviation /sonic-crm:crm-acl-group-stats {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_crm_acl_group_stats";
+        }
+    }
+
+    deviation /sonic-crm:crm-acl-table-stats {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_crm_acl_table_stats";
+        }
+    }
+}

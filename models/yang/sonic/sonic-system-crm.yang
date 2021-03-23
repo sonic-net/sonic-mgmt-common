@@ -1,0 +1,477 @@
+module sonic-system-crm {
+    namespace "http://github.com/Azure/sonic-system-crm";
+    prefix sonic-crm;
+
+    import sonic-extension {
+        prefix sonic-ext;
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONiC System CRM";
+
+    revision 2020-05-21 {
+        description
+            "Initial revision.";
+    }
+
+    container sonic-system-crm {
+
+        container CRM {
+
+            list CRM_LIST {
+
+                key "type";
+
+                leaf type {
+                    type enumeration {
+                        enum Config;
+                    }
+                }
+
+                leaf acl_counter_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_counter_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_counter_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_entry_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_entry_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_entry_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_group_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_group_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_group_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_table_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_table_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf acl_table_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+
+                leaf dnat_entry_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf dnat_entry_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf dnat_entry_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+
+                leaf fdb_entry_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf fdb_entry_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf fdb_entry_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+
+                leaf ipmc_entry_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipmc_entry_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipmc_entry_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+
+                leaf ipv4_neighbor_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv4_neighbor_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv4_neighbor_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv4_nexthop_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv4_nexthop_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv4_nexthop_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv4_route_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv4_route_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv4_route_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+
+                leaf ipv6_neighbor_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv6_neighbor_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv6_neighbor_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv6_nexthop_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv6_nexthop_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv6_nexthop_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv6_route_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv6_route_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf ipv6_route_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+
+                leaf nexthop_group_member_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf nexthop_group_member_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf nexthop_group_member_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf nexthop_group_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf nexthop_group_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf nexthop_group_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+
+                leaf snat_entry_high_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf snat_entry_low_threshold {
+                    type uint32;
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+                leaf snat_entry_threshold_type {
+                    type enumeration {
+                        enum percentage;
+                        enum used;
+                        enum free;
+                    }
+                    sonic-ext:custom-validation ValidateCrmThreshold;
+                }
+
+                leaf polling_interval {
+                    type uint32;
+                }
+            }
+
+        }
+
+    }
+
+    rpc crm-acl-group-stats {
+
+        description "CRM ACL Group Statistics";
+
+        input {
+            leaf rule {
+                type enumeration {
+                    enum EGRESS;
+                    enum INGRESS;
+                }
+            }
+            leaf type {
+                type enumeration {
+                    enum LAG;
+                    enum PORT;
+                    enum RIF;
+                    enum SWITCH;
+                    enum VLAN;
+                }
+            }
+        }
+
+        output {
+            leaf crm_stats_acl_group_available {
+                type uint32;
+            }
+
+            leaf crm_stats_acl_group_used {
+                type uint32;
+            }
+
+            leaf crm_stats_acl_table_available {
+                type uint32;
+            }
+
+            leaf crm_stats_acl_table_used {
+                type uint32;
+            }
+        }
+    }
+
+    rpc crm-acl-table-stats {
+
+        description "CRM ACL Table Statistics";
+
+        output {
+            list crm-acl-table-stats-list {
+                description
+                    "ACL Table statistics list";
+                key "id";
+
+                leaf id {
+                    type string;
+                    description
+                        "ACL Table ID";
+                }
+                leaf crm_stats_acl_counter_available {
+                    type uint32;
+                }
+                leaf crm_stats_acl_counter_used {
+                    type uint32;
+                }
+                leaf crm_stats_acl_entry_available {
+                    type uint32;
+                }
+                leaf crm_stats_acl_entry_used {
+                    type uint32;
+                }
+            }
+        }
+    }
+
+    rpc crm-stats {
+
+        description "CRM Statistics";
+
+        output {
+            leaf crm_stats_dnat_entry_available {
+                type uint32;
+            }
+
+            leaf crm_stats_dnat_entry_used {
+                type uint32;
+            }
+
+            leaf crm_stats_fdb_entry_available {
+                type uint32;
+            }
+
+            leaf crm_stats_fdb_entry_used {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv4_neighbor_available {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv4_neighbor_used {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv4_nexthop_available {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv4_nexthop_used {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv4_route_available {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv4_route_used {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv6_neighbor_available {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv6_neighbor_used {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv6_nexthop_available {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv6_nexthop_used {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv6_route_available {
+                type uint32;
+            }
+
+            leaf crm_stats_ipv6_route_used {
+                type uint32;
+            }
+
+            leaf crm_stats_nexthop_group_available {
+                type uint32;
+            }
+
+            leaf crm_stats_nexthop_group_member_available {
+                type uint32;
+            }
+
+            leaf crm_stats_nexthop_group_member_used {
+                type uint32;
+            }
+
+            leaf crm_stats_nexthop_group_used {
+                type uint32;
+            }
+
+            leaf crm_stats_snat_entry_available {
+                type uint32;
+            }
+
+            leaf crm_stats_snat_entry_used {
+                type uint32;
+            }
+        }
+    }
+
+}
