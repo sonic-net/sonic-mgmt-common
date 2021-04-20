@@ -1,0 +1,65 @@
+module sonic-buffer-queue {
+	namespace "http://github.com/Azure/sonic-buffer-queue";
+	prefix bqueue;
+
+	import sonic-extension {
+		prefix sonic-ext;
+	}
+
+	import sonic-port {
+		prefix prt;
+	}
+
+	import sonic-buffer-profile {
+		prefix bpf;
+	}
+
+	organization
+		"SONiC";
+
+	contact
+		"SONiC";
+
+	description
+		"SONIC BUFFER QUEUE";
+
+	revision 2019-05-15 {
+		description
+			"Initial revision.";
+	}
+
+
+	container sonic-buffer-queue {
+
+		container BUFFER_QUEUE {
+
+			list BUFFER_QUEUE_LIST {
+				key "ifname qindex";
+				sonic-ext:key-pattern "QUEUE|{ifname}|{qindex}"; //special pattern used for extracting keys from redis-key and populate the yang instance
+										   // Total list instances = number(key1) * number(key2) * number(key3)
+
+				leaf ifname {
+					type leafref {
+						path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:ifname";
+					}
+				}
+
+				leaf qindex {
+					type string {
+						pattern "[0-7]((-)[0-7])?"{
+							error-message "Invalid Q-index";
+							error-app-tag qindex-invalid;
+						}
+					}
+				}
+
+				leaf profile { //Hash reference key
+					type leafref {
+						path "/bpf:sonic-buffer-profile/bpf:BUFFER_PROFILE/bpf:BUFFER_PROFILE_LIST/bpf:name";
+					}
+				}
+
+			}
+		}
+	}
+}
