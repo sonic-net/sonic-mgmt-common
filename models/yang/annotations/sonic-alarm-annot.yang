@@ -1,0 +1,39 @@
+module sonic-alarm-annot {
+
+    yang-version "1";
+
+    namespace "http://openconfig.net/yang/annotation/sonic-alarm-annot";
+    prefix "salarm-annot";
+
+    import sonic-alarm { prefix salarm; }
+    import sonic-extensions { prefix sonic-ext; }
+
+    deviation /salarm:show-alarms {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_get_alarms";
+        }
+    }
+    deviation /salarm:acknowledge-alarms {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_acknowledge_alarms";
+        }
+    }
+
+    deviation /salarm:unacknowledge-alarms {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_unacknowledge_alarms";
+        }
+    }
+
+    deviation /salarm:sonic-alarm/salarm:ALARM/salarm:ALARM_LIST {
+      deviate add {
+        sonic-ext:db-name "EVENT_DB";
+      }
+    }
+    
+    deviation /salarm:sonic-alarm/salarm:ALARM_STATS/salarm:ALARM_STATS_LIST {
+      deviate add {
+        sonic-ext:db-name "EVENT_DB";
+      }
+    }
+}

@@ -1,0 +1,283 @@
+  module sonic-alarm {
+    namespace "http://github.com/Azure/sonic-alarm";
+    prefix salarm;
+    yang-version 1.1;
+
+
+    import ietf-yang-types {
+      prefix yang-types;
+    }
+
+    import sonic-event { prefix event;}
+
+    // meta
+    organization
+    "SONiC";
+
+    contact
+    "SONiC";
+
+    description
+    "This module defines operational state data for SONiC alarms.";
+
+    revision "2021-01-15" {
+      description
+      "Initial revision.";
+    }
+
+
+    grouping alarm-state {
+
+      leaf id {
+        type string;
+        description "Sequence identifier for an alarm.";
+      }
+
+      leaf resource {
+        type string;
+        description "The item that is under alarm within the device.";
+      }          
+
+      leaf text {
+        type string;
+        description "Dynamic message raised with the alarm.";
+      }
+
+      leaf time-created {
+        type event:timeticks64;
+        description
+          "The time at which the alarm was raised by the system.
+          This value is expressed date-and-time format.";
+      }
+
+      leaf type-id {
+        type string;
+        description "Type of the alarm raised";
+      }
+
+      leaf severity {
+        type event:severity-type;
+        description
+        "Severity of a raised condition.";
+      }
+
+      leaf acknowledged {
+        type boolean;
+        description
+        "This denotes whether an alarm is acknowledged by the operator.
+         An acknowledged alarm is not considered in determining the 
+         health of the system.";
+      }
+
+      leaf acknowledge-time {
+        type event:timeticks64;
+        description
+         "The time at which alarm is acknowledged by the system.
+          This value is expressed as nanoseconds since the Unix Epoch.";
+      }
+
+    }
+
+    container sonic-alarm {
+
+      container ALARM {
+
+        list ALARM_LIST {
+          key "id";
+          uses alarm-state;
+        }
+      }
+
+      container ALARM_STATS {
+
+
+        list ALARM_STATS_LIST {
+
+          key "id";
+          leaf id {
+            type enumeration {
+              enum state;
+            }
+            description
+            "Table identifier value defined as state.";
+          }
+          
+          leaf alarms {
+            type uint64;
+            description
+            "Total alarms in the system.";
+          }
+
+          leaf critical {
+            type uint64;
+            description
+            "Total critical alarms in the system.";
+          }
+
+          leaf major {
+            type uint64;
+            description
+            "Total major alarms in the system.";
+          }
+
+          leaf minor {
+            type uint64;
+            description
+            "Total minor alarms in the system.";
+          }
+
+          leaf warning {
+            type uint64;
+            description
+            "Total warnings in the system.";
+          }
+
+          leaf acknowledged {
+            type uint64;
+            description
+            "Total acknowledged alarms in the system.";
+          }
+
+        }
+      }
+    }
+
+   rpc acknowledge-alarms {
+      description
+      "Acknowledge an alarm on the system.";
+
+      input {
+        leaf-list id {
+          type string;
+          description
+          "Alarm identifier.";
+        }
+      }
+      output {
+        leaf status {
+           type int32;
+           description
+             "The status of the operation execution request.";
+        }
+        leaf status-detail {
+           type string;
+           description
+              "The detailed status of the operation execution request.";
+        }    
+      }
+    }
+
+   rpc unacknowledge-alarms {
+      description
+      "Un-acknowledge an alarm on the system.";
+
+      input {
+        leaf-list id {
+          type string;
+          description
+          "Alarm identifier.";
+        }
+      }
+      output {
+        leaf status {
+           type int32;
+           description
+             "The status of the operation execution request.";
+        }
+        leaf status-detail {
+           type string;
+           description
+              "The detailed status of the operation execution request.";
+        }
+      }
+    }
+
+
+    rpc show-alarms {
+      description
+      "Get current alarms based on given filter.";
+
+      input {
+        choice option {
+          case time {
+            description
+            "Filter alarms on given time duration.";
+            container time {
+              leaf begin {
+                type yang-types:date-and-time;
+                description
+                "Specify the start time in RFC3339 format (UTC).
+                 For example: 2021-05-12T13:45:45.455Z";
+              }
+              leaf end {
+                type yang-types:date-and-time;
+                description
+                "Specify end time in RFC3339 format (UTC).
+                 For example: 2021-05-12T13:45:45.455Z";
+              }
+            }
+          }
+
+          case last-interval {
+            description
+            "Filter alarms based on last interval.";
+            leaf interval {
+              type enumeration {
+                enum 5_MINUTES;
+                enum 60_MINUTES;
+                enum 24_HOURS;
+              }
+              description
+              "Last interval period.";
+            }
+          }
+
+          case severity {
+            description
+            "Filter events based on severity.";
+            leaf severity {
+              type event:severity-type;
+              description
+              "Alarm severity";
+            }
+          }
+
+          case id {
+            description
+            "Filter alarms on unique ID.";
+            container id {
+              leaf begin {
+                type string;
+                description
+                "Begin identifier.";
+              }
+              leaf end {
+                type string;
+                description
+                "End identifier.";
+              }
+            }
+          }
+        }
+      }
+
+      output {
+        leaf status {
+           type int32;
+           description
+             "Status of the operation execution request.";
+        }
+        leaf status-detail {
+           type string;
+           description
+              "Status details of the operation execution request.";
+        }        
+        container ALARM {        
+          list ALARM_LIST {
+            key "id";
+            uses alarm-state;
+          }
+        }
+      }
+    }
+  }

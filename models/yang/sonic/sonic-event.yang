@@ -1,0 +1,232 @@
+  module sonic-event {
+    namespace "http://github.com/Azure/sonic-events";
+    prefix sevents;
+    yang-version 1.1;
+
+    import ietf-yang-types {
+      prefix yang-types;
+    }
+
+    // meta
+    organization
+    "SONiC";
+
+    contact
+    "SONiC";
+
+    description
+    "This module defines operational state data for SONiC events.";
+
+    revision "2021-01-15" {
+      description
+      "Initial revision.";
+    }
+
+    typedef timeticks64 {
+      type uint64;
+      description
+        "Time represented as ticks with 64-bit width.
+         This value is expressed as nanoseconds since the Unix Epoch.";
+    }
+
+    typedef severity-type {
+        type enumeration {
+          enum CRITICAL;
+          enum MAJOR;
+          enum MINOR;
+          enum WARNING;
+          enum INFORMATIONAL;
+        }
+        description
+        "Severity of a raised condition.";
+      }
+
+    typedef action-type {
+        type enumeration {
+          enum RAISE;
+          enum CLEAR;
+          enum ACKNOWLEDGE;
+          enum UNACKNOWLEDGE;
+        }
+        description
+        "Action on a raised condition.";
+      }
+
+    grouping event-state {
+
+      leaf id {
+        type string;
+        description "Sequence identifier for events.";
+      }
+
+      leaf resource {
+        type string;
+        description "The item in the device that raised the event.";
+      }          
+
+      leaf text {
+        type string;
+        description "Dynamic message raised with the event.";
+      }
+
+      leaf time-created {
+        type timeticks64;
+        description
+          "The time at which the event was raised by the system.
+          This value is expressed date-and-time format.";
+      }
+
+      leaf type-id {
+        type string;
+        description "Type of event raised by the device.";
+      }
+
+      leaf severity {
+        type severity-type;
+        description
+        "Severity of the event.";
+      }
+
+      leaf action {
+        type action-type;
+        description "Action on the event.";
+      }
+    }
+
+    container sonic-event {
+
+      container EVENT {
+
+        list EVENT_LIST {
+          key "id";
+          uses event-state;
+        }
+      }
+
+      container EVENT_STATS {
+
+
+        list EVENT_STATS_LIST {
+
+          key "id";
+          leaf id {
+            type enumeration {
+              enum state;
+            }
+            description
+            "Table identifier value defined as state.";
+          }
+          
+          leaf events {
+            type uint64;
+            description
+            "Total number of events in the system store.";
+          }
+
+          leaf raised {
+            type uint64;
+            description
+            "Total number of events for raise operation in system store.";
+          }
+
+          leaf acked {
+            type uint64;
+            description
+            "Total number of events for ack operation in system store.";
+          }
+
+          leaf cleared {
+            type uint64;
+            description
+            "Total number of events for clear operation in system store.";
+          }
+        }
+      }
+    }
+
+
+    rpc show-events {
+      description
+      "Get events based on given filter.";
+
+      input {
+        choice option {
+          case time {
+            description
+            "Filter events based on the time duration";
+            container time {
+              leaf begin {
+                type yang-types:date-and-time;
+                description
+                "Specify the start time in RFC3339 format (UTC).
+                 For example: 2021-05-12T13:45:45.455Z";
+              }
+              leaf end {
+                type yang-types:date-and-time;
+                description
+                "Specify end time in RFC3339 format (UTC).
+                 For example: 2021-05-12T13:45:45.455Z";
+              }
+            }
+          }
+          case last-interval {
+            description
+            "Filter events on the last interval.";
+            leaf interval {
+              type enumeration {
+                enum 5_MINUTES;
+                enum 60_MINUTES;
+                enum 24_HOURS;
+              }
+              description
+              "Last interval period.";
+            }
+          }
+          case severity {
+            description
+            "Filter events based on severity.";
+            leaf severity {
+              type severity-type;
+              description
+              "Event severity";
+            }
+          }
+          case id {
+            description
+            "Filter events on unique ID.";
+            container id {
+              leaf begin {
+                type string;
+                description
+                "Begin identifier.";
+              }
+              leaf end {
+                type string;
+                description
+                "End identifier.";
+              }
+            }
+          }
+        }
+      }
+
+      output {
+        leaf status {
+           type int32;
+           description
+             "Status of the operation execution request.";
+        }
+        leaf status-detail {
+           type string;
+           description
+              "Status details of the operation execution request.";
+        }        
+        container EVENT {
+          list EVENT_LIST {
+            key "id";
+            uses event-state;
+          }
+        }
+      }
+    }
+  }
