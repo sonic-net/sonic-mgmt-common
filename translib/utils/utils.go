@@ -21,10 +21,11 @@
 package utils
 
 import (
-    //"github.com/Azure/sonic-mgmt-common/translib/db"
+    "github.com/Azure/sonic-mgmt-common/translib/db"
     "github.com/Azure/sonic-mgmt-common/cvl"
     "fmt"
     "time"
+    "strconv"
     log "github.com/golang/glog"
 )
 

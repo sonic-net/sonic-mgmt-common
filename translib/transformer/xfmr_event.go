@@ -207,7 +207,7 @@ func process_show_request(dbs [db.MaxDB]*db.DB, table string, input interface{})
 			end = ""
 		}
 		log.Info("begin ", begin, " :end ", end)
-		events, err = get_events_with_filter_id(dbs[db.StateDB], table, begin, end)
+		events, err = get_events_with_filter_id(dbs[db.EventDB], table, begin, end)
 
 	} else if interval, ok := mapData["interval"].(string); ok {
 		end_time := time.Now()
@@ -225,7 +225,7 @@ func process_show_request(dbs [db.MaxDB]*db.DB, table string, input interface{})
 			err = errors.New("Invalid interval")
 		}
 		if is_interval_valid {
-			events, err = get_events_with_filter_time(dbs[db.StateDB], table, begin_time, end_time)
+			events, err = get_events_with_filter_time(dbs[db.EventDB], table, begin_time, end_time)
 		}
 
 	} else if time_filter, ok := mapData["time"].(interface{}); ok {
@@ -248,10 +248,10 @@ func process_show_request(dbs [db.MaxDB]*db.DB, table string, input interface{})
 				log.Info("Error parsing end time ", end_time)
 			}
 		}
-		events, err = get_events_with_filter_time(dbs[db.StateDB], table, begin, end)
+		events, err = get_events_with_filter_time(dbs[db.EventDB], table, begin, end)
 	} else if severity, ok := mapData["severity"].(string); ok {
 
-		events, err = get_events_with_filter_severity(dbs[db.StateDB], table, severity)
+		events, err = get_events_with_filter_severity(dbs[db.EventDB], table, severity)
 	}
 	return events, err
 }

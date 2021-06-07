@@ -328,29 +328,29 @@ func getDBInstName (dbNo DBNum) string {
 	return ""
 }
 
-func GetdbNameToIndex(dbName string) db.DBNum {
-        dbIndex := db.ConfigDB
+func GetdbNameToIndex(dbName string) DBNum {
+        dbIndex := ConfigDB
         switch dbName {
         case "APPL_DB" :
-                dbIndex  = db.ApplDB
+                dbIndex  = ApplDB
         case "ASIC_DB" :
-                dbIndex  = db.AsicDB
+                dbIndex  = AsicDB
         case "COUNTERS_DB" :
-                dbIndex  = db.CountersDB
+                dbIndex  = CountersDB
         case "LOGLEVEL_DB" :
-                dbIndex  = db.LogLevelDB
+                dbIndex  = LogLevelDB
         case "CONFIG_DB" :
-                dbIndex  = db.ConfigDB
+                dbIndex  = ConfigDB
         case "FLEX_COUNTER_DB" :
-                dbIndex  = db.FlexCounterDB
+                dbIndex  = FlexCounterDB
         case "STATE_DB" :
-                dbIndex  = db.StateDB
+                dbIndex  = StateDB
         case "ERROR_DB" :
-                dbIndex  = db.ErrorDB
+                dbIndex  = ErrorDB
         case "USER_DB" :
-                dbIndex  = db.UserDB
+                dbIndex  = UserDB
         case "EVENT_DB" :
-                dbIndex  = db.EventDB
+                dbIndex  = EventDB
         }
         return dbIndex
 }

@@ -519,7 +519,7 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 						case "rpc-callback" :
 							xDbSpecMap[dbXpath].rpcFunc = ext.NName()
 						case "db-name" :
-							xDbSpecMap[dbXpath].dbIndex = GetdbNameToIndex(ext.NName())
+							xDbSpecMap[dbXpath].dbIndex = db.GetdbNameToIndex(ext.NName())
 						case "key-delim" :
 							xDbSpecMap[dbXpath].delim   = ext.NName()
 						default :
@@ -721,7 +721,7 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 			case "use-self-key" :
 				xpathData.keyXpath  = nil
 			case "db-name" :
-				xpathData.dbIndex = GetdbNameToIndex(ext.NName())
+				xpathData.dbIndex = db.GetdbNameToIndex(ext.NName())
 			case "table-owner" :
 				if xpathData.tblOwner == nil {
 					xpathData.tblOwner  = new(bool)
@@ -865,7 +865,7 @@ func annotDbSpecMapFill(xDbSpecMap map[string]*dbInfo, dbXpath string, entry *ya
 				}
 				*dbXpathData.keyName = ext.NName()
 			case "db-name" :
-				dbXpathData.dbIndex  = GetdbNameToIndex(ext.NName())
+				dbXpathData.dbIndex  = db.GetdbNameToIndex(ext.NName())
 			case "value-transformer" :
 				fieldName  := pname[len(pname) - 1]
 				fieldXpath := tableName+"/"+fieldName
