@@ -31,6 +31,12 @@ module sonic-show-techsupport {
             }
         }
         output {
+            leaf output-status {
+                type string;
+                description
+                    "'Success' or detailed failure message for execution of the
+                    'show tech-support' request";
+            }
             leaf output-filename {
                 type string;
                 description

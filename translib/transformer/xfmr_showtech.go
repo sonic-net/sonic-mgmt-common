@@ -59,12 +59,14 @@ var rpc_showtech_cb RpcCallpoint = func(body []byte, dbs [db.MaxDB]*db.DB) ([]by
 
     var showtech struct {
         Output struct {
-        Result string `json:"output-filename"`
+            Status string `json:"output-status"`
+            Filename string `json:"output-filename"`
         } `json:"sonic-show-techsupport:output"`
     }
 
     if !(matched) {
-        showtech.Output.Result = "Invalid input: Incorrect DateTime format"
+        showtech.Output.Status = "Invalid input: Incorrect DateTime format"
+        showtech.Output.Filename = ""
         result, _ := json.Marshal(&showtech)
         return result, nil
     }
@@ -73,12 +75,24 @@ var rpc_showtech_cb RpcCallpoint = func(body []byte, dbs [db.MaxDB]*db.DB) ([]by
     if host_output.Err != nil {
         glog.Errorf("%Error: Showtech host Query failed: err=%v", host_output.Err)
         glog.Flush()
-        return nil, host_output.Err
+        showtech.Output.Status = host_output.Err.Error()
+        showtech.Output.Filename = ""
+        result, _ := json.Marshal(&showtech)
+        return result, nil
     }
 
     output, _ = host_output.Body[1].(string)
-    showtech.Output.Result = output
+    matched, _ = regexp.MatchString(`\/var\/.*dump.*\.gz`, output)
+    if err != nil {
+        glog.Errorf("%Error: Failed to find a filename in rpc output: %v", output)
+        showtech.Output.Status = output
+        showtech.Output.Filename = ""
+        result, _ := json.Marshal(&showtech)
+	return result, nil
+    }
 
+    showtech.Output.Status = "Success"
+    showtech.Output.Filename = output
     result, _ := json.Marshal(&showtech)
 
     return result, nil
