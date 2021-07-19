@@ -239,6 +239,7 @@ func (c *CVL) ValidateIncrementalConfig(jsonData string) CVLRetCode {
 	var dataMap map[string]interface{} = v.(map[string]interface{})
 
 	root, _ := c.translateToYang(&dataMap)
+	defer c.yp.FreeNode(root)
 	if root == nil {
 		return CVL_SYNTAX_ERROR
 
@@ -261,7 +262,7 @@ func (c *CVL) ValidateIncrementalConfig(jsonData string) CVLRetCode {
 	//Merge existing data for update syntax or checking duplicate entries
 	if (existingData != nil) {
 		if _, errObj = c.yp.MergeSubtree(root, existingData);
-				errObj.ErrCode != yparser.YP_SUCCESS {
+			errObj.ErrCode != yparser.YP_SUCCESS {
 			return CVL_ERROR
 		}
 	}
@@ -286,6 +287,7 @@ func (c *CVL) ValidateConfig(jsonData string) CVLRetCode {
 	if err := json.Unmarshal(b, &v); err == nil {
 		var value map[string]interface{} = v.(map[string]interface{})
 		root, _ := c.translateToYang(&value)
+		defer c.yp.FreeNode(root)
 
 		if root == nil {
 			return CVL_FAILURE
@@ -324,7 +326,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 		caller = f.Name()
 	}
 
-  CVL_LOG(INFO_DEBUG, "ValidateEditConfig() called from %s() : %v", caller, cfgData)
+	CVL_LOG(INFO_DEBUG, "ValidateEditConfig() called from %s() : %v", caller, cfgData)
 
 	if SkipValidation() {
 		CVL_LOG(INFO_TRACE, "Skipping CVL validation.")
@@ -455,6 +457,8 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 
 	//Step 2 : Perform syntax validation only
 	yang, errN := c.translateToYang(&requestedData)
+	defer c.yp.FreeNode(yang)
+
 	if (errN.ErrCode == CVL_SUCCESS) {
 		if cvlErrObj, cvlRetCode := c.validateSyntax(yang); cvlRetCode != CVL_SUCCESS {
 			return cvlErrObj, cvlRetCode
@@ -463,7 +467,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 		return errN,errN.ErrCode
 	}
 
-	//Step 3 : Check keys and perform semantics validation 
+	//Step 3 : Check keys and perform semantics validation
 	for i := 0; i < cfgDataLen; i++ {
 
 		if (cfgData[i].VType != VALIDATE_ALL && cfgData[i].VType != VALIDATE_SEMANTICS) {
@@ -478,7 +482,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 			//Check key should not already exist
 			n, err1 := redisClient.Exists(cfgData[i].Key).Result()
 			if (err1 == nil && n > 0) {
-				//Check if key deleted and CREATE done in same session, 
+				//Check if key deleted and CREATE done in same session,
 				//allow to create the entry
 				deletedInSameSession := false
 				if  tbl != ""  && key != "" {
@@ -494,7 +498,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 					CVL_LOG(WARNING, "\nValidateEditConfig(): Key = %s already exists", cfgData[i].Key)
 					cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_ALREADY_EXIST
 					cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
-					return cvlErrObj, CVL_SEMANTIC_KEY_ALREADY_EXIST 
+					return cvlErrObj, CVL_SEMANTIC_KEY_ALREADY_EXIST
 
 				} else {
 					TRACE_LOG(TRACE_CREATE, "\nKey %s is deleted in same session, " +
