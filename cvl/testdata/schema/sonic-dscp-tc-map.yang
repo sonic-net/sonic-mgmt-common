@@ -2,10 +2,6 @@ module sonic-dscp-tc-map {
 	namespace "http://github.com/Azure/sonic-dscp-tc-map";
 	prefix dtm;
 
-	import sonic-extension {
-		prefix sonic-ext;
-	}
-
 	organization
 		"SONiC";
 
@@ -20,14 +16,12 @@ module sonic-dscp-tc-map {
 			"Initial revision.";
 	}
 
-	container sonic-dscp-tc-map {	
+	container sonic-dscp-tc-map {
 
 		container DSCP_TO_TC_MAP {
 
 			list DSCP_TO_TC_MAP_LIST {
 				key "name";
-				sonic-ext:map-list true; //special conversion for map tables
-				sonic-ext:map-leaf "dscp tc_num"; //every key:value pair is mapped to list keys, e.g. "1":"7" ==> tc_num=1, dscp=7
 
 				leaf name {
 					type string;

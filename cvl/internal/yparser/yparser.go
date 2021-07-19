@@ -732,6 +732,13 @@ func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 
 	for sChild := node.child; sChild != nil; sChild = sChild.next {
 		switch sChild.nodetype {
+		case C.LYS_LIST:
+			nodeInnerList := (*C.struct_lys_node_list)(unsafe.Pointer(sChild))
+			innerListkeys := (*[10]*C.struct_lys_node_leaf)(unsafe.Pointer(nodeInnerList.keys))
+			for idx := 0; idx < int(nodeInnerList.keys_size); idx++ {
+				keyName := C.GoString(innerListkeys[idx].name)
+				l.MapLeaf = append(l.MapLeaf, keyName)
+			}
 		case C.LYS_USES:
 			nodeUses := (*C.struct_lys_node_uses)(unsafe.Pointer(sChild))
 			if (nodeUses.when != nil) {
@@ -965,8 +972,6 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 						l.RedisKeyDelim = argVal
 					case "key-pattern":
 						l.RedisKeyPattern = argVal
-					case "map-leaf":
-						l.MapLeaf = strings.Split(argVal, " ")
 					}
 				}
 
