@@ -695,7 +695,7 @@ func (d *DB) doWrite(ts *TableSpec, op _txOp, key Key, val interface{}) error {
 		e = errors.New("Cannot issue {Set|Mod|Delete}Entry in txStateMultiExec")
 	default:
 		glog.Error("doWrite: Unknown, txState: ", d.txState)
-		e = errors.New("Unknown State: " + string(rune(d.txState)))
+		e = fmt.Errorf("Unknown State: %d", d.txState)
 	}
 
 	if e != nil {
@@ -739,7 +739,7 @@ func (d *DB) doWrite(ts *TableSpec, op _txOp, key Key, val interface{}) error {
 
 		default:
 			glog.Error("doWrite: Unknown, op: ", op)
-			e = errors.New("Unknown Op: " + string(rune(op)))
+			e = fmt.Errorf("Unknown Op: %d", op)
 		}
 
 		goto doWriteExit
@@ -757,7 +757,7 @@ func (d *DB) doWrite(ts *TableSpec, op _txOp, key Key, val interface{}) error {
 
 	default:
 		glog.Error("doWrite: Unknown, op: ", op)
-		e = errors.New("Unknown Op: " + string(rune(op)))
+		e = fmt.Errorf("Unknown Op: %d", op)
 	}
 
 	if e != nil {
@@ -1340,7 +1340,7 @@ func (d *DB) CommitTx() error {
 		e = errors.New("Cannot issue MULTI in txStateMultiExec")
 	default:
 		glog.Error("CommitTx: Unknown, txState: ", d.txState)
-		e = errors.New("Unknown State: " + string(rune(d.txState)))
+		e = fmt.Errorf("Unknown State: %d", d.txState)
 	}
 
 	if e != nil {
@@ -1410,7 +1410,7 @@ func (d *DB) CommitTx() error {
 
 		default:
 			glog.Error("CommitTx: Unknown, op: ", d.txCmds[i].op)
-			e = errors.New("Unknown Op: " + string(rune(d.txCmds[i].op)))
+			e = fmt.Errorf("Unknown Op: %d", d.txCmds[i].op)
 		}
 
 		if e != nil {
@@ -1484,7 +1484,7 @@ func (d *DB) AbortTx() error {
 		e = errors.New("Cannot issue UNWATCH in txStateMultiExec")
 	default:
 		glog.Error("AbortTx: Unknown, txState: ", d.txState)
-		e = errors.New("Unknown State: " + string(rune(d.txState)))
+		e = fmt.Errorf("Unknown State: %d", d.txState)
 	}
 
 	if e != nil {
