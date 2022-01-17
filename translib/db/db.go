@@ -631,7 +631,7 @@ func (d *DB) doCVL(ts *TableSpec, cvlOps []cvl.CVLOperation, key Key, vals []Val
 
 		default:
 			glog.Error("doCVL: Unknown, op: ", cvlOps[i])
-			e = errors.New("Unknown Op: " + string(rune(cvlOps[i])))
+			e = fmt.Errorf("Unknown Op: %d", cvlOps[i])
 		}
 
 	}
