@@ -280,7 +280,7 @@ diff --git a/query.go b/query.go
 index afeb890..d3322cf 100644
 --- a/query.go
 +++ b/query.go
-@@ -1,10 +1,12 @@
+@@ -1,10 +1,11 @@
  package xpath
 -
  import (
@@ -290,11 +290,10 @@ index afeb890..d3322cf 100644
  	"reflect"
 +	"runtime"
 +	"strings"
-+	"regexp"
  )
  
  type iterator interface {
-@@ -33,10 +35,251 @@ func (nopQuery) Evaluate(iterator) interface{} { return nil }
+@@ -33,10 +34,251 @@ func (nopQuery) Evaluate(iterator) interface{} { return nil }
  
  func (nopQuery) Clone() query { return nopQuery{} }
  
