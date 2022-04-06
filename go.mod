@@ -3,8 +3,8 @@ module github.com/Azure/sonic-mgmt-common
 require (
 	github.com/Workiva/go-datastructures v1.0.50
 	github.com/antchfx/jsonquery v1.1.0
-	github.com/antchfx/xmlquery v1.2.1
-	github.com/antchfx/xpath v1.1.2
+	github.com/antchfx/xmlquery v1.3.1
+	github.com/antchfx/xpath v1.1.10
 	github.com/go-redis/redis v6.15.6+incompatible
 	github.com/go-redis/redis/v7 v7.0.0-beta.3.0.20190824101152-d19aba07b476
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
