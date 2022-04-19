@@ -1,28 +1,27 @@
 diff --git a/build.go b/build.go
-index 74f266b..d7d3aab 100644
+index b7f850f..1f65aec 100644
 --- a/build.go
 +++ b/build.go
-@@ -44,7 +44,9 @@ func axisPredicate(root *axisNode) func(NodeNavigator) bool {
+@@ -44,7 +44,8 @@ func axisPredicate(root *axisNode) func(NodeNavigator) bool {
  	predicate := func(n NodeNavigator) bool {
  		if typ == n.NodeType() || typ == allNode || typ == TextNode {
  			if nametest {
 -				if root.LocalName == n.LocalName() && root.Prefix == n.Prefix() {
 +				prefix := n.Prefix()
-+				if root.LocalName == n.LocalName() &&
-+					((root.Prefix == prefix) || (prefix == n.CurrentPrefix())) {
++				if root.LocalName == n.LocalName() && (root.Prefix == prefix || prefix == n.CurrentPrefix()) {
  					return true
  				}
  			} else {
-@@ -107,7 +109,7 @@ func (b *builder) processAxisNode(root *axisNode) (query, error) {
+@@ -118,7 +119,7 @@ func (b *builder) processAxisNode(root *axisNode) (query, error) {
  			}
  			return v
  		}
 -		qyOutput = &childQuery{Input: qyInput, Predicate: filter}
-+		qyOutput = &childQuery{Name: &root.LocalName, Prefix: &root.Prefix,  Input: qyInput, Predicate: filter}
++		qyOutput = &childQuery{Name: &root.LocalName, Prefix: &root.Prefix, Input: qyInput, Predicate: filter}
  	case "descendant":
  		qyOutput = &descendantQuery{Input: qyInput, Predicate: predicate}
  	case "descendant-or-self":
-@@ -130,9 +132,66 @@ func (b *builder) processAxisNode(root *axisNode) (query, error) {
+@@ -141,9 +142,64 @@ func (b *builder) processAxisNode(root *axisNode) (query, error) {
  		err = fmt.Errorf("unknown axe type: %s", root.AxeType)
  		return nil, err
  	}
@@ -43,9 +42,7 @@ index 74f266b..d7d3aab 100644
 +}
 +
 +func (b *builder) setCaller(callee, caller query) {
-+
 +	isCallerFilterQ := false
-+
 +	switch typ := caller.(type) {
 +	case *parentQuery:
 +		isCallerFilterQ = typ.SFilter.UnderFilter
@@ -89,7 +86,7 @@ index 74f266b..d7d3aab 100644
  // processFilterNode builds query for the XPath filter predicate.
  func (b *builder) processFilterNode(root *filterNode) (query, error) {
  	b.flag |= filterFlag
-@@ -146,6 +205,10 @@ func (b *builder) processFilterNode(root *filterNode) (query, error) {
+@@ -157,6 +213,10 @@ func (b *builder) processFilterNode(root *filterNode) (query, error) {
  		return nil, err
  	}
  	qyOutput := &filterQuery{Input: qyInput, Predicate: qyCond}
@@ -100,28 +97,25 @@ index 74f266b..d7d3aab 100644
  	return qyOutput, nil
  }
  
-@@ -339,6 +402,9 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
+@@ -369,6 +429,7 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
  			return nil, err
  		}
  		qyOutput = &functionQuery{Input: argQuery, Func: countFunc}
-+
 +		b.setCaller(argQuery, qyOutput)
-+
  	case "sum":
  		if len(root.Args) == 0 {
  			return nil, fmt.Errorf("xpath: sum(node-sets) function must with have parameters node-sets")
-@@ -379,6 +445,10 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
- 			args = append(args, q)
+@@ -418,6 +479,9 @@ func (b *builder) processFunctionNode(root *functionNode) (query, error) {
+ 			return nil, err
  		}
- 		qyOutput = &functionQuery{Input: b.firstInput, Func: concatFunc(args...)}
+ 		qyOutput = &transformFunctionQuery{Input: argQuery, Func: reverseFunc}
 +	case "current":
 +		qyOutput = &functionQuery{Input: &currentQuery{}, Func: currentFunc}
 +		b.setCaller(qyOutput.(*functionQuery).Input, qyOutput)
-+
  	default:
  		return nil, fmt.Errorf("not yet support this function %s()", root.FuncName)
  	}
-@@ -396,13 +466,15 @@ func (b *builder) processOperatorNode(root *operatorNode) (query, error) {
+@@ -435,13 +499,15 @@ func (b *builder) processOperatorNode(root *operatorNode) (query, error) {
  	}
  	var qyOutput query
  	switch root.Op {
@@ -138,7 +132,7 @@ index 74f266b..d7d3aab 100644
  		case "div":
  			exprFunc = divFunc
  		case "mod":
-@@ -435,6 +507,10 @@ func (b *builder) processOperatorNode(root *operatorNode) (query, error) {
+@@ -474,6 +540,10 @@ func (b *builder) processOperatorNode(root *operatorNode) (query, error) {
  	case "|":
  		qyOutput = &unionQuery{Left: left, Right: right}
  	}
@@ -150,25 +144,27 @@ index 74f266b..d7d3aab 100644
  }
  
 diff --git a/func.go b/func.go
-index a2f0dce..4abde27 100644
+index bcfee55..a0a80a4 100644
 --- a/func.go
 +++ b/func.go
-@@ -21,6 +21,11 @@ func predicate(q query) func(NodeNavigator) bool {
+@@ -36,6 +36,11 @@ func predicate(q query) func(NodeNavigator) bool {
  	return func(NodeNavigator) bool { return true }
  }
  
-+// currentFunc is a XPath Node Set functions current().
++// currentFunc is a XPath Node Set functions current()
 +func currentFunc(q query, t iterator) interface{} {
-+	return q.Evaluate(t)
++	return functionArgs(q).Evaluate(t)
 +}
 +
  // positionFunc is a XPath Node Set functions position().
  func positionFunc(q query, t iterator) interface{} {
  	var (
-@@ -58,16 +63,59 @@ func lastFunc(q query, t iterator) interface{} {
+@@ -73,16 +78,56 @@ func lastFunc(q query, t iterator) interface{} {
  // countFunc is a XPath Node Set functions count(node-set).
  func countFunc(q query, t iterator) interface{} {
  	var count = 0
+-	q = functionArgs(q)
++	//q = functionArgs(q)
 +	var fQuery *functionQuery = nil
 +
 +	switch qtyp := q.(type) {
@@ -193,7 +189,6 @@ index a2f0dce..4abde27 100644
  	switch typ := q.Evaluate(t).(type) {
  	case query:
  		for node := typ.Select(t); node != nil; node = typ.Select(t) {
-+
 +			tmpNode := node.Copy()
 +			if (strings.HasSuffix(node.LocalName(), "_LIST") == false) {
 +				//Go to leaf's parent i.e. list
@@ -206,7 +201,6 @@ index a2f0dce..4abde27 100644
 +					//which is already counted during path evaluation
 +					continue
 +				}
-+
 +			}
 +
  			if test(node) {
@@ -214,73 +208,40 @@ index a2f0dce..4abde27 100644
  			}
  		}
  	}
--	return float64(count)
 +	if (fQuery != nil) && (fQuery.CountFuncVal > 0) {
-+		// -1 since first data always gets added before 
++		// -1 since first data always gets added before
 +		//starting xpath evaluation, then count is fetched from Redis
 +		return (float64(count) + (fQuery.CountFuncVal))
-+
-+	} else {
-+		return float64(count)
 +	}
++
+ 	return float64(count)
  }
  
- // sumFunc is a XPath Node Set functions sum(node-set).
+@@ -561,6 +606,9 @@ func functionArgs(q query) query {
+ 	if _, ok := q.(*functionQuery); ok {
+ 		return q
+ 	}
++	if _, ok := q.(*currentQuery); ok {
++		return q
++	}
+ 	return q.Clone()
+ }
+ 
 diff --git a/operator.go b/operator.go
-index 308d3cb..e40b4b7 100644
+index 8c2f31f..d726a5d 100644
 --- a/operator.go
 +++ b/operator.go
-@@ -45,7 +45,13 @@ var logicalFuncs = [][]logical{
- }
- 
- // number vs number
--func cmpNumberNumberF(op string, a, b float64) bool {
-+func cmpNumberNumberF(op string, a, b float64) (r bool) {
-+	defer func() {
-+		res := &r
-+		Log("cmpNumberNumberF(): (%f %s %f) = %t",
-+		a, op, b, *res)
-+	}()
-+
- 	switch op {
- 	case "=":
- 		return a == b
-@@ -64,7 +70,13 @@ func cmpNumberNumberF(op string, a, b float64) bool {
- }
- 
- // string vs string
--func cmpStringStringF(op string, a, b string) bool {
-+func cmpStringStringF(op string, a, b string)(r bool) {
-+	defer func(){
-+		res := &r
-+		Log("cmpStringStringF(): ('%v' %s '%v') == %v",
-+		a, op, b, *res)
-+	}()
-+
- 	switch op {
- 	case "=":
- 		return a == b
-@@ -82,7 +94,13 @@ func cmpStringStringF(op string, a, b string) bool {
- 	return false
- }
- 
--func cmpBooleanBooleanF(op string, a, b bool) bool {
-+func cmpBooleanBooleanF(op string, a, b bool) (r bool) {
-+	defer func(){
-+		res := &r
-+		Log("cmpBooleanBooleanF(): (%v %s %v) = %v",
-+		a, op, b, *res)
-+	}()
-+
- 	switch op {
- 	case "or":
- 		return a || b
-@@ -163,6 +181,48 @@ func cmpNodeSetString(t iterator, op string, m, n interface{}) bool {
- }
- 
+@@ -165,15 +165,46 @@ func cmpNodeSetString(t iterator, op string, m, n interface{}) bool {
  func cmpNodeSetNodeSet(t iterator, op string, m, n interface{}) bool {
-+	a := m.(query)
-+	b := n.(query)
+ 	a := m.(query)
+ 	b := n.(query)
+-	x := a.Select(t)
+-	if x == nil {
+-		return false
+-	}
+-	y := b.Select(t)
+-	if y == nil {
+-		return false
 +
 +	for {
 +		node := a.Select(t)
@@ -313,26 +274,23 @@ index 308d3cb..e40b4b7 100644
 +					}
 +				}
 +			} else {
-+				//
 +				if cmpStringStringF(op, opnd1, opnd2) {
 +					return true
 +				}
 +			}
 +		}
-+	}
+ 	}
+-	return cmpStringStringF(op, x.Value(), y.Value())
 +
- 	return false
++	return false
  }
  
+ func cmpStringNumeric(t iterator, op string, m, n interface{}) bool {
 diff --git a/query.go b/query.go
-index afeb890..d3322cf 100644
+index 47f8076..b66285b 100644
 --- a/query.go
 +++ b/query.go
-@@ -1,10 +1,12 @@
- package xpath
--
- import (
- 	"bytes"
+@@ -5,6 +5,9 @@ import (
  	"fmt"
  	"hash/fnv"
  	"reflect"
@@ -342,7 +300,7 @@ index afeb890..d3322cf 100644
  )
  
  type iterator interface {
-@@ -33,10 +35,251 @@ func (nopQuery) Evaluate(iterator) interface{} { return nil }
+@@ -33,10 +36,234 @@ func (nopQuery) Evaluate(iterator) interface{} { return nil }
  
  func (nopQuery) Clone() query { return nopQuery{} }
  
@@ -368,10 +326,8 @@ index afeb890..d3322cf 100644
 +		if (val != nil) {
 +			typ.SFilter.Predicate = fmt.Sprintf("%v", val)
 +		}
-+
 +		sf = &typ.SFilter
 +	case *childQuery:
-+
 +		//Reach to the parent list or first filter and then parent list
 +		var caller query = typ.Caller
 +		fQuery := false
@@ -383,17 +339,15 @@ index afeb890..d3322cf 100644
 +				fQuery = true
 +			} else {
 +				//Once filter query is reached, look for child query only
-+				if (fQuery == true) &&
-+				(reflect.TypeOf(caller) != reflect.TypeOf(&childQuery{})) {
++				if (fQuery == true) && (reflect.TypeOf(caller) != reflect.TypeOf(&childQuery{})) {
 +					caller = nil
 +					break
 +				}
 +
 +				fieldVal = reflect.ValueOf(caller).Elem().FieldByName("Caller")
-+
 +			}
 +			if fieldVal.IsValid() && fieldVal.IsNil() == false {
-+			//caller = caller.Caller ... previous caller
++				//caller = caller.Caller ... previous caller
 +				caller = fieldVal.Interface().(query)
 +			} else {
 +				caller = nil
@@ -401,8 +355,7 @@ index afeb890..d3322cf 100644
 +			}
 +
 +			nameVal := reflect.ValueOf(caller).Elem().FieldByName("Name")
-+			if nameVal.IsValid() &&
-+			strings.HasSuffix(nameVal.Elem().String(), "_LIST") {
++			if nameVal.IsValid() && strings.HasSuffix(nameVal.Elem().String(), "_LIST") {
 +				//List element found
 +				break
 +			} else if (fQuery == true) {
@@ -442,8 +395,7 @@ index afeb890..d3322cf 100644
 +					case *functionQuery: // current()/<leaf>
 +						break
 +					case *parentQuery: // current()/../<leaf>
-+						//Just break, since the value should be used for
-+						//filter script
++						//Just break, since the value should be used for filter script
 +						break
 +					default:
 +						if (isChildAKey == true) {
@@ -481,16 +433,9 @@ index afeb890..d3322cf 100644
 +		}
 +		if (sfl != nil && sfr != nil) {
 +			if (strings.Contains(sfr.Predicate, ",")) { //multi value
-+				//typ.SFilter.Predicate = fmt.Sprintf(
-+				//	"(string.match('%s', %s..'[,]*') ~= nil)",
-+				//	sfr.Predicate, sfl.Predicate)
-+				typ.SFilter.Predicate =  "(string.match('" +
-+				sfr.Predicate + "', " + sfl.Predicate + "..'[,]*') ~= nil)"
++				typ.SFilter.Predicate =  "(string.match('" + sfr.Predicate + "', " + sfl.Predicate + "..'[,]*') ~= nil)"
 +			} else {
-+				//typ.SFilter.Predicate = fmt.Sprintf("(%s %s '%s')",
-+				//sfl.Predicate, op, sfr.Predicate)
-+				typ.SFilter.Predicate = "(" + sfl.Predicate + op + "'" +
-+				sfr.Predicate + "')"
++				typ.SFilter.Predicate = "(" + sfl.Predicate + op + "'" + sfr.Predicate + "')"
 +			}
 +		}
 +
@@ -505,12 +450,10 @@ index afeb890..d3322cf 100644
 +		}
 +
 +		if (sfl != nil && sfr != nil) {
-+			typ.SFilter.Predicate = fmt.Sprintf("(%s %s %s)",
-+			sfl.Predicate, op, sfr.Predicate)
++			typ.SFilter.Predicate = fmt.Sprintf("(%s %s %s)", sfl.Predicate, op, sfr.Predicate)
 +		}
 +
 +		sf = &typ.SFilter
-+
 +	case *functionQuery:
 +		sfi := setScriptFilter(typ.Input, nil)
 +		if (sfi != nil) {
@@ -551,8 +494,7 @@ index afeb890..d3322cf 100644
 +
 +				nodeLocalName := node.LocalName()
 +
-+				if (rootLocalName == nodeLocalName) &&
-+				(rootPrefix == node.Prefix()) {
++				if (rootLocalName == nodeLocalName) && (rootPrefix == node.Prefix()) {
 +					return node
 +				}
 +
@@ -570,7 +512,6 @@ index afeb890..d3322cf 100644
 +
 +		return n
 +	}
-+
 +	c.iterator = nil
 +
 +	return nil
@@ -594,14 +535,14 @@ index afeb890..d3322cf 100644
  }
  
  func (c *contextQuery) Select(t iterator) (n NodeNavigator) {
-@@ -164,13 +407,103 @@ func (a *attributeQuery) Clone() query {
+@@ -165,13 +392,97 @@ func (a *attributeQuery) Clone() query {
  	return &attributeQuery{Input: a.Input.Clone(), Predicate: a.Predicate}
  }
  
 +type scriptFilter struct {
 +	Key []string //all keys in slice |*|Key2|*
-+	Predicate string //Keys and fields as lua condition in filter 
-+			// - (h.Key1 == 'Test' and h.Field1 == 'test')
++	Predicate string //Keys and fields as lua condition in filter
++					 // - (h.Key1 == 'Test' and h.Field1 == 'test')
 +	Fields string  //Fields to retrieve |Field1|Field2|Field3|
 +	UnderFilter bool //If the query is within filter query
 +}
@@ -612,12 +553,12 @@ index afeb890..d3322cf 100644
 +	Prefix *string
  	posit    int
  	iterator func() NodeNavigator
--
+ 
  	Input     query
  	Predicate func(NodeNavigator) bool
 +	Caller query
 +	SFilter scriptFilter
-+	execFilter bool // Execute filter only once during expression 
++	execFilter bool // Execute filter only once during expression
 +}
 +
 +//Check for count("../TABLE_LIST"), count("../TABLE_LIST/field"),
@@ -651,21 +592,17 @@ index afeb890..d3322cf 100644
 +
 +//Execute filter if no predicate is provided
 +func executeFilterWithoutPred(c *childQuery) {
-+
 +	//Should be a list and filter should have not excuted already
-+	if ((strings.HasSuffix(*c.Name, "_LIST")) == false) ||
-+	(c.execFilter == true) {
++	if (strings.HasSuffix(*c.Name, "_LIST") == false) || (c.execFilter == true) {
 +		return
 +	}
 +
 +	//Should not be a filterQuery i.e. no predicate
-+	if (c.Caller == nil) ||
-+	(reflect.TypeOf(c.Caller) == reflect.TypeOf(&filterQuery{})) {
++	if (c.Caller == nil) || (reflect.TypeOf(c.Caller) == reflect.TypeOf(&filterQuery{})) {
 +		return
 +	}
 +
 +	funcQ, fieldName := checkIfCountFunc(c)
-+
 +	listName := *c.Name
 +	listName = listName[:len(listName) - len("_LIST")]
 +
@@ -687,19 +624,16 @@ index afeb890..d3322cf 100644
 +	}
 +
 +	if (funcQ != nil) { //Within a count function
-+		funcQ.CountFuncVal = getDepDataCntClbk(depDataCtxt,
-+		redisTblname + "|*", keyNames, "", fieldName)
++		funcQ.CountFuncVal = getDepDataCntClbk(depDataCtxt, redisTblname + "|*", keyNames, "", fieldName)
 +	} else {
-+		getDepDataClbk(depDataCtxt, []string{},
-+		redisTblname + "|*",
-+		keyNames, "true", "", "")
++		getDepDataClbk(depDataCtxt, []string{}, redisTblname + "|*", keyNames, "true", "", "")
 +	}
 +
 +	c.execFilter = true
  }
  
  func (c *childQuery) Select(t iterator) NodeNavigator {
-@@ -181,6 +514,10 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
+@@ -182,6 +493,10 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
  			if node == nil {
  				return nil
  			}
@@ -710,7 +644,7 @@ index afeb890..d3322cf 100644
  			node = node.Copy()
  			first := true
  			c.iterator = func() NodeNavigator {
-@@ -198,6 +535,10 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
+@@ -199,6 +514,10 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
  
  		if node := c.iterator(); node != nil {
  			c.posit++
@@ -721,7 +655,7 @@ index afeb890..d3322cf 100644
  			return node
  		}
  		c.iterator = nil
-@@ -207,6 +548,12 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
+@@ -208,6 +527,12 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
  func (c *childQuery) Evaluate(t iterator) interface{} {
  	c.Input.Evaluate(t)
  	c.iterator = nil
@@ -734,7 +668,7 @@ index afeb890..d3322cf 100644
  	return c
  }
  
-@@ -215,7 +562,7 @@ func (c *childQuery) Test(n NodeNavigator) bool {
+@@ -216,7 +541,7 @@ func (c *childQuery) Test(n NodeNavigator) bool {
  }
  
  func (c *childQuery) Clone() query {
@@ -743,7 +677,7 @@ index afeb890..d3322cf 100644
  }
  
  // position returns a position of current NodeNavigator.
-@@ -473,6 +820,8 @@ func (p *precedingQuery) position() int {
+@@ -479,6 +804,8 @@ func (p *precedingQuery) position() int {
  type parentQuery struct {
  	Input     query
  	Predicate func(NodeNavigator) bool
@@ -752,7 +686,7 @@ index afeb890..d3322cf 100644
  }
  
  func (p *parentQuery) Select(t iterator) NodeNavigator {
-@@ -505,6 +854,8 @@ func (p *parentQuery) Test(n NodeNavigator) bool {
+@@ -511,6 +838,8 @@ func (p *parentQuery) Test(n NodeNavigator) bool {
  type selfQuery struct {
  	Input     query
  	Predicate func(NodeNavigator) bool
@@ -761,22 +695,17 @@ index afeb890..d3322cf 100644
  }
  
  func (s *selfQuery) Select(t iterator) NodeNavigator {
-@@ -538,10 +889,14 @@ type filterQuery struct {
- 	Input     query
+@@ -545,6 +874,9 @@ type filterQuery struct {
  	Predicate query
  	posit     int
-+	//execFilter bool // Execute filter only once during expression 
+ 	positmap  map[int]int
++	//execFilter bool // Execute filter only once during expression
 +	Caller query
 +	SFilter scriptFilter
  }
  
  func (f *filterQuery) do(t iterator) bool {
- 	val := reflect.ValueOf(f.Predicate.Evaluate(t))
-+
- 	switch val.Kind() {
- 	case reflect.Bool:
- 		return val.Bool()
-@@ -562,21 +917,198 @@ func (f *filterQuery) position() int {
+@@ -569,7 +901,149 @@ func (f *filterQuery) position() int {
  	return f.posit
  }
  
@@ -789,7 +718,6 @@ index afeb890..d3322cf 100644
 +}
 +
 +func checkForKeyFilter(keys []string, predicate string) string {
-+
 +	if (predicate == "") {
 +		return ""
 +	}
@@ -805,8 +733,7 @@ index afeb890..d3322cf 100644
 +		keyFilter[idx] = "*" //fill with default pattern
 +	}
 +
-+	//All are keys in predicate, form the key filter and
-+	//remove generic predicate
++	//All are keys in predicate, form the key filter and remove generic predicate
 +
 +	//first split by 'and'
 +	for _, keyEqExpr := range strings.Split(tmpPredicate, " and ") {
@@ -838,17 +765,17 @@ index afeb890..d3322cf 100644
 +	switch typ := f.Predicate.(type) {
 +	case *logicalQuery:
 +		f.SFilter = typ.SFilter
-+		Log("executeFilter(): getting filtered data, predicate=%s", f.SFilter.Predicate)
++		Log("executeFilter() for logicalQuery: getting filtered data, predicate=%s", f.SFilter.Predicate)
 +	case *booleanQuery:
 +		f.SFilter = typ.SFilter
-+		Log("executeFilter(): getting filtered data, predicate=%s", f.SFilter.Predicate)
++		Log("executeFilter() for booleanQuery: getting filtered data, predicate=%s", f.SFilter.Predicate)
 +	}
 +	//All filter must be executed only once
 +	//Need to excute filter script and then collect leaf data
 +	//for multiple data it should be separated by ","
 +	//Filter script should have - strings.match("Eth1,Eth2,Eth4", "Eth1[,]*))
 +
-+	//Get leaf data 
++	//Get leaf data
 +	var cq *childQuery = nil
 +	if (f.Caller != nil) {
 +		switch typ := f.Caller.(type) {
@@ -860,7 +787,6 @@ index afeb890..d3322cf 100644
 +	if (f.Input != nil) {
 +		switch typ := f.Input.(type) {
 +		case *childQuery:
-+
 +			listName := *typ.Name
 +			listName = listName[:len(listName) - len("_LIST")]
 +
@@ -892,8 +818,6 @@ index afeb890..d3322cf 100644
 +				keyFilter = redisTblname + "|*"
 +			}
 +
-+
-+
 +			//Check if count(), just store the count from 
 +			//Redis without fetching data
 +			funcQ, fieldName := checkIfCountFunc(f)
@@ -917,36 +841,24 @@ index afeb890..d3322cf 100644
 +
 +				//Set single field data to child
 +				cq.SFilter.Predicate = data
-+				Log("executeFilter(): value returned for '%s' is '%s' " +
-+				"inside predicate", cq.SFilter.Fields, data)
++				Log("executeFilter(): value returned for '%s' is '%s' inside predicate", cq.SFilter.Fields, data)
 +			} else {
 +				//Just filter query
-+				getDepDataClbk(depDataCtxt, []string{},
-+				keyFilter,
-+				keyNames,
-+				f.SFilter.Predicate, "", "")
++				getDepDataClbk(depDataCtxt, []string{}, keyFilter, keyNames, f.SFilter.Predicate, "", "")
 +			}
 +		}
 +	}
-+
 +}
 +
  func (f *filterQuery) Select(t iterator) NodeNavigator {
- 
 +	success := false
- 	for {
- 
- 		node := f.Input.Select(t)
- 		if node == nil {
- 			return node
- 		}
-+
- 		node = node.Copy()
- 
- 		t.Current().MoveTo(node)
-+
- 		if f.do(t) {
- 			f.posit++
+ 	if f.positmap == nil {
+ 		f.positmap = make(map[int]int)
+ 	}
+@@ -588,6 +1062,27 @@ func (f *filterQuery) Select(t iterator) NodeNavigator {
+ 			level := getNodeDepth(f.Input)
+ 			f.positmap[level]++
+ 			f.posit = f.positmap[level]
 +			success = true
 +		}
 +
@@ -960,8 +872,7 @@ index afeb890..d3322cf 100644
 +			//check the filter flag in list node
 +			switch typ := f.Input.(type) {
 +			case *childQuery:
-+				if strings.HasSuffix(*typ.Name, "_LIST") &&
-+				(typ.execFilter == false) {
++				if strings.HasSuffix(*typ.Name, "_LIST") && (typ.execFilter == false) {
 +					executeFilter(f)
 +					typ.execFilter = true
 +				}
@@ -971,11 +882,8 @@ index afeb890..d3322cf 100644
 +		if (success == true) {
  			return node
  		}
-+
- 		f.posit = 0
  	}
- }
-@@ -595,9 +1127,19 @@ func (f *filterQuery) Clone() query {
+@@ -608,9 +1103,19 @@ func (f *filterQuery) Clone() query {
  type functionQuery struct {
  	Input query                             // Node Set
  	Func  func(query, iterator) interface{} // The xpath function.
@@ -988,14 +896,14 @@ index afeb890..d3322cf 100644
  
  func (f *functionQuery) Select(t iterator) NodeNavigator {
 +	_, ok := f.Input.(*currentQuery)
-+	if ok == true {
++	if ok {
 +		f.SFilter = f.Input.(*currentQuery).SFilter
-+		 return f.Input.(*currentQuery).Select(t)
++		return f.Input.(*currentQuery).Select(t)
 +	}
  	return nil
  }
  
-@@ -614,6 +1156,8 @@ func (f *functionQuery) Clone() query {
+@@ -655,6 +1160,8 @@ func (f *transformFunctionQuery) Clone() query {
  // constantQuery is an XPath constant operand.
  type constantQuery struct {
  	Val interface{}
@@ -1004,7 +912,7 @@ index afeb890..d3322cf 100644
  }
  
  func (c *constantQuery) Select(t iterator) NodeNavigator {
-@@ -621,6 +1165,7 @@ func (c *constantQuery) Select(t iterator) NodeNavigator {
+@@ -662,6 +1169,7 @@ func (c *constantQuery) Select(t iterator) NodeNavigator {
  }
  
  func (c *constantQuery) Evaluate(t iterator) interface{} {
@@ -1012,7 +920,7 @@ index afeb890..d3322cf 100644
  	return c.Val
  }
  
-@@ -633,6 +1178,8 @@ type logicalQuery struct {
+@@ -674,6 +1182,8 @@ type logicalQuery struct {
  	Left, Right query
  
  	Do func(iterator, interface{}, interface{}) interface{}
@@ -1021,11 +929,8 @@ index afeb890..d3322cf 100644
  }
  
  func (l *logicalQuery) Select(t iterator) NodeNavigator {
-@@ -649,9 +1196,16 @@ func (l *logicalQuery) Select(t iterator) NodeNavigator {
- }
- 
+@@ -692,7 +1202,13 @@ func (l *logicalQuery) Select(t iterator) NodeNavigator {
  func (l *logicalQuery) Evaluate(t iterator) interface{} {
-+
  	m := l.Left.Evaluate(t)
  	n := l.Right.Evaluate(t)
 -	return l.Do(t, m, n)
@@ -1039,7 +944,7 @@ index afeb890..d3322cf 100644
  }
  
  func (l *logicalQuery) Clone() query {
-@@ -672,7 +1226,7 @@ func (n *numericQuery) Select(t iterator) NodeNavigator {
+@@ -713,7 +1229,7 @@ func (n *numericQuery) Select(t iterator) NodeNavigator {
  func (n *numericQuery) Evaluate(t iterator) interface{} {
  	m := n.Left.Evaluate(t)
  	k := n.Right.Evaluate(t)
@@ -1048,7 +953,7 @@ index afeb890..d3322cf 100644
  }
  
  func (n *numericQuery) Clone() query {
-@@ -683,6 +1237,8 @@ type booleanQuery struct {
+@@ -724,6 +1240,8 @@ type booleanQuery struct {
  	IsOr        bool
  	Left, Right query
  	iterator    func() NodeNavigator
@@ -1057,13 +962,9 @@ index afeb890..d3322cf 100644
  }
  
  func (b *booleanQuery) Select(t iterator) NodeNavigator {
-@@ -750,14 +1306,26 @@ func (b *booleanQuery) Select(t iterator) NodeNavigator {
- }
- 
+@@ -793,12 +1311,20 @@ func (b *booleanQuery) Select(t iterator) NodeNavigator {
  func (b *booleanQuery) Evaluate(t iterator) interface{} {
-+
  	m := b.Left.Evaluate(t)
-+
  	left := asBool(t, m)
 +
 +	if (b.SFilter.UnderFilter == true) {
@@ -1077,19 +978,17 @@ index afeb890..d3322cf 100644
  		return false
  	}
 -	m = b.Right.Evaluate(t)
-+
 +	if (b.SFilter.UnderFilter == false) {
 +		m = b.Right.Evaluate(t)
 +	}
-+
  	return asBool(t, m)
  }
  
 diff --git a/xpath.go b/xpath.go
-index d6c9912..2319860 100644
+index 5f6aa89..b10245b 100644
 --- a/xpath.go
 +++ b/xpath.go
-@@ -44,6 +44,10 @@ type NodeNavigator interface {
+@@ -45,6 +45,10 @@ type NodeNavigator interface {
  	// Copy does a deep copy of the NodeNavigator and all its components.
  	Copy() NodeNavigator
  
@@ -1100,15 +999,7 @@ index d6c9912..2319860 100644
  	// MoveToRoot moves the NodeNavigator to the root node of the current node.
  	MoveToRoot()
  
-@@ -117,6 +121,7 @@ func (f iteratorFunc) Current() NodeNavigator {
- // Evaluate returns the result of the expression.
- // The result type of the expression is one of the follow: bool,float64,string,NodeIterator).
- func (expr *Expr) Evaluate(root NodeNavigator) interface{} {
-+
- 	val := expr.q.Evaluate(iteratorFunc(func() NodeNavigator { return root }))
- 	switch val.(type) {
- 	case query:
-@@ -147,11 +152,48 @@ func Compile(expr string) (*Expr, error) {
+@@ -151,6 +155,12 @@ func Compile(expr string) (*Expr, error) {
  	return &Expr{s: expr, q: qy}, nil
  }
  
@@ -1121,10 +1012,8 @@ index d6c9912..2319860 100644
  // MustCompile compiles an XPath expression string and ignored error.
  func MustCompile(expr string) *Expr {
  	exp, err := Compile(expr)
- 	if err != nil {
- 		return &Expr{s: expr, q: nopQuery{}}
+@@ -159,3 +169,27 @@ func MustCompile(expr string) *Expr {
  	}
-+
  	return exp
  }
 +
@@ -1132,20 +1021,15 @@ index d6c9912..2319860 100644
 +	getKeysClbk = keyFetchCb
 +}
 +
-+func SetDepDataClbk(ctxt interface{},
-+	depDataCb func(interface{}, []string, string, string, string, string, string) string) {
-+
++func SetDepDataClbk(ctxt interface{}, depDataCb func(interface{}, []string, string, string, string, string, string) string) {
 +	depDataCtxt = ctxt
 +	getDepDataClbk = depDataCb
 +}
 +
-+func SetDepDataCntClbk(ctxt interface{},
-+	depDataCntCb func(interface{},  string, string, string, string) float64) {
-+
++func SetDepDataCntClbk(ctxt interface{}, depDataCntCb func(interface{},  string, string, string, string) float64) {
 +	depDataCtxt = ctxt
 +	getDepDataCntClbk = depDataCntCb
 +}
-+
 +
 +func SetLogCallback(clbk func(string, ...interface{})) {
 +	logClbk = clbk
@@ -1156,4 +1040,3 @@ index d6c9912..2319860 100644
 +		logClbk(fmt, args...)
 +	}
 +}
-+
