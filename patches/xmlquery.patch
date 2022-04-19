@@ -1,8 +1,8 @@
 diff --git a/node.go b/node.go
-index e86c0c3..028867c 100644
+index e053748..1c9a529 100644
 --- a/node.go
 +++ b/node.go
-@@ -48,7 +48,7 @@ type Node struct {
+@@ -45,7 +45,7 @@ type Node struct {
  
  // InnerText returns the text between the start and end tags of the object.
  func (n *Node) InnerText() string {
@@ -10,8 +10,8 @@ index e86c0c3..028867c 100644
 +	/*var output func(*bytes.Buffer, *Node)
  	output = func(buf *bytes.Buffer, n *Node) {
  		switch n.Type {
- 		case TextNode:
-@@ -64,7 +64,18 @@ func (n *Node) InnerText() string {
+ 		case TextNode, CharDataNode:
+@@ -60,7 +60,18 @@ func (n *Node) InnerText() string {
  
  	var buf bytes.Buffer
  	output(&buf, n)
@@ -32,7 +32,7 @@ index e86c0c3..028867c 100644
  
  func (n *Node) sanitizedData(preserveSpaces bool) string {
 diff --git a/query.go b/query.go
-index 146c2a4..f21b61b 100644
+index c148e5f..4ac76af 100644
 --- a/query.go
 +++ b/query.go
 @@ -49,6 +49,29 @@ func CreateXPathNavigator(top *Node) *NodeNavigator {
@@ -65,7 +65,7 @@ index 146c2a4..f21b61b 100644
  func getCurrentNode(it *xpath.NodeIterator) *Node {
  	n := it.Current().(*NodeNavigator)
  	if n.NodeType() == xpath.AttributeNode {
-@@ -145,7 +168,7 @@ func FindEachWithBreak(top *Node, expr string, cb func(int, *Node) bool) {
+@@ -146,7 +169,7 @@ func FindEachWithBreak(top *Node, expr string, cb func(int, *Node) bool) {
  }
  
  type NodeNavigator struct {
@@ -74,7 +74,7 @@ index 146c2a4..f21b61b 100644
  	attr       int
  }
  
-@@ -212,6 +235,17 @@ func (x *NodeNavigator) MoveToRoot() {
+@@ -217,6 +240,17 @@ func (x *NodeNavigator) MoveToRoot() {
  	x.curr = x.root
  }
  
