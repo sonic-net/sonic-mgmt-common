@@ -1,0 +1,53 @@
+module sonic-evprofile {
+    namespace "http://github.com/Azure/sonic-evprofile";
+    prefix evprofile;
+    yang-version 1.1;
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONiC yang for Event Profile.";
+
+    revision 2021-05-12 {
+        description
+            "Initial revision.";
+    }
+
+    rpc get-evprofile {
+       description "RPC for getting active event profile.";
+
+       output {
+           leaf file-name {
+               type string;
+               description "Active Event Profile";
+           }
+           leaf-list file-list {
+               type string;
+               description "List of Event Profiles on the device";
+           }
+       }
+    }
+
+    rpc set-evprofile {
+       description "RPC for applying specified event profile.";
+
+       input {
+           leaf file-name {
+               type string;
+               description "Enter the name of the Event Profile file with/without '.json' suffix. To select default event profile, just enter 'default'";
+           }
+       }
+
+       output {
+           leaf status {
+               type string;
+               description "Event Profile validation status";
+           }
+       }
+    }
+}
+

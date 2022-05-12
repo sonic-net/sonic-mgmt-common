@@ -519,7 +519,7 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 						case "rpc-callback" :
 							xDbSpecMap[dbXpath].rpcFunc = ext.NName()
 						case "db-name" :
-							xDbSpecMap[dbXpath].dbIndex = dbNameToIndex(ext.NName())
+							xDbSpecMap[dbXpath].dbIndex = db.GetdbNameToIndex(ext.NName())
 						case "key-delim" :
 							xDbSpecMap[dbXpath].delim   = ext.NName()
 						default :
@@ -670,31 +670,6 @@ func childToUpdateParent( xpath string, tableName string) {
 	childToUpdateParent(parent, tableName)
 }
 
-func dbNameToIndex(dbName string) db.DBNum {
-	dbIndex := db.ConfigDB
-	switch dbName {
-	case "APPL_DB" :
-		dbIndex  = db.ApplDB
-	case "ASIC_DB" :
-		dbIndex  = db.AsicDB
-	case "COUNTERS_DB" :
-		dbIndex  = db.CountersDB
-	case "LOGLEVEL_DB" :
-		dbIndex  = db.LogLevelDB
-	case "CONFIG_DB" :
-		dbIndex  = db.ConfigDB
-	case "FLEX_COUNTER_DB" :
-		dbIndex  = db.FlexCounterDB
-	case "STATE_DB" :
-		dbIndex  = db.StateDB
-	case "ERROR_DB" :
-		dbIndex  = db.ErrorDB
-	case "USER_DB" :
-		dbIndex  = db.UserDB
-	}
-	return dbIndex
-}
-
 /* Build lookup map based on yang xpath */
 func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry *yang.Entry) {
 	xpathData := new(yangXpathInfo)
@@ -746,7 +721,7 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 			case "use-self-key" :
 				xpathData.keyXpath  = nil
 			case "db-name" :
-				xpathData.dbIndex = dbNameToIndex(ext.NName())
+				xpathData.dbIndex = db.GetdbNameToIndex(ext.NName())
 			case "table-owner" :
 				if xpathData.tblOwner == nil {
 					xpathData.tblOwner  = new(bool)
@@ -890,7 +865,7 @@ func annotDbSpecMapFill(xDbSpecMap map[string]*dbInfo, dbXpath string, entry *ya
 				}
 				*dbXpathData.keyName = ext.NName()
 			case "db-name" :
-				dbXpathData.dbIndex  = dbNameToIndex(ext.NName())
+				dbXpathData.dbIndex  = db.GetdbNameToIndex(ext.NName())
 			case "value-transformer" :
 				fieldName  := pname[len(pname) - 1]
 				fieldXpath := tableName+"/"+fieldName

@@ -142,6 +142,7 @@ const (
 	SnmpDB                     // 7
 	ErrorDB                    // 8
 	UserDB                     // 9
+	EventDB                    // 10
 	// All DBs added above this line, please ----
 	MaxDB //  The Number of DBs
 )
@@ -321,8 +322,37 @@ func getDBInstName (dbNo DBNum) string {
 		return "ERROR_DB"
 	case UserDB:
 		return "USER_DB"
+	case EventDB:
+		return "EVENT_DB"
 	}
 	return ""
+}
+
+func GetdbNameToIndex(dbName string) DBNum {
+        dbIndex := ConfigDB
+        switch dbName {
+        case "APPL_DB" :
+                dbIndex  = ApplDB
+        case "ASIC_DB" :
+                dbIndex  = AsicDB
+        case "COUNTERS_DB" :
+                dbIndex  = CountersDB
+        case "LOGLEVEL_DB" :
+                dbIndex  = LogLevelDB
+        case "CONFIG_DB" :
+                dbIndex  = ConfigDB
+        case "FLEX_COUNTER_DB" :
+                dbIndex  = FlexCounterDB
+        case "STATE_DB" :
+                dbIndex  = StateDB
+        case "ERROR_DB" :
+                dbIndex  = ErrorDB
+        case "USER_DB" :
+                dbIndex  = UserDB
+        case "EVENT_DB" :
+                dbIndex  = EventDB
+        }
+        return dbIndex
 }
 
 // NewDB is the factory method to create new DB's.

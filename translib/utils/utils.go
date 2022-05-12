@@ -21,9 +21,11 @@
 package utils
 
 import (
-    //"github.com/Azure/sonic-mgmt-common/translib/db"
+    "github.com/Azure/sonic-mgmt-common/translib/db"
     "github.com/Azure/sonic-mgmt-common/cvl"
     "fmt"
+    "time"
+    "strconv"
     log "github.com/golang/glog"
 )
 
@@ -66,6 +68,60 @@ func RemoveElement(sl []string, str string) []string {
     }
     return sl
 }
+
+func GetActionStr(action int) string {
+	switch action {
+	case CLEAR:
+		return "CLEAR"
+	case RAISE:
+		return "RAISE"
+	case ACKNOWLEDGE:
+		return "ACKNOWLEDGE"
+	case UNACKNOWLEDGE:
+		return "UNACKNOWLEDGE"
+	default:
+		return ""
+	}
+}
+
+var seq_id = 1
+
+const (
+	RAISE = iota
+	CLEAR
+	ACKNOWLEDGE
+	UNACKNOWLEDGE
+)
+
+func EventNotify(dbs [db.MaxDB]*db.DB, name string, source string, action int, format string, a ...string) error {
+
+	timeCreated := time.Now().UnixNano()
+	seq_id++
+	tblKey := name + strconv.Itoa(seq_id)
+
+	s := make([]interface{}, len(a))
+	for i, v := range a {
+		s[i] = v
+	}
+
+	text := fmt.Sprintf(format, s...)
+	evtFields := db.Value{Field: make(map[string]string)}
+	evtFields.Set("type-id", name)
+	evtFields.Set("text", text)
+	evtFields.Set("action", GetActionStr(action))
+	evtFields.Set("time-created", strconv.FormatInt(timeCreated, 10))
+	evtFields.Set("reckey", tblKey)
+	evtFields.Set("resource", source)
+
+	d := dbs[db.EventDB]
+
+	err := d.CreateEntry(&db.TableSpec{Name: "EVENTPUBSUB"}, db.Key{Comp: []string{tblKey}}, evtFields)
+	if err != nil {
+		log.Info("Unable to write event  ", tblKey)
+	}
+	return err
+}
+
 
 
 

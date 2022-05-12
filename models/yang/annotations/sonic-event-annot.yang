@@ -1,0 +1,29 @@
+module sonic-event-annot {
+
+    yang-version "1";
+
+    namespace "http://openconfig.net/yang/annotation/sonic-event-annot";
+    prefix "sevent-annot";
+
+    import sonic-event { prefix sevent; }
+    import sonic-extensions { prefix sonic-ext; }
+
+    deviation /sevent:show-events {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_get_events";
+        }
+    }
+
+    deviation /sevent:sonic-event/sevent:EVENT/sevent:EVENT_LIST {
+      deviate add {
+        sonic-ext:db-name "EVENT_DB";
+      }
+    }
+
+    deviation /sevent:sonic-event/sevent:EVENT_STATS/sevent:EVENT_STATS_LIST {
+      deviate add {
+        sonic-ext:db-name "EVENT_DB";
+      }
+    }  
+
+}

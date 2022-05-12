@@ -1,0 +1,23 @@
+module sonic-evprofile-annot {
+
+    yang-version "1";
+
+    namespace "http://openconfig.net/Azure/sonic-evprofile-annot";
+    prefix "evprofile-annot";
+
+    import sonic-extensions { prefix sonic-ext; }
+    import sonic-evprofile { prefix sep; }
+
+    deviation /sep:get-evprofile {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_getevprofile_cb";
+        }
+    }
+
+    deviation /sep:set-evprofile {
+      deviate add {
+        sonic-ext:rpc-callback "rpc_setevprofile_cb";
+      }
+    }
+
+}
