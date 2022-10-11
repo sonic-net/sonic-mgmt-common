@@ -679,8 +679,6 @@ func dbNameToIndex(dbName string) db.DBNum {
 		dbIndex  = db.AsicDB
 	case "COUNTERS_DB" :
 		dbIndex  = db.CountersDB
-	case "LOGLEVEL_DB" :
-		dbIndex  = db.LogLevelDB
 	case "CONFIG_DB" :
 		dbIndex  = db.ConfigDB
 	case "FLEX_COUNTER_DB" :

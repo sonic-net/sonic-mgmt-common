@@ -77,11 +77,6 @@ var dbConfig = `
             "separator": ":",
             "instance" : "redis"
         },
-        "LOGLEVEL_DB" : {
-            "id" : 3,
-            "separator": ":",
-            "instance" : "redis"
-        },
         "CONFIG_DB" : {
             "id" : 4,
             "separator": "|",
