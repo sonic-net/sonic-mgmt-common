@@ -135,7 +135,7 @@ const (
 	ApplDB        DBNum = iota // 0
 	AsicDB                     // 1
 	CountersDB                 // 2
-	ConfigDB                   // 4
+	ConfigDB = iota+1          // 4, We skip the LOGLEVEL_DB that was deprecated
 	FlexCounterDB              // 5
 	StateDB                    // 6
 	SnmpDB                     // 7
