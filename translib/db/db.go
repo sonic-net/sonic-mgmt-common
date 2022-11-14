@@ -135,7 +135,7 @@ const (
 	ApplDB        DBNum = iota // 0
 	AsicDB                     // 1
 	CountersDB                 // 2
-	LogLevelDB                 // 3
+	_                          // We skip number 3 since the LOGLEVEL_DB that was deprecated
 	ConfigDB                   // 4
 	FlexCounterDB              // 5
 	StateDB                    // 6
@@ -307,8 +307,6 @@ func getDBInstName (dbNo DBNum) string {
 		return "ASIC_DB"
 	case CountersDB:
 		return "COUNTERS_DB"
-	case LogLevelDB:
-		return "LOGLEVEL_DB"
 	case ConfigDB:
 		return "CONFIG_DB"
 	case FlexCounterDB:
