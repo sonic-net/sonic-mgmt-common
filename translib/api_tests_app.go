@@ -17,6 +17,7 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+//go:build test
 // +build test
 
 package translib
@@ -101,8 +102,12 @@ func (app *apiTests) translateAction(dbs [db.MaxDB]*db.DB) error {
 	return nil
 }
 
-func (app *apiTests) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-	return nil, nil, nil
+func (app *apiTests) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
+}
+
+func (app *apiTests) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, tlerr.New("not implemented")
 }
 
 func (app *apiTests) processCreate(d *db.DB) (SetResponse, error) {

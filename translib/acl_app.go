@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
@@ -168,68 +169,8 @@ func (app *AclApp) translateGet(dbs [db.MaxDB]*db.DB) error {
 }
 
 func (app *AclApp) translateAction(dbs [db.MaxDB]*db.DB) error {
-    err := errors.New("Not supported")
-    return err
-}
-
-func (app *AclApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-	pathInfo := NewPathInfo(path)
-	notifInfo := notificationInfo{dbno: db.ConfigDB}
-	notSupported := tlerr.NotSupportedError{
-		Format: "Subscribe not supported", Path: path}
-
-	if isSubtreeRequest(pathInfo.Template, "/openconfig-acl:acl/acl-sets") {
-		// Subscribing to top level ACL record is not supported. It requires listening
-		// to 2 tables (ACL and ACL_RULE); TransLib does not support it yet
-		if pathInfo.HasSuffix("/acl-sets") ||
-			pathInfo.HasSuffix("/acl-set") ||
-			pathInfo.HasSuffix("/acl-set{}{}") {
-			log.Errorf("Subscribe not supported for top level ACL %s", pathInfo.Template)
-			return nil, nil, notSupported
-		}
-
-		t, err := getAclTypeOCEnumFromName(pathInfo.Var("type"))
-		if err != nil {
-			return nil, nil, err
-		}
-
-		aclkey := getAclKeyStrFromOCKey(pathInfo.Var("name"), t)
-
-		if strings.Contains(pathInfo.Template, "/acl-entry{}") {
-			// Subscribe for one rule
-			rulekey := "RULE_" + pathInfo.Var("sequence-id")
-			notifInfo.table = db.TableSpec{Name: RULE_TABLE}
-			notifInfo.key = asKey(aclkey, rulekey)
-			notifInfo.needCache = !pathInfo.HasSuffix("/acl-entry{}")
-
-		} else if pathInfo.HasSuffix("/acl-entries") || pathInfo.HasSuffix("/acl-entry") {
-			// Subscribe for all rules of an ACL
-			notifInfo.table = db.TableSpec{Name: RULE_TABLE}
-			notifInfo.key = asKey(aclkey, "*")
-
-		} else {
-			// Subscibe for ACL fields only
-			notifInfo.table = db.TableSpec{Name: ACL_TABLE}
-			notifInfo.key = asKey(aclkey)
-			notifInfo.needCache = true
-		}
-
-	} else if isSubtreeRequest(pathInfo.Template, "/openconfig-acl:acl/interfaces") {
-		// Right now interface binding config is maintained within ACL
-		// table itself. Multiple ACLs can be bound to one intf; one
-		// inname can occur in multiple ACL entries. So we cannot map
-		// interface binding xpaths to specific ACL table entry keys.
-		// For now subscribe for full ACL table!!
-		notifInfo.table = db.TableSpec{Name: ACL_TABLE}
-		notifInfo.key = asKey("*")
-		notifInfo.needCache = true
-
-	} else {
-		log.Errorf("Unknown path %s", pathInfo.Template)
-		return nil, nil, notSupported
-	}
-
-	return nil, &notifInfo, nil
+	err := errors.New("Not supported")
+	return err
 }
 
 func (app *AclApp) processCreate(d *db.DB) (SetResponse, error) {
@@ -295,10 +236,10 @@ func (app *AclApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
 }
 
 func (app *AclApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
-    var resp ActionResponse
-    err := errors.New("Not implemented")
+	var resp ActionResponse
+	err := errors.New("Not implemented")
 
-    return resp, err
+	return resp, err
 }
 
 func (app *AclApp) translateCRUCommon(d *db.DB, opcode int) ([]db.WatchKeys, error) {
@@ -1716,10 +1657,19 @@ func getAclKeyStrFromOCKey(aclname string, acltype ocbinds.E_OpenconfigAcl_ACL_T
 	return aclN + "_" + aclT
 }
 
-/* Check if targetUriPath is child (subtree) of nodePath
+/*
+Check if targetUriPath is child (subtree) of nodePath
 The return value can be used to decide if subtrees needs
 to visited to fill the data or not.
 */
 func isSubtreeRequest(targetUriPath string, nodePath string) bool {
 	return strings.HasPrefix(targetUriPath, nodePath)
+}
+
+func (app *AclApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
+}
+
+func (app *AclApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, errors.New("not implemented")
 }

@@ -250,36 +250,12 @@ func (app *IntfApp) translateAction(dbs [db.MaxDB]*db.DB) error {
     return err
 }
 
-func (app *IntfApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-	app.appDB = dbs[db.ApplDB]
-	pathInfo := NewPathInfo(path)
-	notifInfo := notificationInfo{dbno: db.ApplDB}
-	notSupported := tlerr.NotSupportedError{Format: "Subscribe not supported", Path: path}
+func (app *IntfApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
+}
 
-	if isSubtreeRequest(pathInfo.Template, "/openconfig-interfaces:interfaces") {
-		if pathInfo.HasSuffix("/interface{}") ||
-			pathInfo.HasSuffix("/config") ||
-			pathInfo.HasSuffix("/state") {
-			log.Errorf("Subscribe not supported for %s!", pathInfo.Template)
-			return nil, nil, notSupported
-		}
-		ifKey := pathInfo.Var("name")
-		if len(ifKey) == 0 {
-			return nil, nil, errors.New("ifKey given is empty!")
-		}
-		log.Info("Interface name = ", ifKey)
-		err := app.validateInterface(app.appDB, ifKey, db.Key{Comp: []string{ifKey}})
-		if err != nil {
-			return nil, nil, err
-		}
-		if pathInfo.HasSuffix("/state/oper-status") {
-			notifInfo.table = db.TableSpec{Name: "PORT_TABLE"}
-			notifInfo.key = asKey(ifKey)
-			notifInfo.needCache = true
-			return &notificationOpts{pType: OnChange}, &notifInfo, nil
-		}
-	}
-	return nil, nil, notSupported
+func (app *IntfApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, errors.New("not implemented")
 }
 
 func (app *IntfApp) processCreate(d *db.DB) (SetResponse, error) {

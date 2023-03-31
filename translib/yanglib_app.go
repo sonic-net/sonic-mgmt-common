@@ -110,8 +110,12 @@ func (app *yanglibApp) translateAction(dbs [db.MaxDB]*db.DB) error {
 	return errors.NotSupported("Unsupported")
 }
 
-func (app *yanglibApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-	return nil, nil, errors.NotSupported("Unsupported")
+func (app *yanglibApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
+}
+
+func (app *yanglibApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, errors.New("not implemented")
 }
 
 func (app *yanglibApp) processCreate(d *db.DB) (SetResponse, error) {

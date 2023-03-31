@@ -19,16 +19,16 @@
 package translib
 
 import (
-    "strconv"
-    "reflect"
-    "errors"
-    "github.com/Azure/sonic-mgmt-common/translib/db"
-    "github.com/Azure/sonic-mgmt-common/translib/ocbinds"
-    "github.com/openconfig/ygot/ygot"
-    log "github.com/golang/glog"
-    "strings"
-    "encoding/hex"
-    "github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"encoding/hex"
+	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+
+	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
 const (
@@ -137,31 +137,12 @@ func (app *lldpApp) translateAction(dbs [db.MaxDB]*db.DB) error {
     return err
 }
 
-func (app *lldpApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-    pathInfo := NewPathInfo(path)
-    notifInfo := notificationInfo{dbno: db.ApplDB}
-    notSupported := tlerr.NotSupportedError{Format: "Subscribe not supported", Path: path}
+func (app *lldpApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
+}
 
-    if isSubtreeRequest(pathInfo.Template, "/openconfig-lldp:lldp/interfaces") {
-        if pathInfo.HasSuffix("/neighbors") ||
-            pathInfo.HasSuffix("/config") ||
-            pathInfo.HasSuffix("/state") {
-                log.Errorf("Subscribe not supported for %s!", pathInfo.Template)
-                return nil, nil, notSupported
-        }
-        ifKey := pathInfo.Var("name")
-        if len(ifKey) == 0 {
-            return nil, nil, errors.New("ifKey given is empty!")
-        }
-        log.Info("Interface name = ", ifKey)
-        if pathInfo.HasSuffix("/interface{}") {
-            notifInfo.table = db.TableSpec{Name: "LLDP_ENTRY_TABLE"}
-            notifInfo.key = asKey(ifKey)
-            notifInfo.needCache = true
-            return &notificationOpts{pType: OnChange}, &notifInfo, nil
-        }
-    }
-    return nil, nil, notSupported
+func (app *lldpApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, errors.New("not implemented")
 }
 
 func (app *lldpApp) processCreate(d *db.DB) (SetResponse, error)  {

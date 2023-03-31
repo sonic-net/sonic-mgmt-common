@@ -81,10 +81,12 @@ func (app *SysApp) translateAction(dbs [db.MaxDB]*db.DB) error {
     return err
 }
 
-func (app *SysApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-	var err error
+func (app *SysApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
+}
 
-	return nil, nil, err
+func (app *SysApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, errors.New("not implemented")
 }
 
 func (app *SysApp) translateCreate(d *db.DB) ([]db.WatchKeys, error) {
