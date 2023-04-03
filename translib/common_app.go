@@ -134,7 +134,7 @@ func (app *CommonApp) translateSubscribe(req *translateSubRequest) (*translateSu
 }
 
 func (app *CommonApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
-	return processSubResponse{}, errors.New("not implemented")
+	return processSubResponse{}, tlerr.New("not implemented")
 }
 
 func (app *CommonApp) translateAction(dbs [db.MaxDB]*db.DB) error {

@@ -119,6 +119,8 @@ func PathToString(p *gnmi.Path) string {
 	if p == nil {
 		return "<nil>"
 	}
-	s, _ := ygot.PathToString(p)
-	return s
+	if s, err := ygot.PathToString(p); err == nil {
+		return s
+	}
+	return "<invalid>"
 }

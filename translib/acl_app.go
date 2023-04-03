@@ -1671,5 +1671,5 @@ func (app *AclApp) translateSubscribe(req *translateSubRequest) (*translateSubRe
 }
 
 func (app *AclApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
-	return processSubResponse{}, errors.New("not implemented")
+	return processSubResponse{}, tlerr.New("not implemented")
 }

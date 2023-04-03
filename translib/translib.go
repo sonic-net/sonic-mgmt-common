@@ -883,7 +883,7 @@ func Subscribe(req SubscribeRequest) ([]*IsSubscribeResponse, error) {
 			continue
 		}
 
-		nOpts, nInfo, errApp := translateSubscribeBridge(path, app, dbs)
+		nOpts, nInfo, errApp := translateSubscribeBridge(path, *app, dbs)
 
 		if nOpts != nil {
 			if nOpts.mInterval != 0 {
@@ -980,7 +980,7 @@ func IsSubscribeSupported(req IsSubscribeRequest) ([]*IsSubscribeResponse, error
 			continue
 		}
 
-		nOpts, _, errApp := translateSubscribeBridge(path, app, dbs)
+		nOpts, _, errApp := translateSubscribeBridge(path, *app, dbs)
 
         if nOpts != nil {
             if nOpts.mInterval != 0 {

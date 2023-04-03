@@ -40,6 +40,9 @@ type EntryDiff struct {
 }
 
 func (d *EntryDiff) String() string {
+	if d == nil {
+		return "<nil>"
+	}
 	return fmt.Sprintf(
 		"{EntryCreated=%t, EntryDeleted=%t, CreatedFields=%v, UpdatedFields=%v, DeletedFields=%v}",
 		d.EntryCreated, d.EntryDeleted, d.CreatedFields, d.UpdatedFields, d.DeletedFields)
@@ -48,8 +51,8 @@ func (d *EntryDiff) String() string {
 // IsEmpty returns true if this EntryDiff has no diff data -- either not initialized
 // or both old and new values are identical.
 func (d *EntryDiff) IsEmpty() bool {
-	return !d.EntryCreated && !d.EntryDeleted &&
-		len(d.CreatedFields) == 0 && len(d.UpdatedFields) == 0 && len(d.DeletedFields) == 0
+	return d == nil || (!d.EntryCreated && !d.EntryDeleted &&
+		len(d.CreatedFields) == 0 && len(d.UpdatedFields) == 0 && len(d.DeletedFields) == 0)
 }
 
 // EntryCompare function compares two db.Value objects representing two versions

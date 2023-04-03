@@ -255,7 +255,7 @@ func (app *IntfApp) translateSubscribe(req *translateSubRequest) (*translateSubR
 }
 
 func (app *IntfApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
-	return processSubResponse{}, errors.New("not implemented")
+	return processSubResponse{}, tlerr.New("not implemented")
 }
 
 func (app *IntfApp) processCreate(d *db.DB) (SetResponse, error) {

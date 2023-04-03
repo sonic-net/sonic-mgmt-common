@@ -24,6 +24,7 @@ import (
     "errors"
     "github.com/Azure/sonic-mgmt-common/translib/db"
     "github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+    "github.com/Azure/sonic-mgmt-common/translib/tlerr"
     "github.com/openconfig/ygot/ygot"
     log "github.com/golang/glog"
 )
@@ -82,7 +83,7 @@ func (app *PlatformApp) translateSubscribe(req *translateSubRequest) (*translate
 }
 
 func (app *PlatformApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
-	return processSubResponse{}, errors.New("not implemented")
+	return processSubResponse{}, tlerr.New("not implemented")
 }
 
 func (app *PlatformApp) translateCreate(d *db.DB) ([]db.WatchKeys, error)  {

@@ -44,12 +44,16 @@ func emptySubscribeResponse(reqPath string) (*translateSubResponse, error) {
 
 // translateSubscribeBridge calls the new translateSubscribe() on an app and returns the
 // responses as per old signature. Will be removed after enhancing translib.Subscribe() API
-func translateSubscribeBridge(path string, app *appInterface, dbs [db.MaxDB]*db.DB) (*notificationOpts, *notificationInfo, error) {
-	resp, err := (*app).translateSubscribe(&translateSubRequest{path: path, dbs: dbs})
-	if err != nil || resp == nil || len(resp.ntfAppInfoTrgt) == 0 {
+func translateSubscribeBridge(path string, app appInterface, dbs [db.MaxDB]*db.DB) (*notificationOpts, *notificationInfo, error) {
+	var nAppInfo *notificationAppInfo
+	resp, err := app.translateSubscribe(&translateSubRequest{path: path, dbs: dbs})
+	if err == nil && resp != nil && len(resp.ntfAppInfoTrgt) != 0 {
+		nAppInfo = resp.ntfAppInfoTrgt[0]
+	}
+	if nAppInfo == nil {
 		return nil, nil, fmt.Errorf("subscribe not supported (%w)", err)
 	}
-	nAppInfo := resp.ntfAppInfoTrgt[0]
+
 	nOpts := &notificationOpts{
 		isOnChangeSupported: nAppInfo.isOnChangeSupported,
 		pType:               nAppInfo.pType,
@@ -59,5 +63,6 @@ func translateSubscribeBridge(path string, app *appInterface, dbs [db.MaxDB]*db.
 	if !nAppInfo.isNonDB() {
 		nInfo.table, nInfo.key = *nAppInfo.table, *nAppInfo.key
 	}
+
 	return nOpts, nInfo, nil
 }

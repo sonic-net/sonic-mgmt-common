@@ -159,6 +159,9 @@ type processSubResponse struct {
 }
 
 func (ni *notificationAppInfo) String() string {
+	if ni == nil {
+		return "<nil>"
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "{path='%s'", apis.PathToString(ni.path))
 	fmt.Fprintf(&b, ", db=%s, ts=%v, key=%v", ni.dbno, tableInfo(ni.table), keyInfo(ni.key))
