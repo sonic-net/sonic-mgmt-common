@@ -156,7 +156,8 @@ type Options struct {
 	InitIndicator      string
 	TableNameSeparator string //Overriden by the DB config file's separator.
 	KeySeparator       string //Overriden by the DB config file's separator.
-	IsWriteDisabled    bool //Indicated if write is allowed
+	IsWriteDisabled    bool   //Indicated if write is allowed
+	IsEnableOnChange   bool   // whether OnChange cache enabled
 
 	DisableCVLCheck bool
 }
@@ -259,6 +260,15 @@ type Table struct {
 	db    *DB
 }
 
+type dbCache struct {
+	Tables map[string]Table
+}
+
+const (
+	ConnectionClosed = tlerr.TranslibDBInvalidState("connection closed")
+	OnChangeDisabled = tlerr.TranslibDBInvalidState("OnChange disabled")
+)
+
 type _txOp int
 
 const (
@@ -284,6 +294,9 @@ type DB struct {
 	txCmds            []_txCmd
 	cv                *cvl.CVL
 	cvlEditConfigData []cvl.CVLEditConfigData
+
+	onCReg dbOnChangeReg // holds OnChange enabled table names
+	cache  dbCache       // holds OnChange cache
 
 	/*
 		sKeys []*SKey               // Subscribe Key array
@@ -326,6 +339,7 @@ func getDBInstName (dbNo DBNum) string {
 // NewDB is the factory method to create new DB's.
 func NewDB(opt Options) (*DB, error) {
 
+	var d DB
 	var e error
 
 	if glog.V(3) {
@@ -355,8 +369,14 @@ func NewDB(opt Options) (*DB, error) {
 	} else {
 		glog.Error(fmt.Errorf("Invalid database number %d", dbId))
 	}
-	
-	d := DB{client: redis.NewClient(&redis.Options{
+
+	if opt.IsEnableOnChange && !opt.IsWriteDisabled {
+		glog.Errorf("NewDB: IsEnableOnChange cannot be set on write enabled DB")
+		e = tlerr.TranslibDBCannotOpen{}
+		goto NewDBExit
+	}
+
+	d = DB{client: redis.NewClient(&redis.Options{
 		Network: "tcp",
 		Addr:    ipAddr,
 		//Addr:     DefaultRedisRemoteTCPEP,
@@ -378,6 +398,10 @@ func NewDB(opt Options) (*DB, error) {
 		glog.Error("NewDB: Could not create redis client")
 		e = tlerr.TranslibDBCannotOpen{}
 		goto NewDBExit
+	}
+
+	if opt.IsEnableOnChange {
+		d.onCReg = dbOnChangeReg{CacheTables: make(map[string]bool)}
 	}
 
 	if opt.DBNo != ConfigDB {
@@ -421,6 +445,17 @@ func (d *DB) DeleteDB() error {
 	}
 
 	return d.client.Close()
+}
+
+func (d *DB) Name() string {
+	if d == nil {
+		return ""
+	}
+	return getDBInstName(d.Opts.DBNo)
+}
+
+func (d *DB) IsOpen() bool {
+	return d != nil && d.client != nil
 }
 
 func (d *DB) key2redis(ts *TableSpec, key Key) string {
@@ -467,31 +502,61 @@ func (d *DB) ts2redisUpdated(ts *TableSpec) string {
 
 // GetEntry retrieves an entry(row) from the table.
 func (d *DB) GetEntry(ts *TableSpec, key Key) (Value, error) {
+	if !d.IsOpen() {
+		return Value{}, ConnectionClosed
+	}
+	return d.getEntry(ts, key, false)
+}
+
+func (d *DB) getEntry(ts *TableSpec, key Key, forceReadDB bool) (Value, error) {
 
 	if glog.V(3) {
 		glog.Info("GetEntry: Begin: ", "ts: ", ts, " key: ", key)
 	}
 
 	var value Value
+	var cacheHit bool
+	var e error
 
-	/*
-		m := make(map[string]string)
-		m["f0.0"] = "v0.0"
-		m["f0.1"] = "v0.1"
-		m["f0.2"] = "v0.2"
-		v := Value{Field: m}
-	*/
+	entry := d.key2redis(ts, key)
+	useCache := d.Opts.IsEnableOnChange && d.onCReg.isCacheTable(ts.Name)
 
-	v, e := d.client.HGetAll(d.key2redis(ts, key)).Result()
+	if !forceReadDB && useCache {
+		if table, ok := d.cache.Tables[ts.Name]; ok {
+			if value, ok = table.entry[entry]; ok {
+				value = value.Copy()
+				cacheHit = true
+			}
+		}
+	}
 
-	if len(v) != 0 {
-		value = Value{Field: v}
-	} else {
+	if !cacheHit {
+		value.Field, e = d.client.HGetAll(d.key2redis(ts, key)).Result()
+	}
+
+	if e != nil {
+		glog.V(2).Infof("GetEntry: %s: HGetAll(%q) error: %v", d.Name(), entry, e)
+		value = Value{}
+
+	} else if !value.IsPopulated() {
 		if glog.V(4) {
 			glog.Info("GetEntry: HGetAll(): empty map")
 		}
 		// e = errors.New("Entry does not exist")
 		e = tlerr.TranslibRedisClientEntryNotExist{Entry: d.key2redis(ts, key)}
+
+	} else if !cacheHit && useCache {
+		if _, ok := d.cache.Tables[ts.Name]; !ok {
+			if d.cache.Tables == nil {
+				d.cache.Tables = make(map[string]Table, d.onCReg.size())
+			}
+			d.cache.Tables[ts.Name] = Table{
+				ts:    ts,
+				entry: make(map[string]Value),
+				db:    d,
+			}
+		}
+		d.cache.Tables[ts.Name].entry[entry] = value.Copy()
 	}
 
 	if glog.V(3) {
@@ -1093,6 +1158,14 @@ func (k *Key) Get(index int) string {
 }
 
 //===== Functions for db.Value =====
+
+func (v Value) Copy() (rV Value) {
+	rV = Value{Field: make(map[string]string, len(v.Field))}
+	for k, v1 := range v.Field {
+		rV.Field[k] = v1
+	}
+	return
+}
 
 func (v *Value) IsPopulated() bool {
 	return len(v.Field) > 0

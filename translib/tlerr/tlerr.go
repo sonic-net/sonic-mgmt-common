@@ -93,6 +93,12 @@ func (e TranslibDBSubscribeFail) Error() string {
 	return p.Sprintf("Translib Redis Error: DB Subscribe Fail")
 }
 
+type TranslibDBInvalidState string
+
+func (e TranslibDBInvalidState) Error() string {
+	return "DB error: " + string(e)
+}
+
 type TranslibSyntaxValidationError struct {
 	StatusCode int   // status code
 	ErrorStr   error // error message
