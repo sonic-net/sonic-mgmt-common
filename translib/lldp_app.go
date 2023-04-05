@@ -198,7 +198,7 @@ func (app *lldpApp) processDelete(d *db.DB) (SetResponse, error)  {
     return resp, err
 }
 
-func (app *lldpApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error)  {
+func (app *lldpApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error)  {
     var err error
     var payload []byte
 
@@ -206,6 +206,10 @@ func (app *lldpApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error)  {
     lldpIntfObj := app.getAppRootObject()
 
     targetUriPath, err := getYangPathFromUri(app.path.Path)
+    if err != nil {
+        return GetResponse{}, err
+    }
+
     log.Info("lldp processGet")
     log.Info("targetUriPath: ", targetUriPath)
 
@@ -223,12 +227,6 @@ func (app *lldpApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error)  {
             }
             ygot.BuildEmptyTree(oneIfInfo)
             app.getLldpNeighInfoFromInternalMap(&ifname, oneIfInfo)
-            if *app.ygotTarget == lldpIntfObj.Interfaces {
-                payload, err = dumpIetfJson(lldpIntfObj, true)
-            } else {
-                log.Info("Wrong request!")
-            }
-
         }
     } else if targetUriPath == "/openconfig-lldp:lldp/interfaces/interface" {
         intfObj := lldpIntfObj.Interfaces
@@ -240,23 +238,13 @@ func (app *lldpApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error)  {
                 ifInfo := intfObj.Interface[ifname]
                 ygot.BuildEmptyTree(ifInfo)
                 app.getLldpNeighInfoFromInternalMap(&ifname, ifInfo)
-
-                if *app.ygotTarget == intfObj.Interface[ifname] {
-                    payload, err = dumpIetfJson(intfObj, true)
-                    if err != nil {
-                        log.Info("Creation of subinterface subtree failed!")
-                        return GetResponse{Payload: payload, ErrSrc: AppErr}, err
-                    }
-                } else {
-                    log.Info("Wrong request!")
-                }
             }
         } else {
             log.Info("No data")
         }
    }
 
-   return GetResponse{Payload:payload}, err
+   return generateGetResponse(app.path.Path, app.ygotRoot, fmtType)
 }
 
 func (app *lldpApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

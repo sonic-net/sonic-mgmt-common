@@ -252,7 +252,7 @@ func (app *SysApp) getSystemProcesses(sysprocs *ocbinds.OpenconfigSystem_System_
 	return
 }
 
-func (app *SysApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
+func (app *SysApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
 	log.Info("SysApp: processGet Path: ", app.path.Path)
 
 	stateDb := dbs[db.StateDB]
@@ -317,32 +317,26 @@ func (app *SysApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
 		if targetUriPath == "/openconfig-system:system/processes" {
 			ygot.BuildEmptyTree(sysObj)
 			app.getSystemProcesses(sysObj.Processes, false)
-			payload, err = dumpIetfJson(sysObj, false)
 		} else if targetUriPath == "/openconfig-system:system/processes/process" {
 			pid, perr := app.path.IntVar("pid")
 			if perr == nil {
 				if pid == 0 {
 					ygot.BuildEmptyTree(sysObj)
 					app.getSystemProcesses(sysObj.Processes, false)
-					payload, err = dumpIetfJson(sysObj.Processes, false)
 				} else {
 					app.getSystemProcesses(sysObj.Processes, true)
-					payload, err = dumpIetfJson(sysObj.Processes, false)
 				}
 			}
 		} else if targetUriPath == "/openconfig-system:system/processes/process/state" {
-			pid, _ := app.path.IntVar("pid")
 			app.getSystemProcesses(sysObj.Processes, true)
-			payload, err = dumpIetfJson(sysObj.Processes.Process[uint64(pid)], true)
 		} else if isSubtreeRequest(targetUriPath, "/openconfig-system:system/processes/process/state") {
-			pid, _ := app.path.IntVar("pid")
 			app.getSystemProcesses(sysObj.Processes, true)
-			payload, err = dumpIetfJson(sysObj.Processes.Process[uint64(pid)].State, true)
 		}
 	} else {
 		return GetResponse{Payload: payload}, errors.New("Not implemented processGet, path: ")
 	}
-	return GetResponse{Payload: payload}, err
+
+	return generateGetResponse(app.path.Path, app.ygotRoot, fmtType)
 }
 
 func (app *SysApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

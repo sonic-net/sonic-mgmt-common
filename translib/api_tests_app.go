@@ -121,7 +121,7 @@ func (app *apiTests) processDelete(d *db.DB) (SetResponse, error) {
 	return app.processSet()
 }
 
-func (app *apiTests) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
+func (app *apiTests) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
 	var gr GetResponse
 	err := app.getError()
 	if err != nil {

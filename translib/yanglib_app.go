@@ -33,6 +33,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/openconfig/goyang/pkg/yang"
+	"github.com/openconfig/ygot/ygot"
 )
 
 // yanglibApp implements app interface for the
@@ -134,7 +135,7 @@ func (app *yanglibApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, erro
 	return ActionResponse{}, errors.NotSupported("Unsupported")
 }
 
-func (app *yanglibApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
+func (app *yanglibApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
 	glog.Infof("path = %s", app.pathInfo.Template)
 	glog.Infof("vars = %s", app.pathInfo.Vars)
 
@@ -156,8 +157,8 @@ func (app *yanglibApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
 	}
 
 	if err == nil {
-		resp.Payload, err = generateGetResponsePayload(
-			app.pathInfo.Path, app.ygotRoot, app.ygotTarget)
+		var root ygot.GoStruct = app.ygotRoot
+		resp, err = generateGetResponse(app.pathInfo.Path, &root, fmtType)
 	}
 
 	return resp, err

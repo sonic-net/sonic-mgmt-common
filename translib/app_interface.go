@@ -89,7 +89,7 @@ type appInterface interface {
 	processUpdate(d *db.DB) (SetResponse, error)
 	processReplace(d *db.DB) (SetResponse, error)
 	processDelete(d *db.DB) (SetResponse, error)
-	processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error)
+	processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error)
 	processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error)
 }
 
