@@ -61,6 +61,7 @@ module sonic-acl {
 						enum MIRRORV6;
 						enum L3;
 						enum L3V6;
+						enum L3V4V6;
 					}
 				}
 
