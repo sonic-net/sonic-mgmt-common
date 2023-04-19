@@ -20,9 +20,17 @@
 package db
 
 import (
+	// "fmt"
+	// "errors"
+	// "flag"
+	// "github.com/golang/glog"
+	// "time"
+	// "github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	// "os/exec"
 	"os"
 	"strconv"
 	"testing"
+	// "reflect"
 )
 
 func testSCAddDelKeys(t *testing.T, d *DB, ts *TableSpec, prefix string, count int, delete bool) {
@@ -102,9 +110,10 @@ func TestNewScanCursor(t *testing.T) {
 	prefix := "SCKEY_"
 	testSCAddDelKeys(t, d, &ts, prefix, 100, false)
 	defer testSCAddDelKeys(t, d, &ts, prefix, 100, true)
-
+	d.Opts.IsWriteDisabled = true //disabling the write for the scan cursor to work
 	t.Run("pattern=*", testSCGetNextKeys(d, &ts, "*", 100))
 	t.Run("pattern=SCKEY_0", testSCGetNextKeys(d, &ts, "SCKEY_0", 1))
 	t.Run("pattern=SCKEY_1*", testSCGetNextKeys(d, &ts, "SCKEY_1*", 11))
 	t.Run("pattern=NOTALIKELYKEY", testSCGetNextKeys(d, &ts, "NOTALIKELYKEY", 0))
+	d.Opts.IsWriteDisabled = false
 }
