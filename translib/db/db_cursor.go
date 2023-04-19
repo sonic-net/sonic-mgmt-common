@@ -20,11 +20,11 @@
 package db
 
 import (
-
 	"fmt"
 
 	"reflect"
 
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/golang/glog"
 )
 
@@ -73,6 +73,7 @@ type ScanCursorOpts struct {
 	AllowDuplicates bool   // Do not suppress redis duplicate keys
 	ScanType               // To mention the type of scan; default is KeyScanType
 	FldScanPatt     string // Field pattern to scan
+	AllowWritable   bool   // Allow on write enabled DB object; ignores tx cache
 }
 
 type scanner interface {
@@ -109,11 +110,19 @@ func (d *DB) NewScanCursor(ts *TableSpec, pattern Key, scOpts *ScanCursorOpts) (
 		glog.Info("NewScanCursor: Begin: ts: ", ts, " pattern: ", pattern,
 			" scOpts: ", scOpts)
 	}
-	if !d.Opts.IsWriteDisabled {
+
+	if (d == nil) || (d.client == nil) {
+		return nil, tlerr.TranslibDBConnectionReset{}
+	}
+
+	if !d.Opts.IsWriteDisabled && (scOpts == nil || !scOpts.AllowWritable) {
 		err := fmt.Errorf("ScanCursor is not supported for write enabled DB")
 		glog.Error("NewScanCursor: error: ", err)
 		return nil, err
 	}
+
+	// If pseudoDB then return not supported. Return NotSupport above too. TBD.
+
 	var e error
 	var countHint int64 = 10
 	scnType := KeyScanType // default is key scanner
@@ -176,6 +185,10 @@ func (sc *ScanCursor) DeleteScanCursor() error {
 // GetNextKeys retrieves a few keys. bool returns true if the scan is complete.
 func (sc *ScanCursor) GetNextKeys(scOpts *ScanCursorOpts) ([]Key, bool, error) {
 	var keys []Key
+	if (sc == nil) || (sc.db == nil) || (sc.db.client == nil) {
+		return keys, true, tlerr.TranslibDBConnectionReset{}
+	}
+
 	if _, ok := sc.scnr.(*keyScanner); !ok {
 		err := fmt.Errorf("Invalid scanner interface %v; exepcted is keyScanner", reflect.TypeOf(sc.scnr))
 		glog.Error("ScanCursor: GetNextKeys: error: ", err)
@@ -186,13 +199,39 @@ func (sc *ScanCursor) GetNextKeys(scOpts *ScanCursorOpts) ([]Key, bool, error) {
 		glog.Error("ScanCursor: GetNextKeys: error: ", err)
 		return keys, false, err
 	}
-	keys, _, scnComplete, err := sc.getNext(scOpts)
+	keys, _, _, scnComplete, err := sc.getNext(scOpts, false)
 	return keys, scnComplete, err
+}
+
+// GetNextRedisKeys retrieves a few redisKeys. bool returns true if the scan is complete
+func (sc *ScanCursor) GetNextRedisKeys(scOpts *ScanCursorOpts) ([]string, bool, error) {
+	var redisKeys []string
+	var scnComplete bool
+
+	if _, ok := sc.scnr.(*keyScanner); !ok {
+		err := fmt.Errorf("Invalid scanner interface %v; expected keyScanner",
+			reflect.TypeOf(sc.scnr))
+		glog.Error("ScanCursor: GetNextRedisKeys: error: ", err)
+		return redisKeys, false, err
+	}
+	if scOpts != nil && scOpts.ScanType == FieldScanType {
+		err := fmt.Errorf(
+			"Invalid scan cursor option: given scan type is %v; expected is %v",
+			scOpts.ScanType, KeyScanType)
+		glog.Error("ScanCursor: GetNextRedisKeys: error: ", err)
+		return redisKeys, false, err
+	}
+	_, redisKeys, _, scnComplete, err := sc.getNext(scOpts, true)
+	return redisKeys, scnComplete, err
 }
 
 // GetNextFields retrieves a few matching fields. bool returns true if the scan is complete.
 func (sc *ScanCursor) GetNextFields(scOpts *ScanCursorOpts) (Value, bool, error) {
 	var val Value
+	if (sc == nil) || (sc.db == nil) || (sc.db.client == nil) {
+		return val, true, tlerr.TranslibDBConnectionReset{}
+	}
+
 	if _, ok := sc.scnr.(*fieldScanner); !ok {
 		err := fmt.Errorf("Invalid scanner interface %v; exepcted is fieldScanner", reflect.TypeOf(sc.scnr))
 		glog.Error("ScanCursor: GetNextFields: error: ", err)
@@ -203,7 +242,7 @@ func (sc *ScanCursor) GetNextFields(scOpts *ScanCursorOpts) (Value, bool, error)
 		glog.Error("ScanCursor: GetNextFields: error: ", err)
 		return val, false, err
 	}
-	_, fldNameVals, scnComplete, err := sc.getNext(scOpts)
+	_, _, fldNameVals, scnComplete, err := sc.getNext(scOpts, false)
 	val = Value{Field: make(map[string]string)}
 	for i := 0; i < len(fldNameVals); i = i + 2 {
 		val.Field[fldNameVals[i]] = fldNameVals[i+1]
@@ -213,7 +252,7 @@ func (sc *ScanCursor) GetNextFields(scOpts *ScanCursorOpts) (Value, bool, error)
 
 // getNext retrieves next entry (either keys or fields based on the given scan type in the ScanCursorOpts,
 // default is KeyScanType), bool returns true if the scan is complete.
-func (sc *ScanCursor) getNext(scOpts *ScanCursorOpts) ([]Key, []string, bool, error) {
+func (sc *ScanCursor) getNext(scOpts *ScanCursorOpts, returnRedisKeys bool) ([]Key, []string, []string, bool, error) {
 	if glog.V(6) {
 		glog.Info("ScanCursor.getNext: Begin: sc: ", sc, "scOpts: ", scOpts)
 	} else if glog.V(3) {
@@ -247,15 +286,21 @@ func (sc *ScanCursor) getNext(scOpts *ScanCursorOpts) ([]Key, []string, bool, er
 	}
 
 	if e != nil {
-		glog.Error("ScanCursor.getNext: error: ", e)
+		glog.Error("ScanCursor.getNext: ", sc.db.Name(), "pattern: ", sc.pattern, ": error: ", e)
 	}
 
 	var keys []Key
+	var redisKeys []string
 	var fldNameVals []string
 
 	if scanType == KeyScanType {
 
-		keys = make([]Key, 0, len(entries))
+		if returnRedisKeys {
+			redisKeys = make([]string, 0, len(entries))
+		} else {
+			keys = make([]Key, 0, len(entries))
+		}
+
 		for i := 0; i < len(entries); i++ {
 			if sc.seenKeys != nil {
 				if _, present := sc.seenKeys[entries[i]]; present {
@@ -263,7 +308,11 @@ func (sc *ScanCursor) getNext(scOpts *ScanCursorOpts) ([]Key, []string, bool, er
 				}
 				sc.seenKeys[entries[i]] = true
 			}
-			keys = append(keys, sc.db.redis2key(sc.ts, entries[i]))
+			if returnRedisKeys {
+				redisKeys = append(redisKeys, entries[i])
+			} else {
+				keys = append(keys, sc.db.redis2key(sc.ts, entries[i]))
+			}
 		}
 
 	} else {
@@ -277,7 +326,7 @@ func (sc *ScanCursor) getNext(scOpts *ScanCursorOpts) ([]Key, []string, bool, er
 		glog.Info("ScanCursor.getNext: End: #entries: ", len(entries),
 			" scanComplete: ", sc.scanComplete, " e: ", e)
 	}
-	return keys, fldNameVals, sc.scanComplete, e
+	return keys, redisKeys, fldNameVals, sc.scanComplete, e
 }
 
 ////////////////////////////////////////////////////////////////////////////////
