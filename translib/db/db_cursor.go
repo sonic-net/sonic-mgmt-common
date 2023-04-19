@@ -286,7 +286,7 @@ func (sc *ScanCursor) getNext(scOpts *ScanCursorOpts, returnRedisKeys bool) ([]K
 	}
 
 	if e != nil {
-		glog.Error("ScanCursor.getNext: ", sc.db.Name(), "pattern: ", sc.pattern, ": error: ", e)
+		glog.Error("ScanCursor.getNext: pattern: ", sc.pattern, ": error: ", e)
 	}
 
 	var keys []Key
