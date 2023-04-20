@@ -21,7 +21,6 @@ package translib
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -128,49 +127,27 @@ func (app *AclApp) getAppRootObject() *ocbinds.OpenconfigAcl_Acl {
 }
 
 func (app *AclApp) translateCreate(d *db.DB) ([]db.WatchKeys, error) {
-	var err error
-	var keys []db.WatchKeys
-	log.Info("translateCreate:acl:path =", app.pathInfo.Template)
-
-	keys, err = app.translateCRUCommon(d, CREATE)
-	return keys, err
+	return app.translateCRUCommon(d, CREATE)
 }
 
 func (app *AclApp) translateUpdate(d *db.DB) ([]db.WatchKeys, error) {
-	var err error
-	var keys []db.WatchKeys
-	log.Info("translateUpdate:acl:path =", app.pathInfo.Template)
-
-	keys, err = app.translateCRUCommon(d, UPDATE)
-	return keys, err
+	return app.translateCRUCommon(d, UPDATE)
 }
 
 func (app *AclApp) translateReplace(d *db.DB) ([]db.WatchKeys, error) {
-	var err error
-	var keys []db.WatchKeys
-	log.Info("translateReplace:acl:path =", app.pathInfo.Template)
-
-	keys, err = app.translateCRUCommon(d, REPLACE)
-	return keys, err
+	return app.translateCRUCommon(d, REPLACE)
 }
 
 func (app *AclApp) translateDelete(d *db.DB) ([]db.WatchKeys, error) {
-	var err error
-	var keys []db.WatchKeys
-	log.Info("translateDelete:acl:path =", app.pathInfo.Template)
-
-	return keys, err
+	return nil, nil
 }
 
 func (app *AclApp) translateGet(dbs [db.MaxDB]*db.DB) error {
-	var err error
-	log.Info("translateGet:acl:path =", app.pathInfo.Template)
-	return err
+	return nil
 }
 
 func (app *AclApp) translateAction(dbs [db.MaxDB]*db.DB) error {
-	err := errors.New("Not supported")
-	return err
+	return tlerr.NotSupported("unsupported")
 }
 
 func (app *AclApp) processCreate(d *db.DB) (SetResponse, error) {
@@ -236,10 +213,7 @@ func (app *AclApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
 }
 
 func (app *AclApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
-	var resp ActionResponse
-	err := errors.New("Not implemented")
-
-	return resp, err
+	return ActionResponse{}, tlerr.New("not implemented")
 }
 
 func (app *AclApp) translateCRUCommon(d *db.DB, opcode int) ([]db.WatchKeys, error) {
