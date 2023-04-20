@@ -63,17 +63,18 @@ func EntryCompare(old, new db.Value) *EntryDiff {
 		NewValue: new,
 	}
 
-	if old.IsPopulated() {
-		if !new.IsPopulated() {
-			diff.EntryDeleted = true
-			return diff
-		}
-	} else {
-		if new.IsPopulated() {
-			diff.EntryCreated = true
-		}
+	switch oldExists, newExists := old.IsPopulated(), new.IsPopulated(); {
+	case !oldExists && newExists:
+		diff.EntryCreated = true
+		return diff
+	case oldExists && !newExists:
+		diff.EntryDeleted = true
+		return diff
+	case !oldExists && !newExists:
 		return diff
 	}
+
+	// Both old & new versions exist.. compare fields
 
 	for fldName := range old.Field {
 		if fldName == "NULL" {
