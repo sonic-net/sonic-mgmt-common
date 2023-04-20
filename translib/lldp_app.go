@@ -138,11 +138,11 @@ func (app *lldpApp) translateAction(dbs [db.MaxDB]*db.DB) error {
     return err
 }
 
-func (app *lldpApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+func (app *lldpApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
 	return emptySubscribeResponse(req.path)
 }
 
-func (app *lldpApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+func (app *lldpApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
 	return processSubResponse{}, tlerr.New("not implemented")
 }
 

@@ -78,11 +78,11 @@ func (app *PlatformApp) translateAction(dbs [db.MaxDB]*db.DB) error {
     return err
 }
 
-func (app *PlatformApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+func (app *PlatformApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
 	return emptySubscribeResponse(req.path)
 }
 
-func (app *PlatformApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+func (app *PlatformApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
 	return processSubResponse{}, tlerr.New("not implemented")
 }
 

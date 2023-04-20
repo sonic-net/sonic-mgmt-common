@@ -129,11 +129,11 @@ func (app *CommonApp) translateGet(dbs [db.MaxDB]*db.DB) error {
 	return err
 }
 
-func (app *CommonApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+func (app *CommonApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
 	return emptySubscribeResponse(req.path)
 }
 
-func (app *CommonApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+func (app *CommonApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
 	return processSubResponse{}, tlerr.New("not implemented")
 }
 

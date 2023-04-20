@@ -28,26 +28,27 @@ import (
 
 // emptySubscribeResponse returns a translateSubResponse containing a non-db mapping
 // for the given path
-func emptySubscribeResponse(reqPath string) (*translateSubResponse, error) {
+func emptySubscribeResponse(reqPath string) (translateSubResponse, error) {
 	p, err := ygot.StringToStructuredPath(reqPath)
 	if err != nil {
-		return nil, err
+		return translateSubResponse{}, err
 	}
-	resp := new(translateSubResponse)
-	resp.ntfAppInfoTrgt = append(resp.ntfAppInfoTrgt, &notificationAppInfo{
+	appInfo := &notificationAppInfo{
 		path:                p,
 		dbno:                db.MaxDB, // non-DB
 		isOnChangeSupported: false,
-	})
-	return resp, nil
+	}
+	return translateSubResponse{
+		ntfAppInfoTrgt: []*notificationAppInfo{appInfo},
+	}, nil
 }
 
 // translateSubscribeBridge calls the new translateSubscribe() on an app and returns the
 // responses as per old signature. Will be removed after enhancing translib.Subscribe() API
 func translateSubscribeBridge(path string, app appInterface, dbs [db.MaxDB]*db.DB) (*notificationOpts, *notificationInfo, error) {
 	var nAppInfo *notificationAppInfo
-	resp, err := app.translateSubscribe(&translateSubRequest{path: path, dbs: dbs})
-	if err == nil && resp != nil && len(resp.ntfAppInfoTrgt) != 0 {
+	resp, err := app.translateSubscribe(translateSubRequest{path: path, dbs: dbs})
+	if err == nil && len(resp.ntfAppInfoTrgt) != 0 {
 		nAppInfo = resp.ntfAppInfoTrgt[0]
 	}
 	if nAppInfo == nil {

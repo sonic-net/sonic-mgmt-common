@@ -110,11 +110,11 @@ func (app *yanglibApp) translateAction(dbs [db.MaxDB]*db.DB) error {
 	return tlerr.NotSupported("Unsupported")
 }
 
-func (app *yanglibApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+func (app *yanglibApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
 	return emptySubscribeResponse(req.path)
 }
 
-func (app *yanglibApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+func (app *yanglibApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
 	return processSubResponse{}, tlerr.New("not implemented")
 }
 

@@ -1666,10 +1666,10 @@ func isSubtreeRequest(targetUriPath string, nodePath string) bool {
 	return strings.HasPrefix(targetUriPath, nodePath)
 }
 
-func (app *AclApp) translateSubscribe(req *translateSubRequest) (*translateSubResponse, error) {
+func (app *AclApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
 	return emptySubscribeResponse(req.path)
 }
 
-func (app *AclApp) processSubscribe(req *processSubRequest) (processSubResponse, error) {
+func (app *AclApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
 	return processSubResponse{}, tlerr.New("not implemented")
 }

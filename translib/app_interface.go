@@ -85,14 +85,14 @@ type appInterface interface {
 	translateDelete(d *db.DB) ([]db.WatchKeys, error)
 	translateGet(dbs [db.MaxDB]*db.DB) error
 	translateAction(dbs [db.MaxDB]*db.DB) error
-	translateSubscribe(req *translateSubRequest) (*translateSubResponse, error)
+	translateSubscribe(req translateSubRequest) (translateSubResponse, error)
 	processCreate(d *db.DB) (SetResponse, error)
 	processUpdate(d *db.DB) (SetResponse, error)
 	processReplace(d *db.DB) (SetResponse, error)
 	processDelete(d *db.DB) (SetResponse, error)
 	processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error)
 	processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error)
-	processSubscribe(req *processSubRequest) (processSubResponse, error)
+	processSubscribe(req processSubRequest) (processSubResponse, error)
 }
 
 // App modules will use this function to register with App interface during boot up
