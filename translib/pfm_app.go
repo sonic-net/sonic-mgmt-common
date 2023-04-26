@@ -24,6 +24,7 @@ import (
     "errors"
     "github.com/Azure/sonic-mgmt-common/translib/db"
     "github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+    "github.com/Azure/sonic-mgmt-common/translib/tlerr"
     "github.com/openconfig/ygot/ygot"
     log "github.com/golang/glog"
 )
@@ -77,12 +78,14 @@ func (app *PlatformApp) translateAction(dbs [db.MaxDB]*db.DB) error {
     return err
 }
 
-func (app *PlatformApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-
-    var err error
-    return nil, nil, err
-
+func (app *PlatformApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
 }
+
+func (app *PlatformApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, tlerr.New("not implemented")
+}
+
 func (app *PlatformApp) translateCreate(d *db.DB) ([]db.WatchKeys, error)  {
     var err error
     var keys []db.WatchKeys
