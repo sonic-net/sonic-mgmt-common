@@ -20,12 +20,14 @@ package translib
 
 import (
 	"errors"
-	log "github.com/golang/glog"
-	"github.com/openconfig/ygot/ygot"
 	"reflect"
 	"strconv"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
 type SysApp struct {
@@ -77,14 +79,16 @@ func (app *SysApp) getAppRootObject() *ocbinds.OpenconfigSystem_System {
 }
 
 func (app *SysApp) translateAction(dbs [db.MaxDB]*db.DB) error {
-    err := errors.New("Not supported")
-    return err
+	err := errors.New("Not supported")
+	return err
 }
 
-func (app *SysApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-	var err error
+func (app *SysApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
+}
 
-	return nil, nil, err
+func (app *SysApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, tlerr.New("not implemented")
 }
 
 func (app *SysApp) translateCreate(d *db.DB) ([]db.WatchKeys, error) {
@@ -340,9 +344,8 @@ func (app *SysApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (Ge
 }
 
 func (app *SysApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
-    var resp ActionResponse
-    err := errors.New("Not implemented")
+	var resp ActionResponse
+	err := errors.New("Not implemented")
 
-    return resp, err
+	return resp, err
 }
-

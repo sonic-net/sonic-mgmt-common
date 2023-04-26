@@ -11,7 +11,7 @@
 //                                                                            //
 //  Unless required by applicable law or agreed to in writing, software       //
 //  distributed under the License is distributed on an "AS IS" BASIS,         //
-//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  //  
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  //
 //  See the License for the specific language governing permissions and       //
 //  limitations under the License.                                            //
 //                                                                            //
@@ -31,14 +31,15 @@ package translib
 
 import (
 	"errors"
-	log "github.com/golang/glog"
-	"github.com/openconfig/ygot/ygot"
 	"reflect"
 	"strings"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
+	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
-//Structure containing app module information
+// Structure containing app module information
 type appInfo struct {
 	appType       reflect.Type
 	ygotRootType  reflect.Type
@@ -46,7 +47,7 @@ type appInfo struct {
 	tablesToWatch []*db.TableSpec
 }
 
-//Structure containing the app data coming from translib infra
+// Structure containing the app data coming from translib infra
 type appData struct {
 	path       string
 	payload    []byte
@@ -59,23 +60,23 @@ type appData struct {
 // These include RESTCONF query parameters like - depth, fields etc.
 type appOptions struct {
 
-    // depth limits subtree levels in the response data.
-    // 0 indicates unlimited depth.
-    // Valid for GET API only.
-    depth uint
+	// depth limits subtree levels in the response data.
+	// 0 indicates unlimited depth.
+	// Valid for GET API only.
+	depth uint
 
-    // deleteEmptyEntry indicates if the db entry should be deleted upon
-    // deletion of last field. This is a non standard option.
-    deleteEmptyEntry bool
+	// deleteEmptyEntry indicates if the db entry should be deleted upon
+	// deletion of last field. This is a non standard option.
+	deleteEmptyEntry bool
 }
 
-//map containing the base path to app module info
+// map containing the base path to app module info
 var appMap map[string]*appInfo
 
-//array containing all the supported models
+// array containing all the supported models
 var models []ModelData
 
-//Interface for all App Modules
+// Interface for all App Modules
 type appInterface interface {
 	initialize(data appData)
 	translateCreate(d *db.DB) ([]db.WatchKeys, error)
@@ -84,16 +85,17 @@ type appInterface interface {
 	translateDelete(d *db.DB) ([]db.WatchKeys, error)
 	translateGet(dbs [db.MaxDB]*db.DB) error
 	translateAction(dbs [db.MaxDB]*db.DB) error
-	translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error)
+	translateSubscribe(req translateSubRequest) (translateSubResponse, error)
 	processCreate(d *db.DB) (SetResponse, error)
 	processUpdate(d *db.DB) (SetResponse, error)
 	processReplace(d *db.DB) (SetResponse, error)
 	processDelete(d *db.DB) (SetResponse, error)
 	processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error)
 	processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error)
+	processSubscribe(req processSubRequest) (processSubResponse, error)
 }
 
-//App modules will use this function to register with App interface during boot up
+// App modules will use this function to register with App interface during boot up
 func register(path string, info *appInfo) error {
 	var err error
 	log.Info("Registering for path =", path)
@@ -114,7 +116,7 @@ func register(path string, info *appInfo) error {
 	return err
 }
 
-//Adds the model information to the supported models array
+// Adds the model information to the supported models array
 func addModel(model *ModelData) error {
 	var err error
 
@@ -124,7 +126,7 @@ func addModel(model *ModelData) error {
 	return err
 }
 
-//Translib infra will use this function get the app info for a given path
+// Translib infra will use this function get the app info for a given path
 func getAppModuleInfo(path string) (*appInfo, error) {
 	log.Info("getAppModule called for path =", path)
 
@@ -135,23 +137,23 @@ func getAppModuleInfo(path string) (*appInfo, error) {
 
 		log.Info("found the entry in the map for path =", pattern)
 
-		return app, nil 
+		return app, nil
 	}
 
 	/* If no specific app registered fallback to default/common app */
 	log.Infof("No app module registered for path %s hence fallback to default/common app", path)
 	app := appMap["*"]
 
-	return app, nil 
+	return app, nil
 }
 
-//Get all the supported models
+// Get all the supported models
 func getModels() []ModelData {
 
 	return models
 }
 
-//Creates a new app from the appType and returns it as an appInterface
+// Creates a new app from the appType and returns it as an appInterface
 func getAppInterface(appType reflect.Type) (appInterface, error) {
 	var err error
 	appInstance := reflect.New(appType)
