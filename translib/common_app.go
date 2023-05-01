@@ -587,7 +587,10 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						}
 					}
 				case REPLACE:
-					origTblRw := tblRw
+					origTblRw := db.Value{Field: map[string]string{}}
+					for fld, val := range tblRw.Field {
+						origTblRw.Field[fld] = val
+					}
 					if tblRwDefaults, defaultOk := app.cmnAppYangDefValMap[tblNm][tblKey]; defaultOk {
 						log.Info("For entry ", tblKey, ", being replaced, fill defaults - ", tblRwDefaults)
 						for fld, val := range tblRwDefaults.Field {
