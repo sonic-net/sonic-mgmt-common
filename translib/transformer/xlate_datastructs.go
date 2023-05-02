@@ -19,12 +19,15 @@
 package transformer
 
 import (
-    "github.com/Azure/sonic-mgmt-common/translib/db"
-    "github.com/openconfig/ygot/ygot"
-    "regexp"
+	"regexp"
+
+	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/openconfig/ygot/ygot"
 )
 
 var rgpIpv6, rgpMac, rgpIsMac, rgpKeyExtract, rgpSncKeyExtract *regexp.Regexp
+
+type yangElementType uint8
 
 type tblKeyCache struct {
 	dbKey string
@@ -41,9 +44,17 @@ type KeySpec struct {
 
 type NotificationType int
 const (
-    Sample NotificationType = iota
-    OnChange
+	TargetDefined NotificationType = iota
+	Sample
+	OnChange
 )
+
+// KEY_COMP_CNT - To specify the number of key components for the given key in the RedisDbSubscribeMap map
+const KEY_COMP_CNT = "@KEY_COMP_CNT"
+
+const DEL_AS_UPDATE = "@DEL_AS_UPDATE"
+
+const FIELD_CURSOR = "@FIELD_CURSOR"
 
 type XfmrTranslateSubscribeInfo struct {
     DbDataMap RedisDbMap
@@ -107,3 +118,5 @@ type xlateToParams struct {
 	xfmrDbTblKeyCache map[string]tblKeyCache
 	dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool
 }
+
+type Operation int
