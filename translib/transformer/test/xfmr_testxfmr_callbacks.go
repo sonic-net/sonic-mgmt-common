@@ -21,6 +21,7 @@
 package transformer
 
 import (
+	"errors"
 	"reflect"
 	"strconv"
 	"strings"
@@ -35,6 +36,21 @@ import (
 func init() {
 	// Pre and Post transformer functions
 	XlateFuncBind("test_pre_xfmr", test_pre_xfmr)
+	XlateFuncBind("test_post_xfmr", test_post_xfmr)
+
+	// Table transformer functions
+	XlateFuncBind("test_sensor_type_tbl_xfmr", test_sensor_type_tbl_xfmr)
+
+	// Key transformer functions
+	XlateFuncBind("YangToDb_test_sensor_type_key_xfmr", YangToDb_test_sensor_type_key_xfmr)
+	XlateFuncBind("DbToYang_test_sensor_type_key_xfmr", DbToYang_test_sensor_type_key_xfmr)
+	XlateFuncBind("YangToDb_test_set_key_xfmr", YangToDb_test_set_key_xfmr)
+	XlateFuncBind("DbToYang_test_set_key_xfmr", DbToYang_test_set_key_xfmr)
+
+	// Key leafrefed Field transformer functions
+	XlateFuncBind("DbToYang_test_sensor_group_id_field_xfmr", DbToYang_test_sensor_group_id_field_xfmr)
+	XlateFuncBind("DbToYang_test_sensor_type_field_xfmr", DbToYang_test_sensor_type_field_xfmr)
+	XlateFuncBind("DbToYang_test_set_name_field_xfmr", DbToYang_test_set_name_field_xfmr)
 
 	// Field transformer functions
 	XlateFuncBind("YangToDb_exclude_filter_field_xfmr", YangToDb_exclude_filter_field_xfmr)
@@ -49,6 +65,8 @@ func init() {
 	XlateFuncBind("DbToYang_test_port_bindings_xfmr", DbToYang_test_port_bindings_xfmr)
 	XlateFuncBind("Subscribe_test_port_bindings_xfmr", Subscribe_test_port_bindings_xfmr)
 
+	// Sonic yang Key transformer functions
+        XlateFuncBind("DbToYang_test_sensor_mode_key_xfmr", DbToYang_test_sensor_mode_key_xfmr)
 }
 
 const (
@@ -85,6 +103,217 @@ var test_pre_xfmr PreXfmrFunc = func(inParams XfmrParams) error {
 		}
 	}
 	return err
+}
+
+var test_post_xfmr PostXfmrFunc = func(inParams XfmrParams) (map[string]map[string]db.Value, error) {
+
+        pathInfo := NewPathInfo(inParams.uri)
+        groupId := pathInfo.Var("id")
+
+	retDbDataMap := (*inParams.dbDataMap)[inParams.curDb]
+	log.Info("Entering test_post_xfmr Request URI path = ", inParams.requestUri)
+	if inParams.oper == UPDATE {
+		xpath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
+		if xpath == "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group/config/color-hold-time" {
+				holdTime := retDbDataMap["TEST_SENSOR_GROUP"][groupId].Field["color-hold-time"]
+				key := groupId + "|" + "sensor_type_a_post" + holdTime
+			        subOpCreateMap := make(map[db.DBNum]map[string]map[string]db.Value)
+			        subOpCreateMap[db.ConfigDB] = make(map[string]map[string]db.Value)
+				subOpCreateMap[db.ConfigDB]["TEST_SENSOR_A_TABLE"] = make(map[string]db.Value)
+				subOpCreateMap[db.ConfigDB]["TEST_SENSOR_A_TABLE"][key] = db.Value{Field: make(map[string]string)}
+				subOpCreateMap[db.ConfigDB]["TEST_SENSOR_A_TABLE"][key].Field["description_a"] = "Added instance in post xfmr"
+			        inParams.subOpDataMap[CREATE] = &subOpCreateMap
+                }
+        }
+	return retDbDataMap, nil
+}
+
+var test_sensor_type_tbl_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) {
+	var tblList []string
+	pathInfo := NewPathInfo(inParams.uri)
+	groupId := pathInfo.Var("id")
+	sensorType := pathInfo.Var("type")
+
+	log.Info("test_sensor_type_tbl_xfmr inParams.uri ", inParams.uri)
+
+	if len(groupId) == 0 {
+		return tblList, nil
+	}
+	if len(sensorType) == 0 {
+		if inParams.oper == GET || inParams.oper == DELETE {
+			tblList = append(tblList, "TEST_SENSOR_A_TABLE")
+			tblList = append(tblList, "TEST_SENSOR_B_TABLE")
+		}
+	} else {
+		if strings.HasPrefix(sensorType, "sensora_") {
+			tblList = append(tblList, "TEST_SENSOR_A_TABLE")
+		} else if strings.HasPrefix(sensorType, "sensorb_") {
+			tblList = append(tblList, "TEST_SENSOR_B_TABLE")
+		}
+	}
+	log.Info("test_sensor_type_tbl_xfmr tblList= ", tblList)
+	return tblList, nil
+}
+
+var YangToDb_test_sensor_type_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var sensor_type_key string
+	var err error
+
+	log.Info("YangToDb_test_sensor_type_key_xfmr - inParams.uri ", inParams.uri)
+
+	pathInfo := NewPathInfo(inParams.uri)
+	groupId := pathInfo.Var("id")
+	sensorType := pathInfo.Var("type")
+	if groupId == "" || sensorType == "" {
+		return sensor_type_key, err
+	}
+	if len(groupId) > 0 {
+		sensor_type := ""
+		if strings.HasPrefix(sensorType, "sensora_") {
+			sensor_type = strings.Replace(sensorType, "sensora_", "sensor_type_a_", 1)
+			sensor_type_key = groupId + "|" + sensor_type
+		} else if strings.HasPrefix(sensorType, "sensorb_") {
+			sensor_type = strings.Replace(sensorType, "sensorb_", "sensor_type_b_", 1)
+			sensor_type_key = groupId + "|" + sensor_type
+		} else {
+			err_str := "Invalid key. Key not supported."
+			err = tlerr.NotSupported(err_str)
+		}
+	}
+	log.Info("YangToDb_test_sensor_type_key_xfmr returns", sensor_type_key)
+	return sensor_type_key, err
+}
+
+var DbToYang_test_sensor_type_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+
+	rmap := make(map[string]interface{})
+	var err error
+	if log.V(3) {
+		log.Info("Entering DbToYang_test_sensor_type_key_xfmr inParams.uri ", inParams.uri)
+	}
+	var sensorType string
+
+	if strings.Contains(inParams.key, "|") {
+		key_split := strings.Split(inParams.key, "|")
+		sensorType = key_split[1]
+		if strings.HasPrefix(sensorType, "sensor_type_a_") {
+			sensorType = strings.Replace(sensorType, "sensor_type_a_", "sensora_", 1)
+		} else if strings.HasPrefix(sensorType, "sensor_type_b_") {
+			sensorType = strings.Replace(sensorType, "sensor_type_b_", "sensorb_", 1)
+		} else {
+			sensorType = ""
+			err_str := "Invalid key. Key not supported."
+			err = tlerr.NotSupported(err_str)
+		}
+	}
+
+	rmap["type"] = sensorType
+
+	log.Info("DbToYang_test_sensor_type_key_xfmr rmap ", rmap)
+	return rmap, err
+}
+
+var YangToDb_test_set_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+
+	testSetKey := ""
+	if log.V(3) {
+		log.Info("Entering DbToYang_testsensor_type_key_xfmr inParams.uri ", inParams.uri)
+	}
+
+	pathInfo := NewPathInfo(inParams.uri)
+	testSetName := pathInfo.Var("name")
+	testSetType := pathInfo.Var("type")
+
+	if len(testSetName) > 0 && len(testSetType) > 0 {
+		testSetKey = testSetName + "_" + testSetType
+	}
+	log.Info(" YangToDb_test_set_key_xfmr returns ", testSetKey)
+	return testSetKey, nil
+
+}
+
+var DbToYang_test_set_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	rmap := make(map[string]interface{})
+	var err error
+	if log.V(3) {
+		log.Info("DbToYang_test_set_key_xfmr invoked for uri: ", inParams.uri)
+	}
+	var testSetName string
+	var testSetType string
+
+	if len(inParams.key) == 0 {
+		return rmap, errors.New("Incorrect dbKey : " + inParams.key)
+	}
+
+	if strings.HasSuffix(inParams.key, "TEST_SET_IPV4") {
+		testSetType = "TEST_SET_IPV4"
+	} else if strings.HasSuffix(inParams.key, "TEST_SET_IPV6") {
+		testSetType = "TEST_SET_IPV6"
+	}
+	testSetName = getTestSetNameCompFromDbKey(inParams.key, testSetType)
+
+	rmap["name"] = testSetName
+	rmap["type"] = testSetType
+
+	log.Info("DbToYang_testsensor_type_key_xfmr rmap ", rmap)
+	return rmap, err
+
+}
+
+var DbToYang_test_sensor_group_id_field_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	var err error
+	result := make(map[string]interface{})
+	log.Info("DbToYang_test_sensor_group_id_field_xfmr - inParams.uri ", inParams.uri)
+
+	if len(inParams.key) > 0 {
+		result["id"] = inParams.key
+	}
+	log.Info("DbToYang_test_sensor_group_id_field_xfmr returns ", result)
+
+	return result, err
+}
+
+var DbToYang_test_sensor_type_field_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	var err error
+	result := make(map[string]interface{})
+
+	log.Info("DbToYang_test_sensor_type_field_xfmr - inParams.uri ", inParams.uri)
+
+	pathInfo := NewPathInfo(inParams.uri)
+	groupId := pathInfo.Var("id")
+	sensorType := pathInfo.Var("type")
+	if groupId == "" || sensorType == "" {
+		return result, err
+	}
+	if strings.HasPrefix(sensorType, "sensor") {
+		result["type"] = sensorType
+	} else {
+		errStr := "Invalid Key in uri."
+		return result, tlerr.InvalidArgsError{Format: errStr}
+	}
+
+	log.Info("DbToYang_test_sensor_type_field_xfmr returns ", result)
+
+	return result, err
+}
+
+var DbToYang_test_set_name_field_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	var err error
+	result := make(map[string]interface{})
+
+	log.Info("DbToYang_test_set_name_field_xfmr - inParams.uri ", inParams.uri)
+
+	pathInfo := NewPathInfo(inParams.uri)
+	setName := pathInfo.Var("name")
+	setType := pathInfo.Var("type")
+	if setName == "" || setType == "" {
+		return result, err
+	}
+	result["name"] = setName
+
+	log.Info("DbToYang_test_set_name_field_xfmrreturns ", result)
+
+	return result, err
 }
 
 func getTestSetRoot(s *ygot.GoStruct) *ocbinds.OpenconfigTestXfmr_TestXfmr {
@@ -455,3 +684,30 @@ func convertSonicTestSetTypeToOC(testSetType string) ocbinds.E_OpenconfigTestXfm
 	return testSetOrigType
 }
 
+//Sonic yang key transformer functions
+var DbToYang_test_sensor_mode_key_xfmr SonicKeyXfmrDbToYang = func(inParams SonicXfmrParams) (map[string]interface{}, error) {
+        res_map := make(map[string]interface{})
+        /* from DB-key string(inParams.key) extract mode and id to fill into the res_map
+	* db key contains the separator as well eg: "mode:test123:3545"
+         */
+        log.Info("DbToYang_test_sensor_mode_key_xfmr: key", inParams.key)
+        if len(inParams.key) > 0 {
+                /*split id and mode */
+		temp := strings.SplitN(inParams.key, ":", 3)
+		if len(temp) >= 3 {
+			res_map["mode"] = temp[0] + ":" + temp[1]
+	                id := temp[2]
+			i64, _ := strconv.ParseUint(id, 10, 32)
+			i32 := uint32(i64)
+	                res_map["id"] = i32
+		} else if len(temp) == 2 {
+			res_map["mode"] = temp[0]
+			res_map["id"] = temp[1]
+		} else {
+			errStr := "Invalid Key in uri."
+			return res_map, tlerr.InvalidArgsError{Format: errStr}
+		}
+        }
+        log.Info("DbToYang_test_sensor_mode_key_xfmr: res_map - ", res_map)
+        return res_map, nil
+}
