@@ -19,16 +19,17 @@
 package transformer
 
 import (
-	"fmt"
 	"encoding/json"
 	"errors"
-	log "github.com/golang/glog"
-	"github.com/openconfig/ygot/ygot"
+	"fmt"
 	"reflect"
 	"strings"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
 const (
@@ -682,7 +683,7 @@ func xfmrSubscSubtreeHandler(inParams XfmrSubscInParams, xfmrFuncNm string) (Xfm
     var retVal XfmrSubscOutParams
     retVal.dbDataMap = nil
     retVal.needCache = false
-    retVal.onChange = false
+    retVal.onChange = OnchangeDisable
     retVal.nOpts = nil
     retVal.isVirtualTbl = false
 
@@ -708,116 +709,6 @@ func xfmrSubscSubtreeHandler(inParams XfmrSubscInParams, xfmrFuncNm string) (Xfm
         }
     }
     return retVal, err
-}
-
-func XlateTranslateSubscribe(path string, dbs [db.MaxDB]*db.DB, txCache interface{}) (XfmrTranslateSubscribeInfo, error) {
-       xfmrLogInfo("Received subcription path : %v", path)
-       var err error
-       var subscribe_result XfmrTranslateSubscribeInfo
-       subscribe_result.DbDataMap = make(RedisDbMap)
-       subscribe_result.PType = Sample
-       subscribe_result.MinInterval = 0
-       subscribe_result.OnChange = false
-       subscribe_result.NeedCache = true
-
-       for {
-           done := true
-           xpath, _, predc_err := XfmrRemoveXPATHPredicates(path)
-           if predc_err != nil {
-               log.Warningf("cannot convert request Uri to yang xpath - %v, %v", path, predc_err)
-               err = tlerr.NotSupportedError{Format: "Subscribe not supported", Path: path}
-               break
-           }
-           xpathData, ok := xYangSpecMap[xpath]
-           if ((!ok) || (xpathData == nil)) {
-               log.Warningf("xYangSpecMap data not found for xpath : %v", xpath)
-               err = tlerr.NotSupportedError{Format: "Subscribe not supported", Path: path}
-               break
-           }
-
-           if (xpathData.subscribePref == nil || ((xpathData.subscribePref != nil) &&(len(strings.TrimSpace(*xpathData.subscribePref)) == 0))) {
-               subscribe_result.PType = Sample
-           } else {
-               if *xpathData.subscribePref == "onchange" {
-                   subscribe_result.PType = OnChange
-               } else {
-                           subscribe_result.PType = Sample
-               }
-           }
-           subscribe_result.MinInterval = xpathData.subscribeMinIntvl
-
-           if xpathData.subscribeOnChg == XFMR_DISABLE {
-               xfmrLogInfo("Susbcribe OnChange disabled for request Uri - %v", path)
-               subscribe_result.PType = Sample
-               subscribe_result.DbDataMap = nil
-               //err = tlerr.NotSupportedError{Format: "Subscribe not supported", Path: path}
-               break
-           }
-
-           //request uri should be terminal yang object for onChange to be supported
-           if xpathData.hasNonTerminalNode {
-               xfmrLogInfo("Susbcribe request Uri is not a terminal yang object - %v", path)
-               err = tlerr.NotSupportedError{Format: "Subscribe not supported", Path: path}
-               break
-           }
-
-	   /*request uri is a key-leaf directly under the list
-             eg. /openconfig-xyz:xyz/listA[key=value]/key
-	         /openconfig-xyz:xyz/listA[key_1=value][key_2=value]/key_1
-           */
-	   if xpathData.isKey {
-               xfmrLogInfo("Susbcribe request Uri is not a terminal yang object - %v", path)
-               err = tlerr.NotSupportedError{Format: "Subscribe not supported", Path: path}
-               break
-	   }
-
-           xpath_dbno := xpathData.dbIndex
-           retData, xPathKeyExtractErr := xpathKeyExtract(dbs[xpath_dbno], nil, SUBSCRIBE, path, path, nil, nil, txCache, nil)
-           if ((len(xpathData.xfmrFunc) == 0) && ((xPathKeyExtractErr != nil) || ((len(strings.TrimSpace(retData.dbKey)) == 0) || (len(strings.TrimSpace(retData.tableName)) == 0)))) {
-               log.Warning("Error while extracting DB table/key for uri", path, "error - ", xPathKeyExtractErr)
-               err = xPathKeyExtractErr
-               break
-           }
-           if (len(xpathData.xfmrFunc) > 0) { //subtree
-               var inParams XfmrSubscInParams
-               inParams.uri = path
-               inParams.dbDataMap = subscribe_result.DbDataMap
-               inParams.dbs = dbs
-               inParams.subscProc = TRANSLATE_SUBSCRIBE
-               st_result, st_err := xfmrSubscSubtreeHandler(inParams, xpathData.xfmrFunc)
-               if st_err != nil {
-                   err = st_err
-                   break
-               }
-	       subscribe_result.OnChange = st_result.onChange
-	       xfmrLogInfo("Subtree subcribe on change %v", subscribe_result.OnChange)
-	       if subscribe_result.OnChange {
-		       if st_result.dbDataMap != nil {
-			       subscribe_result.DbDataMap = st_result.dbDataMap
-			       xfmrLogInfo("Subtree subcribe dbData %v", subscribe_result.DbDataMap)
-		       }
-		       subscribe_result.NeedCache = st_result.needCache
-		       xfmrLogInfo("Subtree subcribe need Cache %v", subscribe_result.NeedCache)
-	       } else {
-		       subscribe_result.DbDataMap = nil
-	       }
-               if st_result.nOpts != nil {
-                   subscribe_result.PType = st_result.nOpts.pType
-                   xfmrLogInfo("Subtree subcribe pType %v", subscribe_result.PType)
-                   subscribe_result.MinInterval = st_result.nOpts.mInterval
-                   xfmrLogInfo("Subtree subcribe min interval %v", subscribe_result.MinInterval)
-               }
-           } else {
-		   subscribe_result.OnChange = true
-		   subscribe_result.DbDataMap[xpath_dbno] = map[string]map[string]db.Value{retData.tableName: {retData.dbKey: {}}}
-	   }
-           if done {
-                   break
-           }
-       } // end of infinite for
-
-       return subscribe_result, err
-
 }
 
 func IsTerminalNode(uri string) (bool, error) {
