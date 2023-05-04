@@ -9,7 +9,7 @@ import (
 func SaveStartupConfig() error {
 	r := HostQuery("cfg_mgmt.save", []string{})
 	if r.Err != nil {
-		return tlerr.New(Format: "internal SONiC Hostservice communication failure: %w", r.Err.Error())
+		return tlerr.New("internal SONiC Hostservice communication failure: %w", r.Err.Error())
 	}
 	if len(r.Body) < 2 {
 		return tlerr.New("internal SONiC Hostservice communication failure: the response is too short.")
