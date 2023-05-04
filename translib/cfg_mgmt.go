@@ -1,15 +1,16 @@
-package transformer
+package translib
 
 import (
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"github.com/Azure/sonic-mgmt-common/translib/transformer"
 )
 
 // SaveStartupConfig initiates the operation of saving the current content of
 // the ConfigDB to a file that is then used to populate the database during the startup.
 func SaveStartupConfig() error {
-	r := HostQuery("cfg_mgmt.save", []string{})
+	r := transformer.HostQuery("cfg_mgmt.save", []string{})
 	if r.Err != nil {
-		return tlerr.New("internal SONiC Hostservice communication failure: %w", r.Err.Error())
+		return tlerr.New("internal SONiC Hostservice communication failure: %v", r.Err.Error())
 	}
 	if len(r.Body) < 2 {
 		return tlerr.New("internal SONiC Hostservice communication failure: the response is too short.")
