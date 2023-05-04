@@ -883,7 +883,7 @@ func Subscribe(req SubscribeRequest) ([]*IsSubscribeResponse, error) {
 			continue
 		}
 
-		nOpts, nInfo, errApp := (*app).translateSubscribe(dbs, path)
+		nOpts, nInfo, errApp := translateSubscribeBridge(path, *app, dbs)
 
 		if nOpts != nil {
 			if nOpts.mInterval != 0 {
@@ -910,7 +910,7 @@ func Subscribe(req SubscribeRequest) ([]*IsSubscribeResponse, error) {
 			continue
 		} else {
 
-			if nInfo == nil {
+			if nInfo == nil || !resp[i].IsOnChangeSupported {
 				sErr = tlerr.NotSupportedError{
 					Format: "Subscribe not supported", Path: path}
 				resp[i].Err = sErr
@@ -980,7 +980,7 @@ func IsSubscribeSupported(req IsSubscribeRequest) ([]*IsSubscribeResponse, error
 			continue
 		}
 
-		nOpts, _, errApp := (*app).translateSubscribe(dbs, path)
+		nOpts, _, errApp := translateSubscribeBridge(path, *app, dbs)
 
         if nOpts != nil {
             if nOpts.mInterval != 0 {
@@ -1051,14 +1051,6 @@ func getAllDbs(isGetCase bool) ([db.MaxDB]*db.DB, error) {
 		return dbs, err
 	}
 
-	//Create Log Level DB connection
-	dbs[db.LogLevelDB], err = db.NewDB(getDBOptions(db.LogLevelDB, isWriteDisabled))
-
-	if err != nil {
-		closeAllDbs(dbs[:])
-		return dbs, err
-	}
-
     isWriteDisabled = true 
 
 	//Create Config DB connection
@@ -1121,7 +1113,7 @@ func getDBOptions(dbNo db.DBNum, isWriteDisabled bool) db.Options {
 	switch dbNo {
 	case db.ApplDB, db.CountersDB, db.AsicDB:
 		opt = getDBOptionsWithSeparator(dbNo, "", ":", ":", isWriteDisabled)
-	case db.FlexCounterDB, db.LogLevelDB, db.ConfigDB, db.StateDB:
+	case db.FlexCounterDB, db.ConfigDB, db.StateDB:
 		opt = getDBOptionsWithSeparator(dbNo, "", "|", "|", isWriteDisabled)
 	}
 

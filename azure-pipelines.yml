@@ -23,7 +23,7 @@ stages:
       vmImage: ubuntu-20.04
 
     container:
-      image: sonicdev-microsoft.azurecr.io:443/sonic-slave-buster:latest
+      image: sonicdev-microsoft.azurecr.io:443/sonic-slave-bullseye:latest
 
     steps:
     - checkout: self
@@ -43,6 +43,7 @@ stages:
 
     - script: |
         # REDIS
+        sudo apt-get update
         sudo apt-get install -y redis-server
         sudo sed -ri 's/^# unixsocket/unixsocket/' /etc/redis/redis.conf
         sudo sed -ri 's/^unixsocketperm .../unixsocketperm 777/' /etc/redis/redis.conf
@@ -50,7 +51,7 @@ stages:
         sudo service redis-server start
 
         # LIBYANG
-        sudo dpkg -i ../target/debs/buster/libyang*1.0.73*.deb
+        sudo dpkg -i ../target/debs/bullseye/libyang*1.0.73*.deb
       displayName: "Install dependency"
 
     - script: |

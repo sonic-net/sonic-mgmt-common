@@ -135,7 +135,7 @@ const (
 	ApplDB        DBNum = iota // 0
 	AsicDB                     // 1
 	CountersDB                 // 2
-	LogLevelDB                 // 3
+	_                          // We skip number 3 since the LOGLEVEL_DB that was deprecated
 	ConfigDB                   // 4
 	FlexCounterDB              // 5
 	StateDB                    // 6
@@ -307,8 +307,6 @@ func getDBInstName (dbNo DBNum) string {
 		return "ASIC_DB"
 	case CountersDB:
 		return "COUNTERS_DB"
-	case LogLevelDB:
-		return "LOGLEVEL_DB"
 	case ConfigDB:
 		return "CONFIG_DB"
 	case FlexCounterDB:
@@ -631,7 +629,7 @@ func (d *DB) doCVL(ts *TableSpec, cvlOps []cvl.CVLOperation, key Key, vals []Val
 
 		default:
 			glog.Error("doCVL: Unknown, op: ", cvlOps[i])
-			e = errors.New("Unknown Op: " + string(cvlOps[i]))
+			e = fmt.Errorf("Unknown Op: %d", cvlOps[i])
 		}
 
 	}
@@ -695,7 +693,7 @@ func (d *DB) doWrite(ts *TableSpec, op _txOp, key Key, val interface{}) error {
 		e = errors.New("Cannot issue {Set|Mod|Delete}Entry in txStateMultiExec")
 	default:
 		glog.Error("doWrite: Unknown, txState: ", d.txState)
-		e = errors.New("Unknown State: " + string(d.txState))
+		e = fmt.Errorf("Unknown State: %d", d.txState)
 	}
 
 	if e != nil {
@@ -739,7 +737,7 @@ func (d *DB) doWrite(ts *TableSpec, op _txOp, key Key, val interface{}) error {
 
 		default:
 			glog.Error("doWrite: Unknown, op: ", op)
-			e = errors.New("Unknown Op: " + string(op))
+			e = fmt.Errorf("Unknown Op: %d", op)
 		}
 
 		goto doWriteExit
@@ -757,7 +755,7 @@ func (d *DB) doWrite(ts *TableSpec, op _txOp, key Key, val interface{}) error {
 
 	default:
 		glog.Error("doWrite: Unknown, op: ", op)
-		e = errors.New("Unknown Op: " + string(op))
+		e = fmt.Errorf("Unknown Op: %d", op)
 	}
 
 	if e != nil {
@@ -1340,7 +1338,7 @@ func (d *DB) CommitTx() error {
 		e = errors.New("Cannot issue MULTI in txStateMultiExec")
 	default:
 		glog.Error("CommitTx: Unknown, txState: ", d.txState)
-		e = errors.New("Unknown State: " + string(d.txState))
+		e = fmt.Errorf("Unknown State: %d", d.txState)
 	}
 
 	if e != nil {
@@ -1410,7 +1408,7 @@ func (d *DB) CommitTx() error {
 
 		default:
 			glog.Error("CommitTx: Unknown, op: ", d.txCmds[i].op)
-			e = errors.New("Unknown Op: " + string(d.txCmds[i].op))
+			e = fmt.Errorf("Unknown Op: %d", d.txCmds[i].op)
 		}
 
 		if e != nil {
@@ -1484,7 +1482,7 @@ func (d *DB) AbortTx() error {
 		e = errors.New("Cannot issue UNWATCH in txStateMultiExec")
 	default:
 		glog.Error("AbortTx: Unknown, txState: ", d.txState)
-		e = errors.New("Unknown State: " + string(d.txState))
+		e = fmt.Errorf("Unknown State: %d", d.txState)
 	}
 
 	if e != nil {
