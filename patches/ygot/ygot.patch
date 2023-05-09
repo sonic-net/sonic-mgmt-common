@@ -1,6 +1,6 @@
 diff -ruN ygot-dir-orig/ygot/generator/generator.go ygot-dir/ygot/generator/generator.go
---- ygot-dir-orig/ygot/generator/generator.go	2020-10-07 14:33:58.430343000 -0700
-+++ ygot-dir/ygot/generator/generator.go	2020-10-27 16:02:47.667985000 -0700
+--- ygot-dir-orig/ygot/generator/generator.go	2022-01-13 22:43:21.054337794 -0800
++++ ygot-dir/ygot/generator/generator.go	2022-01-13 22:45:21.121421209 -0800
 @@ -109,7 +109,7 @@
  }
  
@@ -11,8 +11,8 @@ diff -ruN ygot-dir-orig/ygot/generator/generator.go ygot-dir/ygot/generator/gene
  		b.WriteString(s)
  	}
 diff -ruN ygot-dir-orig/ygot/genutil/common.go ygot-dir/ygot/genutil/common.go
---- ygot-dir-orig/ygot/genutil/common.go	2020-10-07 14:33:58.413742000 -0700
-+++ ygot-dir/ygot/genutil/common.go	2020-10-27 16:02:47.683147000 -0700
+--- ygot-dir-orig/ygot/genutil/common.go	2022-01-13 22:43:21.362323368 -0800
++++ ygot-dir/ygot/genutil/common.go	2022-01-13 22:45:21.121421209 -0800
 @@ -18,9 +18,9 @@
  
  import (
@@ -35,8 +35,8 @@ diff -ruN ygot-dir-orig/ygot/genutil/common.go ygot-dir/ygot/genutil/common.go
  		b.WriteString(s)
  	}
 diff -ruN ygot-dir-orig/ygot/util/debug.go ygot-dir/ygot/util/debug.go
---- ygot-dir-orig/ygot/util/debug.go	2020-10-07 14:33:58.180210000 -0700
-+++ ygot-dir/ygot/util/debug.go	2020-10-27 16:02:47.497624000 -0700
+--- ygot-dir-orig/ygot/util/debug.go	2022-01-13 22:43:21.154333110 -0800
++++ ygot-dir/ygot/util/debug.go	2022-01-13 22:45:21.117421351 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -73,8 +73,8 @@ diff -ruN ygot-dir-orig/ygot/util/debug.go ygot-dir/ygot/util/debug.go
  	if len(yt.Pattern) != 0 {
  		out += fmt.Sprintf(", Pattern: %s", strings.Join(yt.Pattern, " or "))
 diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
---- ygot-dir-orig/ygot/util/path.go	2020-10-07 14:33:58.191131000 -0700
-+++ ygot-dir/ygot/util/path.go	2020-10-27 16:02:47.508799000 -0700
+--- ygot-dir-orig/ygot/util/path.go	2022-01-13 22:43:21.154333110 -0800
++++ ygot-dir/ygot/util/path.go	2022-01-13 22:45:21.117421351 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -108,17 +108,7 @@ diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
 -	if !ok || pathTag == "" {
 -		return nil, fmt.Errorf("field %s did not specify a path", f.Name)
 -	}
-+	pathToSchemaMutex.RLock()
-+	if pe, ok := pathToSchemaCache[f.Tag]; ok {
-+		pathToSchemaMutex.RUnlock()
-+		return pe, nil
-+	} else {
-+		pathToSchemaMutex.RUnlock()
-+		pathTag, ok := f.Tag.Lookup("path")
-+		if !ok || pathTag == "" {
-+			return nil, fmt.Errorf("field %s did not specify a path", f.Name)
-+		}
- 
+-
 -	paths := strings.Split(pathTag, "|")
 -	if len(paths) == 1 {
 -		pathTag = strings.TrimPrefix(pathTag, "/")
@@ -129,6 +119,17 @@ diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
 -		pe := strings.Split(pv, "/")
 -		if len(pe) > 1 {
 -			return pe, nil
++	pathToSchemaMutex.RLock()
++	if pe, ok := pathToSchemaCache[f.Tag]; ok {
++		pathToSchemaMutex.RUnlock()
++		return pe, nil
++	} else {
++		pathToSchemaMutex.RUnlock()
++		pathTag, ok := f.Tag.Lookup("path")
++		if !ok || pathTag == "" {
++			return nil, fmt.Errorf("field %s did not specify a path", f.Name)
++		}
++
 +		paths := strings.Split(pathTag, "|")
 +		if len(paths) == 1 {
 +			pathTag = strings.TrimPrefix(pathTag, "/")
@@ -168,8 +169,8 @@ diff -ruN ygot-dir-orig/ygot/util/path.go ygot-dir/ygot/util/path.go
  }
  
 diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
---- ygot-dir-orig/ygot/util/reflect.go	2020-10-07 14:33:58.196912000 -0700
-+++ ygot-dir/ygot/util/reflect.go	2020-10-27 16:02:47.512819000 -0700
+--- ygot-dir-orig/ygot/util/reflect.go	2022-01-13 22:43:21.154333110 -0800
++++ ygot-dir/ygot/util/reflect.go	2022-01-13 22:45:21.117421351 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -281,8 +282,8 @@ diff -ruN ygot-dir-orig/ygot/util/reflect.go ygot-dir/ygot/util/reflect.go
  }
  
 diff -ruN ygot-dir-orig/ygot/ygen/codegen.go ygot-dir/ygot/ygen/codegen.go
---- ygot-dir-orig/ygot/ygen/codegen.go	2020-10-07 14:33:58.356199000 -0700
-+++ ygot-dir/ygot/ygen/codegen.go	2020-10-27 16:02:47.723601000 -0700
+--- ygot-dir-orig/ygot/ygen/codegen.go	2022-01-13 22:43:21.158332922 -0800
++++ ygot-dir/ygot/ygen/codegen.go	2022-01-13 22:45:21.121421209 -0800
 @@ -15,6 +15,10 @@
  // Package ygen contains a library to generate Go structs from a YANG model.
  // The Goyang parsing library is used to parse YANG. The output can consider
@@ -304,8 +305,8 @@ diff -ruN ygot-dir-orig/ygot/ygen/codegen.go ygot-dir/ygot/ygen/codegen.go
  		default:
  			errs = util.AppendErr(errs, fmt.Errorf("unknown type of entry %v in findMappableEntities for %s", e.Kind, e.Path()))
 diff -ruN ygot-dir-orig/ygot/ygen/genstate.go ygot-dir/ygot/ygen/genstate.go
---- ygot-dir-orig/ygot/ygen/genstate.go	2020-10-07 14:33:58.365616000 -0700
-+++ ygot-dir/ygot/ygen/genstate.go	2020-10-27 16:02:47.741918000 -0700
+--- ygot-dir-orig/ygot/ygen/genstate.go	2022-01-13 22:43:21.158332922 -0800
++++ ygot-dir/ygot/ygen/genstate.go	2022-01-13 22:45:21.121421209 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -372,10 +373,70 @@ diff -ruN ygot-dir-orig/ygot/ygen/genstate.go ygot-dir/ygot/ygen/genstate.go
  		es = append(es, en)
  	}
  
+diff -ruN ygot-dir-orig/ygot/ygen/schemaparse.go ygot-dir/ygot/ygen/schemaparse.go
+--- ygot-dir-orig/ygot/ygen/schemaparse.go	2022-01-13 22:43:21.158332922 -0800
++++ ygot-dir/ygot/ygen/schemaparse.go	2022-01-29 11:31:21.992622741 -0800
+@@ -43,10 +43,28 @@
+ 	}
+ 	for _, m := range ms {
+ 		annotateChildren(m, dn)
++
++		// a leaf with a different prefix
++		if len(m.Dir) == 0 {
++			if _, found := m.Annotation["modulename"]; found {
++				rootEntry.Dir[m.Name] = m
++			}
++		}
++
+ 		for _, ch := range util.Children(m) {
+ 			if _, ex := rootEntry.Dir[ch.Name]; ex {
+ 				return nil, fmt.Errorf("overlapping root children for key %s", ch.Name)
+ 			}
++
++			ch.Annotation["namespace"] = m.Namespace().Name
++			ch.Annotation["modulename"] = m.Prefix.Parent.NName()
++			ch.Annotation["revision"] = m.Prefix.Parent.(*yang.Module).Current()
++			if m.Prefix.Parent.(*yang.Module).Organization != nil {
++				ch.Annotation["organization"] = m.Prefix.Parent.(*yang.Module).Organization.Name
++			} else {
++				ch.Annotation["organization"] = ""
++			}
++
+ 			rootEntry.Dir[ch.Name] = ch
+ 		}
+ 	}
+@@ -101,6 +119,7 @@
+ //    corresponds to a YANG directory.
+ func annotateEntry(e *yang.Entry, dn map[string]string) {
+ 	e.Description = ""
++	e.Augmented = nil
+ 	if e.Annotation == nil {
+ 		e.Annotation = map[string]interface{}{}
+ 	}
+@@ -110,6 +129,11 @@
+ 	if e.IsDir() {
+ 		e.Annotation["schemapath"] = e.Path()
+ 	}
++	// add the modulename if the prefix is different from its parent
++	// and it belong to "module" only, i.e. filter out submodule
++	if e.Parent != nil && e.Prefix.Name != e.Parent.Prefix.Name && e.Prefix.Parent.Statement().Keyword == "module" {
++		e.Annotation["modulename"] = e.Prefix.Parent.NName()
++	}
+ }
+ 
+ // WriteGzippedByteSlice takes an input slice of bytes, gzips it
 diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
---- ygot-dir-orig/ygot/ygot/render.go	2020-10-07 14:33:58.224638000 -0700
-+++ ygot-dir/ygot/ygot/render.go	2020-10-27 16:02:47.544072000 -0700
-@@ -45,6 +45,11 @@
+--- ygot-dir-orig/ygot/ygot/render.go	2022-01-13 22:43:21.282327115 -0800
++++ ygot-dir/ygot/ygot/render.go	2022-01-13 22:45:21.117421351 -0800
+@@ -21,6 +21,7 @@
+ 	"reflect"
+ 	"sort"
+ 	"strings"
++	"strconv"
+ 
+ 	"github.com/golang/protobuf/proto"
+ 	"github.com/openconfig/gnmi/errlist"
+@@ -45,6 +46,11 @@
  	p *gnmiPath
  }
  
@@ -387,7 +448,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  func (p *path) String() string {
  	if p.p.isPathElemPath() {
  		return proto.MarshalTextString(&gnmipb.Path{Elem: p.p.pathElemPath})
-@@ -870,19 +875,21 @@
+@@ -870,19 +876,21 @@
  // the module name should be appended to entities that are defined in a different
  // module to their parent.
  func ConstructIETFJSON(s GoStruct, args *RFC7951JSONConfig) (map[string]interface{}, error) {
@@ -412,7 +473,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  }
  
  // jsonOutputConfig is used to determine how constructJSON should generate
-@@ -902,7 +909,7 @@
+@@ -902,7 +910,7 @@
  // be produced and whether such module names are appended is controlled through the
  // supplied jsonOutputConfig. Returns an error if the GoStruct cannot be rendered
  // to JSON.
@@ -421,7 +482,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  	var errs errlist.List
  
  	sval := reflect.ValueOf(s).Elem()
-@@ -916,20 +923,51 @@
+@@ -916,20 +924,51 @@
  		field := sval.Field(i)
  		fType := stype.Field(i)
  
@@ -483,7 +544,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  		}
  
  		var appendModName bool
-@@ -937,19 +975,8 @@
+@@ -937,19 +976,8 @@
  			appendModName = true
  		}
  
@@ -504,7 +565,19 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  
  		if err != nil {
  			errs.Add(err)
-@@ -1086,7 +1113,7 @@
+@@ -1058,7 +1086,10 @@
+ // and float64 values are represented as strings.
+ func writeIETFScalarJSON(i interface{}) interface{} {
+ 	switch reflect.ValueOf(i).Kind() {
+-	case reflect.Uint64, reflect.Int64, reflect.Float64:
++	case reflect.Float64:
++	  val, _ := i.(float64)
++		return strconv.FormatFloat(val, 'f', -1, 64)
++	case reflect.Uint64, reflect.Int64:
+ 		return fmt.Sprintf("%v", i)
+ 	}
+ 	return i
+@@ -1086,7 +1117,7 @@
  // constructs the representation for JSON marshalling that corresponds to it.
  // The module within which the map is defined is specified by the parentMod
  // argument.
@@ -513,7 +586,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  	var errs errlist.List
  	mapKeyMap := map[string]reflect.Value{}
  	// Order of elements determines the order in which keys will be processed.
-@@ -1155,6 +1182,7 @@
+@@ -1155,6 +1186,7 @@
  	default:
  		return nil, fmt.Errorf("invalid JSON format specified: %v", args.jType)
  	}
@@ -521,7 +594,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  	for _, kn := range mapKeys {
  		k := mapKeyMap[kn]
  		goStruct, ok := field.MapIndex(k).Interface().(GoStruct)
-@@ -1163,7 +1191,7 @@
+@@ -1163,7 +1195,7 @@
  			continue
  		}
  
@@ -530,7 +603,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  		if err != nil {
  			errs.Add(err)
  			continue
-@@ -1191,7 +1219,7 @@
+@@ -1191,7 +1223,7 @@
  // The module within which the value is defined is specified by the parentMod string,
  // and the type of JSON to be rendered controlled by the value of the jsonOutputConfig
  // provided. Returns an error if one occurs during the mapping process.
@@ -539,7 +612,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  	var value interface{}
  	var errs errlist.List
  
-@@ -1210,7 +1238,7 @@
+@@ -1210,7 +1242,7 @@
  	switch field.Kind() {
  	case reflect.Map:
  		var err error
@@ -548,7 +621,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  		if err != nil {
  			errs.Add(err)
  		}
-@@ -1223,7 +1251,7 @@
+@@ -1223,7 +1255,7 @@
  			}
  
  			var err error
@@ -557,7 +630,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  			if err != nil {
  				errs.Add(err)
  			}
-@@ -1235,7 +1263,7 @@
+@@ -1235,7 +1267,7 @@
  		}
  	case reflect.Slice:
  		var err error
@@ -566,7 +639,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  		if err != nil {
  			return nil, err
  		}
-@@ -1289,7 +1317,7 @@
+@@ -1289,7 +1321,7 @@
  // GoStruct, a slice may be a binary field, leaf-list or an unkeyed list. The
  // parentMod is used to track the name of the parent module in the case that
  // module names should be appended.
@@ -575,7 +648,7 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  	if field.Type().Name() == BinaryTypeName {
  		// Handle the case that that we have a Binary ([]byte) value,
  		// which must be returned as a JSON string.
-@@ -1305,7 +1333,7 @@
+@@ -1305,7 +1337,7 @@
  			if !ok {
  				return nil, fmt.Errorf("invalid member of a slice, %s was not a valid GoStruct", c.Name())
  			}
@@ -585,8 +658,8 @@ diff -ruN ygot-dir-orig/ygot/ygot/render.go ygot-dir/ygot/ygot/render.go
  				return nil, err
  			}
 diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/struct_validation_map.go
---- ygot-dir-orig/ygot/ygot/struct_validation_map.go	2020-10-07 14:33:58.231818000 -0700
-+++ ygot-dir/ygot/ygot/struct_validation_map.go	2020-10-27 16:02:47.553165000 -0700
+--- ygot-dir-orig/ygot/ygot/struct_validation_map.go	2022-01-13 22:43:21.282327115 -0800
++++ ygot-dir/ygot/ygot/struct_validation_map.go	2022-01-13 22:45:21.117421351 -0800
 @@ -19,6 +19,10 @@
  //	  to return pointers to a type.
  //	- Renders structs to other output formats such as JSON, or gNMI
@@ -737,8 +810,8 @@ diff -ruN ygot-dir-orig/ygot/ygot/struct_validation_map.go ygot-dir/ygot/ygot/st
 +	return nil, fmt.Errorf("No match found in the existingKeys map.")
 +}
 diff -ruN ygot-dir-orig/ygot/ytypes/container.go ygot-dir/ygot/ytypes/container.go
---- ygot-dir-orig/ygot/ytypes/container.go	2020-10-07 14:33:58.269626000 -0700
-+++ ygot-dir/ygot/ytypes/container.go	2020-10-27 16:02:47.588487000 -0700
+--- ygot-dir-orig/ygot/ytypes/container.go	2022-01-13 22:43:21.298326365 -0800
++++ ygot-dir/ygot/ytypes/container.go	2022-01-13 22:45:21.121421209 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -882,8 +955,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/container.go ygot-dir/ygot/ytypes/container.
  }
  
 diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
---- ygot-dir-orig/ygot/ytypes/leaf.go	2020-10-07 14:33:58.296548000 -0700
-+++ ygot-dir/ygot/ytypes/leaf.go	2020-10-27 16:02:47.605111000 -0700
+--- ygot-dir-orig/ygot/ytypes/leaf.go	2022-01-13 22:43:21.298326365 -0800
++++ ygot-dir/ygot/ytypes/leaf.go	2022-01-13 22:45:21.121421209 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -1100,8 +1173,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/leaf.go ygot-dir/ygot/ytypes/leaf.go
 +}
 \ No newline at end of file
 diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
---- ygot-dir-orig/ygot/ytypes/list.go	2020-10-07 14:33:58.308948000 -0700
-+++ ygot-dir/ygot/ytypes/list.go	2020-10-27 16:02:47.621524000 -0700
+--- ygot-dir-orig/ygot/ytypes/list.go	2022-01-13 22:43:21.298326365 -0800
++++ ygot-dir/ygot/ytypes/list.go	2022-01-13 22:45:21.121421209 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -1298,7 +1371,16 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  		return util.InsertIntoStruct(val.Interface(), fn, nv.Interface())
  	}
  
-@@ -494,6 +612,9 @@
+@@ -468,6 +586,8 @@
+ 	kv, err := getKeyValue(newVal.Elem(), schema.Key)
+ 	if err != nil {
+ 		return reflect.ValueOf(nil), err
++	} else if kv == nil {
++		return reflect.ValueOf(nil), fmt.Errorf("List key leaf node %v is not present in the payload", schema.Key)
+ 	}
+ 	util.DbgPrint("key value is %v.", kv)
+ 
+@@ -494,6 +614,9 @@
  	}
  
  	// TODO(yusufsn): When the key is a leafref, its target should be filled out.
@@ -1309,8 +1391,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/list.go ygot-dir/ygot/ytypes/list.go
  	if err != nil {
  		return nil, fmt.Errorf("failed to create map value for insert, root %T, keys %v: %v", root, keys, err)
 diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
---- ygot-dir-orig/ygot/ytypes/node.go	2020-10-07 14:33:58.312963000 -0700
-+++ ygot-dir/ygot/ytypes/node.go	2020-10-27 16:02:47.626175000 -0700
+--- ygot-dir-orig/ygot/ytypes/node.go	2022-01-13 22:43:21.298326365 -0800
++++ ygot-dir/ygot/ytypes/node.go	2022-01-13 22:45:21.121421209 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -1321,7 +1403,15 @@ diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
  package ytypes
  
  import (
-@@ -140,6 +143,16 @@
+@@ -25,6 +28,7 @@
+ 	"google.golang.org/grpc/status"
+ 
+ 	gpb "github.com/openconfig/gnmi/proto/gnmi"
++	"strings"
+ )
+ 
+ // Type retrieveNodeArgs contains the set of parameters that changes
+@@ -140,6 +144,16 @@
  				if err := util.InitializeStructField(root, ft.Name); err != nil {
  					return nil, status.Errorf(codes.Unknown, "failed to initialize struct field %s in %T, child schema %v, path %v", ft.Name, root, cschema, path)
  				}
@@ -1338,7 +1428,33 @@ diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
  			}
  
  			// If delete is specified, and the path is exhausted, then we set the
-@@ -319,6 +332,11 @@
+@@ -243,6 +257,13 @@
+ 			if err != nil {
+ 				return nil, status.Errorf(codes.InvalidArgument, "failed to convert %v to a string, path %v: %v", kv, path, err)
+ 			}
++
++			if strings.Contains(keyAsString, "\\") {
++				keyPath, err := ygot.StringToStructuredPath(schema.Name+"["+schema.Key+"="+keyAsString+"]")
++				if err != nil { return nil, status.Errorf(codes.InvalidArgument, "failed to convert %v to a string, path %v: %v", kv, path, err) }
++				if len(keyPath.Elem) == 1 { keyAsString = keyPath.Elem[0].Key[schema.Key] }
++			}
++
+ 			if keyAsString == pathKey {
+ 				remainingPath := util.PopGNMIPath(path)
+ 				if args.delete && len(remainingPath.GetElem()) == 0 {
+@@ -287,6 +308,11 @@
+ 			if err != nil {
+ 				return nil, status.Errorf(codes.Unknown, "failed to convert the field value to string, field %v: %v", fieldName, err)
+ 			}
++			if strings.Contains(keyAsString, "\\") {
++				keyPath, err := ygot.StringToStructuredPath(schema.Name+"["+schemaKey+"="+keyAsString+"]")
++				if err != nil { return nil, status.Errorf(codes.Unknown, "failed to convert the field value to string, field %v: %v", fieldName, err) }
++				if len(keyPath.Elem) == 1 { keyAsString = keyPath.Elem[0].Key[schemaKey] }
++			}
+ 			if !(args.handleWildcards && pathKey == "*") && pathKey != keyAsString {
+ 				match = false
+ 				break
+@@ -319,6 +345,11 @@
  		if err != nil {
  			return nil, err
  		}
@@ -1351,8 +1467,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/node.go ygot-dir/ygot/ytypes/node.go
  		if err != nil {
  			return nil, err
 diff -ruN ygot-dir-orig/ygot/ytypes/string_type.go ygot-dir/ygot/ytypes/string_type.go
---- ygot-dir-orig/ygot/ytypes/string_type.go	2020-10-07 14:33:58.316659000 -0700
-+++ ygot-dir/ygot/ytypes/string_type.go	2020-10-27 16:02:47.629911000 -0700
+--- ygot-dir-orig/ygot/ytypes/string_type.go	2022-01-13 22:43:21.338324492 -0800
++++ ygot-dir/ygot/ytypes/string_type.go	2022-01-13 22:45:21.121421209 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -1444,8 +1560,8 @@ diff -ruN ygot-dir-orig/ygot/ytypes/string_type.go ygot-dir/ygot/ytypes/string_t
  
  // fixYangRegexp takes a pattern regular expression from a YANG module and
 diff -ruN ygot-dir-orig/ygot/ytypes/unmarshal.go ygot-dir/ygot/ytypes/unmarshal.go
---- ygot-dir-orig/ygot/ytypes/unmarshal.go	2020-10-07 14:33:58.323984000 -0700
-+++ ygot-dir/ygot/ytypes/unmarshal.go	2020-10-27 16:02:47.638332000 -0700
+--- ygot-dir-orig/ygot/ytypes/unmarshal.go	2022-01-13 22:43:21.298326365 -0800
++++ ygot-dir/ygot/ytypes/unmarshal.go	2022-01-13 22:45:21.121421209 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -1482,10 +1598,12 @@ diff -ruN ygot-dir-orig/ygot/ytypes/unmarshal.go ygot-dir/ygot/ytypes/unmarshal.
  
  	if enc == GNMIEncoding && !(schema.IsLeaf() || schema.IsLeafList()) {
  		return errors.New("unmarshalling a non leaf node isn't supported in GNMIEncoding mode")
-@@ -112,3 +125,14 @@
+@@ -110,5 +123,16 @@
+ 			return true
+ 		}
  	}
- 	return false
- }
++	return false
++}
 +
 +// isAllowUpdateInListMap determines whether the supplied slice of UnmarshalOpts contains
 +// the AllowUpdateInListMap option.
@@ -1495,11 +1613,11 @@ diff -ruN ygot-dir-orig/ygot/ytypes/unmarshal.go ygot-dir/ygot/ytypes/unmarshal.
 +			return true
 +		}
 +	}
-+	return false
-+}
+ 	return false
+ }
 diff -ruN ygot-dir-orig/ygot/ytypes/validate.go ygot-dir/ygot/ytypes/validate.go
---- ygot-dir-orig/ygot/ytypes/validate.go	2020-10-07 14:33:58.340787000 -0700
-+++ ygot-dir/ygot/ytypes/validate.go	2020-10-27 16:02:47.656540000 -0700
+--- ygot-dir-orig/ygot/ytypes/validate.go	2022-01-13 22:43:21.354323742 -0800
++++ ygot-dir/ygot/ytypes/validate.go	2022-01-13 22:45:21.121421209 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
