@@ -380,7 +380,7 @@ index e39c478..b7766f0 100644
  	}
  
 diff --git a/ygen/schemaparse.go b/ygen/schemaparse.go
-index f71e7e6..ce224e0 100644
+index f71e7e6..800ec60 100644
 --- a/ygen/schemaparse.go
 +++ b/ygen/schemaparse.go
 @@ -43,10 +43,28 @@ func buildJSONTree(ms []*yang.Entry, dn map[string]string, fakeroot *yang.Entry,
@@ -426,7 +426,7 @@ index f71e7e6..ce224e0 100644
  	}
 +	// add the modulename if the prefix is different from its parent
 +	// and it belong to "module" only, i.e. filter out submodule
-+	if e.Parent != nil && e.Prefix.Name != e.Parent.Prefix.Name && e.Prefix.Parent.Statement().Keyword == "module" {
++	if e.Parent != nil && e.Namespace().Name != e.Parent.Namespace().Name && e.Prefix.Parent.Statement().Keyword == "module" {
 +		e.Annotation["modulename"] = e.Prefix.Parent.NName()
 +	}
  }
