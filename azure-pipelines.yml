@@ -96,6 +96,8 @@ stages:
 
         ./translib.test -test.v -logtostderr || STATUS=1
 
+        ./transformer.test -test.v -logtostderr || STATUS=1
+
         popd
 
         exit ${STATUS}
