@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2023 Dell, Inc. 						      //
+//  Copyright 2023 Dell, Inc.                                                //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
 //  you may not use this file except in compliance with the License.          //
@@ -32,9 +32,9 @@ import (
 
 func checkErr(t *testing.T, err error, expErr error) {
 	if err.Error() != expErr.Error() {
-		t.Errorf("Error %v, Expect Err: %v", err, expErr)
+		t.Fatalf("Error %v, Expect Err: %v", err, expErr)
 	} else if reflect.TypeOf(err) != reflect.TypeOf(expErr) {
-		t.Errorf("Error type %T, Expect Err Type: %T", err, expErr)
+		t.Fatalf("Error type %T, Expect Err Type: %T", err, expErr)
 	}
 }
 
@@ -46,7 +46,7 @@ func processGetRequest(url string, expectedRespJson string, errorCase bool, expE
 		response, err := Get(GetRequest{Path: url, User: UserRoles{Name: "admin", Roles: []string{"admin"}} })
 		if err != nil {
 			if !errorCase {
-				t.Errorf("Error %v received for Url: %s", err, url)
+				t.Fatalf("Error %v received for Url: %s", err, url)
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
@@ -55,17 +55,17 @@ func processGetRequest(url string, expectedRespJson string, errorCase bool, expE
 
 		err = json.Unmarshal([]byte(expectedRespJson), &expectedMap)
 		if err != nil {
-			t.Errorf("failed to unmarshal %v err: %v", expectedRespJson, err)
+			t.Fatalf("failed to unmarshal %v err: %v", expectedRespJson, err)
 		}
 
 		respJson := response.Payload
-		err = json.Unmarshal([]byte(respJson), &receivedMap)
+		err = json.Unmarshal(respJson, &receivedMap)
 		if err != nil {
-			t.Errorf("failed to unmarshal %v err: %v", string(respJson), err)
+			t.Fatalf("failed to unmarshal %v err: %v", string(respJson), err)
 		}
 
 		if reflect.DeepEqual(receivedMap, expectedMap) != true {
-			t.Errorf("Response for Url: %s received is not expected:\n Received: %s\n Expected: %s", url, receivedMap, expectedMap)
+			t.Fatalf("Response for Url: %s received is not expected:\n Received: %s\n Expected: %s", url, receivedMap, expectedMap)
 		}
 	}
 }
@@ -77,30 +77,31 @@ func processGetRequestWithFile(url string, expectedJsonFile string, errorCase bo
 
 		jsonStr, err := ioutil.ReadFile(expectedJsonFile)
 		if err != nil {
-			t.Errorf("read file %v err: %v", expectedJsonFile, err)
+			t.Fatalf("read file %v err: %v", expectedJsonFile, err)
 		}
 		err = json.Unmarshal([]byte(jsonStr), &expectedMap)
 		if err != nil {
-			t.Errorf("failed to unmarshal %v err: %v", jsonStr, err)
+			t.Fatalf("failed to unmarshal %v err: %v", jsonStr, err)
 		}
 
 		response, err := Get(GetRequest{Path: url, User: UserRoles{Name: "admin", Roles: []string{"admin"}}})
 		if err != nil {
 			if !errorCase {
-				t.Errorf("Error %v received for Url: %s", err, url)
+				t.Fatalf("Error %v received for Url: %s", err, url)
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
+			return 
 		}
 
 		respJson := response.Payload
-		err = json.Unmarshal([]byte(respJson), &receivedMap)
+		err = json.Unmarshal(respJson, &receivedMap)
 		if err != nil {
-			t.Errorf("failed to unmarshal %v err: %v", string(respJson), err)
+			t.Fatalf("failed to unmarshal %v err: %v", string(respJson), err)
 		}
 
 		if reflect.DeepEqual(receivedMap, expectedMap) != true {
-			t.Errorf("Response for Url: %s received is not expected:\n Received: %s\n Expected: %s", url, receivedMap, expectedMap)
+			t.Fatalf("Response for Url: %s received is not expected:\n Received: %s\n Expected: %s", url, receivedMap, expectedMap)
 		}
 	}
 }
@@ -116,11 +117,11 @@ func processSetRequest(url string, jsonPayload string, oper string, errorCase bo
 		case "PUT":
 			_, err = Replace(SetRequest{Path: url, Payload: []byte(jsonPayload)})
 		default:
-			t.Errorf("Operation not supported")
+			t.Fatalf("Operation not supported")
 		}
 		if err != nil {
 			if !errorCase {
-				t.Errorf("Error %v received for Url: %s", err, url)
+				t.Fatalf("Error %v received for Url: %s", err, url)
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
@@ -132,7 +133,7 @@ func processSetRequestFromFile(url string, jsonFile string, oper string, errorCa
 	return func(t *testing.T) {
 		jsonPayload, err := ioutil.ReadFile(jsonFile)
 		if err != nil {
-			t.Errorf("read file %v err: %v", jsonFile, err)
+			t.Fatalf("read file %v err: %v", jsonFile, err)
 		}
 		switch oper {
 		case "POST":
@@ -142,11 +143,11 @@ func processSetRequestFromFile(url string, jsonFile string, oper string, errorCa
 		case "PUT":
 			_, err = Replace(SetRequest{Path: url, Payload: []byte(jsonPayload)})
 		default:
-			t.Errorf("Operation not supported")
+			t.Fatalf("Operation not supported")
 		}
 		if err != nil {
 			if !errorCase {
-				t.Errorf("Error %v received for Url: %s", err, url)
+				t.Fatalf("Error %v received for Url: %s", err, url)
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
@@ -159,7 +160,7 @@ func processDeleteRequest(url string, errorCase bool, expErr ...error) func(*tes
 		_, err := Delete(SetRequest{Path: url})
 		if err != nil {
 			if !errorCase {
-				t.Errorf("Error %v received for Url: %s", err, url)
+				t.Fatalf("Error %v received for Url: %s", err, url)
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
@@ -175,11 +176,11 @@ func processActionRequest(url string, jsonPayload string, oper string, user stri
 			ur := UserRoles{Name: user, Roles: []string{role}}
 			_, err = Action(ActionRequest{Path: url, Payload: []byte(jsonPayload), User: ur, AuthEnabled: auth})
 		default:
-			t.Errorf("Operation not supported")
+			t.Fatalf("Operation not supported")
 		}
 		if err != nil {
 			if !errorCase {
-				t.Errorf("Error %v received for Url: %s", err, url)
+				t.Fatalf("Error %v received for Url: %s", err, url)
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
@@ -202,7 +203,7 @@ func verifyDbResult(client *redis.Client, key string, expectedResult map[string]
 	return func(t *testing.T) {
 		result, err := client.HGetAll(key).Result()
 		if err != nil {
-			t.Errorf("Error %v hgetall for key: %s", err, key)
+			t.Fatalf("Error %v hgetall for key: %s", err, key)
 		}
 
 		expect := make(map[string]string)
@@ -218,7 +219,7 @@ func verifyDbResult(client *redis.Client, key string, expectedResult map[string]
 		}
 
 		if reflect.DeepEqual(result, expect) != true {
-			t.Errorf("Response for Key: %v received is not expected: Received %v Expected %v\n", key, result, expect)
+			t.Fatalf("Response for Key: %v received is not expected: Received %v Expected %v\n", key, result, expect)
 		}
 	}
 }

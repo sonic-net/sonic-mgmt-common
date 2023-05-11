@@ -1,25 +1,27 @@
-//////////////////////////////////////////////////////////////////////////
-//
-// Copyright 2023 Dell, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//  Copyright 2023 Dell, Inc.                                                 //
+//                                                                            //
+//  Licensed under the Apache License, Version 2.0 (the "License");           //
+//  you may not use this file except in compliance with the License.          //
+//  You may obtain a copy of the License at                                   //
+//                                                                            //
+//     http://www.apache.org/licenses/LICENSE-2.0                             //
+//                                                                            //
+//  Unless required by applicable law or agreed to in writing, software       //
+//  distributed under the License is distributed on an "AS IS" BASIS,         //
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  //
+//  See the License for the specific language governing permissions and       //
+//  limitations under the License.                                            //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+//go:build test
+// +build test
 
 package transformer_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -31,7 +33,7 @@ func Test_node_exercising_subtree_xfmr_and_virtual_table(t *testing.T) {
 	var pre_req_map, expected_map, cleanuptbl map[string]interface{}
 	var url, url_body_json string
 
-	fmt.Println("\n\n+++++++++++++ Performing Set on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
+	t.Log("\n\n+++++++++++++ Performing Set on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
 	url = "/openconfig-test-xfmr:test-xfmr/interfaces"
 	url_body_json = "{ \"openconfig-test-xfmr:interface\": [ { \"id\": \"Eth_0\", \"config\": { \"id\": \"Eth_0\" }, \"ingress-test-sets\": { \"ingress-test-set\": [ { \"set-name\": \"TestSet_01\", \"type\": \"TEST_SET_IPV4\", \"config\": { \"set-name\": \"TestSet_01\", \"type\": \"TEST_SET_IPV4\" } } ] } } ]}"
 	expected_map = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_01_TEST_SET_IPV4": map[string]interface{}{"ports@": "Eth_0", "type": "IPV4"}}}
@@ -41,9 +43,9 @@ func Test_node_exercising_subtree_xfmr_and_virtual_table(t *testing.T) {
 	t.Run("Verify set on node exercising subtree-xfmr and virtual table.", verifyDbResult(rclient, "TEST_SET_TABLE|TestSet_01_TEST_SET_IPV4", expected_map, false))
 	unloadDB(db.ConfigDB, cleanuptbl)
 	time.Sleep(1 * time.Second)
-	fmt.Println("\n\n+++++++++++++ Done Performing Set on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
+	t.Log("\n\n+++++++++++++ Done Performing Set on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
 
-	fmt.Println("\n\n+++++++++++++ Performing Delete on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
+	t.Log("\n\n+++++++++++++ Performing Delete on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
 	pre_req_map = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_01_TEST_SET_IPV4": map[string]interface{}{
 		"ports@": "Eth_0,Eth_1,Eth_3"},
 		"TestSet_02_TEST_SET_IPV4": map[string]interface{}{
@@ -62,9 +64,9 @@ func Test_node_exercising_subtree_xfmr_and_virtual_table(t *testing.T) {
 	t.Run("Verify delete on node exercising subtree-xfmr and virtual table (TestSet_02).", verifyDbResult(rclient, "TEST_SET_TABLE|TestSet_02_TEST_SET_IPV4", expected_map, false))
 	unloadDB(db.ConfigDB, cleanuptbl)
 	time.Sleep(1 * time.Second)
-	fmt.Println("\n\n+++++++++++++ Done Performing Delete on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
+	t.Log("\n\n+++++++++++++ Done Performing Delete on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
 
-	fmt.Println("\n\n+++++++++++++ Performing Get on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
+	t.Log("\n\n+++++++++++++ Performing Get on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
 	pre_req_map = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_03_TEST_SET_IPV6": map[string]interface{}{
 		"ports@": "Eth_1"}}}
 
@@ -74,7 +76,7 @@ func Test_node_exercising_subtree_xfmr_and_virtual_table(t *testing.T) {
 	t.Run("Test get on node exercising subtree-xfmr and virtual table.", processGetRequest(url, expected_get_json, false))
 	cleanuptbl = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_03_TEST_SET_IPV6": ""}}
 	unloadDB(db.ConfigDB, cleanuptbl)
-	fmt.Println("\n\n+++++++++++++ Done Performing Get on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
+	t.Log("\n\n+++++++++++++ Done Performing Get on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
 
 }
 
@@ -82,7 +84,7 @@ func Test_node_exercising_tableName_key_and_field_xfmr(t *testing.T) {
 	var pre_req_map, expected_map, cleanuptbl map[string]interface{}
 	var url, url_body_json string
 
-	fmt.Println("\n\n+++++++++++++ Performing Set on Yang Node Exercising Table-Name, Key-Xfmr and Field-Xfmr ++++++++++++")
+	t.Log("\n\n+++++++++++++ Performing Set on Yang Node Exercising Table-Name, Key-Xfmr and Field-Xfmr ++++++++++++")
 	url = "/openconfig-test-xfmr:test-xfmr/test-sets"
 	url_body_json = "{ \"openconfig-test-xfmr:test-set\": [ { \"name\": \"TestSet_01\", \"type\": \"TEST_SET_IPV4\", \"config\": { \"name\": \"TestSet_01\", \"type\": \"TEST_SET_IPV4\", \"description\": \"TestSet_01Description\" } } ]}"
 	expected_map = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_01_TEST_SET_IPV4": map[string]interface{}{"type": "IPV4", "description": "Description : TestSet_01Description"}}}
@@ -92,9 +94,9 @@ func Test_node_exercising_tableName_key_and_field_xfmr(t *testing.T) {
 	t.Run("Verify set on node exercising Table-Name, Key-Xfmr and Field-Xfmr", verifyDbResult(rclient, "TEST_SET_TABLE|TestSet_01_TEST_SET_IPV4", expected_map, false))
 	unloadDB(db.ConfigDB, cleanuptbl)
 	time.Sleep(1 * time.Second)
-	fmt.Println("\n\n+++++++++++++ Done Performing Set on Yang Node Exercising Table-Name, Key-Xfmr and Field-Xfmr ++++++++++++")
+	t.Log("\n\n+++++++++++++ Done Performing Set on Yang Node Exercising Table-Name, Key-Xfmr and Field-Xfmr ++++++++++++")
 
-	fmt.Println("\n\n+++++++++++++ Performing Delete on Yang Node Exercising Table-Name ,Key-Xfmr and Field-Xfmr ++++++++++++")
+	t.Log("\n\n+++++++++++++ Performing Delete on Yang Node Exercising Table-Name ,Key-Xfmr and Field-Xfmr ++++++++++++")
 	pre_req_map = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_01_TEST_SET_IPV4": map[string]interface{}{
 		"type":        "IPV4",
 		"description": "Description : TestSet_01_description",
@@ -111,9 +113,9 @@ func Test_node_exercising_tableName_key_and_field_xfmr(t *testing.T) {
 	t.Run("Verify delete on node exercising Table-Name, Key-Xfmr and Field-Xfmr", verifyDbResult(rclient, "TEST_SET_TABLE|TestSet_01_TEST_SET_IPV4", expected_map, false))
 	unloadDB(db.ConfigDB, cleanuptbl)
 	time.Sleep(1 * time.Second)
-	fmt.Println("\n\n+++++++++++++ Done Performing Delete on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
+	t.Log("\n\n+++++++++++++ Done Performing Delete on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
 
-	fmt.Println("\n\n+++++++++++++ Performing Get on Yang Node Exercising Table-Name, Key-Xfmr and Field-Xfmr ++++++++++++")
+	t.Log("\n\n+++++++++++++ Performing Get on Yang Node Exercising Table-Name, Key-Xfmr and Field-Xfmr ++++++++++++")
 	pre_req_map = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_03_TEST_SET_IPV6": map[string]interface{}{
 		"type":        "IPV6",
 		"description": "Description : TestSet_03Description",
@@ -126,18 +128,18 @@ func Test_node_exercising_tableName_key_and_field_xfmr(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	cleanuptbl = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_03_TEST_SET_IPV6": ""}}
 	unloadDB(db.ConfigDB, cleanuptbl)
-	fmt.Println("\n\n+++++++++++++ Done Performing Get on Yang Node Exercising  Table-Name, Key-Xfmr and Field-Xfmr++++++++++++")
+	t.Log("\n\n+++++++++++++ Done Performing Get on Yang Node Exercising  Table-Name, Key-Xfmr and Field-Xfmr++++++++++++")
 }
 
 func Test_node_exercising_pre_xfmr_node(t *testing.T) {
-	fmt.Println("\n\n+++++++++++++ Performing set on node exercising pre-xfmr ++++++++++++")
+	t.Log("\n\n+++++++++++++ Performing set on node exercising pre-xfmr ++++++++++++")
 	err_str := "REPLACE not supported at this node."
 	expected_err := tlerr.NotSupportedError{Format: err_str}
 	//expected_err := tlerr.NotSupported("REPLACE not supported at this node.")
 	url := "/openconfig-test-xfmr:test-xfmr/test-sets"
 	url_body_json := "{ \"openconfig-test-xfmr:test-sets\": { \"test-set\": [ { \"name\": \"TestSet_03\", \"type\": \"TEST_SET_IPV4\", \"config\": { \"name\": \"TestSet_03\", \"type\": \"TEST_SET_IPV4\", \"description\": \"testSet_03 description\" } } ] }}"
 	t.Run("Test set on node exercising pre-xfmr.", processSetRequest(url, url_body_json, "PUT", true, expected_err))
-	fmt.Println("\n\n+++++++++++++ Done Performing set on node exercising pre-xfmr ++++++++++++")
+	t.Log("\n\n+++++++++++++ Done Performing set on node exercising pre-xfmr ++++++++++++")
 
 }
 
@@ -146,7 +148,7 @@ func Test_node_with_child_tableXfmr_keyXfmr_fieldNameXfmrs_nonConfigDB_data(t *t
 	cleanuptbl := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": ""}, "TEST_SENSOR_A_TABLE": map[string]interface{}{"test_group_1|sensor_type_a_testA": ""}}
 	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups"
 
-	fmt.Println("++++++++++++++  Test_set_on_node_with_child_table_key_field_xfmrs  +++++++++++++")
+	t.Log("++++++++++++++  Test_set_on_node_with_child_table_key_field_xfmrs  +++++++++++++")
 
 	// Setup - Prerequisite
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -164,7 +166,7 @@ func Test_node_with_child_tableXfmr_keyXfmr_fieldNameXfmrs_nonConfigDB_data(t *t
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
-	fmt.Println("++++++++++++++  Test_get_on_node_with_table_key_field_xfmrs_nonConfigDB_data  +++++++++++++")
+	t.Log("++++++++++++++  Test_get_on_node_with_table_key_field_xfmrs_nonConfigDB_data  +++++++++++++")
 
 	prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"colors@": "red,blue,green", "color-hold-time": "10"}}, "TEST_SENSOR_A_TABLE": map[string]interface{}{"test_group_1|sensor_type_a_testA": map[string]interface{}{"exclude_filter": "filter_filterB"}}}
 	nonconfig_prereq := map[string]interface{}{"TEST_SENSOR_GROUP_COUNTERS": map[string]interface{}{"test_group_1": map[string]interface{}{"frame-in": "12345", "frame-out": "678910"}}}
@@ -183,7 +185,7 @@ func Test_node_with_child_tableXfmr_keyXfmr_fieldNameXfmrs_nonConfigDB_data(t *t
 	unloadDB(db.ConfigDB, cleanuptbl)
 	unloadDB(db.CountersDB, nonconfig_prereq)
 
-	fmt.Println("++++++++++++++  Test_delete_on_node_with_child_table_key_field_xfmrs  +++++++++++++")
+	t.Log("++++++++++++++  Test_delete_on_node_with_child_table_key_field_xfmrs  +++++++++++++")
 
 	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups"
 
@@ -209,7 +211,7 @@ func Test_delete_on_node_with_default_value(t *testing.T) {
 	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/config/color-hold-time"
 	prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"colors@": "red,blue,green", "color-hold-time": "30"}}}
 
-	fmt.Println("++++++++++++++  Test_delete_on_node_with_default_value  +++++++++++++")
+	t.Log("++++++++++++++  Test_delete_on_node_with_default_value  +++++++++++++")
 
 	// Setup - Prerequisite - None
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -232,7 +234,7 @@ func Test_post_xfmr(t *testing.T) {
 	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/config/color-hold-time"
 	prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"colors@": "red,blue,green", "color-hold-time": "30"}}}
 
-	fmt.Println("++++++++++++++  Test_post_xfmr  +++++++++++++")
+	t.Log("++++++++++++++  Test_post_xfmr  +++++++++++++")
 
 	// Setup - Prerequisite
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -256,7 +258,7 @@ func Test_sonic_yang_node_operations(t *testing.T) {
 	prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_id_123": map[string]interface{}{"colors@": "red,blue,green", "color-hold-time": "25"}}}
 	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_A_TABLE"
 
-	fmt.Println("++++++++++++++  Test_set_on_sonic_table_yang_node +++++++++++++")
+	t.Log("++++++++++++++  Test_set_on_sonic_table_yang_node +++++++++++++")
 
 	// Setup - Prerequisite
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -273,7 +275,7 @@ func Test_sonic_yang_node_operations(t *testing.T) {
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
-	fmt.Println("++++++++++++++  Test_delete_on_sonic_module  +++++++++++++")
+	t.Log("++++++++++++++  Test_delete_on_sonic_module  +++++++++++++")
 
 	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": ""}, "TEST_SENSOR_A_TABLE": map[string]interface{}{"test_group_1|sensor_type_a_testA": ""}, "TEST_SENSOR_B_TABLE": map[string]interface{}{"test_group_1|sensor_type_b_testB": ""}, "TEST_SET_TABLE": map[string]interface{}{"test_set_1": ""}}
 
@@ -296,7 +298,7 @@ func Test_sonic_yang_node_operations(t *testing.T) {
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
-	fmt.Println("++++++++++++++  Test_get_on_sonic_table_with_key_xfmr  +++++++++++++")
+	t.Log("++++++++++++++  Test_get_on_sonic_table_with_key_xfmr  +++++++++++++")
 
 	cleanuptbl = map[string]interface{}{"TEST_SENSOR_MODE_TABLE": map[string]interface{}{"mode:testsensor123:3543": ""}}
 	prereq = map[string]interface{}{"TEST_SENSOR_MODE_TABLE": map[string]interface{}{"mode:testsensor123:3543": map[string]interface{}{"description": "Test sensor mode"}}}
@@ -329,9 +331,9 @@ func Test_leaflist_node(t *testing.T) {
 	t.Run("Verify patch on leaf-list.", verifyDbResult(rclient, "TEST_SENSOR_GROUP|sensor_group_01", expected_map, false))
 	unloadDB(db.ConfigDB, cleanuptbl)
 	time.Sleep(1 * time.Second)
-	fmt.Println("\n\n+++++++++++++ Done Performing Patch/Update on Yang leaf-list Node demonstrating leaf-list contents merge ++++++++++++")
+	t.Log("\n\n+++++++++++++ Done Performing Patch/Update on Yang leaf-list Node demonstrating leaf-list contents merge ++++++++++++")
 
-	fmt.Println("\n\n+++++++++++++ Performing Put/Replace on Yang leaf-list Node demonstrating leaf-list contents swap ++++++++++++")
+	t.Log("\n\n+++++++++++++ Performing Put/Replace on Yang leaf-list Node demonstrating leaf-list contents swap ++++++++++++")
 	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=sensor_group_01]/config/group-colors"
 	url_body_json = "{ \"openconfig-test-xfmr:group-colors\": [ \"blue\",\"yellow\" ]}"
 	pre_req_map = map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_01": map[string]interface{}{
@@ -345,7 +347,7 @@ func Test_leaflist_node(t *testing.T) {
 	t.Run("Verify replace on leaf-list.", verifyDbResult(rclient, "TEST_SENSOR_GROUP|sensor_group_01", expected_map, false))
 	unloadDB(db.ConfigDB, cleanuptbl)
 	time.Sleep(1 * time.Second)
-	fmt.Println("\n\n+++++++++++++ Done Performing Put/Replace on Yang leaf-list Node demonstrating leaf-list contents swap ++++++++++++")
+	t.Log("\n\n+++++++++++++ Done Performing Put/Replace on Yang leaf-list Node demonstrating leaf-list contents swap ++++++++++++")
 
 	loadDB(db.ConfigDB, pre_req_map)
 	time.Sleep(1 * time.Second)

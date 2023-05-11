@@ -1,20 +1,20 @@
-//////////////////////////////////////////////////////////////////////////
-//
-// Copyright 2023 Dell, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//  Copyright 2023 Dell, Inc.                                                 //
+//                                                                            //
+//  Licensed under the Apache License, Version 2.0 (the "License");           //
+//  you may not use this file except in compliance with the License.          //
+//  You may obtain a copy of the License at                                   //
+//                                                                            //
+//     http://www.apache.org/licenses/LICENSE-2.0                             //
+//                                                                            //
+//  Unless required by applicable law or agreed to in writing, software       //
+//  distributed under the License is distributed on an "AS IS" BASIS,         //
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  //
+//  See the License for the specific language governing permissions and       //
+//  limitations under the License.                                            //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
 
 package transformer_test
 
@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
@@ -43,68 +42,28 @@ var ygSchema *ytypes.Schema
 var rclientDBNum map[db.DBNum]*redis.Client
 
 func getDBOptions(dbNo db.DBNum, isWriteDisabled bool) db.Options {
-        var opt db.Options
+	var opt db.Options
 
-        switch dbNo {
-        case db.ApplDB, db.CountersDB, db.AsicDB, db.FlexCounterDB:
-                opt = getDBOptionsWithSeparator(dbNo, "", ":", ":", isWriteDisabled)
-                break
-        case db.ConfigDB, db.StateDB, db.ErrorDB:
-                opt = getDBOptionsWithSeparator(dbNo, "", "|", "|", isWriteDisabled)
-                break
-        }
+	switch dbNo {
+	case db.ApplDB, db.CountersDB, db.AsicDB, db.FlexCounterDB:
+		opt = getDBOptionsWithSeparator(dbNo, "", ":", ":", isWriteDisabled)
+		break
+	case db.ConfigDB, db.StateDB, db.ErrorDB:
+		opt = getDBOptionsWithSeparator(dbNo, "", "|", "|", isWriteDisabled)
+		break
+	}
 
-        return opt
+	return opt
 }
 
 func getDBOptionsWithSeparator(dbNo db.DBNum, initIndicator string, tableSeparator string, keySeparator string, isWriteDisabled bool) db.Options {
-        return (db.Options{
-                DBNo:               dbNo,
-                InitIndicator:      initIndicator,
-                TableNameSeparator: tableSeparator,
-                KeySeparator:       keySeparator,
-                IsWriteDisabled:    isWriteDisabled,
-        })
-}
-
-func getAllDbs(isGetCase bool) ([db.MaxDB]*db.DB, error) {
-	var dbs [db.MaxDB]*db.DB
-	var err error
-	var isWriteDisabled bool
-
-	if isGetCase {
-		isWriteDisabled = true
-	} else {
-		isWriteDisabled = false
-	}
-
-	//Create Counter DB connection
-	dbs[db.CountersDB], err = db.NewDB(getDBOptions(db.CountersDB, isWriteDisabled))
-
-	if err != nil {
-		closeAllDbs(dbs[:])
-		return dbs, err
-	}
-        
-        //Create Config DB connection
-	dbs[db.ConfigDB], err = db.NewDB(getDBOptions(db.ConfigDB, isWriteDisabled))
-
-	if err != nil {
-		closeAllDbs(dbs[:])
-		return dbs, err
-	}
-
-	return dbs, err
-}
-
-// Closes the dbs, and nils out the arr.
-func closeAllDbs(dbs []*db.DB) {
-	for dbsi, d := range dbs {
-		if d != nil {
-			d.DeleteDB()
-			dbs[dbsi] = nil
-		}
-	}
+	return (db.Options{
+		DBNo:               dbNo,
+		InitIndicator:      initIndicator,
+		TableNameSeparator: tableSeparator,
+		KeySeparator:       keySeparator,
+		IsWriteDisabled:    isWriteDisabled,
+	})
 }
 
 func TestMain(t *testing.M) {
@@ -113,11 +72,10 @@ func TestMain(t *testing.M) {
 		fmt.Fprintf(os.Stderr, "Error setting up transformer testing state: %v.\n", err)
 		os.Exit(1)
 	}
-	t.Run()
-	teardown()
-	os.Exit(0)
+	defer teardown()
+	tRunRet := t.Run()
+	os.Exit(tRunRet)
 }
-
 
 func initDbConfig() error {
 	dbConfigFile := "/run/redis/sonic-db/database_config.json"
@@ -136,83 +94,84 @@ func initDbConfig() error {
 
 func clearDb() {
 
-	tblList := []string{
+	dbNumTblList := make(map[db.DBNum][]string)
+	dbNumTblList[db.ConfigDB] = []string{
 		"TEST_SENSOR_GROUP",
 		"TEST_SENSOR_A_TABLE",
 		"TEST_SENSOR_B_TABLE",
 		"TEST_SET_TABLE",
+	}
+	dbNumTblList[db.CountersDB] = []string{
 		"TEST_SENSOR_MODE_TABLE",
 	}
 
-	for _, tbl := range tblList {
-		_, err := exec.Command("/bin/sh", "-c",
-			"sonic-db-cli CONFIG_DB del `sonic-db-cli CONFIG_DB keys '"+
-				tbl+"|*' | cut -d ' ' -f 2`").Output()
-
-		if err != nil {
-			fmt.Println(err.Error())
+	for dbNum, tblList := range dbNumTblList {
+		for _, tbl := range tblList {
+			tblKeys, keysErr := rclientDBNum[dbNum].Keys(tbl + "|*").Result()
+			if keysErr != nil {
+				fmt.Printf("Couldn't fetch keys for table %v", tbl)
+				continue
+			}
+			for _, key := range tblKeys {
+				e := rclientDBNum[dbNum].Del(key).Err()
+				if e != nil {
+					fmt.Printf("Couldn't delete key %v", key)
+				}
+			}
 		}
 	}
 }
 
-/* Prepares the database in Redis Server. */
-func prepareDb() {
-	rclient = getConfigDbClient()
-	if rclient == nil {
-		fmt.Printf("error in getConfigDbClient")
-		return
-	}
+/* Prepares the database clients in Redis Server. */
+func prepareDb() bool {
 
 	rclientDBNum = make(map[db.DBNum]*redis.Client)
 	/*Add redis client for specific DB as and how needed*/
 	rclientDBNum[db.CountersDB] = getDbClient(int(db.CountersDB))
 	if rclientDBNum[db.CountersDB] == nil {
 		fmt.Printf("error in getDbClient(int(db.CountersDB)")
-		return
+		return false
 	}
 	rclientDBNum[db.ConfigDB] = getDbClient(int(db.ConfigDB))
 	if rclientDBNum[db.ConfigDB] == nil {
 		fmt.Printf("error in getDbClient(int(db.ConfigDB)")
-		return
+		return false
 	}
+	rclient = rclientDBNum[db.ConfigDB]
 
+	return true
 }
 
 // setups state each of the tests uses
 func setup() error {
 	fmt.Println("----- Performing setup -----")
 	var err error
-	if ygSchema, err = ocbinds.Schema(); err != nil {
+	if ygSchema, err = ocbinds.GetSchema(); err != nil {
 		panic("Error in getting the schema: " + err.Error())
 		return err
-        }
+	}
 
 	if err := initDbConfig(); err != nil {
 		return err
 	}
 
+	/* Prepare the Redis database clients. */
+	if !prepareDb() {
+		return fmt.Errorf("Failure in setting up Redis DB client.")
+	}
+
 	//Clear all tables which are used for testing
 	clearDb()
-
-	/* Prepare the Redis database. */
-	prepareDb()
 
 	return nil
 }
 
 func teardown() error {
-	if rclient == nil {
-		return nil
-	}
-
 	fmt.Println("----- Performing teardown -----")
 	clearDb()
-	rclient.Close()
-	rclient.FlushDB()
 	for dbNum := range rclientDBNum {
 		if rclientDBNum[dbNum] != nil {
 			rclientDBNum[dbNum].Close()
-			rclientDBNum[dbNum].FlushDB()
 		}
 	}
 
@@ -262,10 +221,6 @@ func unloadDB(dbNum db.DBNum, mpi map[string]interface{}) {
 
 }
 
-func getConfigDbClient() *redis.Client {
-	return getDbClient(int(db.ConfigDB))
-}
-
 func getDbClient(dbNum int) *redis.Client {
 	addr := "localhost:6379"
 	pass := ""
@@ -277,7 +232,7 @@ func getDbClient(dbNum int) *redis.Client {
 		dbi := dbConfig.Instances[d["instance"].(string)]
 		addr = fmt.Sprintf("%v:%v", dbi["hostname"], dbi["port"])
 		if p, ok := dbi["password_path"].(string); ok {
-			pwd, _ := ioutil.ReadFile(p) 
+			pwd, _ := ioutil.ReadFile(p)
 			pass = string(pwd)
 		}
 		break
@@ -296,4 +251,3 @@ func getDbClient(dbNum int) *redis.Client {
 	}
 	return rclient
 }
-
