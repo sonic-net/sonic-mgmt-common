@@ -33,7 +33,7 @@ import (
 	"github.com/openconfig/ygot/ytypes"
 )
 
-var ocbSch, _ = ocbinds.Schema()
+var ocbSch, _ = ocbinds.GetSchema()
 
 /* Fill redis-db map with field & value info */
 func dataToDBMapAdd(tableName string, dbKey string, result map[string]map[string]db.Value, field string, value string) {
