@@ -112,7 +112,7 @@ func loadYangModules(files ...string) error {
 		yang.AddPath(expanded...)
 	}
 
-	ygSchema, err := ocbinds.Schema()
+	ygSchema, err := ocbinds.GetSchema()
 	if err != nil {
 		panic("Error in getting the schema: " + err.Error())
 	}
