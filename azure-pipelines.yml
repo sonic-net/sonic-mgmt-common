@@ -56,7 +56,7 @@ stages:
 
     - script: |
         ls -l
-        dpkg-buildpackage -rfakeroot -us -uc -b -j$(nproc) && cp ../*.deb .
+        INCLUDE_TEST_MODELS=y dpkg-buildpackage -rfakeroot -us -uc -b -j$(nproc) && cp ../*.deb .
       displayName: "Build"
 
     - publish: $(System.DefaultWorkingDirectory)/

@@ -73,8 +73,7 @@ func TestMain(t *testing.M) {
 		os.Exit(1)
 	}
 	defer teardown()
-	tRunRet := t.Run()
-	os.Exit(tRunRet)
+	os.Exit(t.Run())
 }
 
 func initDbConfig() error {

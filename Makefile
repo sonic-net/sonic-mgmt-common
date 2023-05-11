@@ -69,14 +69,14 @@ translib-clean:
 	$(MAKE) -C ./translib clean
 
 transformer-test:
-ifeq ($(NO_TEST_BINS),)
+ifdef INCLUDE_TEST_MODELS
 	cp ./translib/transformer/test/*test-xfmr-annot.yang models/yang/annotations/.
 	cp ./translib/transformer/test/openconfig-test-xfmr.yang models/yang/.
 	cp ./translib/transformer/test/sonic-test-xfmr.yang models/yang/sonic/.
 endif
 
 transformer-test-clean:
-ifeq ($(NO_TEST_BINS),)
+ifdef INCLUDE_TEST_MODELS
 	$(RM) ./models/yang/annotations/*test*.yang
 	$(RM) ./models/yang/*test*.yang
 	$(RM) ./models/yang/sonic/*test*.yang
