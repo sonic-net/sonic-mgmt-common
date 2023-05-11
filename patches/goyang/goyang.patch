@@ -1,20 +1,6 @@
-diff --git a/README.md b/README.md
-index 4d22c1e..805adb5 100644
---- a/README.md
-+++ b/README.md
-@@ -14,6 +14,7 @@ The forms include:
- 
- *  tree - a simple tree representation
- *  types - list understood types extracted from the schema
-+*  annotate - a template file to annotate the yang modules
- 
- The yang package, and the goyang program, are not complete and are a work in
- progress.
-diff --git a/annotate.go b/annotate.go
-new file mode 100644
-index 0000000..286a29c
---- /dev/null
-+++ b/annotate.go
+diff -ruN goyang-dir-orig/annotate.go goyang-dir/annotate.go
+--- goyang-dir-orig/annotate.go	1969-12-31 16:00:00.000000000 -0800
++++ goyang-dir/annotate.go	2022-01-17 23:55:14.303340837 -0800
 @@ -0,0 +1,395 @@
 +// Copyright 2015 Google Inc.
 +//
@@ -411,11 +397,25 @@ index 0000000..286a29c
 +        }
 +}
 +
-diff --git a/pkg/yang/entry.go b/pkg/yang/entry.go
-index dfd4525..cdf6eb1 100644
---- a/pkg/yang/entry.go
-+++ b/pkg/yang/entry.go
-@@ -29,6 +29,7 @@ import (
+diff -ruN goyang-dir-orig/pkg/yang/ast.go goyang-dir/pkg/yang/ast.go
+--- goyang-dir-orig/pkg/yang/ast.go	2022-01-17 23:53:09.174875206 -0800
++++ goyang-dir/pkg/yang/ast.go	2022-01-18 14:03:49.606900799 -0800
+@@ -391,6 +391,11 @@
+ 			descend(name, f.Type)
+ 
+ 			fn = func(s *Statement, v, p reflect.Value) error {
++				if s.Keyword == "yang-version" ||
++					s.Keyword == "import" {
++					// unset for optimization
++					return nil
++				}
+ 				if v.Type() != at {
+ 					panic(fmt.Sprintf("given type %s, need type %s", v.Type(), at))
+ 				}
+diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
+--- goyang-dir-orig/pkg/yang/entry.go	2022-01-17 23:53:09.174875206 -0800
++++ goyang-dir/pkg/yang/entry.go	2022-01-18 15:32:08.428212781 -0800
+@@ -29,6 +29,7 @@
  	"sort"
  	"strconv"
  	"strings"
@@ -423,35 +423,49 @@ index dfd4525..cdf6eb1 100644
  
  	"github.com/openconfig/goyang/pkg/indent"
  )
-@@ -80,6 +81,7 @@ type Entry struct {
+@@ -79,8 +80,9 @@
+ 	Mandatory   TriState  `json:",omitempty"` // whether this entry is mandatory in the tree
  
  	// Fields associated with directory nodes
- 	Dir map[string]*Entry `json:",omitempty"`
-+	DirOKeys    []string  // Ordered Keys list in Dir
- 	Key string            `json:",omitempty"` // Optional key name for lists (i.e., maps)
+-	Dir map[string]*Entry `json:",omitempty"`
+-	Key string            `json:",omitempty"` // Optional key name for lists (i.e., maps)
++	Dir      map[string]*Entry `json:",omitempty"`
++	DirOKeys []string          // Ordered Keys list in Dir
++	Key      string            `json:",omitempty"` // Optional key name for lists (i.e., maps)
  
  	// Fields associated with leaf nodes
-@@ -115,6 +117,11 @@ type Entry struct {
+ 	Type *YangType    `json:",omitempty"`
+@@ -115,6 +117,11 @@
  	// the augmenting entity per RFC6020 Section 7.15.2. The namespace
  	// of the Entry should be accessed using the Namespace function.
  	namespace *Value
 +
 +	ChildSchemaCache map[reflect.StructTag]*Entry `json:"-"`
-+	ChildSchemaMutex sync.RWMutex `json:"-"`
-+	
++	ChildSchemaMutex sync.RWMutex                 `json:"-"`
++
 +	IsSchemaValidated bool `json:"-"`
  }
  
  // An RPCEntry contains information related to an RPC Node.
-@@ -264,6 +271,7 @@ func newDirectory(n Node) *Entry {
+@@ -262,11 +269,12 @@
+ // newDirectory returns an empty directory Entry.
+ func newDirectory(n Node) *Entry {
  	return &Entry{
- 		Kind:  DirectoryEntry,
- 		Dir:   make(map[string]*Entry),
+-		Kind:  DirectoryEntry,
+-		Dir:   make(map[string]*Entry),
+-		Node:  n,
+-		Name:  n.NName(),
+-		Extra: map[string][]interface{}{},
++		Kind:     DirectoryEntry,
++		Dir:      make(map[string]*Entry),
 +		DirOKeys: make([]string, 0),
- 		Node:  n,
- 		Name:  n.NName(),
- 		Extra: map[string][]interface{}{},
-@@ -360,6 +368,7 @@ func (e *Entry) add(key string, value *Entry) *Entry {
++		Node:     n,
++		Name:     n.NName(),
++		Extra:    map[string][]interface{}{},
+ 	}
+ }
+ 
+@@ -360,6 +368,7 @@
  		return e
  	}
  	e.Dir[key] = value
@@ -459,7 +473,35 @@ index dfd4525..cdf6eb1 100644
  	return e
  }
  
-@@ -999,7 +1008,7 @@ func (e *Entry) ApplyDeviate() []error {
+@@ -540,6 +549,7 @@
+ 		e.Config, err = tristateValue(s.Config)
+ 		e.addError(err)
+ 		e.Prefix = getRootPrefix(e)
++		e.Description = ""
+ 		return e
+ 	case *LeafList:
+ 		// Create the equivalent leaf element that we are a list of.
+@@ -567,6 +577,7 @@
+ 			OrderedBy:   s.OrderedBy,
+ 		}
+ 		e.Prefix = getRootPrefix(e)
++		e.Description = ""
+ 		return e
+ 	case *Uses:
+ 		g := FindGrouping(s, s.Name, map[string]bool{})
+@@ -932,6 +943,11 @@
+ 		e.Prefix = getRootPrefix(e)
+ 	}
+ 
++	// unset for optimization
++	e.Description = ""
++	e.Extra = nil
++	e.Augmented = nil
++
+ 	return e
+ }
+ 
+@@ -999,7 +1015,7 @@
  					}
  
  					if devSpec.Default != "" {
@@ -468,7 +510,7 @@ index dfd4525..cdf6eb1 100644
  					}
  
  					if devSpec.Mandatory != TSUnset {
-@@ -1082,6 +1091,7 @@ func (e *Entry) FixChoice() {
+@@ -1082,6 +1098,7 @@
  				}
  				ce.Parent = ne
  				e.Dir[k] = ne
@@ -476,37 +518,37 @@ index dfd4525..cdf6eb1 100644
  			}
  		}
  	}
-@@ -1252,6 +1262,14 @@ func (e *Entry) shallowDup() *Entry {
+@@ -1252,6 +1269,14 @@
  	// copied we will have to explicitly uncopy them.
  	ne := *e
  
-+       //Copy the ordered Dir keys to new entry
-+        if len(e.DirOKeys) > 0 {
-+            ne.DirOKeys = make([]string, 0)
-+	    for _, key := range e.DirOKeys {
-+                ne.DirOKeys = append(ne.DirOKeys, key)
-+            }
++	//Copy the ordered Dir keys to new entry
++	if len(e.DirOKeys) > 0 {
++		ne.DirOKeys = make([]string, 0)
++		for _, key := range e.DirOKeys {
++			ne.DirOKeys = append(ne.DirOKeys, key)
++		}
 +	}
 +
  	// Now only copy direct children, clear their Dir, and fix up
  	// Parent pointers.
  	if e.Dir != nil {
-@@ -1275,6 +1293,14 @@ func (e *Entry) dup() *Entry {
+@@ -1275,6 +1300,14 @@
  	// to do that.
  	ne := *e
  
-+       //Copy the ordered Dir keys to new entry
-+        if len(e.DirOKeys) > 0 {
-+            ne.DirOKeys = make([]string, 0)
-+            for _, key := range e.DirOKeys {
-+                ne.DirOKeys = append(ne.DirOKeys, key)
-+            }
-+        }
++	//Copy the ordered Dir keys to new entry
++	if len(e.DirOKeys) > 0 {
++		ne.DirOKeys = make([]string, 0)
++		for _, key := range e.DirOKeys {
++			ne.DirOKeys = append(ne.DirOKeys, key)
++		}
++	}
 +
  	// Now recurse down to all of our children, fixing up Parent
  	// pointers as we go.
  	if e.Dir != nil {
-@@ -1310,6 +1336,7 @@ func (e *Entry) merge(prefix *Value, namespace *Value, oe *Entry) {
+@@ -1310,6 +1343,7 @@
  			v.Parent = e
  			v.Exts = append(v.Exts, oe.Exts...)
  			e.Dir[k] = v
@@ -514,7 +556,7 @@ index dfd4525..cdf6eb1 100644
  		}
  	}
  }
-@@ -1371,8 +1398,8 @@ func (s sortedErrors) Less(i, j int) bool {
+@@ -1371,8 +1405,8 @@
  		}
  		return nless(fi[x], fj[x])
  	}
@@ -525,10 +567,9 @@ index dfd4525..cdf6eb1 100644
  		case -1:
  			return true
  		case 1:
-diff --git a/pkg/yang/types.go b/pkg/yang/types.go
-index 307610a..ffb59a6 100644
---- a/pkg/yang/types.go
-+++ b/pkg/yang/types.go
+diff -ruN goyang-dir-orig/pkg/yang/types.go goyang-dir/pkg/yang/types.go
+--- goyang-dir-orig/pkg/yang/types.go	2022-01-17 23:53:09.174875206 -0800
++++ goyang-dir/pkg/yang/types.go	2022-01-17 23:55:14.303340837 -0800
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -539,7 +580,7 @@ index 307610a..ffb59a6 100644
  package yang
  
  // This file implements the functions relating to types and typedefs.
-@@ -69,6 +72,12 @@ func (d *typeDictionary) findExternal(n Node, prefix, name string) (*Typedef, er
+@@ -69,6 +72,12 @@
  	}
  	if td := d.find(root, name); td != nil {
  		return td, nil
@@ -552,11 +593,21 @@ index 307610a..ffb59a6 100644
  	}
  	if prefix != "" {
  		name = prefix + ":" + name
-diff --git a/yang.go b/yang.go
-index 2480a4e..515d1b3 100644
---- a/yang.go
-+++ b/yang.go
-@@ -58,6 +58,7 @@ import (
+diff -ruN goyang-dir-orig/README.md goyang-dir/README.md
+--- goyang-dir-orig/README.md	2022-01-17 23:53:09.174875206 -0800
++++ goyang-dir/README.md	2022-01-17 23:55:14.303340837 -0800
+@@ -14,6 +14,7 @@
+ 
+ *  tree - a simple tree representation
+ *  types - list understood types extracted from the schema
++*  annotate - a template file to annotate the yang modules
+ 
+ The yang package, and the goyang program, are not complete and are a work in
+ progress.
+diff -ruN goyang-dir-orig/yang.go goyang-dir/yang.go
+--- goyang-dir-orig/yang.go	2022-01-17 23:53:09.174875206 -0800
++++ goyang-dir/yang.go	2022-01-17 23:55:14.303340837 -0800
+@@ -58,6 +58,7 @@
  type formatter struct {
  	name  string
  	f     func(io.Writer, []*yang.Entry)
@@ -564,7 +615,7 @@ index 2480a4e..515d1b3 100644
  	help  string
  	flags *getopt.Set
  }
-@@ -208,5 +209,8 @@ Formats:
+@@ -208,5 +209,8 @@
  		entries[x] = yang.ToEntry(mods[n])
  	}
  
