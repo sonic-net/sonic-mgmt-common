@@ -16,8 +16,8 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-//go:build test
-// +build test
+//go:build xfmrtest
+// +build xfmrtest
 
 
 package transformer

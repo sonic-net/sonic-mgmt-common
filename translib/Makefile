@@ -51,7 +51,7 @@ $(TRANSL_DB_TEST_BIN) : $(TRANSL_DB_ALL_SRCS)
 	$(GO) test -mod=vendor -cover -c ../translib/db -o $@
 
 $(TRANSFORMER_TEST_BIN): $(TRANSFORMER_TEST_SRCS) $(TRANSFORMER_SRCS) $(TRANSLIB_MAIN_SRCS) $(YGOT_BINDS)
-	$(GO) test -mod=vendor -tags test -c -vet=off -cover -coverpkg=../translib/transformer ../translib/transformer -o $@
+	$(GO) test -mod=vendor -tags xfmrtest -c -vet=off -cover -coverpkg=../translib/transformer ../translib/transformer -o $@
 
 $(YGOT_BINDS): $(YANG_FILES)
 	$(RM) $@
