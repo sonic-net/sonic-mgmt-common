@@ -51,7 +51,7 @@ func init() {
 func initSchema() {
 	log.Flush()
 	var err error
-	if ygSchema, err = ocbinds.Schema(); err != nil {
+	if ygSchema, err = ocbinds.GetSchema(); err != nil {
 		panic("Error in getting the schema: " + err.Error())
 	}
 }
