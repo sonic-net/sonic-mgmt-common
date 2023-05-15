@@ -104,7 +104,7 @@ func (scnr *fieldScanner) scan(sc *ScanCursor, countHint int64) ([]string, uint6
 //  Exported Functions                                                        //
 ////////////////////////////////////////////////////////////////////////////////
 
-// NewScanCursor Factory method to create ScanCursor; Scan cursor will not be supported only for write enabled DB
+// NewScanCursor Factory method to create ScanCursor; Scan cursor will not be supported for write enabled DB.
 func (d *DB) NewScanCursor(ts *TableSpec, pattern Key, scOpts *ScanCursorOpts) (*ScanCursor, error) {
 	if glog.V(3) {
 		glog.Info("NewScanCursor: Begin: ts: ", ts, " pattern: ", pattern,
@@ -123,7 +123,6 @@ func (d *DB) NewScanCursor(ts *TableSpec, pattern Key, scOpts *ScanCursorOpts) (
 
 	// If pseudoDB then return not supported. Return NotSupport above too. TBD.
 
-	var e error
 	var countHint int64 = 10
 	scnType := KeyScanType // default is key scanner
 
@@ -162,7 +161,7 @@ func (d *DB) NewScanCursor(ts *TableSpec, pattern Key, scOpts *ScanCursorOpts) (
 	if glog.V(3) {
 		glog.Info("NewScanCursor: End: scanCursor: ", scanCursor, e)
 	}
-	return &scanCursor, e
+	return &scanCursor, nil
 }
 
 // DeleteScanCursor Gently release state/cache of ScanCursor
