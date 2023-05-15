@@ -159,7 +159,7 @@ func (d *DB) NewScanCursor(ts *TableSpec, pattern Key, scOpts *ScanCursorOpts) (
 	}
 
 	if glog.V(3) {
-		glog.Info("NewScanCursor: End: scanCursor: ", scanCursor, e)
+		glog.Info("NewScanCursor: End: scanCursor: ", scanCursor)
 	}
 	return &scanCursor, nil
 }
