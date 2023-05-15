@@ -26,6 +26,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -91,28 +92,29 @@ func (pv *pathValidator) getYangSchema() (*yang.Entry, error) {
 		if log.V(4) {
 			log.Info("getYangSchema: ygot object name: ", objName)
 		}
-		if ygSchema := ocbinds.SchemaTree[objName]; ygSchema == nil {
-			log.Warningf("error: ygot object name %v not found in the schema for the given path: %v", objName, pv.gPath)
-			return ygSchema, fmt.Errorf("invalid path %v", pv.gPath)
-		} else {
-			if log.V(4) {
-				log.Infof("getYangSchema: found schema: %v for the field: %v", ygSchema.Name, *pv.sField)
-			}
-			return ygSchema, nil
-		}
-	} else {
-		ygSchema, err := util.ChildSchema(pv.parentSchema, *pv.sField)
-		if err != nil {
-			return nil, err
-		}
+		ygSchema := ocbinds.SchemaTree[objName]
 		if ygSchema == nil {
-			return nil, fmt.Errorf("could not find schema for the field name %s", pv.sField.Name)
+			log.Warningf("error: ygot object name %v not found in the schema for the given path: %v", objName, pv.gPath)
+			return ygSchema, tlerr.NotFoundError{Format: fmt.Sprintf("invalid path %v", pv.gPath)}
 		}
 		if log.V(4) {
-			log.Infof("getYangSchema:ChildSchema - found schema: %v for the field: %v", ygSchema.Name, *pv.sField)
+			log.Infof("getYangSchema: found schema: %v for the field: %v", ygSchema.Name, *pv.sField)
 		}
 		return ygSchema, nil
 	}
+
+	ygSchema, err := util.ChildSchema(pv.parentSchema, *pv.sField)
+	if err != nil {
+		return nil, err
+	}
+	if ygSchema == nil {
+		return nil, fmt.Errorf("could not find schema for the field name %s", pv.sField.Name)
+	}
+	if log.V(4) {
+		log.Infof("getYangSchema:ChildSchema - found schema: %v for the field: %v", ygSchema.Name, *pv.sField)
+	}
+
+	return ygSchema, nil
 }
 
 func (pv *pathValidator) getStructField(nodeName string) *reflect.StructField {
@@ -163,19 +165,18 @@ func (pv *pathValidator) validatePath() error {
 			}
 		}
 
-		if sField := pv.getStructField(nodeName); sField == nil {
+		pv.sField = pv.getStructField(nodeName)
+		if pv.sField == nil {
 			return fmt.Errorf("Node %v not found in the given gnmi path %v: ", pathElem.Name, pv.gPath)
-		} else {
-			pv.sField = sField
 		}
 
 		ygModName := pv.getModuleName()
 		if len(ygModName) == 0 {
 			return fmt.Errorf("Module name not found for the node %v in the given gnmi path %v: ", pathElem.Name, pv.gPath)
-		} else {
-			if log.V(4) {
-				log.Infof("validatePath: module name: %v found for the node %v: ", ygModName, pathElem.Name)
-			}
+		}
+
+		if log.V(4) {
+			log.Infof("validatePath: module name: %v found for the node %v: ", ygModName, pathElem.Name)
 		}
 
 		if len(modName) > 0 {
@@ -264,25 +265,26 @@ func (pv *pathValidator) validateListKeyValues(schema *yang.Entry, gPath *gnmi.P
 	if log.V(4) {
 		log.Infof("validateListKeyValues: schema name: %v, and parent ygot type name: %v: ", schema.Name, sVal.Elem().Type().Name())
 	}
-	if objIntf, _, err := ytypes.GetOrCreateNode(schema, pv.parentIntf, gPath); err != nil {
+	objIntf, _, err := ytypes.GetOrCreateNode(schema, pv.parentIntf, gPath)
+	if err != nil {
 		log.Warningf("error in GetOrCreateNode: %v", err)
 		return fmt.Errorf("Invalid key present in the node path: %v", gPath)
-	} else {
-		if log.V(4) {
-			log.Infof("validateListKeyValues: objIntf: %v", reflect.ValueOf(objIntf).Elem())
-		}
-		if ygotStruct, ok := objIntf.(ygot.ValidatedGoStruct); ok {
-			if log.V(4) {
-				pretty.Print(ygotStruct)
-			}
-			if err := ygotStruct.Validate(&ytypes.LeafrefOptions{IgnoreMissingData: true}); err != nil {
-				log.Warningf("error in ValidatedGoStruct.Validate: %v", err)
-				return fmt.Errorf("Invalid key present in the node path: %v", gPath)
-			}
-		} else {
-			log.Warningf("could not validate the gnmi path: %v since casting to ValidatedGoStruct fails", gPath)
-			return fmt.Errorf("Invalid key present in the node path: %v", gPath)
-		}
+	}
+	if log.V(4) {
+		log.Infof("validateListKeyValues: objIntf: %v", reflect.ValueOf(objIntf).Elem())
+	}
+
+	ygotStruct, ok := objIntf.(ygot.ValidatedGoStruct)
+	if !ok {
+		log.Warningf("could not validate the gnmi path: %v since casting to ValidatedGoStruct fails", gPath)
+		return fmt.Errorf("Invalid key present in the node path: %v", gPath)
+	}
+	if log.V(4) {
+		pretty.Print(ygotStruct)
+	}
+	if err := ygotStruct.Validate(&ytypes.LeafrefOptions{IgnoreMissingData: true}); err != nil {
+		log.Warningf("error in ValidatedGoStruct.Validate: %v", err)
+		return fmt.Errorf("Invalid key present in the node path: %v", gPath)
 	}
 	return nil
 }
