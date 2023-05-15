@@ -105,10 +105,10 @@ func (pv *pathValidator) getYangSchema() (*yang.Entry, error) {
 
 	ygSchema, err := util.ChildSchema(pv.parentSchema, *pv.sField)
 	if err != nil {
-		return nil, err
+		return nil, tlerr.NotFoundError{Format: fmt.Sprintf("invalid path %v; could not find schema for the field name: %v", pv.gPath, err)}
 	}
 	if ygSchema == nil {
-		return nil, fmt.Errorf("could not find schema for the field name %s", pv.sField.Name)
+		return nil, tlerr.NotFoundError{Format: fmt.Sprintf("invalid path %v; could not find schema for the field name: %s", pv.gPath, pv.sField.Name)}
 	}
 	if log.V(4) {
 		log.Infof("getYangSchema:ChildSchema - found schema: %v for the field: %v", ygSchema.Name, *pv.sField)
@@ -250,11 +250,11 @@ func (pv *pathValidator) validatePath() error {
 func (pv *pathValidator) validateListKeyNames(ygSchema *yang.Entry, keysMap map[string]bool, pathIdx int) error {
 	keyNames := strings.Fields(ygSchema.Key)
 	if len(keyNames) != len(keysMap) {
-		return fmt.Errorf("Invalid key names since number of keys present in the node: %v does not match with the given keys", ygSchema.Name)
+		return tlerr.NotFoundError{Format: fmt.Sprintf("Invalid key names since number of keys present in the node: %v does not match with the given keys", ygSchema.Name)}
 	}
 	for _, kn := range keyNames {
 		if !keysMap[kn] {
-			return fmt.Errorf("Invalid key name: %v in the list node path: %v", pv.gPath.Elem[pathIdx].Key, pv.gPath.Elem[pathIdx].Name)
+			return tlerr.NotFoundError{Format: fmt.Sprintf("Invalid key name: %v in the list node path: %v", pv.gPath.Elem[pathIdx].Key, pv.gPath.Elem[pathIdx].Name)}
 		}
 	}
 	return nil
@@ -268,7 +268,7 @@ func (pv *pathValidator) validateListKeyValues(schema *yang.Entry, gPath *gnmi.P
 	objIntf, _, err := ytypes.GetOrCreateNode(schema, pv.parentIntf, gPath)
 	if err != nil {
 		log.Warningf("error in GetOrCreateNode: %v", err)
-		return fmt.Errorf("Invalid key present in the node path: %v", gPath)
+		return tlerr.NotFoundError{Format: fmt.Sprintf("Invalid key present in the node path: %v; error: %v", gPath, err)}
 	}
 	if log.V(4) {
 		log.Infof("validateListKeyValues: objIntf: %v", reflect.ValueOf(objIntf).Elem())
@@ -276,15 +276,17 @@ func (pv *pathValidator) validateListKeyValues(schema *yang.Entry, gPath *gnmi.P
 
 	ygotStruct, ok := objIntf.(ygot.ValidatedGoStruct)
 	if !ok {
-		log.Warningf("could not validate the gnmi path: %v since casting to ValidatedGoStruct fails", gPath)
-		return fmt.Errorf("Invalid key present in the node path: %v", gPath)
+		errStr := fmt.Sprintf("could not validate the gnmi path: %v since casting to ValidatedGoStruct fails", gPath)
+		log.Warningf(errStr)
+		return tlerr.NotFoundError{Format: fmt.Sprintf("Invalid key present in the node path: %v; error: %s", gPath, errStr)}
 	}
 	if log.V(4) {
 		pretty.Print(ygotStruct)
 	}
 	if err := ygotStruct.Validate(&ytypes.LeafrefOptions{IgnoreMissingData: true}); err != nil {
-		log.Warningf("error in ValidatedGoStruct.Validate: %v", err)
-		return fmt.Errorf("Invalid key present in the node path: %v", gPath)
+		errStr := fmt.Sprintf("error in ValidatedGoStruct.Validate: %v", err)
+		log.Warningf(errStr)
+		return tlerr.NotFoundError{Format: fmt.Sprintf("Invalid key present in the node path: %v; error: %s", gPath, errStr)}
 	}
 	return nil
 }

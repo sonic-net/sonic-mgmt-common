@@ -103,53 +103,59 @@ func TestValidatePath(t *testing.T) {
 
 	pathValdtor := NewPathValidator(&(AppendModulePrefix{}), &(AddWildcardKeys{}))
 	for _, tt := range tests {
-		if gPath, err := ygot.StringToPath(tt.path, ygot.StructuredPath); err != nil {
+		gPath, err := ygot.StringToPath(tt.path, ygot.StructuredPath)
+		if err != nil {
 			t.Error("Error in uri to path conversion: ", err)
 			break
-		} else {
-			pathValdtor.init(gPath)
-			if err := pathValdtor.validatePath(); err != nil {
-				if !strings.HasPrefix(err.Error(), tt.errPrefix) {
-					t.Errorf("Testcase %v failed; error: %v", tt.tid, err)
-				}
-			} else if resPath, err := ygot.PathToString(gPath); resPath != tt.resPath {
-				t.Errorf("Testcase %v failed; error: %v; result path: %v", tt.tid, err, resPath)
+		}
+		pathValdtor.init(gPath)
+		err = pathValdtor.validatePath()
+		if err != nil {
+			if !strings.HasPrefix(err.Error(), tt.errPrefix) {
+				t.Errorf("Testcase %v failed; error: %v", tt.tid, err)
 			}
+			return
+		}
+		if resPath, err := ygot.PathToString(gPath); resPath != tt.resPath {
+			t.Errorf("Testcase %v failed; error: %v; result path: %v", tt.tid, err, resPath)
 		}
 	}
 }
 
 func BenchmarkValidatePath1(b *testing.B) {
 	pathValdtor := NewPathValidator(&(AppendModulePrefix{}), &(AddWildcardKeys{}))
-	if gPath, err := ygot.StringToPath("/openconfig-tam:tam/flowgroups/flowgroup[name=*]/config/priority", ygot.StructuredPath); err != nil {
+	gPath, err := ygot.StringToPath("/openconfig-tam:tam/flowgroups/flowgroup[name=*]/config/priority", ygot.StructuredPath)
+	if err != nil {
 		b.Error("Error in uri to path conversion: ", err)
-	} else {
-		for i := 0; i < b.N; i++ {
-			pathValdtor.Validate(gPath)
-		}
+		return
+	}
+	for i := 0; i < b.N; i++ {
+		pathValdtor.Validate(gPath)
 	}
 }
 
 func BenchmarkValidatePath2(b *testing.B) {
 	pathValdtor := NewPathValidator(&(AppendModulePrefix{}), &(AddWildcardKeys{}))
-	if gPath, err := ygot.StringToPath("/openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/addresses/address[ip=*]/state", ygot.StructuredPath); err != nil {
+	gPath, err := ygot.StringToPath("/openconfig-interfaces:interfaces/interface[name=*]/subinterfaces/subinterface[index=*]/openconfig-if-ip:ipv6/addresses/address[ip=*]/state", ygot.StructuredPath)
+	if err != nil {
 		b.Error("Error in uri to path conversion: ", err)
-	} else {
-		for i := 0; i < b.N; i++ {
-			pathValdtor.Validate(gPath)
-		}
+		return
+	}
+	for i := 0; i < b.N; i++ {
+		pathValdtor.Validate(gPath)
 	}
 }
 
 func BenchmarkValidatePath3(b *testing.B) {
 	pathValdtor := NewPathValidator(&(AppendModulePrefix{}), &(AddWildcardKeys{}))
-	if gPath, err := ygot.StringToPath("/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=*][name=*]"+
+	gPath, err := ygot.StringToPath("/openconfig-network-instance:network-instances/network-instance[name=*]/protocols/protocol[identifier=*][name=*]"+
 		"/ospfv2/areas/area[identifier=*]/lsdb/lsa-types/lsa-type[type=*]/lsas/lsa-ext[link-state-id=*][advertising-router=*]"+
-		"/opaque-lsa/extended-prefix/tlvs/tlv/sid-label-binding/tlvs/tlv/ero-path/segments/segment/unnumbered-hop/state/router-id", ygot.StructuredPath); err != nil {
+		"/opaque-lsa/extended-prefix/tlvs/tlv/sid-label-binding/tlvs/tlv/ero-path/segments/segment/unnumbered-hop/state/router-id", ygot.StructuredPath)
+	if err != nil {
 		b.Error("Error in uri to path conversion: ", err)
-	} else {
-		for i := 0; i < b.N; i++ {
-			pathValdtor.Validate(gPath)
-		}
+		return
+	}
+	for i := 0; i < b.N; i++ {
+		pathValdtor.Validate(gPath)
 	}
 }
