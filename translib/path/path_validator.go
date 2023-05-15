@@ -80,7 +80,6 @@ func (pv *pathValidator) Validate(gPath *gnmi.Path) error {
 	pv.init(gPath)
 	if pv.err = pv.validatePath(); pv.err != nil {
 		log.Warningf("error in validating the path: ", pv.err)
-		return pv.err
 	}
 	return pv.err
 }
@@ -137,7 +136,10 @@ func (pv *pathValidator) getStructField(nodeName string) *reflect.StructField {
 }
 
 func (pv *pathValidator) getModuleName() string {
-	modName, _ := pv.sField.Tag.Lookup("module")
+	modName, ok := pv.sField.Tag.Lookup("module")
+	if !ok {
+		modName = ""
+	}
 	return modName
 }
 
