@@ -25,9 +25,13 @@ module sonic-extensions {
 
   revision "2019-07-26" {
     description
-      "Add extensionis for redis DB mappings for table, table-keys, table-fields and corresponding transformer methods.";
+      "Add extensions for redis DB mappings for table, table-keys, table-fields and corresponding transformer methods.";
   }
 
+  revision "2023-05-20" {
+    description
+      "Add extensions for pre transformer, virtual table support, rpc-callback, cascade-delete, value-transformer, table-owner ";
+  }
 
   // extension statements
   extension table-name {
@@ -84,5 +88,35 @@ module sonic-extensions {
     argument "table-transformer-name";
     description "Db table transformer name.This can be applied to either transform yang value to some different format
                  or choose a specific DB table based on the type.";
+  }
+
+  extension cascade-delete {
+    argument "cascade-delete";
+    description "Cascade delete extension";
+  }
+
+  extension rpc-callback {
+    argument "callback";
+    description "RPC callback to be invoked for action";
+  }
+
+  extension value-transformer {
+    argument "value-transformer-name";
+    description "Db table field/key value transformer name. This can be applied to transform yang value to some different format.";
+  }
+
+  extension table-owner {
+    argument "table-owner-flag";
+    description "Owner of the redis-db table.";
+  }
+
+  extension virtual-table {
+    argument "virtual-table-flag";
+    description "Table not present in redis-db.";
+  }
+
+  extension pre-transformer {
+	  argument "pre-transformer-name";
+	  description "Transformer name that will perform pre-translation tasks.";
   }
 }
