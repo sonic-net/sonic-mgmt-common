@@ -288,7 +288,7 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 								continue
 							}
 							if len(curKey) == 0 { //at list level key should always be there
-								xfmrLogInfoAll("No key avaialble for uri - %v", curUri)
+								xfmrLogInfoAll("No key available for uri - %v", curUri)
 								continue
 							}
 							if chldYangType == YANG_LEAF && chldSpec.isKey {
