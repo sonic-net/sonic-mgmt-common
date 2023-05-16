@@ -258,7 +258,6 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 								}
 							}
 						}
-
 					} // end of if isFirstCall
 				} // end if !subtree case
 				xfmrLogDebug("For URI - %v , table-owner - %v, fillFields - %v", curUri, tblOwner, fillFields)
@@ -297,7 +296,7 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 									continue
 								}
 								if len(curKey) == 0 { //at list level key should always be there
-									xfmrLogDebug("No key avaialble for URI - %v", curUri)
+									xfmrLogDebug("No key available for URI - %v", curUri)
 									continue
 								}
 								if chldYangType == YANG_LEAF && chldSpec.isKey {
