@@ -29,7 +29,7 @@ import (
 )
 
 func init() {
-	fmt.Println("+++++  Init acl_app_test  +++++")
+	initPortTableForACLTests()
 	addCleanupFunc("ACL", clearAclDataFromDb)
 }
 
@@ -357,6 +357,22 @@ func clearAclDataFromDb() error {
 		return err
 	}
 	return err
+}
+
+func initPortTableForACLTests() {
+	d := getConfigDb()
+	defer d.DeleteDB()
+	portTS := &db.TableSpec{Name: "PORT"}
+	for i, ifName := range []string{"Ethernet0", "Ethernet4"} {
+		v, err := d.GetEntry(portTS, asKey(ifName))
+		if isNotFoundError(err) {
+			v.Field = map[string]string{"admin_status": "up", "mtu": "9100", "speed": "4000", "alias": fmt.Sprintf("Eth1/%d", i)}
+			err = d.CreateEntry(portTS, asKey(ifName), v)
+		}
+		if err != nil {
+			panic(err.Error())
+		}
+	}
 }
 
 func Test_AclApp_Subscribe(t *testing.T) {
