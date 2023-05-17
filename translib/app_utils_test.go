@@ -20,7 +20,9 @@
 package translib
 
 import (
+	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -73,13 +75,28 @@ func TestMain(m *testing.M) {
 func processGetRequest(url string, expectedRespJson string, errorCase bool) func(*testing.T) {
 	return func(t *testing.T) {
 		response, err := Get(GetRequest{Path: url})
-		if err != nil && !errorCase {
+		switch {
+		case err != nil && !errorCase:
 			t.Fatalf("Error %v received for Url: %s", err, url)
+		case err == nil && errorCase:
+			t.Fatalf("GET %s did not return an error", url)
+		case errorCase:
+			return
 		}
 
 		respJson := response.Payload
-		if string(respJson) != expectedRespJson {
-			t.Fatalf("Response for Url: %s received is not expected:\n%s", url, string(respJson))
+
+		var jResponse, jExpected map[string]interface{}
+		if err := json.Unmarshal(respJson, &jResponse); err != nil {
+			t.Fatalf("invalid response json; err = %v\npayload = %s", err, respJson)
+		}
+		if err := json.Unmarshal([]byte(expectedRespJson), &jExpected); err != nil {
+			t.Fatalf("invalid expected json; err = %v", err)
+		}
+		if !reflect.DeepEqual(jResponse, jExpected) {
+			t.Errorf("GET %s returned invalid response", url)
+			t.Errorf("Expected: %s", expectedRespJson)
+			t.Fatalf("Received: %s", respJson)
 		}
 	}
 }
@@ -94,6 +111,8 @@ func processSetRequest(url string, jsonPayload string, oper string, errorCase bo
 			_, err = Update(SetRequest{Path: url, Payload: []byte(jsonPayload)})
 		case "PUT":
 			_, err = Replace(SetRequest{Path: url, Payload: []byte(jsonPayload)})
+		case "DELETE":
+			_, err = Delete(SetRequest{Path: url})
 		default:
 			t.Errorf("Operation not supported")
 		}

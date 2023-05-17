@@ -142,7 +142,8 @@ type SubscribeResponse struct {
 type NotificationType int
 
 const (
-	Sample NotificationType = iota
+	TargetDefined NotificationType = iota
+	Sample
 	OnChange
 )
 
