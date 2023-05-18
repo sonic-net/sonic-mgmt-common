@@ -1772,15 +1772,14 @@ func (app *AclApp) processSubscribe(req processSubRequest) (processSubResponse, 
 		path.SetKeyAt(resp.path, 2, "type", aclTypeStr)
 
 	case RULE_TABLE:
-		aclName, aclTypeStr := req.key.Get(0), ""
+		aclName := req.key.Get(0)
 		aclEntry, err := req.dbs[db.ConfigDB].GetEntry(&db.TableSpec{Name: ACL_TABLE}, asKey(aclName))
 		if err != nil {
 			return resp, err
-		} else {
-			_, aclTypeStr = convertSonicAclTypeToOC(aclEntry.Get(ACL_TYPE))
-			aclName = strings.TrimSuffix(aclName, "_"+aclTypeStr)
 		}
 
+		_, aclTypeStr := convertSonicAclTypeToOC(aclEntry.Get(ACL_TYPE))
+		aclName = strings.TrimSuffix(aclName, "_"+aclTypeStr)
 		path.SetKeyAt(resp.path, 2, "name", aclName)
 		path.SetKeyAt(resp.path, 2, "type", aclTypeStr)
 		path.SetKeyAt(resp.path, 4, "sequence-id", strings.TrimPrefix(req.key.Get(1), "RULE_"))

@@ -49,6 +49,7 @@ func TestHasWildcardKey(t *testing.T) {
 }
 
 func parsePath(t *testing.T, path string) *gnmi.Path {
+	t.Helper()
 	p, err := ygot.StringToStructuredPath(path)
 	if err != nil {
 		t.Fatalf("Invalid path: \"%v\". err=%v", path, err)
@@ -63,8 +64,7 @@ func testKeyWC(path string, exp bool) func(*testing.T) {
 			t.Errorf("StrHasWildcardKey failed for \"%s\"", path)
 		}
 		if HasWildcardKey(p) != exp {
-			t.Errorf("HasWildcardKey failed for \"%s\"", path)
-			t.Errorf("p=(%v)", p)
+			t.Errorf("HasWildcardKey failed for \"%v\"", p)
 		}
 	}
 }
@@ -81,10 +81,7 @@ func TestToString(t *testing.T) {
 
 func TestToString_invalid(t *testing.T) {
 	path := &gnmi.Path{
-		Elem: []*gnmi.PathElem{
-			&gnmi.PathElem{Name: "AA"},
-			&gnmi.PathElem{Name: ""},
-		},
+		Elem: []*gnmi.PathElem{{Name: "AA"}, {Name: ""}},
 	}
 
 	pstr := String(path)

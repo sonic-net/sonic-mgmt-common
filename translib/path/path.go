@@ -304,11 +304,7 @@ func Matches(path *gnmi.Path, template *gnmi.Path) bool {
 			return false
 		}
 		for k, tv := range t.Key {
-			if pv, ok := p.Key[k]; ok {
-				if tv != "*" && tv != pv {
-					return false
-				}
-			} else {
+			if pv, ok := p.Key[k]; !ok || (tv != "*" && tv != pv) {
 				return false
 			}
 		}

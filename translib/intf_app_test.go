@@ -217,7 +217,7 @@ func portStateNInfo(ifName, fieldsJson string) *notificationAppInfo {
 func portCountersNInfo(ifName string) *notificationAppInfo {
 	fieldPattern := ifName
 	if ifName == "*" {
-		fieldPattern = "Ethernet*"
+		fieldPattern = countersMapFieldPattern
 	}
 	return &notificationAppInfo{
 		dbno:                db.CountersDB,

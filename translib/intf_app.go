@@ -59,6 +59,10 @@ const (
 	PORT_OPER_STATUS  = "oper_status"
 )
 
+// intf_app supports physical ports only; hence consider only
+// "EthernetX" fields from COUNTERS_PORT_NAME_MAP
+const countersMapFieldPattern = "Ethernet*"
+
 type Table int
 
 const (
@@ -321,7 +325,7 @@ func (app *IntfApp) translateSubscribeIntfStats(nb *notificationInfoBuilder) err
 	name := nb.pathInfo.StringVar("name", "*")
 	fieldPattern := name
 	if name == "*" {
-		fieldPattern = "Ethernet*" // intf_app supports physical ports only
+		fieldPattern = countersMapFieldPattern
 	}
 	nb.New().Table(db.CountersDB, "COUNTERS_PORT_NAME_MAP").FieldScan(fieldPattern)
 	return nil
@@ -821,11 +825,11 @@ func (app *IntfApp) shouldLoad(p string) bool {
 
 /***********  Translation Helper fn to convert DB Interface info to Internal DS   ***********/
 func (app *IntfApp) getPortOidMapForCounters(dbCl *db.DB) error {
-	var err error
 	if !app.shouldLoad("/openconfig-interfaces:interfaces/interface{}/state/counters") {
-		return err
+		return nil
 	}
 
+	var err error
 	ifCountInfo, err := dbCl.GetMapAll(app.portOidCountrTblTs)
 	if err != nil {
 		log.Error("Port-OID (Counters) get for all the interfaces failed!")
@@ -840,11 +844,11 @@ func (app *IntfApp) getPortOidMapForCounters(dbCl *db.DB) error {
 }
 
 func (app *IntfApp) convertDBIntfCounterInfoToInternal(dbCl *db.DB, ifKey string) error {
-	var err error
 	if !app.shouldLoad("/openconfig-interfaces:interfaces/interface{}/state/counters") {
-		return err
+		return nil
 	}
 
+	var err error
 	if len(ifKey) > 0 {
 		oid := app.portOidMap.entry.Field[ifKey]
 		log.Infof("OID : %s received for Interface : %s", oid, ifKey)
@@ -919,11 +923,11 @@ func (app *IntfApp) convertDBIntfInfoToInternal(dbCl *db.DB, ifName string, ifKe
 
 /***********  Translation Helper fn to convert DB Interface IP info to Internal DS   ***********/
 func (app *IntfApp) convertDBIntfIPInfoToInternal(dbCl *db.DB, ifName string) error {
-	var err error
 	if !app.shouldLoad("/openconfig-interfaces:interfaces/interface{}/subinterfaces") {
-		return err
+		return nil
 	}
 
+	var err error
 	log.Info("Updating Interface IP Info from APP-DB to Internal DS for Interface Name : ", ifName)
 	app.allIpKeys, _ = app.doGetAllIpKeys(dbCl, app.intfIPTblTs)
 

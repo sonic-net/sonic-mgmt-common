@@ -59,9 +59,8 @@ func (p *PathInfo) Var(name string) string {
 func (p *PathInfo) StringVar(name, defalt string) string {
 	if v, ok := p.Vars[name]; ok {
 		return v
-	} else {
-		return defalt
 	}
+	return defalt
 }
 
 // IntVar returns the value for a path variable as an int.
