@@ -53,9 +53,9 @@ func TestOnChangeCacheReg(t *testing.T) {
 
 	t.Run("occEnable", func(t *testing.T) {
 		d := newTestDB(t, Options{
-			DBNo:             ConfigDB,
-			IsWriteDisabled:  true,
-			IsEnableOnChange: true,
+			DBNo:              ConfigDB,
+			IsWriteDisabled:   true,
+			IsOnChangeEnabled: true,
 		})
 		if err := d.RegisterTableForOnChangeCaching(ts); err != nil {
 			t.Fatal("RegisterTableForOnChangeCaching failed; ", err)
@@ -70,8 +70,8 @@ func TestOnChangeCacheReg(t *testing.T) {
 
 	t.Run("writeEnable", func(t *testing.T) {
 		_, err := NewDB(Options{
-			DBNo:             ConfigDB,
-			IsEnableOnChange: true,
+			DBNo:              ConfigDB,
+			IsOnChangeEnabled: true,
 		})
 		if err == nil {
 			t.Error("NewDB should have failed")
@@ -81,7 +81,7 @@ func TestOnChangeCacheReg(t *testing.T) {
 
 func TestOnChangeCache(t *testing.T) {
 	// OnChange cache enabled db
-	d := newTestDB(t, Options{DBNo: ConfigDB, IsWriteDisabled: true, IsEnableOnChange: true})
+	d := newTestDB(t, Options{DBNo: ConfigDB, IsWriteDisabled: true, IsOnChangeEnabled: true})
 	// Writale db to write test keys
 	dw := newTestDB(t, Options{DBNo: ConfigDB, DisableCVLCheck: true})
 

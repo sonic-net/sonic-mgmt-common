@@ -157,7 +157,7 @@ type Options struct {
 	TableNameSeparator string //Overriden by the DB config file's separator.
 	KeySeparator       string //Overriden by the DB config file's separator.
 	IsWriteDisabled    bool   //Indicated if write is allowed
-	IsEnableOnChange   bool   // whether OnChange cache enabled
+	IsOnChangeEnabled  bool   // whether OnChange cache enabled
 
 	DisableCVLCheck bool
 }
@@ -360,7 +360,7 @@ func NewDB(opt Options) (*DB, error) {
 		glog.Error(fmt.Errorf("Invalid database number %d", dbId))
 	}
 
-	if opt.IsEnableOnChange && !opt.IsWriteDisabled {
+	if opt.IsOnChangeEnabled && !opt.IsWriteDisabled {
 		glog.Errorf("NewDB: IsEnableOnChange cannot be set on write enabled DB")
 		e = tlerr.TranslibDBCannotOpen{}
 		goto NewDBExit
@@ -390,7 +390,7 @@ func NewDB(opt Options) (*DB, error) {
 		goto NewDBExit
 	}
 
-	if opt.IsEnableOnChange {
+	if opt.IsOnChangeEnabled {
 		d.onCReg = dbOnChangeReg{CacheTables: make(map[string]bool)}
 	}
 
@@ -509,7 +509,7 @@ func (d *DB) getEntry(ts *TableSpec, key Key, forceReadDB bool) (Value, error) {
 	var e error
 
 	entry := d.key2redis(ts, key)
-	useCache := d.Opts.IsEnableOnChange && d.onCReg.isCacheTable(ts.Name)
+	useCache := d.Opts.IsOnChangeEnabled && d.onCReg.isCacheTable(ts.Name)
 
 	if !forceReadDB && useCache {
 		if table, ok := d.cache.Tables[ts.Name]; ok {

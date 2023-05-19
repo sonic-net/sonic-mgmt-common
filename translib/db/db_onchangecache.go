@@ -36,13 +36,13 @@ type dbOnChangeReg struct {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (d *DB) RegisterTableForOnChangeCaching(ts *TableSpec) error {
-	if glog.V(1) {
+	if glog.V(3) {
 		glog.Info("RegisterTableForOnChange: ts:", ts)
 	}
 	if !d.IsOpen() {
 		return ConnectionClosed
 	}
-	if !d.Opts.IsEnableOnChange {
+	if !d.Opts.IsOnChangeEnabled {
 		return OnChangeDisabled
 	}
 
@@ -61,7 +61,7 @@ func (d *DB) OnChangeCacheUpdate(ts *TableSpec, key Key) (Value, Value, error) {
 	if !d.IsOpen() {
 		return Value{}, Value{}, ConnectionClosed
 	}
-	if !d.Opts.IsEnableOnChange {
+	if !d.Opts.IsOnChangeEnabled {
 		return Value{}, Value{}, OnChangeDisabled
 	}
 
@@ -86,7 +86,7 @@ func (d *DB) OnChangeCacheDelete(ts *TableSpec, key Key) (Value, error) {
 	if !d.IsOpen() {
 		return Value{}, ConnectionClosed
 	}
-	if !d.Opts.IsEnableOnChange {
+	if !d.Opts.IsOnChangeEnabled {
 		return Value{}, OnChangeDisabled
 	}
 
