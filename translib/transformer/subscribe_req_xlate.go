@@ -160,23 +160,22 @@ func (pathXltr *subscribePathXlator) setTrgtYgXpathInfo() error {
 	for ygXpathInfo != nil && len(ygXpathInfo.xfmrKey) == 0 {
 		tIdx := strings.LastIndex(ygPathTmp, "/")
 		// -1: not found, and 0: first character in the path
-		if tIdx > 0 {
-			ygPathTmp = ygPathTmp[0:tIdx]
-		} else {
+		if tIdx <= 0 {
 			break
 		}
+		ygPathTmp = ygPathTmp[0:tIdx]
 		if log.V(dbLgLvl) {
 			log.Infof("%v xPathTmp: %v", pathXltr.subReq.reqLogId, ygPathTmp)
 		}
-		if ygXpathInfoTmp, ok := xYangSpecMap[ygPathTmp]; !ok || ygXpathInfoTmp == nil {
+		ygXpathInfoTmp, ok := xYangSpecMap[ygPathTmp]
+		if !ok || ygXpathInfoTmp == nil {
 			log.Warningf("%v xYangSpecMap does not have the yangXpathInfo for the path: %v", pathXltr.subReq.reqLogId, ygPathTmp)
 			return tlerr.InternalError{Format: "xYangSpecMap does not have the yangXpathInfo", Path: ygPathTmp}
-		} else {
-			if _, ygErr := getYgEntry(pathXltr.subReq.reqLogId, ygXpathInfoTmp, ygPathTmp); ygErr != nil {
-				return ygErr
-			}
-			ygXpathInfo = ygXpathInfoTmp
 		}
+		if _, ygErr := getYgEntry(pathXltr.subReq.reqLogId, ygXpathInfoTmp, ygPathTmp); ygErr != nil {
+			return ygErr
+		}
+		ygXpathInfo = ygXpathInfoTmp
 	}
 	if ygXpathInfo != nil && len(ygXpathInfo.xfmrKey) > 0 {
 		pathXltr.keyXfmrYgXpathInfo = ygXpathInfo
@@ -275,26 +274,25 @@ func (reqXlator *subscribeReqXlator) processSubscribePath() error {
 		}
 
 		tIdx := strings.LastIndex(ygPathTmp, "/")
-		if tIdx > 0 {
-			ygPathTmp = ygPathTmp[0:tIdx]
-			pathIdx--
-			if log.V(dbLgLvl) {
-				log.Infof("%v processSubscribePath: xPathTmp: %v", reqXlator.subReq.reqLogId, ygPathTmp)
-			}
-			var ok bool
-			ygXpathInfoTmp, ok = xYangSpecMap[ygPathTmp]
-			if ok && ygXpathInfoTmp != nil {
-				var ygErr error
-				if ygEntryTmp, ygErr = getYgEntry(reqXlator.subReq.reqLogId, ygXpathInfoTmp, ygPathTmp); ygErr != nil {
-					return ygErr
-				}
-			}
-			if !ok || ygXpathInfoTmp == nil || ygEntryTmp == nil {
-				log.Warning(reqXlator.subReq.reqLogId, "processSubscribePath: xYangSpecMap does not have the yangXpathInfo for the path:", ygPathTmp)
-				return tlerr.InternalError{Format: "xYangSpecMap does not have the yangXpathInfo", Path: ygPathTmp}
-			}
-		} else {
+		if tIdx <= 0 {
 			break
+		}
+		ygPathTmp = ygPathTmp[0:tIdx]
+		pathIdx--
+		if log.V(dbLgLvl) {
+			log.Infof("%v processSubscribePath: xPathTmp: %v", reqXlator.subReq.reqLogId, ygPathTmp)
+		}
+		var ok bool
+		ygXpathInfoTmp, ok = xYangSpecMap[ygPathTmp]
+		if ok && ygXpathInfoTmp != nil {
+			var ygErr error
+			if ygEntryTmp, ygErr = getYgEntry(reqXlator.subReq.reqLogId, ygXpathInfoTmp, ygPathTmp); ygErr != nil {
+				return ygErr
+			}
+		}
+		if !ok || ygXpathInfoTmp == nil || ygEntryTmp == nil {
+			log.Warning(reqXlator.subReq.reqLogId, "processSubscribePath: xYangSpecMap does not have the yangXpathInfo for the path:", ygPathTmp)
+			return tlerr.InternalError{Format: "xYangSpecMap does not have the yangXpathInfo", Path: ygPathTmp}
 		}
 	}
 
@@ -371,58 +369,59 @@ func (reqXlator *subscribeReqXlator) Translate(targetOnly bool) error {
 }
 
 func (reqXlator *subscribeReqXlator) translateTargetNodePath(trgtYgxPath *yangXpathInfo) error {
-	if trgtPathXlator, err := reqXlator.getSubscribePathXlator(reqXlator.subReq.gPath, reqXlator.subReq.reqUri,
+	trgtPathXlator, err := reqXlator.getSubscribePathXlator(reqXlator.subReq.gPath, reqXlator.subReq.reqUri,
 		trgtYgxPath, nil, &ygXpathNode{ygXpathInfo: trgtYgxPath, ygPath: reqXlator.subReq.ygPath,
-			dbFldYgPathMap: make(map[string]string), dbTblFldYgPathMap: make(map[string]map[string]string)}); err != nil {
+			dbFldYgPathMap: make(map[string]string), dbTblFldYgPathMap: make(map[string]map[string]string)})
+	if err != nil {
 		log.Warning(reqXlator.subReq.reqLogId, "Error in getSubscribePathXlator: error: ", err)
 		return err
-	} else {
-		subMode := trgtPathXlator.getSubscribeMode(nil)
-		if trgtPathXlator.pathXlateInfo.OnChange == OnchangeDisable && subMode == OnChange {
-			log.Warningf("%v translateTargetNodePath:Subscribe not supported; on change disabled for the given subscribe path:: %v", reqXlator.subReq.reqLogId, reqXlator.subReq.reqUri)
-			return tlerr.NotSupportedError{Format: "Subscribe not supported; on change disabled for the given subscribe path: ", Path: reqXlator.subReq.reqUri}
-		}
+	}
+	subMode := trgtPathXlator.getSubscribeMode(nil)
+	if trgtPathXlator.pathXlateInfo.OnChange == OnchangeDisable && subMode == OnChange {
+		log.Warningf("%v translateTargetNodePath:Subscribe not supported; on change disabled for the given subscribe path:: %v", reqXlator.subReq.reqLogId, reqXlator.subReq.reqUri)
+		return tlerr.NotSupportedError{Format: "Subscribe not supported; on change disabled for the given subscribe path: ", Path: reqXlator.subReq.reqUri}
+	}
 
-		reqXlator.subReq.subReqXlateInfo.TrgtPathInfo = trgtPathXlator.pathXlateInfo
-		if err = trgtPathXlator.translatePath(); err != nil {
-			if log.V(dbLgLvl) {
-				log.Warning(reqXlator.subReq.reqLogId, "Error: in translateTargetNodePath: error: ", err)
-			}
-			reqXlator.subReq.subReqXlateInfo.TrgtPathInfo = nil
-			return err
+	reqXlator.subReq.subReqXlateInfo.TrgtPathInfo = trgtPathXlator.pathXlateInfo
+	if err = trgtPathXlator.translatePath(); err != nil {
+		if log.V(dbLgLvl) {
+			log.Warning(reqXlator.subReq.reqLogId, "Error: in translateTargetNodePath: error: ", err)
 		}
-		// for leaf node which are mapped to specific tables different than parent
-		for _, chldPathXlateInfo := range reqXlator.subReq.subReqXlateInfo.TrgtPathInfo.chldXlateInfos {
-			if !reqXlator.subReq.subReqXlateInfo.TrgtPathInfo.hasDbTableInfo() {
-				chldPathXlateInfo.TrgtNodeChld = true
-			}
-			reqXlator.subReq.subReqXlateInfo.ChldPathsInfo = append(reqXlator.subReq.subReqXlateInfo.ChldPathsInfo, chldPathXlateInfo)
+		reqXlator.subReq.subReqXlateInfo.TrgtPathInfo = nil
+		return err
+	}
+	// for leaf node which are mapped to specific tables different than parent
+	for _, chldPathXlateInfo := range reqXlator.subReq.subReqXlateInfo.TrgtPathInfo.chldXlateInfos {
+		if !reqXlator.subReq.subReqXlateInfo.TrgtPathInfo.hasDbTableInfo() {
+			chldPathXlateInfo.TrgtNodeChld = true
 		}
+		reqXlator.subReq.subReqXlateInfo.ChldPathsInfo = append(reqXlator.subReq.subReqXlateInfo.ChldPathsInfo, chldPathXlateInfo)
 	}
 	return nil
 }
 
 func (pathXltr *subscribePathXlator) getSubscribeMode(xfmrSubsOutParam *XfmrSubscOutParams) NotificationType {
-	if pathXltr.subReq.subReqMode == TargetDefined {
-		if pathXltr.parentXlateInfo != nil &&
-			(pathXltr.parentXlateInfo.PType == Sample && len(pathXltr.parentXlateInfo.DbKeyXlateInfo) > 0) {
-			return Sample
-		}
-		subParamNtfType := pathXltr.pathXlateInfo.PType
-		if xfmrSubsOutParam != nil {
-			if xfmrSubsOutParam.nOpts != nil {
-				subParamNtfType = xfmrSubsOutParam.nOpts.pType
-			} else if xfmrSubsOutParam.isVirtualTbl {
-				subParamNtfType = Sample
-			}
-		}
-		if pathXltr.pathXlateInfo.ygXpathInfo.subscriptionFlags.Has(subsPrefSample) || subParamNtfType == Sample || pathXltr.pathXlateInfo.OnChange == OnchangeDisable {
-			return Sample
-		} else {
-			return OnChange
-		}
-	} else {
+	if pathXltr.subReq.subReqMode != TargetDefined {
 		return pathXltr.subReq.subReqMode
+	}
+
+	if pathXltr.parentXlateInfo != nil &&
+		(pathXltr.parentXlateInfo.PType == Sample && len(pathXltr.parentXlateInfo.DbKeyXlateInfo) > 0) {
+		return Sample
+	}
+	subParamNtfType := pathXltr.pathXlateInfo.PType
+	if xfmrSubsOutParam != nil {
+		if xfmrSubsOutParam.nOpts != nil {
+			subParamNtfType = xfmrSubsOutParam.nOpts.pType
+		} else if xfmrSubsOutParam.isVirtualTbl {
+			subParamNtfType = Sample
+		}
+	}
+
+	if pathXltr.pathXlateInfo.ygXpathInfo.subscriptionFlags.Has(subsPrefSample) || subParamNtfType == Sample || pathXltr.pathXlateInfo.OnChange == OnchangeDisable {
+		return Sample
+	} else {
+		return OnChange
 	}
 }
 
@@ -1203,7 +1202,8 @@ func (pathXltr *subscribePathXlator) handleTableXfmrCallback() ([]string, error)
 			log.Warningf("%v handleTableXfmrCallback: table transformer callback returns error: %v and table transformer callback: %v", pathXltr.subReq.reqLogId, tblXfmrErr, *ygXpathInfo.xfmrTbl)
 		}
 		return nil, tblXfmrErr
-	} else if inParams.isVirtualTbl != nil && *inParams.isVirtualTbl {
+	}
+	if inParams.isVirtualTbl != nil && *inParams.isVirtualTbl {
 		if log.V(dbLgLvl) {
 			log.Info(pathXltr.subReq.reqLogId, "handleTableXfmrCallback: isVirtualTbl is set to true for the table transformer callback: ", *ygXpathInfo.xfmrTbl)
 		}
@@ -2015,11 +2015,10 @@ func (keyRslvr *DbYangKeyResolver) resolveDbKey(keyList []string, operation Oper
 	}
 	if len(keyComp) > 0 {
 		return keyComp, nil
-	} else {
-		log.Warningf("%v resolveDbKey: Could not resolve the db key %v; yang schema not found for the table %v "+
-			"for the path: %v", keyRslvr.reqLogId, keyRslvr.key.Comp, keyRslvr.tableName, keyRslvr.uriPath)
-		return keyRslvr.key.Comp, nil
 	}
+	log.Warningf("%v resolveDbKey: Could not resolve the db key %v; yang schema not found for the table %v "+
+		"for the path: %v", keyRslvr.reqLogId, keyRslvr.key.Comp, keyRslvr.tableName, keyRslvr.uriPath)
+	return keyRslvr.key.Comp, nil
 }
 
 func (keyRslvr *DbYangKeyResolver) resolve(operation Operation) ([]string, error) {
