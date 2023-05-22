@@ -72,15 +72,37 @@ func TestMain(m *testing.M) {
 
 func processGetRequest(url string, expectedRespJson string, errorCase bool) func(*testing.T) {
 	return func(t *testing.T) {
-		response, err := Get(GetRequest{Path: url})
-		if err != nil && !errorCase {
-			t.Fatalf("Error %v received for Url: %s", err, url)
-		}
+		t.Run("ietf_json", func(t *testing.T) {
+			verifyGet(t, GetRequest{Path: url}, expectedRespJson, errorCase)
+		})
+		t.Run("ygot", func(t *testing.T) {
+			verifyGet(t, GetRequest{Path: url, FmtType: TRANSLIB_FMT_YGOT}, expectedRespJson, errorCase)
+		})
+	}
+}
 
-		respJson := response.Payload
-		if string(respJson) != expectedRespJson {
-			t.Fatalf("Response for Url: %s received is not expected:\n%s", url, string(respJson))
+func verifyGet(t *testing.T, req GetRequest, expJson string, expError bool) {
+	t.Helper()
+	response, err := Get(req)
+	if expError {
+		if err == nil {
+			t.Fatalf("GET %s did not return an error", req.Path)
 		}
+		return
+	}
+	var respJson []byte
+	if req.FmtType == TRANSLIB_FMT_YGOT && response.ValueTree != nil {
+		respJson, err = dumpIetfJson(response.ValueTree, true)
+		if err != nil {
+			t.Fatalf("GET %s returned invalid YGOT. error=%v", req.Path, err)
+		}
+	} else if req.FmtType == TRANSLIB_FMT_IETF_JSON {
+		respJson = response.Payload
+	}
+	if j := string(respJson); j != expJson {
+		t.Errorf("GET %s returned invalid response", req.Path)
+		t.Errorf("Expected: %s", expJson)
+		t.Fatalf("Received: %s", j)
 	}
 }
 
