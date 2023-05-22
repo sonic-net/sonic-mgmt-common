@@ -253,7 +253,7 @@ func getJson (nInfo *notificationInfo) ([]byte, error) {
         return payload, err
     }
 
-    resp, err := (*app).processGet(dbs)
+    resp, err := (*app).processGet(dbs, TRANSLIB_FMT_IETF_JSON)
 
     if err == nil {
         payload = resp.Payload
