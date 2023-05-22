@@ -51,6 +51,12 @@ type dbEntry struct {
 
 const (
 	PORT              = "PORT"
+	PORT_TABLE        = "PORT_TABLE"
+	INTERFACE         = "INTERFACE"
+	COUNTERS_NAME_MAP = "COUNTERS_PORT_NAME_MAP"
+)
+
+const (
 	PORT_INDEX        = "index"
 	PORT_MTU          = "mtu"
 	PORT_ADMIN_STATUS = "admin_status"
@@ -292,7 +298,7 @@ func (app *IntfApp) translateSubscribe(req translateSubRequest) (translateSubRes
 
 func (app *IntfApp) translateSubscribeIntfList(nb *notificationInfoBuilder) error {
 	name := nb.pathInfo.StringVar("name", "*")
-	nb.New().PathKey("name", name).Table(db.ConfigDB, "PORT").Key(name)
+	nb.New().PathKey("name", name).Table(db.ConfigDB, PORT).Key(name)
 	if nb.SetFieldPrefix("config") {
 		nb.Field("mtu", PORT_MTU)
 		nb.Field("description", PORT_DESC)
@@ -309,7 +315,7 @@ func (app *IntfApp) translateSubscribeIntfList(nb *notificationInfoBuilder) erro
 
 func (app *IntfApp) translateSubscribeIntfState(nb *notificationInfoBuilder) error {
 	name := nb.pathInfo.StringVar("name", "*")
-	nb.New().Table(db.ApplDB, "PORT_TABLE").Key(name)
+	nb.New().Table(db.ApplDB, PORT_TABLE).Key(name)
 	if nb.SetFieldPrefix("") {
 		nb.Field("ifindex", PORT_INDEX)
 		nb.Field("mtu", PORT_MTU)
@@ -327,7 +333,7 @@ func (app *IntfApp) translateSubscribeIntfStats(nb *notificationInfoBuilder) err
 	if name == "*" {
 		fieldPattern = countersMapFieldPattern
 	}
-	nb.New().Table(db.CountersDB, "COUNTERS_PORT_NAME_MAP").FieldScan(fieldPattern)
+	nb.New().Table(db.CountersDB, COUNTERS_NAME_MAP).FieldScan(fieldPattern)
 	return nil
 }
 
@@ -360,7 +366,7 @@ func (app *IntfApp) translateSubscribeIntfIP(nb *notificationInfoBuilder) error 
 		addrDbPattern = "*:*/*" // ipv6 address will have at least 1 colon
 	}
 
-	nb.New().PathKey("ip", addr).Table(db.ConfigDB, "INTERFACE").Key(name, addrDbPattern)
+	nb.New().PathKey("ip", addr).Table(db.ConfigDB, INTERFACE).Key(name, addrDbPattern)
 	if nb.SetFieldPrefix("config") {
 		nb.Field("prefix-length", "")
 	}
@@ -375,9 +381,9 @@ func (app *IntfApp) processSubscribe(req processSubRequest) (processSubResponse,
 		path: req.path,
 	}
 	switch req.table.Name {
-	case "PORT", "PORT_TABLE", "COUNTERS_PORT_NAME_MAP":
+	case PORT, PORT_TABLE, COUNTERS_NAME_MAP:
 		path.SetKeyAt(resp.path, 1, "name", req.key.Get(0))
-	case "INTERFACE":
+	case INTERFACE:
 		if req.key.Len() != 2 {
 			return resp, tlerr.New("unsupported interface key: %v", req.key)
 		}
