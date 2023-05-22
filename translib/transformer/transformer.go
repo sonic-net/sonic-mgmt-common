@@ -20,12 +20,13 @@ package transformer
 
 import (
 	"bufio"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
+
+	log "github.com/golang/glog"
 
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/openconfig/goyang/pkg/yang"
@@ -77,10 +78,10 @@ func init() {
 	ocList := getOcModelsList()
 	yangFiles := getDefaultModelsList()
 	yangFiles = append(yangFiles, ocList...)
-	fmt.Println("Yang model List:", yangFiles)
+	xfmrLogInfo("Yang model List: %v", yangFiles)
 	err := loadYangModules(yangFiles...)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		log.Error(err)
 	}
 	debug.FreeOSMemory()
 }
@@ -93,7 +94,7 @@ func initYangModelsPath() {
 		YangPath = path
 	}
 
-	fmt.Println("Yang modles path:", YangPath)
+	xfmrLogDebug("Yang modles path: %v", YangPath)
 }
 
 type ModProfile map[string]interface{}
@@ -106,15 +107,15 @@ func loadYangModules(files ...string) error {
 	for _, path := range paths {
 		expanded, err := yang.PathsWithModules(path)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			xfmrLogInfo("Couldn't load yang module %v due to %v ", path, err)
 			continue
 		}
 		yang.AddPath(expanded...)
 	}
 
-	ygSchema, err := ocbinds.GetSchema()
+	ygSchema, err := ocbinds.Schema()
 	if err != nil {
-		panic("Error in getting the schema: " + err.Error())
+		return err
 	}
 
 	modProfiles := make(map[string]ModProfile)
@@ -136,7 +137,7 @@ func loadYangModules(files ...string) error {
 	for _, name := range files {
 		if strings.Contains(name, "-annot") {
 			if err := annotMs.Read(name); err != nil {
-				fmt.Fprintln(os.Stderr, err)
+				xfmrLogInfo("Couldn't read yang annotation %v due to %v", name, err)
 				continue
 			}
 		}
@@ -186,7 +187,7 @@ func loadYangModules(files ...string) error {
 					tagType := dataTagArr[len(dataTagArr)-1]
 					if tagType == "openconfig-version" {
 						ver = ext.NName()
-						fmt.Printf("Found version %v for yang module %v", ver, yngMdlNm)
+						xfmrLogDebug("Found version %v for yang module %v", ver, yngMdlNm)
 						if len(strings.TrimSpace(ver)) > 0 {
 							ocVerSet = true
 						}

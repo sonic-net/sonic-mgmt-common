@@ -75,66 +75,65 @@ func handleCascadeDelete(d *db.DB, dbDataMap map[Operation]map[db.DBNum]map[stri
 			for tblIndex, tblMap := range dbMap {
 				if !contains(cascadeDelTbl, tblIndex) {
 					continue
-				} else {
-					for key, entry := range tblMap {
-						// need to generate key based on the db type as of now just considering configdb
-						// and using "|" as tablename and key seperator
-						depKey := tblIndex + "|" + key
-						depList := cvlSess.GetDepDataForDelete(depKey)
-						xfmrLogInfo("handleCascadeDelete : depKey : %v, depList- %v, entry : %v", depKey, depList, entry)
-						for depIndex, depEntry := range depList {
-							for depEntkey, depEntkeyInst := range depEntry.Entry {
-								depEntkeyList := strings.SplitN(depEntkey, "|", 2)
-								cbkHdlName := depEntkeyList[0] + "_cascade_cfg_hdl"
-								if IsXlateFuncBinded(cbkHdlName) {
-									//handle callback for table call Table Call back method and consolidate the data
-									inParams := formXfmrDbTblCbkParams(d, DELETE, depEntry.RefKey, depEntkeyList[0], depEntkeyList[1], depEntkeyInst, dbDataMap[DELETE])
-									xfmrLogInfo("handleCascadeDelete CBKHDL present depIndex %v, inParams : %v ", depIndex, inParams)
-									err = xfmrDbTblCbkHandler(inParams, depEntkeyList[0])
-									if err == nil {
-										for operIdx, operMap := range inParams.delDepDataMap {
-											if _, ok := dbDataMap[operIdx]; !ok {
-												dbDataMap[operIdx] = make(map[db.DBNum]map[string]map[string]db.Value)
-											}
-											for dbIndx, dbMap := range *operMap {
-												if _, ok := dbDataMap[operIdx][dbIndx]; !ok {
-													dbDataMap[operIdx][dbIndx] = make(map[string]map[string]db.Value)
-												}
-												mapMerge(dbDataMap[operIdx][dbIndx], dbMap, operIdx)
-											}
+				}
+				for key, entry := range tblMap {
+					// need to generate key based on the db type as of now just considering configdb
+					// and using "|" as tablename and key seperator
+					depKey := tblIndex + "|" + key
+					depList := cvlSess.GetDepDataForDelete(depKey)
+					xfmrLogInfo("handleCascadeDelete : depKey : %v, depList- %v, entry : %v", depKey, depList, entry)
+					for depIndex, depEntry := range depList {
+						for depEntkey, depEntkeyInst := range depEntry.Entry {
+							depEntkeyList := strings.SplitN(depEntkey, "|", 2)
+							cbkHdlName := depEntkeyList[0] + "_cascade_cfg_hdl"
+							if IsXlateFuncBinded(cbkHdlName) {
+								//handle callback for table call Table Call back method and consolidate the data
+								inParams := formXfmrDbTblCbkParams(d, DELETE, depEntry.RefKey, depEntkeyList[0], depEntkeyList[1], depEntkeyInst, dbDataMap[DELETE])
+								xfmrLogInfo("handleCascadeDelete CBKHDL present depIndex %v, inParams : %v ", depIndex, inParams)
+								err = xfmrDbTblCbkHandler(inParams, depEntkeyList[0])
+								if err == nil {
+									for operIdx, operMap := range inParams.delDepDataMap {
+										if _, ok := dbDataMap[operIdx]; !ok {
+											dbDataMap[operIdx] = make(map[db.DBNum]map[string]map[string]db.Value)
 										}
-									} else {
-										xfmrLogInfo("handleCascadeDelete - xfmrDbTblCbkHandler failed.")
-										return errors.New("xfmrDbTblCbkHandler failed for table: " + depEntkeyList[0] + ", Key: " + depEntkeyList[1])
+										for dbIndx, dbMap := range *operMap {
+											if _, ok := dbDataMap[operIdx][dbIndx]; !ok {
+												dbDataMap[operIdx][dbIndx] = make(map[string]map[string]db.Value)
+											}
+											mapMerge(dbDataMap[operIdx][dbIndx], dbMap, operIdx)
+										}
 									}
 								} else {
-									if _, ok := dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]]; !ok {
-										dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]] = make(map[string]db.Value)
-									}
-									if _, ok := dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]]; !ok {
-										dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]] = db.Value{Field: make(map[string]string)}
-									}
+									xfmrLogInfo("handleCascadeDelete - xfmrDbTblCbkHandler failed.")
+									return errors.New("xfmrDbTblCbkHandler failed for table: " + depEntkeyList[0] + ", Key: " + depEntkeyList[1])
+								}
+							} else {
+								if _, ok := dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]]; !ok {
+									dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]] = make(map[string]db.Value)
+								}
+								if _, ok := dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]]; !ok {
+									dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]] = db.Value{Field: make(map[string]string)}
+								}
 
-									if len(depEntkeyInst) > 0 {
-										for depEntAttr, depEntAttrInst := range depEntkeyInst {
-											if _, ok := dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]].Field[depEntAttr]; !ok {
-												dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]].Field[depEntAttr] = ""
-											}
+								if len(depEntkeyInst) > 0 {
+									for depEntAttr, depEntAttrInst := range depEntkeyInst {
+										if _, ok := dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]].Field[depEntAttr]; !ok {
+											dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]].Field[depEntAttr] = ""
+										}
 
-											if len(depEntAttrInst) > 0 {
-												val := dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]]
-												if strings.HasSuffix(depEntAttr, "@") {
-													valList := val.GetList(depEntAttr)
-													if !contains(valList, depEntAttrInst) {
-														valList = append(valList, depEntAttrInst)
-														val.SetList(depEntAttr, valList)
-													}
-												} else {
-													val.Set(depEntAttr, depEntAttrInst)
+										if len(depEntAttrInst) > 0 {
+											val := dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]]
+											if strings.HasSuffix(depEntAttr, "@") {
+												valList := val.GetList(depEntAttr)
+												if !contains(valList, depEntAttrInst) {
+													valList = append(valList, depEntAttrInst)
+													val.SetList(depEntAttr, valList)
 												}
-
-												dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]] = val
+											} else {
+												val.Set(depEntAttr, depEntAttrInst)
 											}
+
+											dbDataMap[DELETE][db.ConfigDB][depEntkeyList[0]][depEntkeyList[1]] = val
 										}
 									}
 								}
