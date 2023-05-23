@@ -119,3 +119,10 @@ type TranslibXfmrRetError struct {
 func (e TranslibXfmrRetError) Error() string {
      return p.Sprintf("Translib transformer return %s", e.XlateFailDelReq)
 }
+
+type TranslibDBConnectionReset struct {
+}
+
+func (e TranslibDBConnectionReset) Error() string {
+	return p.Sprintf("Translib Redis Error: DB Connection Reset")
+}
