@@ -22,10 +22,14 @@ import (
 	"sync"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/Azure/sonic-mgmt-common/translib/internal/apis"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/ygot/ygot"
 )
 
 type RedisDbMap = map[db.DBNum]map[string]map[string]db.Value
+type RedisDbSubscribeMap = map[db.DBNum]map[string]map[string]map[string]string
+type RedisDbYgNodeMap = map[db.DBNum]map[string]map[string]interface{}
 
 // XfmrParams represents input parameters for table-transformer, key-transformer, field-transformer & subtree-transformer
 type XfmrParams struct {
@@ -54,7 +58,8 @@ type XfmrParams struct {
 type SubscProcType int
 
 const (
-	TRANSLATE_SUBSCRIBE SubscProcType = iota
+	TRANSLATE_EXISTS SubscProcType = iota
+	TRANSLATE_SUBSCRIBE
 	PROCESS_SUBSCRIBE
 )
 
@@ -74,12 +79,29 @@ type XfmrSubscInParams struct {
 
 // XfmrSubscOutParams represents output from subscribe subtree callback - DB data for request uri, Need cache, OnChange, subscription preference and interval.
 type XfmrSubscOutParams struct {
-	dbDataMap    RedisDbMap
+	dbDataMap    RedisDbSubscribeMap
+	secDbDataMap RedisDbYgNodeMap // for the leaf/leaf-list node if it maps to different table from its parent
 	needCache    bool
-	onChange     bool
+	onChange     OnchangeMode
 	nOpts        *notificationOpts //these can be set regardless of error
 	isVirtualTbl bool              //used for RFC parent table check, set to true when no Redis Mapping
 }
+
+// DBKeyYgNodeInfo holds yang node info for a db key. Can be used as value in RedisDbYgNodeMap.
+type DBKeyYgNodeInfo struct {
+	nodeName     string // leaf or leaf-list name
+	keyCompCt    int
+	keyGroup     []int // db key component indices that make up the "key group" (for leaf-list)
+	onChangeFunc apis.ProcessOnChange
+}
+
+type OnchangeMode int
+
+const (
+	OnchangeDefault OnchangeMode = iota
+	OnchangeEnable
+	OnchangeDisable
+)
 
 // XfmrDbParams represents input paraDeters for value-transformer
 type XfmrDbParams struct {
@@ -97,6 +119,23 @@ type SonicXfmrParams struct {
 	tableName string
 	key       string
 	xpath     string
+}
+
+// XfmrDbToYgPathParams represents input parameters for path-transformer
+// Fields in the new structs are getting flagged as unused.
+//
+//lint:file-ignore U1000 temporarily ignore all "unused var" errors.
+type XfmrDbToYgPathParams struct {
+	yangPath      *gnmi.Path //current path to be be resolved
+	subscribePath *gnmi.Path //user input subscribe path
+	ygSchemaPath  string     //current yg schema path
+	tblName       string     //table name
+	tblKeyComp    []string   //table key comp
+	tblEntry      *db.Value  // updated or deleted db entry value. DO NOT MODIFY
+	dbNum         db.DBNum
+	dbs           [db.MaxDB]*db.DB
+	db            *db.DB
+	ygPathKeys    map[string]string //to keep translated yang keys as values for the each yang key leaf node
 }
 
 // KeyXfmrYangToDb type is defined to use for conversion of Yang key to DB Key,
@@ -173,6 +212,12 @@ type ValueXfmrFunc func(inParams XfmrDbParams) (string, error)
 // Param: XfmrParams structure having database pointers, current db, operation, DB data in multidimensional map, YgotRoot, uri
 // Return: error
 type PreXfmrFunc func(inParams XfmrParams) error
+
+// PathXfmrDbToYangFunc type is defined to convert the given db table key into the yang key for all the list node in the given yang URI path.
+// ygPathKeys map will be used to store the yang key as value in the map for each yang key leaf node path of the given yang URI.
+// Param : XfmrDbToYgPathParams structure has current yang uri path, subscribe path, table name, table key, db pointer slice, current db pointer, db number, map to hold path and yang keys
+// Return: error
+type PathXfmrDbToYangFunc func(params XfmrDbToYgPathParams) error
 
 // XfmrInterface is a validation interface for validating the callback registration of app modules
 // transformer methods.

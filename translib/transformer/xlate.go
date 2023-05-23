@@ -671,14 +671,6 @@ func AddModelCpbltInfo() map[string]*mdlInfo {
 	return xMdlCpbltMap
 }
 
-func XlateTranslateSubscribe(path string, dbs [db.MaxDB]*db.DB, txCache interface{}) (XfmrTranslateSubscribeInfo, error) {
-	/*placeholeder for build to go through.
-	  Subsequent PR will have the actual subscription realted changes and this placeholder will be removed then.
-	*/
-	var subscribe_result XfmrTranslateSubscribeInfo
-	return subscribe_result, nil
-}
-
 func IsTerminalNode(uri string) (bool, error) {
 	xpath, _, err := XfmrRemoveXPATHPredicates(uri)
 	if xpathData, ok := xYangSpecMap[xpath]; ok {

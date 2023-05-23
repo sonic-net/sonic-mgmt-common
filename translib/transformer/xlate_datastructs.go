@@ -45,16 +45,24 @@ type KeySpec struct {
 type NotificationType int
 
 const (
-	Sample NotificationType = iota
+	TargetDefined NotificationType = iota
+	Sample
 	OnChange
 )
 
+// KEY_COMP_CNT - To specify the number of key components for the given key in the RedisDbSubscribeMap map
+const KEY_COMP_CNT = "@KEY_COMP_CNT"
+
+const DEL_AS_UPDATE = "@DEL_AS_UPDATE"
+
+const FIELD_CURSOR = "@FIELD_CURSOR"
+
 type XfmrTranslateSubscribeInfo struct {
-    DbDataMap RedisDbMap
-    MinInterval int
-    NeedCache bool
-    PType NotificationType
-    OnChange bool
+	DbDataMap   RedisDbMap
+	MinInterval int
+	NeedCache   bool
+	PType       NotificationType
+	OnChange    bool
 }
 
 type xpathTblKeyExtractRet struct {

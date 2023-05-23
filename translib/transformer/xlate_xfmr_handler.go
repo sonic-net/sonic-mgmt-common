@@ -428,7 +428,7 @@ func xfmrSubscSubtreeHandler(inParams XfmrSubscInParams, xfmrFuncNm string) (Xfm
 	var retVal XfmrSubscOutParams
 	retVal.dbDataMap = nil
 	retVal.needCache = false
-	retVal.onChange = false
+	retVal.onChange = OnchangeDisable
 	retVal.nOpts = nil
 	retVal.isVirtualTbl = false
 

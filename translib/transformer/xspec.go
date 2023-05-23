@@ -30,8 +30,17 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/Azure/sonic-mgmt-common/translib/utils"
 	log "github.com/golang/glog"
 	"github.com/openconfig/goyang/pkg/yang"
+)
+
+// subscription flags
+const (
+	subsPrefSample utils.Bits = 1 << iota
+	subsOnChangeEnable
+	subsOnChangeDisable
+	subsDelAsUpdate
 )
 
 /* Data needed to construct lookup table from yang */
@@ -60,6 +69,11 @@ type yangXpathInfo struct {
 	virtualTbl         *bool
 	nameWithMod        *string
 	yangType           yangElementType
+	xfmrPath           string
+	compositeFields    []string
+	dbKeyCompCnt       int
+	subscriptionFlags  utils.Bits
+	isDataSrcDynamic   *bool
 }
 
 type dbInfo struct {
@@ -215,6 +229,7 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 		curXpathData, ok := xYangSpecMap[curXpathFull]
 		if !ok {
 			curXpathData = new(yangXpathInfo)
+			curXpathData.subscribeMinIntvl = XFMR_INVALID
 			curXpathData.dbIndex = db.ConfigDB // default value
 			xYangSpecMap[curXpathFull] = curXpathData
 		}
@@ -224,6 +239,14 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 			curXpathData.yangType = YANG_CHOICE
 		}
 		curXpathData.yangEntry = entry
+		if xYangSpecMap[xpathPrefix].subscriptionFlags.Has(subsPrefSample) {
+			curXpathData.subscriptionFlags.Set(subsPrefSample)
+		}
+		if xYangSpecMap[xpathPrefix].subscriptionFlags.Has(subsOnChangeDisable) {
+			curXpathData.subscriptionFlags.Set(subsOnChangeDisable)
+		} else if xYangSpecMap[xpathPrefix].subscriptionFlags.Has(subsOnChangeEnable) {
+			curXpathData.subscriptionFlags.Set(subsOnChangeEnable)
+		}
 		curXpathData.subscribeMinIntvl = xYangSpecMap[xpathPrefix].subscribeMinIntvl
 		curXpathData.cascadeDel = xYangSpecMap[xpathPrefix].cascadeDel
 		xpath = xpathPrefix
@@ -248,6 +271,7 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 			curXpathFull = xpathFull + "/" + entry.Name
 			if annotNode, ok := xYangSpecMap[curXpathFull]; ok {
 				xpathData := new(yangXpathInfo)
+				xpathData.subscribeMinIntvl = XFMR_INVALID
 				xpathData.dbIndex = db.ConfigDB // default value
 				xYangSpecMap[xpath] = xpathData
 				copyYangXpathSpecData(xYangSpecMap[xpath], annotNode)
@@ -277,6 +301,9 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 		if ok && xpathData.tableName == nil {
 			if xpathData.tableName == nil && parentXpathData.tableName != nil && xpathData.xfmrTbl == nil {
 				xpathData.tableName = parentXpathData.tableName
+				if xpathData.dbKeyCompCnt == 0 {
+					xpathData.dbKeyCompCnt = parentXpathData.dbKeyCompCnt
+				}
 			} else if xpathData.xfmrTbl == nil && parentXpathData.xfmrTbl != nil {
 				xpathData.xfmrTbl = parentXpathData.xfmrTbl
 			}
@@ -295,14 +322,28 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 			xpathData.xfmrFunc = parentXpathData.xfmrFunc
 		}
 
+		if ok && len(parentXpathData.xfmrPath) > 0 && len(xpathData.xfmrPath) == 0 {
+			xpathData.xfmrPath = parentXpathData.xfmrPath
+		}
+
 		if ok && (parentXpathData.subscribeMinIntvl == XFMR_INVALID) {
 			log.Warningf("Susbscribe MinInterval/OnChange flag is set to invalid for(%v) \r\n", xpathPrefix)
 			return
 		}
 
 		if ok {
+			if !xpathData.subscriptionFlags.Has(subsOnChangeDisable) && parentXpathData.subscriptionFlags.Has(subsOnChangeDisable) {
+				xpathData.subscriptionFlags.Set(subsOnChangeDisable)
+			} else if !xpathData.subscriptionFlags.Has(subsOnChangeEnable) && parentXpathData.subscriptionFlags.Has(subsOnChangeEnable) {
+				xpathData.subscriptionFlags.Set(subsOnChangeEnable)
+			}
+
 			if xpathData.subscribeMinIntvl == XFMR_INVALID {
 				xpathData.subscribeMinIntvl = parentXpathData.subscribeMinIntvl
+			}
+
+			if !xpathData.subscriptionFlags.Has(subsPrefSample) && parentXpathData.subscriptionFlags.Has(subsPrefSample) {
+				xpathData.subscriptionFlags.Set(subsPrefSample)
 			}
 
 			if parentXpathData.cascadeDel == XFMR_INVALID {
@@ -364,6 +405,7 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 				keyXpath[id] = xpath + "/" + keyName
 				if _, ok := xYangSpecMap[xpath+"/"+keyName]; !ok {
 					keyXpathData := new(yangXpathInfo)
+					keyXpathData.subscribeMinIntvl = XFMR_INVALID
 					keyXpathData.dbIndex = db.ConfigDB // default value
 					xYangSpecMap[xpath+"/"+keyName] = keyXpathData
 				}
@@ -387,6 +429,13 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 
 		if xpathData.subscribeMinIntvl == XFMR_INVALID {
 			xpathData.subscribeMinIntvl = 0
+		}
+
+		if !xpathData.subscriptionFlags.Has(subsPrefSample) && xpathData.subscriptionFlags.Has(subsOnChangeDisable) {
+			if log.V(5) {
+				log.Infof("subscribe OnChange is disabled so setting subscribe preference to default/sample from onchange for xpath - %v", xpath)
+			}
+			xpathData.subscriptionFlags.Set(subsPrefSample)
 		}
 
 		if xpathData.cascadeDel == XFMR_INVALID {
@@ -722,6 +771,8 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 				*xpathData.xfmrTbl = ext.NName()
 			case "field-name":
 				xpathData.fieldName = ext.NName()
+			case "composite-field-names":
+				xpathData.compositeFields = strings.Split(ext.NName(), ",")
 			case "subtree-transformer":
 				xpathData.xfmrFunc = ext.NName()
 			case "key-transformer":
@@ -767,11 +818,15 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 				}
 			case "subscribe-preference":
 				if ext.NName() == "sample" {
-					//TODO Add subscription changes here
+					xpathData.subscriptionFlags.Set(subsPrefSample)
 				}
 			case "subscribe-on-change":
-				if ext.NName() == "disable" || ext.NName() == "DISABLE" {
-					//TODO Add subscription changes here
+				if strings.EqualFold(ext.NName(), "disable") {
+					xpathData.subscriptionFlags.Set(subsOnChangeDisable)
+				} else if strings.EqualFold(ext.NName(), "enable") {
+					xpathData.subscriptionFlags.Set(subsOnChangeEnable)
+				} else {
+					log.Warningf("Invalid subscribe-on-change value: %v defined in the path %v\r\n", ext.NName(), xpath)
 				}
 			case "subscribe-min-interval":
 				if ext.NName() == "NONE" {
@@ -797,6 +852,21 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 				}
 				if strings.EqualFold(ext.NName(), "True") {
 					*xpathData.virtualTbl = true
+				}
+			case "db-key-count":
+				var err error
+				if xpathData.dbKeyCompCnt, err = strconv.Atoi(ext.NName()); err != nil {
+					log.Warningf("Invalid db-key-count value (%v) in the yang path %v.\r\n", ext.NName(), xpath)
+					return
+				}
+			case "subscribe-delete-as-update":
+				if strings.EqualFold(ext.NName(), "true") {
+					xpathData.subscriptionFlags.Set(subsDelAsUpdate)
+				}
+			case "data-source":
+				if strings.EqualFold(ext.NName(), "dynamic") {
+					xpathData.isDataSrcDynamic = new(bool)
+					*xpathData.isDataSrcDynamic = true
 				}
 			}
 		}
@@ -993,7 +1063,9 @@ func mapPrint(fileName string) {
 		fmt.Fprintf(fp, "    cascadeDel  : %v\r\n", d.cascadeDel)
 		fmt.Fprintf(fp, "    hasChildSubTree : %v\r\n", d.hasChildSubTree)
 		fmt.Fprintf(fp, "    hasNonTerminalNode : %v\r\n", d.hasNonTerminalNode)
-		fmt.Fprintf(fp, "    subscribeMinIntvl  : %v\r\n", d.subscribeMinIntvl)
+		fmt.Fprintf(fp, "    subscribeOnChg disbale flag: %v\r\n", d.subscriptionFlags.Has(subsOnChangeDisable))
+		fmt.Fprintf(fp, "    subscribeOnChg enable flag: %v\r\n", d.subscriptionFlags.Has(subsOnChangeEnable))
+		fmt.Fprintf(fp, "    subscribePref Sample     : %v\r\n", d.subscriptionFlags.Has(subsPrefSample))
 		fmt.Fprintf(fp, "    tableName: ")
 		if d.tableName != nil {
 			fmt.Fprintf(fp, "%v", *d.tableName)
@@ -1032,6 +1104,10 @@ func mapPrint(fileName string) {
 			fmt.Fprintf(fp, "        %d. %#v\r\n", i, kd)
 		}
 		fmt.Fprintf(fp, "\r\n    isKey   : %v\r\n", d.isKey)
+		fmt.Fprintf(fp, "\r\n    isDataSrcDynamic: ")
+		if d.isDataSrcDynamic != nil {
+			fmt.Fprintf(fp, "%v", *d.isDataSrcDynamic)
+		}
 	}
 	fmt.Fprintf(fp, "-----------------------------------------------------------------\r\n")
 
