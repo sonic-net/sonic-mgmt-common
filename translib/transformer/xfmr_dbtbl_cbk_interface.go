@@ -19,35 +19,41 @@
 package transformer
 
 import (
-    "github.com/Azure/sonic-mgmt-common/translib/db"
+	"fmt"
+
+	"github.com/Azure/sonic-mgmt-common/translib/db"
 )
 
 type XfmrDbTblCbkParams struct {
-    d                       *db.DB        //Config DB handler
-    oper                    int
-    delDepRefKey            string
-    tblName                 string
-    dbKey                   string
-    delDepEntry             map[string]string 
-    dbDataMap               map[db.DBNum]map[string]map[string]db.Value
-    delDepDataMap           map[int]*RedisDbMap   // Call back methods can add the data  
+	d             *db.DB //Config DB handler
+	oper          Operation
+	delDepRefKey  string
+	tblName       string
+	dbKey         string
+	delDepEntry   map[string]string
+	dbDataMap     map[db.DBNum]map[string]map[string]db.Value
+	delDepDataMap map[Operation]*RedisDbMap // Call back methods can add the data
 }
 
-func formXfmrDbTblCbkParams (d *db.DB, oper int, delDepRefKey string, tblName string, dbKey string, delDepEntry map[string]string, dbDataMap RedisDbMap) XfmrDbTblCbkParams {
-
-    var inParams XfmrDbTblCbkParams
-
-    inParams.d = d
-    inParams.oper = oper
-    inParams.delDepRefKey = delDepRefKey
-    inParams.tblName = tblName
-    inParams.dbKey = dbKey
-    inParams.delDepEntry = delDepEntry
-    inParams.dbDataMap = dbDataMap
-    inParams.delDepDataMap =  make(map[int]*RedisDbMap)
-
-    return inParams
+func (inPm XfmrDbTblCbkParams) String() string {
+	return fmt.Sprintf("{d: %v, oper: %v, delDepRefKey: %v, tblName: %v, dbKey: %v, delDepEntry: %v, dbDataMap: %v, delDepDataMap: %v}",
+		inPm.d, inPm.oper, inPm.delDepRefKey, inPm.tblName, inPm.dbKey, inPm.delDepEntry, inPm.dbDataMap, inPm.delDepDataMap)
 }
 
-type  XfmrDbTblCbkMethod func (inParams XfmrDbTblCbkParams) error 
+func formXfmrDbTblCbkParams(d *db.DB, oper Operation, delDepRefKey string, tblName string, dbKey string, delDepEntry map[string]string, dbDataMap RedisDbMap) XfmrDbTblCbkParams {
 
+	var inParams XfmrDbTblCbkParams
+
+	inParams.d = d
+	inParams.oper = oper
+	inParams.delDepRefKey = delDepRefKey
+	inParams.tblName = tblName
+	inParams.dbKey = dbKey
+	inParams.delDepEntry = delDepEntry
+	inParams.dbDataMap = dbDataMap
+	inParams.delDepDataMap = make(map[Operation]*RedisDbMap)
+
+	return inParams
+}
+
+type XfmrDbTblCbkMethod func(inParams XfmrDbTblCbkParams) error

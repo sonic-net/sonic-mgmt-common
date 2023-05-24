@@ -20,32 +20,36 @@ package translib
 
 import (
 	"errors"
-	"strings"
-	log "github.com/golang/glog"
-	"github.com/openconfig/ygot/ygot"
-	"github.com/openconfig/ygot/ytypes"
-	"github.com/openconfig/ygot/util"
+	"fmt"
 	"reflect"
+	"sort"
+	"strings"
+	"sync"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/Azure/sonic-mgmt-common/translib/transformer"
 	"github.com/Azure/sonic-mgmt-common/translib/utils"
-	"sync"
+	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/util"
+	"github.com/openconfig/ygot/ygot"
+	"github.com/openconfig/ygot/ytypes"
 )
 
 var ()
 
 type CommonApp struct {
-	pathInfo       *PathInfo
-	body           []byte
-	ygotRoot       *ygot.GoStruct
-	ygotTarget     *interface{}
-	skipOrdTableChk bool
-	cmnAppTableMap map[int]map[db.DBNum]map[string]map[string]db.Value
+	pathInfo            *PathInfo
+	body                []byte
+	ygotRoot            *ygot.GoStruct
+	ygotTarget          *interface{}
+	skipOrdTableChk     bool
+	cmnAppTableMap      map[int]map[db.DBNum]map[string]map[string]db.Value
 	cmnAppYangDefValMap map[string]map[string]db.Value
-	cmnAppYangAuxMap map[string]map[string]db.Value
+	cmnAppYangAuxMap    map[string]map[string]db.Value
 	appOptions
+	cmnAppOpcode int //NBI request opcode
 }
 
 var cmnAppInfo = appInfo{appType: reflect.TypeOf(CommonApp{}),
@@ -55,7 +59,7 @@ var cmnAppInfo = appInfo{appType: reflect.TypeOf(CommonApp{}),
 
 func init() {
 
-	register_model_path := []string{"/sonic-", "*"} // register yang model path(s) to be supported via common app
+	register_model_path := []string{"/sonic-", "*"} // register YANG model path(s) to be supported via common app
 	for _, mdl_pth := range register_model_path {
 		err := register(mdl_pth, &cmnAppInfo)
 
@@ -67,7 +71,7 @@ func init() {
 	if mdlCpblt == nil {
 		log.Warning("Failure in fetching model capabilities data.")
 	} else {
-		for yngMdlNm, mdlDt := range(mdlCpblt) {
+		for yngMdlNm, mdlDt := range mdlCpblt {
 			err := addModel(&ModelData{Name: yngMdlNm, Org: mdlDt.Org, Ver: mdlDt.Ver})
 			if err != nil {
 				log.Warningf("Adding model data for module %v to appinterface failed with error=%v", yngMdlNm, err)
@@ -138,9 +142,9 @@ func (app *CommonApp) processSubscribe(req processSubRequest) (processSubRespons
 }
 
 func (app *CommonApp) translateAction(dbs [db.MaxDB]*db.DB) error {
-    var err error
-    log.Info("translateAction:path =", app.pathInfo.Path, app.body)
-    return err
+	var err error
+	log.Info("translateAction:path =", app.pathInfo.Path, app.body)
+	return err
 }
 
 func (app *CommonApp) processCreate(d *db.DB) (SetResponse, error) {
@@ -196,109 +200,111 @@ func (app *CommonApp) processDelete(d *db.DB) (SetResponse, error) {
 }
 
 func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
-    var err error
-    var payload []byte
-    var resPayload []byte
-    log.Info("processGet:path =", app.pathInfo.Path)
-    txCache := new(sync.Map)
+	var err error
+	var payload []byte
+	var resPayload []byte
+	log.Info("processGet:path =", app.pathInfo.Path)
+	txCache := new(sync.Map)
+	isSonicUri := strings.HasPrefix(app.pathInfo.Path, "/sonic")
 
-    for {
-	    origXfmrYgotRoot, _ := ygot.DeepCopy((*app.ygotRoot).(ygot.GoStruct))
-
-        isEmptyPayload  := false
-		appYgotStruct := (*app.ygotRoot).(ygot.GoStruct)        
-	    payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache)
-	    if err != nil {
-		    log.Warning("transformer.GetAndXlateFromDB() returned : ", err)
-		    resPayload = payload
-		    break
-            }
-	    if strings.HasPrefix(app.pathInfo.Path, "/sonic") && isEmptyPayload {
-		    log.Info("transformer.GetAndXlateFromDB() returned EmptyPayload")
-		    resPayload = payload
-		    break
-	    }
-
-	    targetObj, tgtObjCastOk := (*app.ygotTarget).(ygot.GoStruct)
-	    if !tgtObjCastOk {
-		    /*For ygotTarget populated by tranlib, for query on leaf level and list(without instance) level, 
-		      casting to GoStruct fails so use the parent node of ygotTarget to Unmarshall the payload into*/
-		    log.Infof("Use GetParentNode() instead of casting ygotTarget to GoStruct, uri - %v", app.pathInfo.Path)
-		    targetUri := app.pathInfo.Path
-		    parentTargetObj, _, getParentNodeErr := getParentNode(&targetUri, (*app.ygotRoot).(*ocbinds.Device))
-		    if getParentNodeErr != nil {
-			    log.Warningf("getParentNode() failure for uri %v", app.pathInfo.Path)
-			    resPayload = payload
-			    break
-		    }
-		    if parentTargetObj != nil {
-			    targetObj, tgtObjCastOk = (*parentTargetObj).(ygot.GoStruct)
-			    if !tgtObjCastOk {
-				    log.Warningf("Casting of parent object returned from getParentNode() to GoStruct failed(uri - %v)", app.pathInfo.Path)
-				    resPayload = payload
-				    break
-			    }
-		    } else {
-			    log.Warningf("getParentNode() returned a nil Object for uri %v", app.pathInfo.Path)
-                            resPayload = payload
-                            break
-		    }
-	    }
-	    if targetObj != nil {
-		    updateListEntriesOpt := ytypes.AllowUpdateInListMap{}
-		    err = ocbinds.Unmarshal(payload, targetObj, &updateListEntriesOpt)
-		    if err != nil {
-			    log.Warning("ocbinds.Unmarshal()  returned : ", err)
-			    resPayload = payload
-			    break
-		    }
-
-		    resYgot := (*app.ygotRoot)
-		    if !strings.HasPrefix(app.pathInfo.Path, "/sonic") {
-			    if isEmptyPayload {
-				    if areEqual(appYgotStruct, origXfmrYgotRoot) {
-					    log.Info("origXfmrYgotRoot and appYgotStruct are equal.")
-					    // No data available in appYgotStruct.
-					    if transformer.IsLeafNode(app.pathInfo.Path) {
-						    //if leaf not exist in DB subtree won't fill ygotRoot, as per RFC return err
-						    resPayload = payload
-						    log.Info("No data found for leaf.")
-						    err = tlerr.NotFound("Resource not found")
-						    break
-					    }
-					    resPayload = payload
-					    log.Info("No data available")
-					    //TODO: Return not found error
-					    //err = tlerr.NotFound("Resource not found")
-					    break
-
-				    }
-				    resYgot = appYgotStruct
-			    }
-		    }
-		    if resYgot != nil {
-			    return generateGetResponse(app.pathInfo.Path, &resYgot, fmtType)
-		    } else {
+	for {
+		origXfmrYgotRoot, _ := ygot.DeepCopy((*app.ygotRoot).(ygot.GoStruct))
+		isEmptyPayload := false
+		appYgotStruct := (*app.ygotRoot).(ygot.GoStruct)
+		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache)
+		if err != nil {
 			resPayload = payload
-		    }
+			break
+		}
+		if isSonicUri && isEmptyPayload {
+			log.Info("transformer.GetAndXlateFromDB() returned EmptyPayload")
+			resPayload = payload
+			break
+		}
+		targetObj, tgtObjCastOk := (*app.ygotTarget).(ygot.GoStruct)
+		if !tgtObjCastOk {
+			/*For ygotTarget populated by tranlib, for query on leaf level and list(without instance) level,
+			  casting to GoStruct fails so use the parent node of ygotTarget to Unmarshall the payload into*/
+			log.Infof("Use GetParentNode() instead of casting ygotTarget to GoStruct, URI - %v", app.pathInfo.Path)
+			targetUri := app.pathInfo.Path
+			parentTargetObj, _, getParentNodeErr := getParentNode(&targetUri, (*app.ygotRoot).(*ocbinds.Device))
+			if getParentNodeErr != nil {
+				log.Warningf("getParentNode() failure for URI %v", app.pathInfo.Path)
+				resPayload = payload
+				break
+			}
+			if parentTargetObj != nil {
+				targetObj, tgtObjCastOk = (*parentTargetObj).(ygot.GoStruct)
+				if !tgtObjCastOk {
+					log.Warningf("Casting of parent object returned from getParentNode() to GoStruct failed(uri - %v)", app.pathInfo.Path)
+					resPayload = payload
+					break
+				}
+			} else {
+				log.Warningf("getParentNode() returned a nil Object for URI %v", app.pathInfo.Path)
+				resPayload = payload
+				break
+			}
+		}
+		if targetObj != nil {
+			updateListEntriesOpt := ytypes.AllowUpdateInListMap{}
+			err = ocbinds.Unmarshal(payload, targetObj, &updateListEntriesOpt)
+			if err != nil {
+				log.Warning("ocbinds.Unmarshal()  returned : ", err)
+				resPayload = payload
+				break
+			}
 
-		    break
-	    } else {
-		log.Warning("processGet. targetObj is null. Unable to Unmarshal payload")
-		resPayload = payload
-		break
-	    }
-    }
+			resYgot := (*app.ygotRoot)
+			if !isSonicUri {
+				if isEmptyPayload {
+					if areEqual(appYgotStruct, origXfmrYgotRoot) {
+						log.Info("origXfmrYgotRoot and appYgotStruct are equal.")
+						// No data available in appYgotStruct.
+						if transformer.IsLeafNode(app.pathInfo.Path) {
+							//if leaf not exist in DB subtree won't fill ygotRoot, as per RFC return err
+							resPayload = payload
+							log.Info("No data found for leaf.")
+							err = tlerr.NotFound("Resource not found")
+							break
+						}
+						resPayload = payload
+						log.Info("No data available")
+						//TODO: Return not found error
+						//err = tlerr.NotFound("Resource not found")
+						break
+					}
+					resYgot = appYgotStruct
+				}
+			}
+			if resYgot != nil {
+				return generateGetResponse(app.pathInfo.Path, &resYgot, fmtType)
+			} else {
+				resPayload = payload
+			}
+			break
+		} else {
+			log.Warning("processGet. targetObj is null. Unable to Unmarshal payload")
+			resPayload = payload
+			break
+		}
+	}
 
-    return GetResponse{Payload: resPayload}, err
+	return GetResponse{Payload: resPayload}, err
 }
 
 func (app *CommonApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
-        var resp ActionResponse
-        var err error
+	var resp ActionResponse
+	var err error
 
+	log.Info("Before calling transformer.CallRpcMethod() for path ", app.pathInfo.Path)
 	resp.Payload, err = transformer.CallRpcMethod(app.pathInfo.Path, app.body, dbs)
-	log.Info("transformer.CallRpcMethod() returned")
+	if log.V(5) {
+		payload := fmt.Sprintf("%v", string(resp.Payload))
+		log.Info("After calling transformer.CallRpcMethod() returns", payload)
+	} else {
+		log.Info("After calling transformer.CallRpcMethod()")
+	}
 
 	return resp, err
 }
@@ -310,40 +316,44 @@ func (app *CommonApp) translateCRUDCommon(d *db.DB, opcode int) ([]db.WatchKeys,
 	txCache := new(sync.Map)
 	log.Info("translateCRUDCommon:path =", app.pathInfo.Path)
 
-	// translate yang to db
+	// translate YANG to db
 	result, defValMap, auxMap, err := transformer.XlateToDb(app.pathInfo.Path, opcode, d, (*app).ygotRoot, (*app).ygotTarget, (*app).body, txCache, &app.skipOrdTableChk)
-	log.Info("transformer.XlateToDb() returned result DB map - ", result, "\nDefault value Db Map - ", defValMap, "\nAux Db Map - ", auxMap)
-
+	log.Info("transformer.XlateToDb() returned result DB map - ", result, "\nDefault value DB Map - ", defValMap, "\nAux DB Map - ", auxMap)
 
 	if err != nil {
 		log.Warning(err)
 		return keys, err
 	}
-	app.cmnAppTableMap = result
-	app.cmnAppYangDefValMap = defValMap
-	app.cmnAppYangAuxMap = auxMap //used for Replace case
+	app.cmnAppOpcode = opcode //NBI request opcode
 	if len(result) == 0 {
 		log.Info("XlatetoDB() returned empty map")
 		//Note: Get around for no redis ABNF Schema for set(temporary)
 		//`err = errors.New("transformer.XlatetoDB() returned empty map")
 		return keys, err
 	}
+	app.cmnAppTableMap = make(map[int]map[db.DBNum]map[string]map[string]db.Value)
+	for oper, dbMap := range result {
+		opcode := int(oper)
+		app.cmnAppTableMap[opcode] = dbMap
+	}
+	app.cmnAppYangDefValMap = defValMap
+	app.cmnAppYangAuxMap = auxMap //used for Replace case
 
 	moduleNm, err := transformer.GetModuleNmFromPath(app.pathInfo.Path)
-        if (err != nil) || (len(moduleNm) == 0) {
-                log.Warning("GetModuleNmFromPath() couldn't fetch module name.")
-                return keys, err
-        }
+	if (err != nil) || (len(moduleNm) == 0) {
+		log.Warning("GetModuleNmFromPath() couldn't fetch module name.")
+		return keys, err
+	}
 
 	var resultTblList []string
-        for _, dbMap := range result { //Get dependency list for all tables in result
+	for _, dbMap := range result { //Get dependency list for all tables in result
 		for _, resMap := range dbMap { //Get dependency list for all tables in result
-		        for tblnm := range resMap { //Get dependency list for all tables in result
+			for tblnm := range resMap { //Get dependency list for all tables in result
 				resultTblList = append(resultTblList, tblnm)
 			}
 		}
 	}
-        log.Info("Result Tables List", resultTblList)
+	log.Info("Result Tables List", resultTblList)
 
 	// Get list of tables to watch
 	if len(resultTblList) > 0 {
@@ -357,8 +367,7 @@ func (app *CommonApp) translateCRUDCommon(d *db.DB, opcode int) ([]db.WatchKeys,
 			tblsToWatch = append(tblsToWatch, &db.TableSpec{Name: tbl})
 		}
 	}
-        log.Info("Tables to watch", tblsToWatch)
-        cmnAppInfo.tablesToWatch = tblsToWatch
+	cmnAppInfo.tablesToWatch = tblsToWatch
 
 	keys, err = app.generateDbWatchKeys(d, false)
 	return keys, err
@@ -371,17 +380,7 @@ func (app *CommonApp) processCommon(d *db.DB, opcode int) error {
 		return err
 	}
 
-	log.Info("Processing DB operation for ", app.cmnAppTableMap)
-	switch opcode {
-		case CREATE:
-			log.Info("CREATE case")
-		case UPDATE:
-			log.Info("UPDATE case")
-		case REPLACE:
-			log.Info("REPLACE case")
-		case DELETE:
-			log.Info("DELETE case")
-	}
+	log.Info("Proceeding to perform DB operation")
 
 	// Handle delete first if any available
 	if _, ok := app.cmnAppTableMap[DELETE][db.ConfigDB]; ok {
@@ -423,27 +422,42 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 	var cmnAppTs *db.TableSpec
 	var xfmrTblLst []string
 	var resultTblLst []string
+	var isSonicYangReq bool
 
-	for tblNm := range(dbMap) {
+	for tblNm := range dbMap {
 		xfmrTblLst = append(xfmrTblLst, tblNm)
 	}
 	resultTblLst, err = utils.SortAsPerTblDeps(xfmrTblLst)
 	if err != nil {
 		return err
 	}
+	if strings.HasPrefix(app.pathInfo.Path, "/sonic") {
+		isSonicYangReq = true
+	}
 
 	/* CVL sorted order is in child first, parent later order. CRU ops from parent first order */
-	for idx := len(resultTblLst)-1; idx >= 0; idx-- {
+	for idx := len(resultTblLst) - 1; idx >= 0; idx-- {
 		tblNm := resultTblLst[idx]
 		log.Info("In Yang to DB map returned from transformer looking for table = ", tblNm)
 		if tblVal, ok := dbMap[tblNm]; ok {
 			cmnAppTs = &db.TableSpec{Name: tblNm}
-			log.Info("Found table entry in yang to DB map")
-			if ((tblVal == nil) || (len(tblVal) == 0)) {
+			log.Info("Found table entry in YANG to DB map")
+			if (tblVal == nil) || (len(tblVal) == 0) {
 				log.Info("No table instances/rows found.")
 				continue
 			}
-			for tblKey, tblRw := range tblVal {
+
+			ordDbKeyLst := transformer.SortSncTableDbKeys(tblNm, tblVal)
+			reverOrdDbKeyLst := func(s []string) []string {
+				sort.SliceStable(s, func(i, j int) bool {
+					return i > j
+				})
+				return s
+			}(ordDbKeyLst)
+			log.Infof("CRU case - ordered list of DB keys for tbl %v = %v", tblNm, reverOrdDbKeyLst)
+
+			for _, tblKey := range reverOrdDbKeyLst {
+				tblRw := tblVal[tblKey]
 				log.Info("Processing Table key ", tblKey)
 				// REDIS doesn't allow to create a table instance without any fields
 				if tblRw.Field == nil {
@@ -460,7 +474,7 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 				case CREATE:
 					if existingEntry.IsPopulated() {
 						log.Info("Create case - Entry ", tblKey, " already exists hence modifying it.")
-						/* Handle leaf-list merge if any leaf-list exists 
+						/* Handle leaf-list merge if any leaf-list exists
 						A leaf-list field in redis has "@" suffix as per swsssdk convention.
 						*/
 						resTblRw := db.Value{Field: map[string]string{}}
@@ -473,10 +487,13 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						}
 					} else {
 						if tblRwDefaults, defaultOk := app.cmnAppYangDefValMap[tblNm][tblKey]; defaultOk {
-							log.Info("Entry ", tblKey, " doesn't exist so fill defaults - ", tblRwDefaults)
+							log.Info("Entry ", tblKey, " doesn't exist so fill yang defined defaults - ", tblRwDefaults)
 							for fld, val := range tblRwDefaults.Field {
 								tblRw.Field[fld] = val
 							}
+						}
+						if isSonicYangReq && len(tblRw.Field) > 1 {
+							delete(tblRw.Field, "NULL")
 						}
 						log.Info("Processing Table row ", tblRw)
 						err = d.CreateEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, tblRw)
@@ -488,7 +505,7 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 				case UPDATE:
 					if existingEntry.IsPopulated() {
 						log.Info("Entry already exists hence modifying it.")
-						/* Handle leaf-list merge if any leaf-list exists 
+						/* Handle leaf-list merge if any leaf-list exists
 						A leaf-list field in redis has "@" suffix as per swsssdk convention.
 						*/
 						resTblRw := db.Value{Field: map[string]string{}}
@@ -500,13 +517,16 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						}
 					} else {
 						// workaround to patch operation from CLI
-						log.Info("Create(pathc) an entry.")
+						log.Info("Create(patch) an entry.")
 						if tblRwDefaults, defaultOk := app.cmnAppYangDefValMap[tblNm][tblKey]; defaultOk {
 							log.Info("Entry ", tblKey, " doesn't exist so fill defaults - ", tblRwDefaults)
-                                                        for fld, val := range tblRwDefaults.Field {
-                                                                tblRw.Field[fld] = val
-                                                        }
-                                                }
+							for fld, val := range tblRwDefaults.Field {
+								tblRw.Field[fld] = val
+							}
+						}
+						if isSonicYangReq && len(tblRw.Field) > 1 {
+							delete(tblRw.Field, "NULL")
+						}
 						log.Info("Processing Table row ", tblRw)
 						err = d.CreateEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, tblRw)
 						if err != nil {
@@ -515,15 +535,42 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						}
 					}
 				case REPLACE:
+					origTblRw := db.Value{Field: map[string]string{}}
+					for fld, val := range tblRw.Field {
+						origTblRw.Field[fld] = val
+					}
 					if tblRwDefaults, defaultOk := app.cmnAppYangDefValMap[tblNm][tblKey]; defaultOk {
 						log.Info("For entry ", tblKey, ", being replaced, fill defaults - ", tblRwDefaults)
 						for fld, val := range tblRwDefaults.Field {
 							tblRw.Field[fld] = val
 						}
 					}
+					if isSonicYangReq && len(tblRw.Field) > 1 {
+						delete(tblRw.Field, "NULL")
+					}
 					log.Info("Processing Table row ", tblRw)
 					if existingEntry.IsPopulated() {
 						log.Info("Entry already exists.")
+						if len(origTblRw.Field) == 1 {
+							isLeafListFld := false
+							fldNm := ""
+							fldVal := ""
+							for fldNm, fldVal = range origTblRw.Field {
+								if strings.HasSuffix(fldNm, "@") {
+									isLeafListFld = true
+								}
+							}
+							// if its a leaf-list replace NBI request, swap the contents of leaf-list
+							if isLeafListFld && (app.cmnAppOpcode == REPLACE) && (transformer.IsLeafListNode(app.pathInfo.Path)) {
+								log.Info("For entry ", tblKey, ", field ", fldNm, " will have value ", fldVal)
+								err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, origTblRw)
+								if err != nil {
+									log.Warning("REPLACE case - d.ModEntry() failure")
+									return err
+								}
+								continue // process next table instance - for tblKey, tblRw := range tblVal
+							}
+						}
 						auxRwOk := false
 						auxRw := db.Value{Field: map[string]string{}}
 						auxRw, auxRwOk = app.cmnAppYangAuxMap[tblNm][tblKey]
@@ -583,14 +630,13 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 	var resultTblLst []string
 	var ordTblList []string
 
-	for tblNm := range(dbMap) {
+	for tblNm := range dbMap {
 		xfmrTblLst = append(xfmrTblLst, tblNm)
 	}
 	resultTblLst, err = utils.SortAsPerTblDeps(xfmrTblLst)
 	if err != nil {
 		return err
 	}
-
 
 	/* Retrieve module Name */
 	moduleNm, err = transformer.GetModuleNmFromPath(app.pathInfo.Path)
@@ -605,7 +651,7 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 		log.Info("In Yang to DB map returned from transformer looking for table = ", tblNm)
 		if tblVal, ok := dbMap[tblNm]; ok {
 			cmnAppTs = &db.TableSpec{Name: tblNm}
-			log.Info("Found table entry in yang to DB map")
+			log.Info("Found table entry in YANG to DB map")
 			if !app.skipOrdTableChk {
 				ordTblList = transformer.GetXfmrOrdTblList(tblNm)
 				if len(ordTblList) == 0 {
@@ -645,8 +691,12 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 				continue
 
 			}
+			// Sort keys to make a list in order multiple keys first, single key last
+			ordDbKeyLst := transformer.SortSncTableDbKeys(tblNm, tblVal)
+			log.Infof("DELETE case - ordered list of DB keys for tbl %v = %v", tblNm, ordDbKeyLst)
 
-			for tblKey, tblRw := range tblVal {
+			for _, tblKey := range ordDbKeyLst {
+				tblRw := tblVal[tblKey]
 				if len(tblRw.Field) == 0 {
 					log.Info("DELETE case - no fields/cols to delete hence delete the entire row.")
 					log.Info("First, delete child table instances that correspond to parent table instance to be deleted = ", tblKey)
@@ -654,7 +704,7 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 						for _, ordtbl := range ordTblList {
 							if ordtbl == tblNm {
 								// Handle the child tables only till you reach the parent table entry
-								break;
+								break
 							}
 							dbTblSpec = &db.TableSpec{Name: ordtbl}
 							keyPattern := tblKey + "|*"
@@ -746,8 +796,8 @@ func checkAndProcessLeafList(existingEntry db.Value, tblRw db.Value, opcode int,
 						}
 					} else {
 						if opcode == DELETE {
-                                                        exstLst = utils.RemoveElement(exstLst, item)
-                                                }
+							exstLst = utils.RemoveElement(exstLst, item)
+						}
 
 					}
 				}
@@ -775,13 +825,13 @@ func checkAndProcessLeafList(existingEntry db.Value, tblRw db.Value, opcode int,
 					}
 				} else if opcode == DELETE {
 					_, fldExistsOk := existingEntry.Field[field]
-					if (fldExistsOk && (len(valueLst) == 0)) {
+					if fldExistsOk && (len(valueLst) == 0) {
 						tblRw.Field[field] = ""
 					} else {
 						delete(tblRw.Field, field)
 					}
 				}
-                        }
+			}
 		}
 	}
 	/* delete specific item from leaf-list */
@@ -803,21 +853,21 @@ func checkAndProcessLeafList(existingEntry db.Value, tblRw db.Value, opcode int,
 // areEqual compares a and b. If a and b are both pointers, it compares the
 // values they are pointing to.
 func areEqual(a, b interface{}) bool {
-        if util.IsValueNil(a) && util.IsValueNil(b) {
-                return true
-        }
-        va, vb := reflect.ValueOf(a), reflect.ValueOf(b)
-        if va.Kind() == reflect.Ptr && vb.Kind() == reflect.Ptr {
-                return reflect.DeepEqual(va.Elem().Interface(), vb.Elem().Interface())
-        }
+	if util.IsValueNil(a) && util.IsValueNil(b) {
+		return true
+	}
+	va, vb := reflect.ValueOf(a), reflect.ValueOf(b)
+	if va.Kind() == reflect.Ptr && vb.Kind() == reflect.Ptr {
+		return reflect.DeepEqual(va.Elem().Interface(), vb.Elem().Interface())
+	}
 
-        return reflect.DeepEqual(a, b)
+	return reflect.DeepEqual(a, b)
 }
 
 func isPartialReplace(exstRw db.Value, replTblRw db.Value, auxRw db.Value) bool {
 	/* if existing entry contains field thats not present in result,
-           default and auxillary map then its a partial replace
-         */
+	   default and auxillary map then its a partial replace
+	*/
 	partialReplace := false
 	for exstFld := range exstRw.Field {
 		if exstFld == "NULL" {
@@ -839,6 +889,3 @@ func isPartialReplace(exstRw db.Value, replTblRw db.Value, auxRw db.Value) bool 
 	log.Info("returning partialReplace - ", partialReplace)
 	return partialReplace
 }
-
-
-
