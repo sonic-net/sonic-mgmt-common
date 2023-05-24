@@ -35,10 +35,12 @@ package translib
 
 import (
 	"sync"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/Workiva/go-datastructures/queue"
 	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
 //Write lock for all write operations to be synchronized
@@ -55,6 +57,13 @@ type ErrSource int
 const (
 	ProtoErr ErrSource = iota
 	AppErr
+)
+
+type TranslibFmtType int
+
+const (
+	TRANSLIB_FMT_IETF_JSON TranslibFmtType = iota
+	TRANSLIB_FMT_YGOT
 )
 
 type UserRoles struct {
@@ -78,6 +87,7 @@ type SetResponse struct {
 
 type GetRequest struct {
 	Path    string
+	FmtType TranslibFmtType
 	User    UserRoles
 	AuthEnabled bool
 	ClientVersion Version
@@ -88,8 +98,9 @@ type GetRequest struct {
 }
 
 type GetResponse struct {
-	Payload []byte
-	ErrSrc  ErrSource
+	Payload   []byte
+	ValueTree ygot.ValidatedGoStruct
+	ErrSrc    ErrSource
 }
 
 type ActionRequest struct {
@@ -523,7 +534,7 @@ func Get(req GetRequest) (GetResponse, error) {
 		return resp, err
 	}
 
-	resp, err = (*app).processGet(dbs)
+	resp, err = (*app).processGet(dbs, req.FmtType)
 
 	return resp, err
 }

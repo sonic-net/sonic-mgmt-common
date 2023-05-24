@@ -74,30 +74,48 @@ func TestMain(m *testing.M) {
 
 func processGetRequest(url string, expectedRespJson string, errorCase bool) func(*testing.T) {
 	return func(t *testing.T) {
-		response, err := Get(GetRequest{Path: url})
-		switch {
-		case err != nil && !errorCase:
-			t.Fatalf("Error %v received for Url: %s", err, url)
-		case err == nil && errorCase:
-			t.Fatalf("GET %s did not return an error", url)
-		case errorCase:
-			return
-		}
+		t.Run("ietf_json", func(t *testing.T) {
+			verifyGet(t, GetRequest{Path: url}, expectedRespJson, errorCase)
+		})
+		t.Run("ygot", func(t *testing.T) {
+			verifyGet(t, GetRequest{Path: url, FmtType: TRANSLIB_FMT_YGOT}, expectedRespJson, errorCase)
+		})
+	}
+}
 
-		respJson := response.Payload
+func verifyGet(t *testing.T, req GetRequest, expJson string, expError bool) {
+	t.Helper()
+	response, err := Get(req)
+	switch {
+	case err != nil && !expError:
+		t.Fatalf("Error %v received for Url: %s", err, req.Path)
+	case err == nil && expError:
+		t.Fatalf("GET %s did not return an error", req.Path)
+	case expError:
+		return
+	}
 
-		var jResponse, jExpected map[string]interface{}
-		if err := json.Unmarshal(respJson, &jResponse); err != nil {
-			t.Fatalf("invalid response json; err = %v\npayload = %s", err, respJson)
+	var respJson []byte
+	if req.FmtType == TRANSLIB_FMT_YGOT && response.ValueTree != nil {
+		respJson, err = dumpIetfJson(response.ValueTree, true)
+		if err != nil {
+			t.Fatalf("GET %s returned invalid YGOT. error=%v", req.Path, err)
 		}
-		if err := json.Unmarshal([]byte(expectedRespJson), &jExpected); err != nil {
-			t.Fatalf("invalid expected json; err = %v", err)
-		}
-		if !reflect.DeepEqual(jResponse, jExpected) {
-			t.Errorf("GET %s returned invalid response", url)
-			t.Errorf("Expected: %s", expectedRespJson)
-			t.Fatalf("Received: %s", respJson)
-		}
+	} else if req.FmtType == TRANSLIB_FMT_IETF_JSON {
+		respJson = response.Payload
+	}
+
+	var jResponse, jExpected map[string]interface{}
+	if err := json.Unmarshal(respJson, &jResponse); err != nil {
+		t.Fatalf("invalid response json; err = %v\npayload = %s", err, respJson)
+	}
+	if err := json.Unmarshal([]byte(expJson), &jExpected); err != nil {
+		t.Fatalf("invalid expected json; err = %v", err)
+	}
+	if !reflect.DeepEqual(jResponse, jExpected) {
+		t.Errorf("GET %s returned invalid response", req.Path)
+		t.Errorf("Expected: %s", expJson)
+		t.Fatalf("Received: %s", respJson)
 	}
 }
 

@@ -38,7 +38,7 @@ copy github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802 .
 
 # Apply patches
 
-patch -d ${DEST_DIR}/github.com/openconfig -p1 < ${PATCH_DIR}/ygot/ygot.patch
+patch -d ${DEST_DIR}/github.com/openconfig/ygot -p1 < ${PATCH_DIR}/ygot/ygot.patch
 
 patch -d ${DEST_DIR}/github.com/openconfig/goyang -p1 < ${PATCH_DIR}/goyang/goyang.patch
 
