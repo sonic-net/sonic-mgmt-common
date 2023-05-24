@@ -289,6 +289,10 @@ func (d DB) String() string {
 		d.client, d.Opts, d.txState, d.txCmds)
 }
 
+func (dbNo DBNum) Name() string {
+	return (getDBInstName(dbNo))
+}
+
 func getDBInstName (dbNo DBNum) string {
 	switch dbNo {
 	case ApplDB:
@@ -311,6 +315,27 @@ func getDBInstName (dbNo DBNum) string {
 		return "USER_DB"
 	}
 	return ""
+}
+
+func GetdbNameToIndex(dbName string) DBNum {
+	dbIndex := ConfigDB
+	switch dbName {
+	case "APPL_DB":
+		dbIndex = ApplDB
+	case "ASIC_DB":
+		dbIndex = AsicDB
+	case "COUNTERS_DB":
+		dbIndex = CountersDB
+	case "CONFIG_DB":
+		dbIndex = ConfigDB
+	case "FLEX_COUNTER_DB":
+		dbIndex = FlexCounterDB
+	case "STATE_DB":
+		dbIndex = StateDB
+	case "ERROR_DB":
+		dbIndex = ErrorDB
+	}
+	return dbIndex
 }
 
 // NewDB is the factory method to create new DB's.
