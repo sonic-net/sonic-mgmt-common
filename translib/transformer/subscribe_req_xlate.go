@@ -1951,7 +1951,7 @@ func (keyRslvr *DbYangKeyResolver) handleValueXfmr(xfmrName string, operation Op
 	if log.V(dbLgLvl) {
 		log.Info(keyRslvr.reqLogId, "resolveDbKey: keyLeafRefNode xfmrValue; ", xfmrName)
 	}
-	inParams := formXfmrDbInputRequest(int(operation), keyRslvr.dbIdx, keyRslvr.tableName, strings.Join(keyRslvr.key.Comp, keyRslvr.delim), keyName, keyVal)
+	inParams := formXfmrDbInputRequest(operation, keyRslvr.dbIdx, keyRslvr.tableName, strings.Join(keyRslvr.key.Comp, keyRslvr.delim), keyName, keyVal)
 	keyLeafVal, err = valueXfmrHandler(inParams, xfmrName)
 	if err != nil {
 		return
