@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/path"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 
 	log "github.com/golang/glog"
@@ -1215,6 +1216,7 @@ func convertOCToInternalIPv4(ruleData db.Value, aclName string, ruleIndex uint32
 	if rule.Ipv4.Config.DestinationAddress != nil {
 		ruleData.Field["DST_IP"] = *rule.Ipv4.Config.DestinationAddress
 	}
+	ruleData.Field["IP_TYPE"] = "IPV4ANY"
 }
 
 func convertOCToInternalIPv6(ruleData db.Value, aclName string, ruleIndex uint32, rule *ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_AclEntries_AclEntry) {
@@ -1246,6 +1248,7 @@ func convertOCToInternalIPv6(ruleData db.Value, aclName string, ruleIndex uint32
 	if rule.Ipv6.Config.DestinationFlowLabel != nil {
 		ruleData.Field["DST_FLOWLABEL"] = strconv.FormatInt(int64(*rule.Ipv6.Config.DestinationFlowLabel), 10)
 	}
+	ruleData.Field["IP_TYPE"] = "IPV6ANY"
 }
 
 func convertOCToInternalTransport(ruleData db.Value, aclName string, ruleIndex uint32, rule *ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_AclEntries_AclEntry) {
@@ -1620,6 +1623,19 @@ func getAclTypeOCEnumFromName(val string) (ocbinds.E_OpenconfigAcl_ACL_TYPE, err
 	}
 }
 
+func convertSonicAclTypeToOC(aclType string) (ocbinds.E_OpenconfigAcl_ACL_TYPE, string) {
+	switch aclType {
+	case SONIC_ACL_TYPE_IPV4:
+		return ocbinds.OpenconfigAcl_ACL_TYPE_ACL_IPV4, "ACL_IPV4"
+	case SONIC_ACL_TYPE_IPV6:
+		return ocbinds.OpenconfigAcl_ACL_TYPE_ACL_IPV6, "ACL_IPV6"
+	case SONIC_ACL_TYPE_L2:
+		return ocbinds.OpenconfigAcl_ACL_TYPE_ACL_L2, "ACL_L2"
+	default:
+		return ocbinds.OpenconfigAcl_ACL_TYPE_UNSET, ""
+	}
+}
+
 func getAclKeyStrFromOCKey(aclname string, acltype ocbinds.E_OpenconfigAcl_ACL_TYPE) string {
 	aclN := strings.Replace(strings.Replace(aclname, " ", "_", -1), "-", "_", -1)
 	aclT := acltype.ΛMap()["E_OpenconfigAcl_ACL_TYPE"][int64(acltype)].Name
@@ -1636,9 +1652,136 @@ func isSubtreeRequest(targetUriPath string, nodePath string) bool {
 }
 
 func (app *AclApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
-	return emptySubscribeResponse(req.path)
+	ymap := yangMapTree{
+		subtree: map[string]*yangMapTree{
+			"acl-sets/acl-set": {
+				mapFunc: app.translateSubscribeAclSet,
+				subtree: map[string]*yangMapTree{
+					"acl-entries/acl-entry": {
+						mapFunc: app.translateSubscribeAclEntry,
+					},
+				},
+			},
+			"interfaces": {
+				mapFunc: app.translateSubscribeAclBindings,
+			},
+		}}
+
+	nb := notificationInfoBuilder{
+		pathInfo: NewPathInfo(req.path),
+		yangMap:  ymap,
+	}
+	return nb.Build()
+}
+
+func (app *AclApp) translateSubscribeAclSet(nb *notificationInfoBuilder) error {
+	aclName := nb.pathInfo.StringVar("name", "*")
+	aclType := nb.pathInfo.StringVar("type", "*")
+
+	nb.New().PathKey("name", aclName).PathKey("type", aclType)
+	nb.Table(db.ConfigDB, ACL_TABLE).Key(aclName + "_" + aclType)
+	if nb.SetFieldPrefix("config") {
+		nb.Field("description", ACL_DESCRIPTION)
+	}
+	if nb.SetFieldPrefix("state") {
+		nb.Field("description", ACL_DESCRIPTION)
+	}
+
+	return nil
+}
+
+func (app *AclApp) translateSubscribeAclEntry(nb *notificationInfoBuilder) error {
+	aclName := nb.pathInfo.StringVar("name", "*")
+	aclType := nb.pathInfo.StringVar("type", "*")
+	ruleSeq := nb.pathInfo.StringVar("sequence-id", "*")
+
+	nb.New().PathKey("sequence-id", ruleSeq)
+	nb.Table(db.ConfigDB, RULE_TABLE).Key(aclName+"_"+aclType, "RULE_"+ruleSeq)
+
+	ipAclFieldSetter := func(prefix string) {
+		if nb.SetFieldPrefix(prefix) {
+			nb.Field("source-address", "SRC_IP")
+			nb.Field("destination-address", "DST_IP")
+			nb.Field("dscp", "DSCP")
+			nb.Field("protocol", "IP_PROTOCOL")
+		}
+	}
+	ipv6AclFieldSetter := func(prefix string) {
+		if nb.SetFieldPrefix(prefix) {
+			nb.Field("source-address", "SRC_IPV6")
+			nb.Field("destination-address", "DST_IPV6")
+			nb.Field("dscp", "DSCP")
+			nb.Field("protocol", "IP_PROTOCOL")
+		}
+	}
+	ipTransportFieldSetter := func(prefix string) {
+		if nb.SetFieldPrefix(prefix) {
+			nb.Field("source-port", "L4_SRC_PORT")
+			nb.Field("source-port", "L4_SRC_PORT_RANGE")
+			nb.Field("destination-port", "L4_DST_PORT")
+			nb.Field("destination-port", "L4_DST_PORT_RANGE")
+			nb.Field("tcp-flags", "TCP_FLAGS")
+		}
+	}
+	if wildcardMatch(aclType, "ACL_IPV4") {
+		ipAclFieldSetter("ipv4/config")
+		ipAclFieldSetter("ipv4/state")
+		ipTransportFieldSetter("transport/config")
+		ipTransportFieldSetter("transport/state")
+	}
+	if wildcardMatch(aclType, "ACL_IPV6") {
+		ipv6AclFieldSetter("ipv6/config")
+		ipv6AclFieldSetter("ipv6/state")
+		ipTransportFieldSetter("transport/config")
+		ipTransportFieldSetter("transport/state")
+	}
+	if nb.SetFieldPrefix("actions/config") {
+		nb.Field("forwarding-action", "PACKET_ACTION")
+	}
+	if nb.SetFieldPrefix("actions/state") {
+		nb.Field("forwarding-action", "PACKET_ACTION")
+	}
+
+	return nil
+}
+
+func (app *AclApp) translateSubscribeAclBindings(nb *notificationInfoBuilder) error {
+	nb.New().OnChange(false).Preferred(Sample)
+	return nil
 }
 
 func (app *AclApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
-	return processSubResponse{}, tlerr.New("not implemented")
+	resp := processSubResponse{
+		path: req.path,
+	}
+
+	switch req.table.Name {
+	case ACL_TABLE:
+		if path.GetElemAt(resp.path, 2) != "acl-set" {
+			return resp, tlerr.New("Unknown path template: %v", path.String(req.path))
+		}
+
+		_, aclTypeStr := convertSonicAclTypeToOC(req.entry.Get(ACL_TYPE))
+		aclName := strings.TrimSuffix(req.key.Get(0), "_"+aclTypeStr)
+		path.SetKeyAt(resp.path, 2, "name", aclName)
+		path.SetKeyAt(resp.path, 2, "type", aclTypeStr)
+
+	case RULE_TABLE:
+		aclName := req.key.Get(0)
+		aclEntry, err := req.dbs[db.ConfigDB].GetEntry(&db.TableSpec{Name: ACL_TABLE}, asKey(aclName))
+		if err != nil {
+			return resp, err
+		}
+
+		_, aclTypeStr := convertSonicAclTypeToOC(aclEntry.Get(ACL_TYPE))
+		aclName = strings.TrimSuffix(aclName, "_"+aclTypeStr)
+		path.SetKeyAt(resp.path, 2, "name", aclName)
+		path.SetKeyAt(resp.path, 2, "type", aclTypeStr)
+		path.SetKeyAt(resp.path, 4, "sequence-id", strings.TrimPrefix(req.key.Get(1), "RULE_"))
+
+	default:
+		return resp, tlerr.New("Unknown table: %s", req.table.Name)
+	}
+
+	return resp, nil
 }

@@ -21,17 +21,19 @@ package translib
 import (
 	"errors"
 	"fmt"
-	log "github.com/golang/glog"
-	"github.com/openconfig/ygot/ygot"
 	"net"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
+	"unsafe"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/path"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	"unsafe"
+	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
 type reqType int
@@ -49,6 +51,12 @@ type dbEntry struct {
 
 const (
 	PORT              = "PORT"
+	PORT_TABLE        = "PORT_TABLE"
+	INTERFACE         = "INTERFACE"
+	COUNTERS_NAME_MAP = "COUNTERS_PORT_NAME_MAP"
+)
+
+const (
 	PORT_INDEX        = "index"
 	PORT_MTU          = "mtu"
 	PORT_ADMIN_STATUS = "admin_status"
@@ -56,6 +64,10 @@ const (
 	PORT_DESC         = "description"
 	PORT_OPER_STATUS  = "oper_status"
 )
+
+// intf_app supports physical ports only; hence consider only
+// "EthernetX" fields from COUNTERS_PORT_NAME_MAP
+const countersMapFieldPattern = "Ethernet*"
 
 type Table int
 
@@ -251,11 +263,137 @@ func (app *IntfApp) translateAction(dbs [db.MaxDB]*db.DB) error {
 }
 
 func (app *IntfApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
-	return emptySubscribeResponse(req.path)
+	ymap := yangMapTree{
+		subtree: map[string]*yangMapTree{
+			"interface": {
+				mapFunc: app.translateSubscribeIntfList,
+				subtree: map[string]*yangMapTree{
+					"state": {
+						mapFunc: app.translateSubscribeIntfState,
+						subtree: map[string]*yangMapTree{
+							"counters": {
+								mapFunc: app.translateSubscribeIntfStats,
+							},
+						},
+					},
+					"subinterfaces/subinterface": {
+						mapFunc: app.translateSubscribeSubIntf,
+						subtree: map[string]*yangMapTree{
+							"openconfig-if-ip:ipv4/addresses/address": {
+								mapFunc: app.translateSubscribeIntfIP,
+							},
+							"openconfig-if-ip:ipv6/addresses/address": {
+								mapFunc: app.translateSubscribeIntfIP,
+							},
+						},
+					},
+				}}}}
+
+	nb := notificationInfoBuilder{
+		pathInfo: NewPathInfo(req.path),
+		yangMap:  ymap,
+	}
+	return nb.Build()
+}
+
+func (app *IntfApp) translateSubscribeIntfList(nb *notificationInfoBuilder) error {
+	name := nb.pathInfo.StringVar("name", "*")
+	nb.New().PathKey("name", name).Table(db.ConfigDB, PORT).Key(name)
+	if nb.SetFieldPrefix("config") {
+		nb.Field("mtu", PORT_MTU)
+		nb.Field("description", PORT_DESC)
+		nb.Field("enabled", PORT_ADMIN_STATUS)
+	}
+	if nb.SetFieldPrefix("openconfig-if-ethernet:ethernet/config") {
+		nb.Field("port-speed", PORT_SPEED)
+	}
+	if nb.SetFieldPrefix("openconfig-if-ethernet:ethernet/state") {
+		nb.Field("port-speed", PORT_SPEED)
+	}
+	return nil
+}
+
+func (app *IntfApp) translateSubscribeIntfState(nb *notificationInfoBuilder) error {
+	name := nb.pathInfo.StringVar("name", "*")
+	nb.New().Table(db.ApplDB, PORT_TABLE).Key(name)
+	if nb.SetFieldPrefix("") {
+		nb.Field("ifindex", PORT_INDEX)
+		nb.Field("mtu", PORT_MTU)
+		nb.Field("description", PORT_DESC)
+		nb.Field("enabled", PORT_ADMIN_STATUS)
+		nb.Field("admin-status", PORT_ADMIN_STATUS)
+		nb.Field("oper-status", PORT_OPER_STATUS)
+	}
+	return nil
+}
+
+func (app *IntfApp) translateSubscribeIntfStats(nb *notificationInfoBuilder) error {
+	name := nb.pathInfo.StringVar("name", "*")
+	fieldPattern := name
+	if name == "*" {
+		fieldPattern = countersMapFieldPattern
+	}
+	nb.New().Table(db.CountersDB, COUNTERS_NAME_MAP).FieldScan(fieldPattern)
+	return nil
+}
+
+func (app *IntfApp) translateSubscribeSubIntf(nb *notificationInfoBuilder) error {
+	index := nb.pathInfo.StringVar("index", "*")
+	if index != "*" && index != "0" {
+		return tlerr.InvalidArgs("invalid subinterface index: %s", index)
+	}
+	nb.PathKey("index", "0")
+	return nil
+}
+
+func (app *IntfApp) translateSubscribeIntfIP(nb *notificationInfoBuilder) error {
+	name := nb.pathInfo.StringVar("name", "*")
+	ipV := 4 // 4 or 6
+	if p := path.GetElemAt(nb.currentPath, 4); strings.HasSuffix(p, "ipv6") {
+		ipV = 6
+	}
+
+	addr := nb.pathInfo.StringVar("ip", "*")
+	var addrDbPattern string
+	if addr != "*" {
+		if (ipV == 4 && !validIPv4(addr)) || (ipV == 6 && !validIPv6(addr)) {
+			return tlerr.InvalidArgs("not a valid ipv%d address: %s", ipV, addr)
+		}
+		addrDbPattern = addr + "/*"
+	} else if ipV == 4 {
+		addrDbPattern = "*.*.*.*/*"
+	} else {
+		addrDbPattern = "*:*/*" // ipv6 address will have at least 1 colon
+	}
+
+	nb.New().PathKey("ip", addr).Table(db.ConfigDB, INTERFACE).Key(name, addrDbPattern)
+	if nb.SetFieldPrefix("config") {
+		nb.Field("prefix-length", "")
+	}
+	if nb.SetFieldPrefix("state") {
+		nb.Field("prefix-length", "")
+	}
+	return nil
 }
 
 func (app *IntfApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
-	return processSubResponse{}, tlerr.New("not implemented")
+	resp := processSubResponse{
+		path: req.path,
+	}
+	switch req.table.Name {
+	case PORT, PORT_TABLE, COUNTERS_NAME_MAP:
+		path.SetKeyAt(resp.path, 1, "name", req.key.Get(0))
+	case INTERFACE:
+		if req.key.Len() != 2 {
+			return resp, tlerr.New("unsupported interface key: %v", req.key)
+		}
+		path.SetKeyAt(resp.path, 1, "name", req.key.Get(0))
+		path.SetKeyAt(resp.path, 3, "index", "0")
+		path.SetKeyAt(resp.path, 6, "ip", strings.Split(req.key.Get(1), "/")[0]) // trim subnet mask
+	default:
+		return resp, tlerr.New("unsupported table: %s", req.table.Name)
+	}
+	return resp, nil
 }
 
 func (app *IntfApp) processCreate(d *db.DB) (SetResponse, error) {
@@ -657,8 +795,16 @@ func (app *IntfApp) getIntfAttr(ifName string, attr string, table Table) (string
 	return "", errors.New("Attr " + attr + "doesn't exist in IF table Map!")
 }
 
+func (app *IntfApp) shouldLoad(p string) bool {
+	return strings.HasPrefix(p, app.path.Template) || strings.HasPrefix(app.path.Template, p)
+}
+
 /***********  Translation Helper fn to convert DB Interface info to Internal DS   ***********/
 func (app *IntfApp) getPortOidMapForCounters(dbCl *db.DB) error {
+	if !app.shouldLoad("/openconfig-interfaces:interfaces/interface{}/state/counters") {
+		return nil
+	}
+
 	var err error
 	ifCountInfo, err := dbCl.GetMapAll(app.portOidCountrTblTs)
 	if err != nil {
@@ -674,8 +820,11 @@ func (app *IntfApp) getPortOidMapForCounters(dbCl *db.DB) error {
 }
 
 func (app *IntfApp) convertDBIntfCounterInfoToInternal(dbCl *db.DB, ifKey string) error {
-	var err error
+	if !app.shouldLoad("/openconfig-interfaces:interfaces/interface{}/state/counters") {
+		return nil
+	}
 
+	var err error
 	if len(ifKey) > 0 {
 		oid := app.portOidMap.entry.Field[ifKey]
 		log.Infof("OID : %s received for Interface : %s", oid, ifKey)
@@ -750,6 +899,9 @@ func (app *IntfApp) convertDBIntfInfoToInternal(dbCl *db.DB, ifName string, ifKe
 
 /***********  Translation Helper fn to convert DB Interface IP info to Internal DS   ***********/
 func (app *IntfApp) convertDBIntfIPInfoToInternal(dbCl *db.DB, ifName string) error {
+	if !app.shouldLoad("/openconfig-interfaces:interfaces/interface{}/subinterfaces") {
+		return nil
+	}
 
 	var err error
 	log.Info("Updating Interface IP Info from APP-DB to Internal DS for Interface Name : ", ifName)

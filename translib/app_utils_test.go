@@ -20,7 +20,9 @@
 package translib
 
 import (
+	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -84,12 +86,15 @@ func processGetRequest(url string, expectedRespJson string, errorCase bool) func
 func verifyGet(t *testing.T, req GetRequest, expJson string, expError bool) {
 	t.Helper()
 	response, err := Get(req)
-	if expError {
-		if err == nil {
-			t.Fatalf("GET %s did not return an error", req.Path)
-		}
+	switch {
+	case err != nil && !expError:
+		t.Fatalf("Error %v received for Url: %s", err, req.Path)
+	case err == nil && expError:
+		t.Fatalf("GET %s did not return an error", req.Path)
+	case expError:
 		return
 	}
+
 	var respJson []byte
 	if req.FmtType == TRANSLIB_FMT_YGOT && response.ValueTree != nil {
 		respJson, err = dumpIetfJson(response.ValueTree, true)
@@ -99,10 +104,18 @@ func verifyGet(t *testing.T, req GetRequest, expJson string, expError bool) {
 	} else if req.FmtType == TRANSLIB_FMT_IETF_JSON {
 		respJson = response.Payload
 	}
-	if j := string(respJson); j != expJson {
+
+	var jResponse, jExpected map[string]interface{}
+	if err := json.Unmarshal(respJson, &jResponse); err != nil {
+		t.Fatalf("invalid response json; err = %v\npayload = %s", err, respJson)
+	}
+	if err := json.Unmarshal([]byte(expJson), &jExpected); err != nil {
+		t.Fatalf("invalid expected json; err = %v", err)
+	}
+	if !reflect.DeepEqual(jResponse, jExpected) {
 		t.Errorf("GET %s returned invalid response", req.Path)
 		t.Errorf("Expected: %s", expJson)
-		t.Fatalf("Received: %s", j)
+		t.Fatalf("Received: %s", respJson)
 	}
 }
 
@@ -116,6 +129,8 @@ func processSetRequest(url string, jsonPayload string, oper string, errorCase bo
 			_, err = Update(SetRequest{Path: url, Payload: []byte(jsonPayload)})
 		case "PUT":
 			_, err = Replace(SetRequest{Path: url, Payload: []byte(jsonPayload)})
+		case "DELETE":
+			_, err = Delete(SetRequest{Path: url})
 		default:
 			t.Errorf("Operation not supported")
 		}

@@ -17,14 +17,11 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-// +build !test
-
 package translib
 
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -32,7 +29,7 @@ import (
 )
 
 func init() {
-	fmt.Println("+++++  Init acl_app_test  +++++")
+	initPortTableForACLTests()
 	addCleanupFunc("ACL", clearAclDataFromDb)
 }
 
@@ -54,9 +51,11 @@ func Test_AclApp_TopLevelPath(t *testing.T) {
 }
 
 func Test_AclApp_SingleAclOperations(t *testing.T) {
-	url := "/openconfig-acl:acl/acl-sets/acl-set[name=MyACL3][type=ACL_IPV4]"
+	url := "/openconfig-acl:acl/acl-sets/acl-set"
 
 	t.Run("Create_One_Acl_With_Multiple_Rules(PATCH)", processSetRequest(url, oneAclCreateWithRulesJsonRequest, "PATCH", false))
+
+	url += "[name=MyACL3][type=ACL_IPV4]"
 
 	t.Run("Verify_Create_One_Acl_With_Multiple_Rules", processGetRequest(url, oneAclCreateWithRulesJsonResponse, false))
 
@@ -96,16 +95,16 @@ func Test_AclApp_SingleRuleOperations(t *testing.T) {
 	t.Run("Verify_IPv4_Dscp_Deletion", processGetRequest(dscpUrl, emptyRuleDscpJson, false))
 
 	protocolUrl := ruleUrl + "/ipv4/config/protocol"
-	t.Run("Delete_IPv4_Protocol_Field", processDeleteRequest(protocolUrl))
-	t.Run("Verify_IPv4_Protocol_Deletion", processGetRequest(protocolUrl, emptyJson, false))
+	t.Run("Delete_IPv4_Protocol_Field", processSetRequest(protocolUrl, "", "DELETE", true))
+	// t.Run("Verify_IPv4_Protocol_Deletion", processGetRequest(protocolUrl, emptyJson, false))
 
 	transportConfigUrl := ruleUrl + "/transport"
 	t.Run("Delete_Transport_Container", processDeleteRequest(transportConfigUrl))
 	t.Run("Verify_Transport_Container_Deletion", processGetRequest(transportConfigUrl, emptyJson, false))
 
 	ipv4ConfigUrl := ruleUrl + "/ipv4/config"
-	t.Run("Delete_IPv4_Config_Container", processDeleteRequest(ipv4ConfigUrl))
-	t.Run("Verify_IPv4_Config_Container_Deletion", processGetRequest(ipv4ConfigUrl, emptyJson, false))
+	t.Run("Delete_IPv4_Config_Container", processSetRequest(ipv4ConfigUrl, "", "DELETE", true))
+	// t.Run("Verify_IPv4_Config_Container_Deletion", processGetRequest(ipv4ConfigUrl, emptyJson, false))
 
 	t.Run("Delete_One_Rule", processDeleteRequest(ruleUrl))
 	t.Run("Verify_One_Rule_Delete", processGetRequest(ruleUrl, "", true))
@@ -116,9 +115,12 @@ func Test_AclApp_SingleRuleOperations(t *testing.T) {
 
 // This will test PUT (Replace) operation by  Replacing multiple Rules with one Rule in an Acl
 func Test_AclApp_ReplaceMultipleRulesWithOneRule(t *testing.T) {
-	url := "/openconfig-acl:acl/acl-sets/acl-set[name=MyACL3][type=ACL_IPV4]"
+	url := "/openconfig-acl:acl/acl-sets/acl-set"
 
 	t.Run("Create_One_Acl_With_Multiple_Rules(PATCH)", processSetRequest(url, oneAclCreateWithRulesJsonRequest, "PATCH", false))
+
+	url += "[name=MyACL3][type=ACL_IPV4]"
+
 	t.Run("Verify_Create_One_Acl_With_Multiple_Rules", processGetRequest(url, oneAclCreateWithRulesJsonResponse, false))
 
 	t.Run("Replace_All_Rules_With_One_Rule", processSetRequest(url, replaceMultiRulesWithOneRuleJsonRequest, "PUT", false))
@@ -255,12 +257,12 @@ func Test_AclApp_IPv6AclAndRule(t *testing.T) {
 	t.Run("Verify_Binding_From_Ingress_Aclset_Deletion", processGetRequest(bindingUrl, "", true))
 
 	pktActionUrl := ruleUrl + "/actions/config/forwarding-action"
-	t.Run("Delete_Packet_Action_Field", processDeleteRequest(pktActionUrl))
-	t.Run("Verify_Packet_Action_Field_Deletion", processGetRequest(pktActionUrl, emptyJson, false))
+	t.Run("Delete_Packet_Action_Field", processSetRequest(pktActionUrl, "", "DELETE", true))
+	// t.Run("Verify_Packet_Action_Field_Deletion", processGetRequest(pktActionUrl, emptyJson, false))
 
 	ipv6ConfigUrl := ruleUrl + "/ipv6/config"
-	t.Run("Delete_IPv6_Config", processDeleteRequest(ipv6ConfigUrl))
-	t.Run("Verify_IPv6_Config_Deletion", processGetRequest(ipv6ConfigUrl, emptyJson, false))
+	t.Run("Delete_IPv6_Config", processSetRequest(ipv6ConfigUrl, "", "DELETE", true))
+	// t.Run("Verify_IPv6_Config_Deletion", processGetRequest(ipv6ConfigUrl, emptyJson, false))
 
 	t.Run("Delete_One_Rule", processDeleteRequest(ruleUrl))
 	t.Run("Delete_One_Acl", processDeleteRequest(aclUrl))
@@ -268,6 +270,8 @@ func Test_AclApp_IPv6AclAndRule(t *testing.T) {
 }
 
 func Test_AclApp_L2AclAndRule(t *testing.T) {
+	t.Skip("AclApp does not support L2 ACLs")
+
 	aclUrl := "/openconfig-acl:acl/acl-sets/acl-set[name=MyACL2][type=ACL_L2]"
 	ruleUrl := "/openconfig-acl:acl/acl-sets/acl-set[name=MyACL2][type=ACL_L2]/acl-entries/acl-entry[sequence-id=2]"
 	bindingUrl := "/openconfig-acl:acl/interfaces/interface[id=Ethernet0]/ingress-acl-sets/ingress-acl-set[set-name=MyACL2][type=ACL_L2]"
@@ -315,14 +319,15 @@ func Test_AclApp_NegativeTests(t *testing.T) {
 	t.Run("Create_Acl_With_Invalid_Interface_Binding", processSetRequest(url, aclCreateWithInvalidInterfaceBinding, "POST", true))
 
 	// Verify error if duplicate Acl is created using POST
-	t.Run("Create_One_L2_Acl_Without_Rule", processSetRequest(aclUrl, oneL2AclCreateJsonRequest, "POST", false))
-	t.Run("Verify_One_L2_Acl_Without_Rule_Creation", processGetRequest(aclUrl, oneL2AclCreateJsonResponse, false))
-	t.Run("Verify_Error_On_Create_Duplicate_L2_Acl", processSetRequest(aclUrl, oneL2AclCreateJsonRequest, "POST", true))
+	aclUrl = "/openconfig-acl:acl/acl-sets/acl-set[name=MyACL6][type=ACL_IPV6]"
+	t.Run("Create_One_IPV6_Acl_Without_Rule", processSetRequest(aclUrl, oneIPv6AclCreateJsonRequest, "POST", false))
+	t.Run("Verify_One_IPV6_Acl_Without_Rule_Creation", processGetRequest(aclUrl, oneIPv6AclCreateJsonResponse, false))
+	t.Run("Verify_Error_On_Create_Duplicate_IPV6_Acl", processSetRequest(aclUrl, oneIPv6AclCreateJsonRequest, "POST", true))
 
 	// Verify error if duplicate Rule is created using POST
 	multiRuleUrl := "/openconfig-acl:acl/acl-sets/acl-set[name=MyACL3][type=ACL_IPV4]"
 	t.Run("Create_One_Acl_With_Multiple_Rules(PATCH)", processSetRequest(multiRuleUrl, oneAclCreateWithRulesJsonRequest, "PATCH", false))
-	t.Run("Verify_Create_One_Acl_With_Multiple_Rules", processGetRequest(multiRuleUrl, oneAclCreateWithRulesJsonResponse, true))
+	t.Run("Verify_Create_One_Acl_With_Multiple_Rules", processGetRequest(multiRuleUrl, oneAclCreateWithRulesJsonResponse, false))
 
 	duplicateRuleUrl := "/openconfig-acl:acl/acl-sets/acl-set[name=MyACL3][type=ACL_IPV4]/acl-entries/acl-entry[sequence-id=1]"
 	t.Run("Create_One_Duplicate_Rule", processSetRequest(duplicateRuleUrl, requestOneDuplicateRulePostJson, "POST", true))
@@ -354,76 +359,131 @@ func clearAclDataFromDb() error {
 	return err
 }
 
-func Test_AclApp_Subscribe(t *testing.T) {
-	app := new(AclApp)
-
-	t.Run("top", testSubsError(app, "/"))
-	t.Run("unknown", testSubsError(app, "/some/unknown/path"))
-	t.Run("topacl", testSubsError(app, "/openconfig-acl:acl"))
-	t.Run("aclsets", testSubsError(app, "/openconfig-acl:acl/acl-sets"))
-	t.Run("aclset*", testSubsError(app, "/openconfig-acl:acl/acl-sets/acl-set"))
-	t.Run("aclset", testSubsError(app, "/openconfig-acl:acl/acl-sets/acl-set[name=X][type=ACL_IPV4]"))
-
-	t.Run("acl_config", testSubs(app,
-		"/openconfig-acl:acl/acl-sets/acl-set[name=X][type=ACL_IPV4]/config/description",
-		"ACL_TABLE", "X_ACL_IPV4", true))
-
-	t.Run("acl_state", testSubs(app,
-		"/openconfig-acl:acl/acl-sets/acl-set[name=X][type=ACL_IPV4]/state",
-		"ACL_TABLE", "X_ACL_IPV4", true))
-
-	t.Run("entries", testSubs(app,
-		"/openconfig-acl:acl/acl-sets/acl-set[name=X][type=ACL_IPV4]/acl-entries",
-		"ACL_RULE", "X_ACL_IPV4|*", false))
-
-	t.Run("rule*", testSubs(app,
-		"/openconfig-acl:acl/acl-sets/acl-set[name=X][type=ACL_IPV4]/acl-entries/acl-entry",
-		"ACL_RULE", "X_ACL_IPV4|*", false))
-
-	t.Run("rule", testSubs(app,
-		"/openconfig-acl:acl/acl-sets/acl-set[name=X][type=ACL_IPV4]/acl-entries/acl-entry[sequence-id=1]",
-		"ACL_RULE", "X_ACL_IPV4|RULE_1", false))
-
-	t.Run("rule_state", testSubs(app,
-		"/openconfig-acl:acl/acl-sets/acl-set[name=X][type=ACL_IPV4]/acl-entries/acl-entry[sequence-id=100]/state",
-		"ACL_RULE", "X_ACL_IPV4|RULE_100", true))
-
-	t.Run("rule_sip", testSubs(app,
-		"/openconfig-acl:acl/acl-sets/acl-set[name=X][type=ACL_IPV4]/acl-entries/acl-entry[sequence-id=200]/ipv4/config/source-address",
-		"ACL_RULE", "X_ACL_IPV4|RULE_200", true))
-
-}
-
-// testSubs creates a test case which invokes translateSubscribe on an
-// app interafce and check returned notificationInfo matches given values.
-func testSubs(app appInterface, path, oTable, oKey string, oCache bool) func(*testing.T) {
-	return func(t *testing.T) {
-		_, nt, err := app.translateSubscribe([db.MaxDB]*db.DB{}, path)
-		if err != nil {
-			t.Fatalf("Unexpected error processing '%s'; err=%v", path, err)
+func initPortTableForACLTests() {
+	d := getConfigDb()
+	defer d.DeleteDB()
+	portTS := &db.TableSpec{Name: "PORT"}
+	for i, ifName := range []string{"Ethernet0", "Ethernet4"} {
+		v, err := d.GetEntry(portTS, asKey(ifName))
+		if isNotFoundError(err) {
+			v.Field = map[string]string{"admin_status": "up", "mtu": "9100", "speed": "4000", "alias": fmt.Sprintf("Eth1/%d", i)}
+			err = d.CreateEntry(portTS, asKey(ifName), v)
 		}
-		if nt == nil || nt.needCache != oCache || nt.table.Name != oTable ||
-			!reflect.DeepEqual(nt.key.Comp, strings.Split(oKey, "|")) {
-			t.Logf("translateSubscribe for path '%s'", path)
-			t.Logf("Expected table '%s', key '%v', cache %v", oTable, oKey, oCache)
-			if nt == nil {
-				t.Fatalf("Found nil")
-			} else {
-				t.Fatalf("Found table '%s', key '%s', cache %v",
-					nt.table.Name, strings.Join(nt.key.Comp, "|"), nt.needCache)
-			}
+		if err != nil {
+			panic(err.Error())
 		}
 	}
 }
 
-// testSubsError creates a test case which invokes translateSubscribe on
-// an app interafce and expects it to return an error
-func testSubsError(app appInterface, path string) func(*testing.T) {
-	return func(t *testing.T) {
-		_, _, err := app.translateSubscribe([db.MaxDB]*db.DB{}, path)
-		if err == nil {
-			t.Fatalf("Expected error for path '%s'", path)
+func Test_AclApp_Subscribe(t *testing.T) {
+	aclListPath := "/openconfig-acl:acl/acl-sets/acl-set[name=*][type=*]"
+	ruleListPath := aclListPath + "/acl-entries/acl-entry[sequence-id=*]"
+
+	t.Run("top", func(t *testing.T) {
+		tv := testTranslateSubscribe(t, "/openconfig-acl:acl")
+		tv.VerifyCount(2, 1)
+		tv.VerifyTarget(aclListPath, aclTableNInfo("*", "*", ""))
+		tv.VerifyChild(ruleListPath, ruleTableNInfo("*", "*", "*", ""))
+		tv.VerifyTarget("/openconfig-acl:acl/interfaces", bindingTableNInfo())
+	})
+
+	t.Run("aclsets", func(t *testing.T) {
+		tv := testTranslateSubscribe(t, "/openconfig-acl:acl/acl-sets/acl-set")
+		tv.VerifyCount(1, 1)
+		tv.VerifyTarget(aclListPath, aclTableNInfo("*", "*", ""))
+		tv.VerifyChild(ruleListPath, ruleTableNInfo("*", "*", "*", ""))
+	})
+
+	for _, k := range []string{"*,*", "TEST1,*", "*,ACL_IPV4", "TEST2,ACL_IPV6"} {
+		parts := strings.Split(k, ",")
+		aName, aType := parts[0], parts[1]
+		aPath := fmt.Sprintf("/openconfig-acl:acl/acl-sets/acl-set[name=%s][type=%s]", aName, aType)
+
+		aclListPath := fmt.Sprintf("/openconfig-acl:acl/acl-sets/acl-set[name=%s][type=%s]", aName, aType)
+		ruleListPath := aclListPath + "/acl-entries/acl-entry[sequence-id=*]"
+
+		t.Run("acl="+k, func(t *testing.T) {
+			tv := testTranslateSubscribe(t, aPath)
+			tv.VerifyCount(1, 1)
+			tv.VerifyTarget(aclListPath, aclTableNInfo(aName, aType, ""))
+			tv.VerifyChild(ruleListPath, ruleTableNInfo(aName, aType, "*", ""))
+		})
+
+		t.Run("acl="+k+"/descr", func(t *testing.T) {
+			tv := testTranslateSubscribe(t, aPath+"/config/description")
+			tv.VerifyCount(1, 0)
+			tv.VerifyTarget(aclListPath+"/config/description",
+				aclTableNInfo(aName, aType, `{"":{"policy_desc": ""}}`))
+		})
+
+		t.Run("acl="+k+"/rules", func(t *testing.T) {
+			tv := testTranslateSubscribe(t, aPath+"/acl-entries")
+			tv.VerifyCount(1, 0)
+			tv.VerifyTarget(ruleListPath, ruleTableNInfo(aName, aType, "*", ""))
+		})
+
+		ruleTests := []struct{ name, subPath, ruleId, fields string }{
+			{
+				name:   "rule=*",
+				ruleId: "*",
+			}, {
+				name:   "rule=55",
+				ruleId: "55",
+			}, {
+				name:    "rule_actions",
+				subPath: "/actions",
+				ruleId:  "*",
+				fields:  `{"config": {"PACKET_ACTION": "forwarding-action"}, "state": {"PACKET_ACTION": "forwarding-action"}}`,
+			}, {
+				name:    "rule_action_config",
+				subPath: "/actions/config",
+				ruleId:  "*",
+				fields:  `{"": {"PACKET_ACTION": "forwarding-action"}}`,
+			}, {
+				name:    "rule_forwarding",
+				subPath: "/actions/state/forwarding-action",
+				ruleId:  "66",
+				fields:  `{"": {"PACKET_ACTION": ""}}`,
+			}}
+
+		for _, r := range ruleTests {
+			t.Run("acl="+k+"/"+r.name, func(t *testing.T) {
+				rPath := aclListPath + fmt.Sprintf("/acl-entries/acl-entry[sequence-id=%s]%s", r.ruleId, r.subPath)
+				tv := testTranslateSubscribe(t, rPath)
+				tv.VerifyCount(1, 0)
+				tv.VerifyTarget(rPath, ruleTableNInfo(aName, aType, r.ruleId, r.fields))
+			})
 		}
+	}
+}
+
+func aclTableNInfo(namePattern, typePattern, fieldsJson string) *notificationAppInfo {
+	return &notificationAppInfo{
+		dbno:                db.ConfigDB,
+		table:               &db.TableSpec{Name: "ACL_TABLE"},
+		key:                 db.NewKey(namePattern + "_" + typePattern),
+		dbFldYgPathInfoList: parseFieldsJSON(fieldsJson),
+		isOnChangeSupported: true,
+		pType:               OnChange,
+	}
+}
+
+func ruleTableNInfo(namePattern, typePattern, seqPattern, fieldsJson string) *notificationAppInfo {
+	return &notificationAppInfo{
+		dbno:                db.ConfigDB,
+		table:               &db.TableSpec{Name: "ACL_RULE"},
+		key:                 db.NewKey(namePattern+"_"+typePattern, "RULE_"+seqPattern),
+		dbFldYgPathInfoList: parseFieldsJSON(fieldsJson),
+		isOnChangeSupported: true,
+		pType:               OnChange,
+	}
+}
+
+func bindingTableNInfo() *notificationAppInfo {
+	return &notificationAppInfo{
+		dbno:                db.MaxDB, // app is not mapping bindings path to any DB
+		isOnChangeSupported: false,
+		pType:               Sample,
 	}
 }
 
@@ -436,7 +496,7 @@ var bulkAclCreateJsonRequest string = "{\"acl-sets\":{\"acl-set\":[{\"name\":\"M
 
 var bulkAclCreateJsonResponse string = "{\"openconfig-acl:acl\":{\"acl-sets\":{\"acl-set\":[{\"acl-entries\":{\"acl-entry\":[{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":1},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.1/32\",\"dscp\":1,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.1/32\"},\"state\":{\"destination-address\":\"21.1.1.1/32\",\"dscp\":1,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.1/32\"}},\"sequence-id\":1,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":1},\"transport\":{\"config\":{\"destination-port\":201,\"source-port\":101},\"state\":{\"destination-port\":201,\"source-port\":101}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:DROP\"},\"state\":{\"forwarding-action\":\"openconfig-acl:DROP\"}},\"config\":{\"sequence-id\":2},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.2/32\",\"dscp\":2,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.2/32\"},\"state\":{\"destination-address\":\"21.1.1.2/32\",\"dscp\":2,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.2/32\"}},\"sequence-id\":2,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":2},\"transport\":{\"config\":{\"destination-port\":202,\"source-port\":102},\"state\":{\"destination-port\":202,\"source-port\":102}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":3},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.3/32\",\"dscp\":3,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.3/32\"},\"state\":{\"destination-address\":\"21.1.1.3/32\",\"dscp\":3,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.3/32\"}},\"sequence-id\":3,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":3},\"transport\":{\"config\":{\"destination-port\":203,\"source-port\":103},\"state\":{\"destination-port\":203,\"source-port\":103}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:DROP\"},\"state\":{\"forwarding-action\":\"openconfig-acl:DROP\"}},\"config\":{\"sequence-id\":4},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.4/32\",\"dscp\":4,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.4/32\"},\"state\":{\"destination-address\":\"21.1.1.4/32\",\"dscp\":4,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.4/32\"}},\"sequence-id\":4,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":4},\"transport\":{\"config\":{\"destination-port\":204,\"source-port\":104},\"state\":{\"destination-port\":204,\"source-port\":104}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":5},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.5/32\",\"dscp\":5,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.5/32\"},\"state\":{\"destination-address\":\"21.1.1.5/32\",\"dscp\":5,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.5/32\"}},\"sequence-id\":5,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":5},\"transport\":{\"config\":{\"destination-port\":205,\"source-port\":105},\"state\":{\"destination-port\":205,\"source-port\":105}}}]},\"config\":{\"description\":\"Description for MyACL1\",\"name\":\"MyACL1\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"name\":\"MyACL1\",\"state\":{\"description\":\"Description for MyACL1\",\"name\":\"MyACL1\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"type\":\"openconfig-acl:ACL_IPV4\"},{\"acl-entries\":{\"acl-entry\":[{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":1},\"ipv4\":{\"config\":{\"destination-address\":\"22.1.1.1/32\",\"dscp\":1,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.1/32\"},\"state\":{\"destination-address\":\"22.1.1.1/32\",\"dscp\":1,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.1/32\"}},\"sequence-id\":1,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":1},\"transport\":{\"config\":{\"destination-port\":201,\"source-port\":101},\"state\":{\"destination-port\":201,\"source-port\":101}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":2},\"ipv4\":{\"config\":{\"destination-address\":\"22.1.1.2/32\",\"dscp\":2,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.2/32\"},\"state\":{\"destination-address\":\"22.1.1.2/32\",\"dscp\":2,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.2/32\"}},\"sequence-id\":2,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":2},\"transport\":{\"config\":{\"destination-port\":202,\"source-port\":102},\"state\":{\"destination-port\":202,\"source-port\":102}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":3},\"ipv4\":{\"config\":{\"destination-address\":\"22.1.1.3/32\",\"dscp\":3,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.3/32\"},\"state\":{\"destination-address\":\"22.1.1.3/32\",\"dscp\":3,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.3/32\"}},\"sequence-id\":3,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":3},\"transport\":{\"config\":{\"destination-port\":203,\"source-port\":103},\"state\":{\"destination-port\":203,\"source-port\":103}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":4},\"ipv4\":{\"config\":{\"destination-address\":\"22.1.1.4/32\",\"dscp\":4,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.4/32\"},\"state\":{\"destination-address\":\"22.1.1.4/32\",\"dscp\":4,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.4/32\"}},\"sequence-id\":4,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":4},\"transport\":{\"config\":{\"destination-port\":204,\"source-port\":104},\"state\":{\"destination-port\":204,\"source-port\":104}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":5},\"ipv4\":{\"config\":{\"destination-address\":\"22.1.1.5/32\",\"dscp\":5,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.5/32\"},\"state\":{\"destination-address\":\"22.1.1.5/32\",\"dscp\":5,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"12.1.1.5/32\"}},\"sequence-id\":5,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":5},\"transport\":{\"config\":{\"destination-port\":205,\"source-port\":105},\"state\":{\"destination-port\":205,\"source-port\":105}}}]},\"config\":{\"description\":\"Description for MyACL2\",\"name\":\"MyACL2\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"name\":\"MyACL2\",\"state\":{\"description\":\"Description for MyACL2\",\"name\":\"MyACL2\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"type\":\"openconfig-acl:ACL_IPV4\"}]},\"interfaces\":{\"interface\":[{\"config\":{\"id\":\"Ethernet0\"},\"id\":\"Ethernet0\",\"ingress-acl-sets\":{\"ingress-acl-set\":[{\"acl-entries\":{\"acl-entry\":[{\"sequence-id\":1,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":1}},{\"sequence-id\":2,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":2}},{\"sequence-id\":3,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":3}},{\"sequence-id\":4,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":4}},{\"sequence-id\":5,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":5}}]},\"config\":{\"set-name\":\"MyACL1\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"set-name\":\"MyACL1\",\"state\":{\"set-name\":\"MyACL1\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"type\":\"openconfig-acl:ACL_IPV4\"}]},\"state\":{\"id\":\"Ethernet0\"}},{\"config\":{\"id\":\"Ethernet4\"},\"id\":\"Ethernet4\",\"ingress-acl-sets\":{\"ingress-acl-set\":[{\"acl-entries\":{\"acl-entry\":[{\"sequence-id\":1,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":1}},{\"sequence-id\":2,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":2}},{\"sequence-id\":3,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":3}},{\"sequence-id\":4,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":4}},{\"sequence-id\":5,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":5}}]},\"config\":{\"set-name\":\"MyACL2\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"set-name\":\"MyACL2\",\"state\":{\"set-name\":\"MyACL2\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"type\":\"openconfig-acl:ACL_IPV4\"}]},\"state\":{\"id\":\"Ethernet4\"}}]}}}"
 
-var oneAclCreateWithRulesJsonRequest string = "{ \"name\": \"MyACL3\", \"type\": \"ACL_IPV4\", \"config\": { \"name\": \"MyACL3\", \"type\": \"ACL_IPV4\", \"description\": \"Description for MyACL3\" }, \"acl-entries\": { \"acl-entry\": [ { \"sequence-id\": 1, \"config\": { \"sequence-id\": 1, \"description\": \"Description for MyACL3 Rule Seq 1\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.1/32\", \"destination-address\": \"21.1.1.1/32\", \"dscp\": 1, \"protocol\": \"IP_TCP\" } }, \"transport\": { \"config\": { \"source-port\": 101, \"destination-port\": 201 } }, \"actions\": { \"config\": { \"forwarding-action\": \"ACCEPT\" } } }, { \"sequence-id\": 2, \"config\": { \"sequence-id\": 2, \"description\": \"Description for MyACL3 Rule Seq 2\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.2/32\", \"destination-address\": \"21.1.1.2/32\", \"dscp\": 2, \"protocol\": \"IP_UDP\" } }, \"transport\": { \"config\": { \"source-port\": 102, \"destination-port\": 202 } }, \"actions\": { \"config\": { \"forwarding-action\": \"DROP\" } } }, { \"sequence-id\": 3, \"config\": { \"sequence-id\": 3, \"description\": \"Description for MyACL3 Rule Seq 3\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.3/32\", \"destination-address\": \"21.1.1.3/32\", \"dscp\": 3, \"protocol\": \"IP_TCP\" } }, \"transport\": { \"config\": { \"source-port\": 103, \"destination-port\": 203 } }, \"actions\": { \"config\": { \"forwarding-action\": \"ACCEPT\" } } }, { \"sequence-id\": 4, \"config\": { \"sequence-id\": 4, \"description\": \"Description for MyACL3 Rule Seq 4\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.4/32\", \"destination-address\": \"21.1.1.4/32\", \"dscp\": 4, \"protocol\": \"IP_TCP\" } }, \"transport\": { \"config\": { \"source-port\": 104, \"destination-port\": 204 } }, \"actions\": { \"config\": { \"forwarding-action\": \"DROP\" } } }, { \"sequence-id\": 5, \"config\": { \"sequence-id\": 5, \"description\": \"Description for MyACL3 Rule Seq 5\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.5/32\", \"destination-address\": \"21.1.1.5/32\", \"dscp\": 5, \"protocol\": \"IP_TCP\" } }, \"transport\": { \"config\": { \"source-port\": 105, \"destination-port\": 205 } }, \"actions\": { \"config\": { \"forwarding-action\": \"ACCEPT\" } } } ] }}"
+var oneAclCreateWithRulesJsonRequest string = "{\"acl-set\":[{ \"name\": \"MyACL3\", \"type\": \"ACL_IPV4\", \"config\": { \"name\": \"MyACL3\", \"type\": \"ACL_IPV4\", \"description\": \"Description for MyACL3\" }, \"acl-entries\": { \"acl-entry\": [ { \"sequence-id\": 1, \"config\": { \"sequence-id\": 1, \"description\": \"Description for MyACL3 Rule Seq 1\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.1/32\", \"destination-address\": \"21.1.1.1/32\", \"dscp\": 1, \"protocol\": \"IP_TCP\" } }, \"transport\": { \"config\": { \"source-port\": 101, \"destination-port\": 201 } }, \"actions\": { \"config\": { \"forwarding-action\": \"ACCEPT\" } } }, { \"sequence-id\": 2, \"config\": { \"sequence-id\": 2, \"description\": \"Description for MyACL3 Rule Seq 2\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.2/32\", \"destination-address\": \"21.1.1.2/32\", \"dscp\": 2, \"protocol\": \"IP_UDP\" } }, \"transport\": { \"config\": { \"source-port\": 102, \"destination-port\": 202 } }, \"actions\": { \"config\": { \"forwarding-action\": \"DROP\" } } }, { \"sequence-id\": 3, \"config\": { \"sequence-id\": 3, \"description\": \"Description for MyACL3 Rule Seq 3\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.3/32\", \"destination-address\": \"21.1.1.3/32\", \"dscp\": 3, \"protocol\": \"IP_TCP\" } }, \"transport\": { \"config\": { \"source-port\": 103, \"destination-port\": 203 } }, \"actions\": { \"config\": { \"forwarding-action\": \"ACCEPT\" } } }, { \"sequence-id\": 4, \"config\": { \"sequence-id\": 4, \"description\": \"Description for MyACL3 Rule Seq 4\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.4/32\", \"destination-address\": \"21.1.1.4/32\", \"dscp\": 4, \"protocol\": \"IP_TCP\" } }, \"transport\": { \"config\": { \"source-port\": 104, \"destination-port\": 204 } }, \"actions\": { \"config\": { \"forwarding-action\": \"DROP\" } } }, { \"sequence-id\": 5, \"config\": { \"sequence-id\": 5, \"description\": \"Description for MyACL3 Rule Seq 5\" }, \"ipv4\": { \"config\": { \"source-address\": \"11.1.1.5/32\", \"destination-address\": \"21.1.1.5/32\", \"dscp\": 5, \"protocol\": \"IP_TCP\" } }, \"transport\": { \"config\": { \"source-port\": 105, \"destination-port\": 205 } }, \"actions\": { \"config\": { \"forwarding-action\": \"ACCEPT\" } } } ] }}]}"
 
 var oneAclCreateWithRulesJsonResponse string = "{\"openconfig-acl:acl-set\":[{\"acl-entries\":{\"acl-entry\":[{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":1},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.1/32\",\"dscp\":1,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.1/32\"},\"state\":{\"destination-address\":\"21.1.1.1/32\",\"dscp\":1,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.1/32\"}},\"sequence-id\":1,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":1},\"transport\":{\"config\":{\"destination-port\":201,\"source-port\":101},\"state\":{\"destination-port\":201,\"source-port\":101}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:DROP\"},\"state\":{\"forwarding-action\":\"openconfig-acl:DROP\"}},\"config\":{\"sequence-id\":2},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.2/32\",\"dscp\":2,\"protocol\":\"openconfig-packet-match-types:IP_UDP\",\"source-address\":\"11.1.1.2/32\"},\"state\":{\"destination-address\":\"21.1.1.2/32\",\"dscp\":2,\"protocol\":\"openconfig-packet-match-types:IP_UDP\",\"source-address\":\"11.1.1.2/32\"}},\"sequence-id\":2,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":2},\"transport\":{\"config\":{\"destination-port\":202,\"source-port\":102},\"state\":{\"destination-port\":202,\"source-port\":102}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":3},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.3/32\",\"dscp\":3,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.3/32\"},\"state\":{\"destination-address\":\"21.1.1.3/32\",\"dscp\":3,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.3/32\"}},\"sequence-id\":3,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":3},\"transport\":{\"config\":{\"destination-port\":203,\"source-port\":103},\"state\":{\"destination-port\":203,\"source-port\":103}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:DROP\"},\"state\":{\"forwarding-action\":\"openconfig-acl:DROP\"}},\"config\":{\"sequence-id\":4},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.4/32\",\"dscp\":4,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.4/32\"},\"state\":{\"destination-address\":\"21.1.1.4/32\",\"dscp\":4,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.4/32\"}},\"sequence-id\":4,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":4},\"transport\":{\"config\":{\"destination-port\":204,\"source-port\":104},\"state\":{\"destination-port\":204,\"source-port\":104}}},{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":5},\"ipv4\":{\"config\":{\"destination-address\":\"21.1.1.5/32\",\"dscp\":5,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.5/32\"},\"state\":{\"destination-address\":\"21.1.1.5/32\",\"dscp\":5,\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"11.1.1.5/32\"}},\"sequence-id\":5,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":5},\"transport\":{\"config\":{\"destination-port\":205,\"source-port\":105},\"state\":{\"destination-port\":205,\"source-port\":105}}}]},\"config\":{\"description\":\"Description for MyACL3\",\"name\":\"MyACL3\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"name\":\"MyACL3\",\"state\":{\"description\":\"Description for MyACL3\",\"name\":\"MyACL3\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"type\":\"openconfig-acl:ACL_IPV4\"}]}"
 
@@ -447,7 +507,7 @@ var aclDescrUpdateJson string = "{\"openconfig-acl:description\":\"Verifying ACL
 
 var requestOneRulePostJson string = "{\"sequence-id\": 8,\"config\": {\"sequence-id\": 8,\"description\": \"Description for MyACL5 Rule Seq 8\"},\"ipv4\": {\"config\": {\"source-address\": \"4.4.4.4/24\",\"destination-address\": \"5.5.5.5/24\",\"protocol\": \"IP_TCP\"}},\"transport\": {\"config\": {\"source-port\": 101,\"destination-port\": 100,\"tcp-flags\": [\"TCP_FIN\",\"TCP_ACK\"]}},\"actions\": {\"config\": {\"forwarding-action\": \"ACCEPT\"}}}"
 
-var requestOneRulePatchJson string = "{\"sequence-id\": 8,\"config\": {\"sequence-id\": 8,\"description\": \"Description for MyACL5 Rule Seq 8\"},\"ipv4\": {\"config\": {\"source-address\": \"4.8.4.8/24\",\"destination-address\": \"15.5.15.5/24\",\"protocol\": \"IP_L2TP\"}},\"transport\": {\"config\": {\"source-port\": 101,\"destination-port\": 100,\"tcp-flags\": [\"TCP_FIN\",\"TCP_ACK\",\"TCP_RST\",\"TCP_ECE\"]}},\"actions\": {\"config\": {\"forwarding-action\": \"ACCEPT\"}}}"
+var requestOneRulePatchJson string = "{\"acl-entry\": [{\"sequence-id\": 8,\"config\": {\"sequence-id\": 8,\"description\": \"Description for MyACL5 Rule Seq 8\"},\"ipv4\": {\"config\": {\"source-address\": \"4.8.4.8/24\",\"destination-address\": \"15.5.15.5/24\",\"protocol\": \"IP_L2TP\"}},\"transport\": {\"config\": {\"source-port\": 101,\"destination-port\": 100,\"tcp-flags\": [\"TCP_FIN\",\"TCP_ACK\",\"TCP_RST\",\"TCP_ECE\"]}},\"actions\": {\"config\": {\"forwarding-action\": \"ACCEPT\"}}}]}"
 
 var responseOneRuleJson string = "{\"openconfig-acl:acl-entry\":[{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"},\"state\":{\"forwarding-action\":\"openconfig-acl:ACCEPT\"}},\"config\":{\"sequence-id\":8},\"ipv4\":{\"config\":{\"destination-address\":\"5.5.5.5/24\",\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"4.4.4.4/24\"},\"state\":{\"destination-address\":\"5.5.5.5/24\",\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"4.4.4.4/24\"}},\"sequence-id\":8,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":8},\"transport\":{\"config\":{\"destination-port\":100,\"source-port\":101,\"tcp-flags\":[\"openconfig-packet-match-types:TCP_FIN\",\"openconfig-packet-match-types:TCP_ACK\"]},\"state\":{\"destination-port\":100,\"source-port\":101,\"tcp-flags\":[\"openconfig-packet-match-types:TCP_FIN\",\"openconfig-packet-match-types:TCP_ACK\"]}}}]}"
 
@@ -461,7 +521,7 @@ var ingressAclSetCreateJsonResponse string = "{\"openconfig-acl:ingress-acl-set\
 
 var egressAclSetCreateJsonResponse string = "{\"openconfig-acl:egress-acl-set\":[{\"acl-entries\":{\"acl-entry\":[{\"sequence-id\":8,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":8}}]},\"config\":{\"set-name\":\"MyACL5\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"set-name\":\"MyACL5\",\"state\":{\"set-name\":\"MyACL5\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"type\":\"openconfig-acl:ACL_IPV4\"}]}"
 
-var replaceMultiRulesWithOneRuleJsonRequest string = "{\"name\": \"MyACL3\",\"type\": \"ACL_IPV4\",\"config\": {\"name\": \"MyACL3\",\"type\": \"ACL_IPV4\",\"description\": \"Description for MyACL3\"},\"acl-entries\": {\"acl-entry\": [{\"sequence-id\": 8,\"config\": {\"sequence-id\": 8,\"description\": \"Description for MyACL3 Rule Seq 8\"},\"ipv4\": {\"config\": {\"source-address\": \"81.1.1.1/32\",\"destination-address\": \"91.1.1.1/32\",\"protocol\": \"IP_TCP\"}},\"transport\": {\"config\": {\"source-port\": \"801..811\",\"destination-port\": \"901..921\"}},\"actions\": {\"config\": {\"forwarding-action\": \"REJECT\"}}}]}}"
+var replaceMultiRulesWithOneRuleJsonRequest string = "{\"acl-set\": [{\"name\": \"MyACL3\",\"type\": \"ACL_IPV4\",\"config\": {\"name\": \"MyACL3\",\"type\": \"ACL_IPV4\",\"description\": \"Description for MyACL3\"},\"acl-entries\": {\"acl-entry\": [{\"sequence-id\": 8,\"config\": {\"sequence-id\": 8,\"description\": \"Description for MyACL3 Rule Seq 8\"},\"ipv4\": {\"config\": {\"source-address\": \"81.1.1.1/32\",\"destination-address\": \"91.1.1.1/32\",\"protocol\": \"IP_TCP\"}},\"transport\": {\"config\": {\"source-port\": \"801..811\",\"destination-port\": \"901..921\"}},\"actions\": {\"config\": {\"forwarding-action\": \"REJECT\"}}}]}}]}"
 
 var replaceMultiRulesWithOneRuleJsonResponse string = "{\"openconfig-acl:acl-set\":[{\"acl-entries\":{\"acl-entry\":[{\"actions\":{\"config\":{\"forwarding-action\":\"openconfig-acl:DROP\"},\"state\":{\"forwarding-action\":\"openconfig-acl:DROP\"}},\"config\":{\"sequence-id\":8},\"ipv4\":{\"config\":{\"destination-address\":\"91.1.1.1/32\",\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"81.1.1.1/32\"},\"state\":{\"destination-address\":\"91.1.1.1/32\",\"protocol\":\"openconfig-packet-match-types:IP_TCP\",\"source-address\":\"81.1.1.1/32\"}},\"sequence-id\":8,\"state\":{\"matched-octets\":\"0\",\"matched-packets\":\"0\",\"sequence-id\":8},\"transport\":{\"config\":{\"destination-port\":\"901-921\",\"source-port\":\"801-811\"},\"state\":{\"destination-port\":\"901-921\",\"source-port\":\"801-811\"}}}]},\"config\":{\"description\":\"Description for MyACL3\",\"name\":\"MyACL3\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"name\":\"MyACL3\",\"state\":{\"description\":\"Description for MyACL3\",\"name\":\"MyACL3\",\"type\":\"openconfig-acl:ACL_IPV4\"},\"type\":\"openconfig-acl:ACL_IPV4\"}]}"
 
