@@ -68,11 +68,31 @@ translib-all: $(GO_DEPS)
 translib-clean:
 	$(MAKE) -C ./translib clean
 
+transformer-test:
+ifdef INCLUDE_TEST_MODELS
+	cp ./translib/transformer/test/*test-xfmr-annot.yang models/yang/annotations/.
+	cp ./translib/transformer/test/openconfig-test-xfmr.yang models/yang/.
+	cp ./translib/transformer/test/sonic-test-xfmr.yang models/yang/sonic/.
+	if ! grep -q test ./config/transformer/models_list; then \
+	  echo "openconfig-test-xfmr.yang" >> ./config/transformer/models_list; \
+	  echo "openconfig-test-xfmr-annot.yang" >> ./config/transformer/models_list; \
+	  echo "sonic-test-xfmr-annot.yang" >> ./config/transformer/models_list; \
+	fi
+endif
+
+transformer-test-clean:
+ifdef INCLUDE_TEST_MODELS
+	$(RM) ./models/yang/annotations/*test*.yang
+	$(RM) ./models/yang/*test*.yang
+	$(RM) ./models/yang/sonic/*test*.yang
+	sed -i '/test/d' ./config/transformer/models_list
+endif
+
 .PHONY: models
-models:
+models: transformer-test
 	$(MAKE) -C models/yang
 
-models-clean:
+models-clean: transformer-test-clean
 	$(MAKE) -C models/yang clean
 
 annotgen: $(GOYANG_BIN)
