@@ -1,12 +1,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2019 Dell, Inc.                                                 //
+//  Copyright 2021 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
 //  you may not use this file except in compliance with the License.          //
 //  You may obtain a copy of the License at                                   //
 //                                                                            //
-//  http://www.apache.org/licenses/LICENSE-2.0                                //
+//     http://www.apache.org/licenses/LICENSE-2.0                             //
 //                                                                            //
 //  Unless required by applicable law or agreed to in writing, software       //
 //  distributed under the License is distributed on an "AS IS" BASIS,         //
@@ -16,46 +17,43 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-package transformer
+package utils
 
-const (
-	XPATH_SEP_FWD_SLASH  = "/"
-	XFMR_EMPTY_STRING    = ""
-	XFMR_NONE_STRING     = "NONE"
-	SONIC_TABLE_INDEX    = 2
-	SONIC_LIST_INDEX     = 3
-	SONIC_FIELD_INDEX    = 4
-	SONIC_TOPCONTR_INDEX = 1
-	SONIC_MDL_PFX        = "sonic"
-	OC_MDL_PFX           = "openconfig-"
-	IETF_MDL_PFX         = "ietf-"
-	IANA_MDL_PFX         = "iana-"
-)
+import "fmt"
 
-const (
-	YANG_MODULE yangElementType = iota + 1
-	YANG_LIST
-	YANG_CONTAINER
-	YANG_LEAF
-	YANG_LEAF_LIST
-	YANG_CHOICE
-	YANG_CASE
-	YANG_RPC
-	YANG_NOTIF
-)
-const (
-	XFMR_INVALID = iota - 1
-	XFMR_DISABLE
-	XFMR_ENABLE
-	XFMR_DEFAULT_ENABLE
-)
+// Bits is a set of 8 bit flags.
+type Bits uint8
 
-const (
-	GET Operation = iota + 1
-	CREATE
-	REPLACE
-	UPDATE
-	DELETE
-	SUBSCRIBE
-	MAXOPER
-)
+// Set operations sets given bit flags into b
+func (b *Bits) Set(flags Bits) {
+	*b |= flags
+}
+
+// Unset operations clears given bit flags from b
+func (b *Bits) Unset(flags Bits) {
+	*b &^= flags
+}
+
+// Reset operations clears all bits from b
+func (b *Bits) Reset() {
+	*b = 0
+}
+
+// Empty returns true if no bits are set in b
+func (b Bits) Empty() bool {
+	return b != 0
+}
+
+// Has returns true if all flags are present in b
+func (b Bits) Has(flags Bits) bool {
+	return (b & flags) == flags
+}
+
+// HasAny returns true if any of the flags is present in b
+func (b Bits) HasAny(flags Bits) bool {
+	return (b & flags) != 0
+}
+
+func (b Bits) String() string {
+	return fmt.Sprintf("%08b", b)
+}
