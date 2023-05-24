@@ -1,0 +1,17 @@
+module sonic-test-xfmr-annot {
+
+    yang-version "1";
+
+    namespace "http://openconfig.net/yang/annotation/sonic-test-xfmr-annot";
+    prefix "sonic-test-xfmr-annot";
+
+    import sonic-test-xfmr { prefix sonic-test-xfmr; }
+
+    deviation /sonic-test-xfmr:sonic-test-xfmr/sonic-test-xfmr:TEST_SENSOR_MODE_TABLE/sonic-test-xfmr:TEST_SENSOR_MODE_TABLE_LIST {
+      deviate add {
+	sonic-ext:key-transformer "test_sensor_mode_key_xfmr";
+      }
+    }
+
+}
+
