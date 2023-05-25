@@ -523,12 +523,14 @@ func (app *CommonApp) processSubscribe(param *processSubRequest) (processSubResp
 
 	subNotfRespXlator, err := transformer.GetSubscribeNotfRespXlator(param.ctxID, param.path, param.dbno, param.table, param.key, param.entry, param.dbs, param.opaque)
 	if err != nil {
-		log.Error("processSubscribe: Error in getting the GetSubscribeNotfRespXlator; error: ", err)
+		log.Warning("processSubscribe: Error in getting the GetSubscribeNotfRespXlator; error: ", err)
 		return resp, err
 	}
-	log.Info("processSubscribe: subNotfRespXlator: ", *subNotfRespXlator)
+	if log.V(4) {
+		log.Info("processSubscribe: subNotfRespXlator: ", *subNotfRespXlator)
+	}
 	if resp.path, err = subNotfRespXlator.Translate(); err != nil {
-		log.Error("processSubscribe: Error in translating the subscribe notification; error: ", err)
+		log.Warning("processSubscribe: Error in translating the subscribe notification; error: ", err)
 		return resp, err
 	}
 	return resp, nil

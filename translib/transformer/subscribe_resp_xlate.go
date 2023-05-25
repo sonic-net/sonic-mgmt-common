@@ -115,7 +115,7 @@ func (respXlator *subscribeNotfRespXlator) Translate() (*gnmi.Path, error) {
 			return respXlator.ntfXlateReq.path, nil
 		}
 		if ygXpathInfo.virtualTbl != nil && (*ygXpathInfo.virtualTbl) {
-			log.Error(ntfXlateReq.reqLogId, "Translate: virtual table is set to true and path transformer not found list node path: ", *respXlator.ntfXlateReq.path)
+			log.Warning(ntfXlateReq.reqLogId, "Translate: virtual table is set to true and path transformer not found list node path: ", *respXlator.ntfXlateReq.path)
 			return nil, tlerr.InternalError{Format: ntfXlateReq.reqLogId + "virtual table is set to true and path transformer not found list node path", Path: ygPath}
 		}
 		if len(ygXpathInfo.xfmrFunc) == 0 && len(ygXpathInfo.xfmrKey) > 0 {
@@ -162,7 +162,7 @@ func (respXlator *subscribeNotfRespXlator) Translate() (*gnmi.Path, error) {
 			}
 			//yang key can be part of the db key, where db key is from child table db key
 			if len(pathElem[idx].Key) > len(dbKeyComp) {
-				log.Error(ntfXlateReq.reqLogId, "Translate: Could not find the path transformer or DbToYangKey transformer for the ygXpathListInfo: ", ygPath)
+				log.Warning(ntfXlateReq.reqLogId, "Translate: Could not find the path transformer or DbToYangKey transformer for the ygXpathListInfo: ", ygPath)
 				return nil, tlerr.InternalError{Format: ntfXlateReq.reqLogId + "Could not find the path transformer or DbToYangKey transformer", Path: ygPath}
 			}
 			dbYgListKeyNames, err := dbKeyRslvr.getMatchingDbYangListKeyNames(pathElem[idx].Key)
@@ -307,7 +307,7 @@ func (respXlator *subscribeNotfRespXlator) getYangXpathInfo(ygPath string) (*yan
 	ygXpathListInfo, ok := xYangSpecMap[ygPath]
 
 	if !ok || ygXpathListInfo == nil {
-		log.Error(respXlator.ntfXlateReq.reqLogId, "ygXpathInfo data not found in the xYangSpecMap for xpath : ", ygPath)
+		log.Warning(respXlator.ntfXlateReq.reqLogId, "ygXpathInfo data not found in the xYangSpecMap for xpath : ", ygPath)
 		return nil, tlerr.InternalError{Format: respXlator.ntfXlateReq.reqLogId + "Error in processing the subscribe path", Path: ygPath}
 	}
 	if _, ygErr := getYgEntry(respXlator.ntfXlateReq.reqLogId, ygXpathListInfo, ygPath); ygErr != nil {
