@@ -868,18 +868,15 @@ func sonicXpathKeyExtract(path string) (string, string, string) {
 	var err error
 	lpath := path
 	xpath, _, err = XfmrRemoveXPATHPredicates(path)
-	if err != nil {
+	if err != nil || len(xpath) == 0 {
 		return xpath, keyStr, tableName
 	}
-	if xpath != "" {
-		fldPth := strings.Split(xpath, "/")
-		if len(fldPth) > SONIC_FIELD_INDEX {
-			fldNm = fldPth[SONIC_FIELD_INDEX]
-			xfmrLogDebug("Field Name : %v", fldNm)
-		}
 
-	}
 	pathsubStr := strings.Split(xpath, "/")
+	if len(pathsubStr) > SONIC_FIELD_INDEX {
+		fldNm = pathsubStr[SONIC_FIELD_INDEX]
+		xfmrLogDebug("Field Name : %v", fldNm)
+	}
 	if len(pathsubStr) > SONIC_TABLE_INDEX {
 		if strings.Contains(pathsubStr[2], "[") {
 			tableName = strings.Split(pathsubStr[SONIC_TABLE_INDEX], "[")[0]
@@ -906,19 +903,23 @@ func sonicXpathKeyExtract(path string) (string, string, string) {
 				lpath = "/" + strings.Join(pathLst[:SONIC_FIELD_INDEX-1], "/")
 				xfmrLogDebug("path after removing the field portion %v", lpath)
 			}
-			if len(pathsubStr) > SONIC_LIST_INDEX {
-				listNm := pathsubStr[SONIC_LIST_INDEX]
-				xfmrLogDebug("List Name : %v", listNm)
-				pathInfo := NewPathInfo(lpath)
-				listXpath := tableName + "/" + listNm
-				if (pathInfo != nil) && (len(pathInfo.Vars) > 0) {
-					if specListInfo, ok := xDbSpecMap[listXpath]; ok {
-						for idx, keyNm := range specListInfo.keyList {
-							if idx > 0 {
-								keyStr += dbOpts.KeySeparator
-							}
-							if pathInfo.HasVar(keyNm) {
-								keyStr += pathInfo.Var(keyNm)
+			if len(pathsubStr) > SONIC_TBL_CHILD_INDEX {
+				tblChldNm := pathsubStr[SONIC_TBL_CHILD_INDEX]
+				xfmrLogDebug("Table Child Name : %v", tblChldNm)
+				tblChldXpath := tableName + "/" + tblChldNm
+				if specTblChldInfo, ok := xDbSpecMap[tblChldXpath]; ok {
+					if specTblChldInfo.yangType == YANG_CONTAINER {
+						keyStr = tblChldNm
+					} else if specTblChldInfo.yangType == YANG_LIST {
+						pathInfo := NewPathInfo(lpath)
+						if (pathInfo != nil) && (len(pathInfo.Vars) > 0) {
+							for idx, keyNm := range specTblChldInfo.keyList {
+								if idx > 0 {
+									keyStr += dbOpts.KeySeparator
+								}
+								if pathInfo.HasVar(keyNm) {
+									keyStr += pathInfo.Var(keyNm)
+								}
 							}
 						}
 					}
@@ -1432,17 +1433,17 @@ func getXfmrSpecInfoFromUri(uri string) (interface{}, error) {
 		tokens := strings.Split(xpath, "/")
 		fieldName := ""
 		tableName := ""
-		listName := ""
+		tblChldName := ""
 		dbSpecXpath := ""
 		if len(tokens) > SONIC_FIELD_INDEX {
 			fieldName = tokens[SONIC_FIELD_INDEX]
 			tableName = tokens[SONIC_TABLE_INDEX]
 			dbSpecXpath = tableName + "/" + fieldName
 			specInfo, xpathInSpecMapOk = xDbSpecMap[dbSpecXpath]
-		} else if len(tokens) > SONIC_LIST_INDEX {
+		} else if len(tokens) > SONIC_TBL_CHILD_INDEX {
 			tableName = tokens[SONIC_TABLE_INDEX]
-			listName = tokens[SONIC_LIST_INDEX]
-			dbSpecXpath = tableName + "/" + listName
+			tblChldName = tokens[SONIC_TBL_CHILD_INDEX]
+			dbSpecXpath = tableName + "/" + tblChldName
 			specInfo, xpathInSpecMapOk = xDbSpecMap[dbSpecXpath]
 		} else if len(tokens) > SONIC_TABLE_INDEX {
 			tableName = tokens[SONIC_TABLE_INDEX]
@@ -1547,21 +1548,21 @@ func getYangEntryForXPath(xpath string) *yang.Entry {
 				field := dbPathList[1]
 				yNd, tok := xDbSpecMap[table]
 				if tok && yNd.yangType == YANG_CONTAINER && yNd.dbEntry != nil {
-					for _, lstNode := range yNd.dbEntry.Dir {
-						if lstNode == nil {
+					for _, chldNode := range yNd.dbEntry.Dir {
+						if chldNode == nil {
 							continue
 						}
-						if chEntry, cok := lstNode.Dir[field]; cok {
+						if chEntry, cok := chldNode.Dir[field]; cok {
 							entry = chEntry
 							break
 						}
 					}
 					if entry == nil {
-						for _, lstNode := range yNd.dbEntry.Dir {
-							if lstNode == nil {
+						for _, tblChldNode := range yNd.dbEntry.Dir {
+							if tblChldNode == nil {
 								continue
 							}
-							for _, chNode := range lstNode.Dir {
+							for _, chNode := range tblChldNode.Dir {
 								if chNode == nil {
 									continue
 								}
@@ -1672,4 +1673,28 @@ func (oper Operation) String() string {
 		ret = "SUBSCRIBE"
 	}
 	return ret
+}
+
+func SonicUriHasSingletonContainer(uri string) bool {
+	hasSingletonContainer := false
+	if !strings.HasPrefix(uri, "/sonic") {
+		return hasSingletonContainer
+	}
+
+	xpath, _, err := XfmrRemoveXPATHPredicates(uri)
+        if err != nil || len(xpath) == 0 {
+                return hasSingletonContainer
+        }
+
+        pathList := strings.Split(xpath, "/")
+
+	if len(pathList) > SONIC_TBL_CHILD_INDEX {
+		tblChldXpath := pathList[SONIC_TABLE_INDEX] + "/" + pathList[SONIC_TBL_CHILD_INDEX]
+		if specTblChldInfo, ok := xDbSpecMap[tblChldXpath]; ok {
+			if specTblChldInfo.yangType == YANG_CONTAINER {
+				hasSingletonContainer = true
+			}
+		}
+	}
+	return hasSingletonContainer
 }

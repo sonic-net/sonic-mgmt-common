@@ -98,10 +98,10 @@ func getLeafrefRefdYangType(yngTerminalNdDtType yang.TypeKind, fldXpath string) 
 				if len(pathList) > SONIC_FIELD_INDEX {
 					xpath = pathList[SONIC_TABLE_INDEX] + "/" + pathList[SONIC_FIELD_INDEX]
 					if xpath == fldXpath {
-						if sonicListInfo, ok := xDbSpecMap[pathList[SONIC_TABLE_INDEX]+"/"+pathList[SONIC_LIST_INDEX]]; ok {
-							if sonicListInfo.dbEntry != nil {
-								entry = sonicListInfo.dbEntry.Dir[pathList[SONIC_FIELD_INDEX]]
-								yngTerminalNdDtType = sonicListInfo.dbEntry.Dir[pathList[SONIC_FIELD_INDEX]].Type.Kind
+						if sonicTblChldInfo, ok := xDbSpecMap[pathList[SONIC_TABLE_INDEX]+"/"+pathList[SONIC_TBL_CHILD_INDEX]]; ok {
+							if sonicTblChldInfo.dbEntry != nil {
+								entry = sonicTblChldInfo.dbEntry.Dir[pathList[SONIC_FIELD_INDEX]]
+								yngTerminalNdDtType = sonicTblChldInfo.dbEntry.Dir[pathList[SONIC_FIELD_INDEX]].Type.Kind
 							}
 						}
 					} else {
