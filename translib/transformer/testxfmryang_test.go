@@ -355,3 +355,51 @@ func Test_leaflist_node(t *testing.T) {
 	loadDB(db.ConfigDB, pre_req_map)
 	time.Sleep(1 * time.Second)
 }
+
+func Test_node_exercising_singleton_container_and_keyname_mapping(t *testing.T) {
+        var pre_req_map, expected_map, cleanuptbl map[string]interface{}
+        var url, url_body_json string
+
+        t.Log("\n\n+++++++++++++ Performing Set on Yang Node Exercising Mapping to Sonic-Yang Singleton Container and Key-name  ++++++++++++")
+        url = "/openconfig-test-xfmr:test-xfmr/global-sensor"
+        url_body_json = "{ \"openconfig-test-xfmr:mode\": \"testmode\", \"openconfig-test-xfmr:description\": \"testdescription\"}"
+        expected_map = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description":"testdescription"}}}
+        cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": ""}}
+        loadDB(db.ConfigDB, pre_req_map)
+        time.Sleep(1 * time.Second)
+        t.Run("Test set on yang node exercising mapping to sonic singleton conatiner and key-name.", processSetRequest(url, url_body_json, "POST", false, nil))
+        time.Sleep(1 * time.Second)
+        t.Run("Verify set on yang node exercising mapping to sonic-yang singleton conatiner and key-name.", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", expected_map, false))
+        unloadDB(db.ConfigDB, cleanuptbl)
+        time.Sleep(1 * time.Second)
+        t.Log("\n\n+++++++++++++ Done Performing Set on Yang Node Exercising Mapping to Sonic-Yang Singleton Container and Key-name  ++++++++++++")
+
+        t.Log("\n\n+++++++++++++ Performing Delete on Yang Node Exercising Mapping to Sonic-Yang Singleton Container and Key-name  ++++++++++++")
+        pre_req_map = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{
+                "mode":        "testmode",
+                "description": "testdescription"}}}
+        loadDB(db.ConfigDB, pre_req_map)
+        time.Sleep(1 * time.Second)
+        url = "/openconfig-test-xfmr:test-xfmr/global-sensor/description"
+        t.Run("Test delete on node exercising mapping to sonic-yang singleton conatiner and key-name.", processDeleteRequest(url, false))
+        time.Sleep(1 * time.Second)
+        expected_map = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{
+                "mode":   "testmode"}}}
+        t.Run("Verify delete on node exercising mapping to sonic-yang singleton conatiner and key-name.", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", expected_map, false))
+        unloadDB(db.ConfigDB, cleanuptbl)
+        time.Sleep(1 * time.Second)
+        t.Log("\n\n+++++++++++++ Done Performing Delete on Yang Node Exercising Mapping to Sonic-Yang Singleton Container and Key-name  ++++++++++++")
+
+	t.Log("\n\n+++++++++++++ Performing Get on Yang Node Exercising  Mapping to Sonic-Yang Singleton Container and Key-name ++++++++++++")
+        pre_req_map = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{
+                "mode":        "testmode",
+                "description": "testdescription"}}}
+        loadDB(db.ConfigDB, pre_req_map)
+        expected_get_json := "{\"openconfig-test-xfmr:global-sensor\": {\"description\": \"testdescription\",\"mode\": \"testmode\"}}"
+        url = "/openconfig-test-xfmr:test-xfmr/global-sensor"
+        t.Run("Test get on node exercising mapping to sonic-yang singleton conatiner and key-name.", processGetRequest(url, expected_get_json, false))
+        time.Sleep(1 * time.Second)
+        unloadDB(db.ConfigDB, cleanuptbl)
+        t.Log("\n\n+++++++++++++ Done Performing Get on Yang Node Exercising  mapping to sonic-yang singleton conatiner and key-name ++++++++++++")
+}
+
