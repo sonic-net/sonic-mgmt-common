@@ -30,6 +30,8 @@ const (
 	OC_MDL_PFX           = "openconfig-"
 	IETF_MDL_PFX         = "ietf-"
 	IANA_MDL_PFX         = "iana-"
+	PATH_XFMR_RET_ARGS     = 1
+	PATH_XFMR_RET_ERR_INDX = 0
 )
 
 const (
