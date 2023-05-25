@@ -314,7 +314,7 @@ func dbMapDataFill(uri string, tableName string, keyName string, d map[string]in
 	}
 }
 
-func dbMapListDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
+func dbMapTableChildListDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
 	data := reflect.ValueOf(jsonData)
 	tblKeyName := strings.Split(dbEntry.Key, " ")
 	for idx := 0; idx < data.Len(); idx++ {
@@ -335,6 +335,13 @@ func dbMapListDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonDa
 		}
 		dbMapDataFill(uri, tableName, keyName, d, result)
 	}
+}
+
+func dbMapTableChildContainerDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
+	data := reflect.ValueOf(jsonData).Interface().(map[string]interface{})
+	keyName := dbEntry.Name
+	xfmrLogDebug("Container name %v will become table key.", keyName)
+	dbMapDataFill(uri, tableName, keyName, data, result)
 }
 
 func directDbMapData(uri string, tableName string, jsonData interface{}, result map[string]map[string]db.Value) bool {
@@ -359,8 +366,11 @@ func directDbMapData(uri string, tableName string, jsonData interface{}, result 
 				eType := curDbSpecData.yangType
 				switch eType {
 				case YANG_LIST:
-					xfmrLogDebug("Fill data for list uri(%v)", uri)
-					dbMapListDataFill(uri, tableName, curDbSpecData.dbEntry, v, result)
+					xfmrLogDebug("Fill data for list %v child of table level node %v", k, tableName)
+					dbMapTableChildListDataFill(uri, tableName, curDbSpecData.dbEntry, v, result)
+				case YANG_CONTAINER:
+					xfmrLogDebug("Fill data for container %v child of table level node %v", k, tableName)
+					dbMapTableChildContainerDataFill(uri, tableName, curDbSpecData.dbEntry, v, result)
 				default:
 					xfmrLogDebug("Invalid node type for uri(%v)", uri)
 				}
