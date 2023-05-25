@@ -25,7 +25,7 @@ BUILD_DIR:=$(TOP_DIR)/build/cvl
 
 CVL_SCHEMA_DIR = $(BUILD_DIR)/schema
 CVL_SCHEMA     = $(CVL_SCHEMA_DIR)/.done
-SONIC_YANG_DIR   = $(TOP_DIR)/models/yang/sonic
+SONIC_YANG_DIR   = $(TOP_DIR)/build/yang/sonic
 SONIC_YANG_FILES = $(shell find $(SONIC_YANG_DIR) -name '*.yang')
 YANG_SRC_DIR     = ../models/yang
 
