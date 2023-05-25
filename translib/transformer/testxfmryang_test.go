@@ -403,3 +403,92 @@ func Test_node_exercising_singleton_container_and_keyname_mapping(t *testing.T) 
         t.Log("\n\n+++++++++++++ Done Performing Get on Yang Node Exercising  mapping to sonic-yang singleton conatiner and key-name ++++++++++++")
 }
 
+func Test_singleton_sonic_yang_node_operations(t *testing.T) {
+
+        cleanuptbl := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": ""}}
+        url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+
+        t.Log("++++++++++++++  Test_create_on_sonic_singleton_container_yang_node +++++++++++++")
+
+        // Setup - Prerequisite
+        unloadDB(db.ConfigDB, cleanuptbl)
+
+        // Payload
+        post_payload :=  "{ \"sonic-test-xfmr:global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescp\" }}"
+        post_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp"}}}
+
+        t.Run("Create on singleton sonic table yang node", processSetRequest(url, post_payload, "POST", false))
+        time.Sleep(1 * time.Second)
+        t.Run("Verify Create on singleton sonic table yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", post_sensor_global_expected, false))
+
+        // Teardown
+        unloadDB(db.ConfigDB, cleanuptbl)
+
+        t.Log("++++++++++++++  Test_patch_on_sonic_singleton_container_node +++++++++++++")
+
+        prereq := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp"}}}
+        url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor"
+
+        // Setup - Prerequisite
+        loadDB(db.ConfigDB, prereq)
+
+        // Payload
+        patch_payload :=  "{ \"sonic-test-xfmr:global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description\" }}"
+        patch_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description"}}}
+
+        t.Run("Patch on singleton sonic container yang node", processSetRequest(url, patch_payload, "PATCH", false))
+        time.Sleep(1 * time.Second)
+        t.Run("Verify patch on singleton sonic container yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
+
+        // Teardown
+        unloadDB(db.ConfigDB, cleanuptbl)
+
+        t.Log("++++++++++++++  Test_replace_on_sonic_singleton_container +++++++++++++")
+
+        url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/mode"
+
+        // Setup - Prerequisite
+        loadDB(db.ConfigDB, prereq)
+
+        // Payload
+        put_payload :=  "{ \"sonic-test-xfmr:mode\": \"test_mode_1\"}"
+        put_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "test_mode_1", "description": "testdescp"}}}
+
+        t.Run("Put on singleton sonic yang node", processSetRequest(url, put_payload, "PUT", false))
+        time.Sleep(1 * time.Second)
+        t.Run("Verify put on singleton sonic yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", put_sensor_global_expected, false))
+
+        // Teardown
+        unloadDB(db.ConfigDB, cleanuptbl)
+
+
+        t.Log("++++++++++++++  Test_delete_on_singleton_sonic_container  +++++++++++++")
+
+        url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor"
+
+        // Setup - Prerequisite
+        loadDB(db.ConfigDB, prereq)
+
+        delete_expected := make(map[string]interface{})
+
+        t.Run("Delete on singleton sonic container", processDeleteRequest(url, false))
+        time.Sleep(1 * time.Second)
+        t.Run("Verify delete on sonic singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", delete_expected, false))
+
+        // Teardown
+        unloadDB(db.ConfigDB, cleanuptbl)
+
+        t.Log("++++++++++++++  Test_get_on_sonic_singleton_container  +++++++++++++")
+
+        prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "mode_test", "description": "test description for single container"}}}
+        url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+
+        // Setup - Prerequisite
+        loadDB(db.ConfigDB, prereq)
+
+        get_expected := "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"mode_test\", \"description\": \"test description for single container\" }}}"
+        t.Run("Get on Sonic singleton container", processGetRequest(url, get_expected, false))
+
+        // Teardown
+        unloadDB(db.ConfigDB, cleanuptbl)
+}
