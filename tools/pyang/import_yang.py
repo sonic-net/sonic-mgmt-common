@@ -54,7 +54,6 @@ def process(args):
 
     try:
         p = Preprocessor(files, args)
-        p.subst_port_refs = args.subst_port_ref
         p.process_all()
         p.write_all(args.to_dir)
     except Exception as e:

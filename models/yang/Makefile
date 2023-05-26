@@ -48,7 +48,7 @@ SYNC_SONIC_YANGS  := $(YANGDIR)/.sync_sonic_yangs
 SYNC_ANNOT_YANGS  := $(YANGDIR)/.sync_annot_yangs
 PREPARE_YANGS     := $(SYNC_STD_YANGS) $(SYNC_EXT_YANGS) $(SYNC_ANNOT_YANGS) $(SYNC_SONIC_YANGS)
 
-YANG_ANNOTS_CHK   := .annots_checked
+YANG_ANNOTS_CHK   := $(YANGDIR)/.annots_checked
 
 ifeq ($(INCLUDE_TEST_MODELS),y)
 TEST_YANGS_DIR    ?= $(TOPDIR)/translib/transformer/test
