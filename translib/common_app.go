@@ -156,7 +156,10 @@ func (app *CommonApp) translateSubscribe(req *translateSubRequest) (*translateSu
 		return nil, err
 	}
 
-	subsReqXlateInfo := subReqXlator.GetSubscribeReqXlateInfo()
+	subsReqXlateInfo, err := subReqXlator.GetSubscribeReqXlateInfo()
+	if err != nil {
+		return nil, err
+	}
 
 	if uriPath, err := ygot.PathToString(subsReqXlateInfo.TrgtPathInfo.Path); err == nil {
 		if log.V(4) {
