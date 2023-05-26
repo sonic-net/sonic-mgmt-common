@@ -50,6 +50,13 @@ PREPARE_YANGS     := $(SYNC_STD_YANGS) $(SYNC_EXT_YANGS) $(SYNC_ANNOT_YANGS) $(S
 
 YANG_ANNOTS_CHK   := .annots_checked
 
+ifeq ($(INCLUDE_TEST_MODELS),y)
+TEST_YANGS_DIR    ?= $(TOPDIR)/translib/transformer/test
+TEST_API_YANGS    := $(filter-out %-annot.yang, $(wildcard $(TEST_YANGS_DIR)/openconfig-*.yang))
+TEST_SONIC_YANGS  := $(filter-out %-annot.yang, $(wildcard $(TEST_YANGS_DIR)/sonic-*.yang))
+TEST_ANNOT_YANGS  := $(wildcard $(TEST_YANGS_DIR)/*-annot.yang)
+endif
+
 TOOLS_DIR         := $(TOPDIR)/tools
 PYANG_PLUGIN_DIR  := $(TOOLS_DIR)/pyang/pyang_plugins
 PYANG             ?= pyang
@@ -124,19 +131,19 @@ sonic_allyangs_tree.html: $(SYNC_SONIC_YANGS)
 %/.:
 	mkdir -p $@
 
-$(SYNC_STD_YANGS): $(wildcard *.yang) $(wildcard common/*.yang) | $$(@D)/.
-	rsync -oavh --include='*/' --include='*.yang' --exclude='*' *.yang common $(@D)
+$(SYNC_STD_YANGS): $(wildcard *.yang) $(wildcard common/*.yang) $(TEST_API_YANGS) | $$(@D)/.
+	rsync -oavh --include='*/' --include='*.yang' --exclude='*' *.yang common $(TEST_API_YANGS) $(@D)
 	touch $@
 
 $(SYNC_EXT_YANGS): $(wildcard extensions/*.yang) | $$(@D)/.
 	rsync -oavh --include='*/' --include='*.yang' --exclude='*' extensions $(@D)
 	touch $@
 
-$(SYNC_ANNOT_YANGS): $(wildcard annotations/*.yang) | $$(@D)/.
-	rsync -oavh --include='*/' --include='*.yang' --exclude='*' annotations $(@D)
+$(SYNC_ANNOT_YANGS): $(wildcard annotations/*.yang) $(TEST_ANNOT_YANGS) | $$(@D)/.
+	rsync -oavh annotations/*.yang $(TEST_ANNOT_YANGS) $(@D)/annotations
 	touch $@
 
-$(SYNC_SONIC_YANGS): $(wildcard sonic/*.yang) $(SONIC_YANG_IMPORT_FILES) | $$(@D)/.
+$(SYNC_SONIC_YANGS): $(wildcard sonic/*.yang) $(SONIC_YANG_IMPORT_FILES) $(TEST_SONIC_YANGS) | $$(@D)/sonic/common/.
 ifneq ($(SHOULD_IMPORT_SONIC_YANGS),y)
 	# Nothing to import, blindly copy all local sonic yangs
 	rsync -oavh --include='*/' --include='*.yang' --exclude='*' sonic $(@D)
@@ -159,6 +166,9 @@ else
 		--to=$(@D)/sonic \
 		$(if $(SHOULD_IMPORT_SONIC_PORT),,--subst-port-ref=name:ifname) \
 		$(SONIC_YANG_IMPORT_NAMES)
+endif
+ifneq ($(TEST_SONIC_YANGS),)
+	rsync -oavh $(TEST_SONIC_YANGS) $(@D)/sonic
 endif
 	touch $@
 

@@ -33,6 +33,7 @@ YGOT_EXCLUDES    = ietf-interfaces sonic-types sonic-common
 
 XFMR_BUILD_DIR   = $(BUILD_DIR)/transformer
 XFMR_MODELS_LIST = $(XFMR_BUILD_DIR)/models_list
+XFMR_TEST_MODELS = $(notdir $(wildcard transformer/test/*.yang))
 
 DEFAULT_TARGETS = $(YGOT_BINDS) $(XFMR_MODELS_LIST)
 ifeq ($(NO_TEST_BINS),)
@@ -72,6 +73,9 @@ $(XFMR_MODELS_LIST): $(TOPDIR)/config/transformer/models_list $(YANG_FILES)
 	mkdir -p $(@D)
 	$(RM) $@ $(@D)/extra_models
 	printf -- "-%s\n" $(SONIC_DEP_YANGS) > $(@D)/extra_models
+ifeq ($(INCLUDE_TEST_MODELS),y)
+	printf -- "%s\n" $(XFMR_TEST_MODELS) >> $(@D)/extra_models
+endif
 	cat $< $(@D)/extra_models > $@
 
 
