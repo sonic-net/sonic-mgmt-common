@@ -141,7 +141,7 @@ func (app *CommonApp) translateSubscribe(req *translateSubRequest) (*translateSu
 		log.Info(reqIdLogStr, "tranlateSubscribe:path", req.path)
 	}
 	subMode := transformer.NotificationType(req.mode)
-	subReqXlator, err := transformer.GetSubscribeReqXlator(req.ctxID, req.path, subMode, req.dbs, txCache)
+	subReqXlator, err := transformer.NewSubscribeReqXlator(req.ctxID, req.path, subMode, req.dbs, txCache)
 	if err != nil {
 		if log.V(4) {
 			log.Warning(reqIdLogStr, "tranlateSubscribe:Error in initializing the SubscribeReqXlator for the subscribe path request: ", req.path)
@@ -521,9 +521,9 @@ func (app *CommonApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error
 func (app *CommonApp) processSubscribe(param *processSubRequest) (processSubResponse, error) {
 	var resp processSubResponse
 
-	subNotfRespXlator, err := transformer.GetSubscribeNotfRespXlator(param.ctxID, param.path, param.dbno, param.table, param.key, param.entry, param.dbs, param.opaque)
+	subNotfRespXlator, err := transformer.NewSubscribeNotfRespXlator(param.ctxID, param.path, param.dbno, param.table, param.key, param.entry, param.dbs, param.opaque)
 	if err != nil {
-		log.Warning("processSubscribe: Error in getting the GetSubscribeNotfRespXlator; error: ", err)
+		log.Warning("processSubscribe: Error in getting the NewSubscribeNotfRespXlator; error: ", err)
 		return resp, err
 	}
 	if log.V(4) {

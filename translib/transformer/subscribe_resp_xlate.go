@@ -59,12 +59,14 @@ type DbYgXlateInfo struct {
 	xlateReq    *subscribeNotfXlateReq
 }
 
-func GetSubscribeNotfRespXlator(ctxID interface{}, gPath *gnmi.Path, dbNum db.DBNum, table *db.TableSpec, key *db.Key,
+func NewSubscribeNotfRespXlator(ctxID interface{}, gPath *gnmi.Path, dbNum db.DBNum, table *db.TableSpec, key *db.Key,
 	entry *db.Value, dbs [db.MaxDB]*db.DB, opaque interface{}) (*subscribeNotfRespXlator, error) {
 	reqLogId := "subNotfReq Id:[" + fmt.Sprintf("%v", ctxID) + "] : "
 
-	log.Infof(reqLogId+"GetSubscribeNotfRespXlator: table: %v, key: %v, "+
-		"dbno: %v, path: %v", table, key, dbNum, gPath)
+	if log.V(dbLgLvl) {
+		log.Infof("%v NewSubscribeNotfRespXlator: table: %v, key: %v, "+
+			"dbno: %v, path: %v", reqLogId, table, key, dbNum, gPath)
+	}
 
 	if opaque == nil || (reflect.ValueOf(opaque).Kind() == reflect.Ptr && reflect.ValueOf(opaque).IsNil()) {
 		opaque = new(sync.Map)
