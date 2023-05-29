@@ -1,0 +1,1 @@
+{\"openconfig-sampling-sflow:collectors\":{\"collector\":[{\"address\":\"1.1.1.1\",\"config\":{\"address\":\"1.1.1.1\",\"network-instance\":\"default\",\"port\":4444},\"network-instance\":\"default\",\"port\":4444,\"state\":{\"address\":\"1.1.1.1\",\"network-instance\":\"default\",\"port\":4444}}]}}

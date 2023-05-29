@@ -1,3 +1,5 @@
 #List yang models transformer need to load
 openconfig-acl.yang
 openconfig-acl-annot.yang
+openconfig-sampling-sflow.yang
+openconfig-sampling-sflow-annot.yang

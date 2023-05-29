@@ -1,0 +1,1 @@
+gnmi_set -insecure -username admin -password admin -update /openconfig-sampling-sflow:sampling/sflow/config/enabled:@./01_enable_sFlow.json -target_addr localhost:8080 -xpath_target OC-YANG-pretty

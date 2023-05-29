@@ -1,0 +1,54 @@
+module openconfig-sampling-sflow-deviation {
+
+    yang-version "1.1";
+
+    // namespace
+    namespace "http://openconfig.net/yang/sampling/sflow/deviation/extension";
+
+    prefix "oc-sampling-sflow-dev";
+
+    import openconfig-extensions { prefix "oc-ext"; }
+    import openconfig-sampling-sflow { prefix oc-sampling; }
+
+    organization "SONiC";
+    contact
+        "SONiC";
+    description
+        "This is a deviation yang for openconfig sampling model.";
+
+    oc-ext:openconfig-version "0.1.0";
+
+    revision 2020-06-23 {
+        description
+         "Initial version.";
+        reference "0.1.0";
+    }
+
+    deviation /oc-sampling:sampling/oc-sampling:sflow/oc-sampling:config/oc-sampling:source-address {
+         deviate not-supported;
+    }
+
+    deviation /oc-sampling:sampling/oc-sampling:sflow/oc-sampling:config/oc-sampling:sample-size {
+         deviate not-supported;
+    }
+
+    deviation /oc-sampling:sampling/oc-sampling:sflow/oc-sampling:config/oc-sampling:sampling-rate {
+         deviate not-supported;
+    }
+
+    deviation /oc-sampling:sampling/oc-sampling:sflow/oc-sampling:interfaces/oc-sampling:interface/oc-sampling:state/oc-sampling:packets-sampled {
+         deviate not-supported;
+    }
+
+    deviation /oc-sampling:sampling/oc-sampling:sflow/oc-sampling:state/oc-sampling:source-address {
+         deviate not-supported;
+    }
+
+    deviation /oc-sampling:sampling/oc-sampling:sflow/oc-sampling:state/oc-sampling:sample-size {
+         deviate not-supported;
+    }
+
+    deviation /oc-sampling:sampling/oc-sampling:sflow/oc-sampling:collectors/oc-sampling:collector/oc-sampling:state/oc-sampling:packets-sent {
+	 deviate not-supported;
+    }    
+}

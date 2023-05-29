@@ -26,12 +26,13 @@ TRANSFORMER_SRCS = $(filter ./transformer/%, $(shell find . -name '*.go' -not -n
 TRANSFORMER_TESTS := $(shell find . -name '*_test.go')
 TRANSFORMER_TEST_SRCS = $(filter ./transformer/%, $(TRANSFORMER_TESTS))
 
+TRANSFORMER_TEST_APP_BIN = $(TRANSLIB_TEST_DIR)/testapp.test
 YANG_FILES = $(shell find $(TOPDIR)/models/yang -name '*.yang')
 YGOT_BINDS = ocbinds/ocbinds.go
 
 DEFAULT_TARGETS = $(YGOT_BINDS)
 ifeq ($(NO_TEST_BINS),)
-DEFAULT_TARGETS += $(TRANSLIB_TEST_BIN) $(TRANSL_DB_TEST_BIN)
+DEFAULT_TARGETS += $(TRANSLIB_TEST_BIN) $(TRANSL_DB_TEST_BIN) $(TRANSFORMER_TEST_APP_BIN)
 ifdef INCLUDE_TEST_MODELS
 DEFAULT_TARGETS += $(TRANSFORMER_TEST_BIN)
 endif
@@ -52,6 +53,9 @@ $(TRANSL_DB_TEST_BIN) : $(TRANSL_DB_ALL_SRCS)
 
 $(TRANSFORMER_TEST_BIN): $(TRANSFORMER_TEST_SRCS) $(TRANSFORMER_SRCS) $(TRANSLIB_MAIN_SRCS) $(YGOT_BINDS)
 	$(GO) test -mod=vendor -tags xfmrtest -c -vet=off -cover -coverpkg=../translib/transformer ../translib/transformer -o $@
+
+$(TRANSFORMER_TEST_APP_BIN): $(TRANSFORMER_TEST_SRCS) $(TRANSFORMER_SRCS) $(TRANSLIB_MAIN_SRCS) $(YGOT_BINDS)
+	$(GO) test -mod=vendor -tags testapp -c -vet=off -cover -coverpkg=../translib/transformer ../translib/transformer -o $@
 
 $(YGOT_BINDS): $(YANG_FILES)
 	$(RM) $@

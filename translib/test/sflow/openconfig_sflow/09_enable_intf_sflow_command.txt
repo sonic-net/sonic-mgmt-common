@@ -1,0 +1,1 @@
+gnmi_set -insecure -username admin -password admin -update /openconfig-sampling-sflow:sampling/sflow/interfaces/interface[name=Ethernet0]/config/enabled:@./09_enable_intf_sflow.json -target_addr localhost:8080 -xpath_target OC-YANG-pretty
