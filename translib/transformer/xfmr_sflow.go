@@ -113,7 +113,7 @@ func init() {
 }
 
 var DbToYangPath_sflow_collector_path_xfmr PathXfmrDbToYangFunc = func(params XfmrDbToYgPathParams) error {
-	log.Info("DbToYangPath_sflow_collector fmr: tbl:", params.tblName)
+	log.V(3).Info("DbToYangPath_sflow_collector fmr: tbl:", params.tblName)
 	sflowCollRoot := "/openconfig-sampling-sflow:sampling/sflow/collectors/collector"
 
 	if params.tblName != SFLOW_COL_TBL {
@@ -137,13 +137,13 @@ var DbToYangPath_sflow_collector_path_xfmr PathXfmrDbToYangFunc = func(params Xf
 			return oper_err
 		}
 	}
-	log.Info("DbToYangPath sflow_collector  ygPathKeys: ", params.ygPathKeys)
+	log.V(3).Info("DbToYangPath sflow_collector  ygPathKeys: ", params.ygPathKeys)
 
 	return nil
 }
 
 var DbToYangPath_sflow_interface_path_xfmr PathXfmrDbToYangFunc = func(params XfmrDbToYgPathParams) error {
-	log.Info("DbToYangPath_sflow_interface fmr: tbl:", params.tblName)
+	log.V(3).Info("DbToYangPath_sflow_interface fmr: tbl:", params.tblName)
 	sflowCollRoot := "/openconfig-sampling-sflow:sampling/sflow/interfaces/interface"
 
 	if params.tblName != SFLOW_SESS_TBL {
@@ -159,7 +159,7 @@ var DbToYangPath_sflow_interface_path_xfmr PathXfmrDbToYangFunc = func(params Xf
 			return oper_err
 		}
 	}
-	log.Info("DbToYangPath sflow_interface  ygPathKeys: ", params.ygPathKeys)
+	log.V(3).Info("DbToYangPath sflow_interface  ygPathKeys: ", params.ygPathKeys)
 
 	return nil
 }
@@ -174,14 +174,14 @@ var Subscribe_sflow_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubscInParams)
 	var result XfmrSubscOutParams
 	if inParams.subscProc != TRANSLATE_SUBSCRIBE {
 		result.isVirtualTbl = true
-		log.Info("Subscribe_sflow_xfmr :- result.  isVirtualTbl: ", result.isVirtualTbl)
+		log.V(3).Info("Subscribe_sflow_xfmr :- result.  isVirtualTbl: ", result.isVirtualTbl)
 		return result, nil
 	}
 	result.dbDataMap = make(RedisDbSubscribeMap)
 
 	targetUriPath, _, _ := XfmrRemoveXPATHPredicates(inParams.uri)
 
-	log.Infof("Subscribe_sflow_xfmr: targetUri %v ", targetUriPath)
+	log.V(3).Infof("Subscribe_sflow_xfmr: targetUri %v ", targetUriPath)
 
 	if targetUriPath == SAMPLING_SFLOW || targetUriPath == SAMPLING_SFLOW_CONFIG ||
 		targetUriPath == SAMPLING_SFLOW_STATE {
@@ -197,9 +197,9 @@ var Subscribe_sflow_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubscInParams)
 
 var DbToYang_sflow_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
 	pathInfo := NewPathInfo(inParams.uri)
-	log.Infof("Received GET for sFlow path: %s, vars: %v", pathInfo.Path, pathInfo.Vars)
+	log.V(3).Infof("Received GET for sFlow path: %s, vars: %v", pathInfo.Path, pathInfo.Vars)
 
-	log.Info("inParams.Uri:", inParams.requestUri)
+	log.V(3).Info("inParams.Uri:", inParams.requestUri)
 	targetUriPath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
 	return getSflow(getSflowRootObject(inParams.ygRoot), targetUriPath, inParams.uri, inParams.dbs[:])
 }
@@ -208,7 +208,7 @@ var YangToDb_sflow_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[str
 	var err error
 	res_map := make(map[string]map[string]db.Value)
 
-	log.Info("sFlow SubTreeXfmr: ", inParams.uri)
+	log.V(3).Info("sFlow SubTreeXfmr: ", inParams.uri)
 	global_map := make(map[string]db.Value)
 	sflowObj := getSflowRootObject(inParams.ygRoot)
 	targetUriPath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
@@ -252,8 +252,8 @@ var YangToDb_sflow_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[str
 
 var DbToYang_sflow_collector_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
 	pathInfo := NewPathInfo(inParams.uri)
-	log.Infof("Received GET for sFlow Collector path: %s, vars: %v", pathInfo.Path, pathInfo.Vars)
-	log.Info("inParams.Uri:", inParams.requestUri)
+	log.V(3).Infof("Received GET for sFlow Collector path: %s, vars: %v", pathInfo.Path, pathInfo.Vars)
+	log.V(3).Info("inParams.Uri:", inParams.requestUri)
 	targetUriPath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
 	return getSflowCol(getSflowRootObject(inParams.ygRoot), targetUriPath, inParams.uri, inParams.dbs[db.ConfigDB])
 }
@@ -273,7 +273,7 @@ var YangToDb_sflow_collector_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams
 	var err error
 	res_map := make(map[string]map[string]db.Value)
 
-	log.Info("sFlow Collector YangToDBSubTreeXfmr: ", inParams.uri)
+	log.V(3).Info("sFlow Collector YangToDBSubTreeXfmr: ", inParams.uri)
 	col_map := make(map[string]db.Value)
 	sflowObj := getSflowRootObject(inParams.ygRoot)
 
@@ -319,7 +319,7 @@ var Subscribe_sflow_collector_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubs
 	pathInfo := NewPathInfo(inParams.uri)
 	targetUriPath, _, _ := XfmrRemoveXPATHPredicates(inParams.uri)
 
-	log.Infof("Subscribe_sflow_collector_xfmr: pathInfo %v targetUri %v ", pathInfo, targetUriPath)
+	log.V(3).Infof("Subscribe_sflow_collector_xfmr: pathInfo %v targetUri %v ", pathInfo, targetUriPath)
 
 	ip := pathInfo.Var("address")
 	if ip == "" {
@@ -340,7 +340,7 @@ var Subscribe_sflow_collector_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubs
 	} else {
 		name = ip + "_" + port + "_" + vrf
 	}
-	log.Infof("Subscribe_sflow_collector_xfmr: key %s", name)
+	log.V(3).Infof("Subscribe_sflow_collector_xfmr: key %s", name)
 	result.dbDataMap = RedisDbSubscribeMap{db.ConfigDB: {SFLOW_COL_TBL: {name: {
 		"collector_ip": "address", "collector_port": "port", "collector_vrf": "network-instance"}}}}
 
@@ -349,8 +349,8 @@ var Subscribe_sflow_collector_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubs
 
 var DbToYang_sflow_interface_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
 	pathInfo := NewPathInfo(inParams.uri)
-	log.Infof("Received GET for sFlow Interface path: %s, vars: %v", pathInfo.Path, pathInfo.Vars)
-	log.Info("inParams.Uri:", inParams.requestUri)
+	log.V(3).Infof("Received GET for sFlow Interface path: %s, vars: %v", pathInfo.Path, pathInfo.Vars)
+	log.V(3).Info("inParams.Uri:", inParams.requestUri)
 	targetUriPath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
 	return getSflowIntf(getSflowRootObject(inParams.ygRoot), targetUriPath, inParams.uri, inParams.dbs[db.ApplDB])
 }
@@ -364,7 +364,7 @@ var Subscribe_sflow_interface_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubs
 	if key == "" {
 		key = "*"
 	}
-	log.Infof("XfmrSubscribe_sflow_interface_xfmr key %s ", key)
+	log.V(3).Infof("XfmrSubscribe_sflow_interface_xfmr key %s ", key)
 	result.dbDataMap = RedisDbSubscribeMap{db.ApplDB: {SFLOW_SESS_TBL: {key: {
 		"ifname": "name", "admin_state": "enabled", "sample_rate": "sampling-rate"}}}}
 
@@ -375,11 +375,11 @@ var YangToDb_sflow_interface_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams
 	var err error
 	res_map := make(map[string]map[string]db.Value)
 
-	log.Info("sFlow Interface YangToDBSubTreeXfmr: ", inParams.uri)
+	log.V(3).Info("sFlow Interface YangToDBSubTreeXfmr: ", inParams.uri)
 	intf_map := make(map[string]db.Value)
 	sflowObj := getSflowRootObject(inParams.ygRoot)
 	targetUriPath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
-	log.Infof("Subscribe_sflow_xfmr: targetUri %v ", targetUriPath)
+	log.V(3).Infof("Subscribe_sflow_xfmr: targetUri %v ", targetUriPath)
 
 	if inParams.oper == DELETE {
 		if !strings.Contains(targetUriPath, SAMPLING_SFLOW_INTFS_INTF) {
@@ -410,7 +410,7 @@ var YangToDb_sflow_interface_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams
 			}
 
 			if intf.Config == nil {
-				log.Infof("sFlow Inteface: No configuration")
+				log.V(3).Infof("sFlow Inteface: No configuration")
 				continue
 			}
 
@@ -460,11 +460,11 @@ func fillSflowInfo(sflow *ocbinds.OpenconfigSamplingSflow_Sampling_Sflow,
 
 	if err != nil {
 		if !strings.Contains(err.Error(), "Entry does not exist") {
-			log.Info("Cant get entry: ", SFLOW_GLOBAL_TBL)
+			log.V(3).Info("Cant get entry: ", SFLOW_GLOBAL_TBL)
 			return err
 		}
 		err = nil
-		log.Info("sFlow not enabled")
+		log.V(3).Info("sFlow not enabled")
 	}
 
 	config := sflow.Config
@@ -494,7 +494,7 @@ func fillSflowInfo(sflow *ocbinds.OpenconfigSamplingSflow_Sampling_Sflow,
 
 func getSflow(sflow_tr *ocbinds.OpenconfigSamplingSflow_Sampling, targetUriPath string,
 	uri string, d []*db.DB) error {
-	log.Infof("Getting sFlow information")
+	log.V(3).Infof("Getting sFlow information")
 	var err error
 
 	ygot.BuildEmptyTree(sflow_tr)
@@ -534,7 +534,7 @@ func getSflowColInfoFromDb(d *db.DB) (map[string]SflowCol, error) {
 
 	keys, err := sflowColTbl.GetKeys()
 	if err != nil {
-		log.Info("No collectors configured")
+		log.V(3).Info("No collectors configured")
 		return sfInfo, nil
 	}
 
@@ -634,7 +634,7 @@ func fillSflowCollectorInfo(sflowCols *ocbinds.OpenconfigSamplingSflow_Sampling_
 
 func getSflowCol(sflow_tr *ocbinds.OpenconfigSamplingSflow_Sampling, targetUriPath string,
 	uri string, d *db.DB) error {
-	log.Infof("Getting sFlow collector information")
+	log.V(3).Infof("Getting sFlow collector information")
 	ygot.BuildEmptyTree(sflow_tr.Sflow)
 	ygot.BuildEmptyTree(sflow_tr.Sflow.Collectors)
 	key := makeColKey(uri)
@@ -654,7 +654,7 @@ func getSflowIntfInfoFromDb(d *db.DB) (map[string]SflowIntf, error) {
 
 	keys, err := sflowIntfTbl.GetKeys()
 	if err != nil {
-		log.Info("No interface configured, sFlow not enabled")
+		log.V(3).Info("No interface configured, sFlow not enabled")
 		return sfInfo, nil
 	}
 
@@ -738,7 +738,7 @@ func appendIntfToYang(sflowIntf *ocbinds.OpenconfigSamplingSflow_Sampling_Sflow_
 
 func getSflowIntf(sflow_tr *ocbinds.OpenconfigSamplingSflow_Sampling, targetUriPath string,
 	uri string, d *db.DB) error {
-	log.Infof("Getting sFlow interface information")
+	log.V(3).Infof("Getting sFlow interface information")
 
 	name := NewPathInfo(uri).Var("name")
 	ygot.BuildEmptyTree(sflow_tr.Sflow)

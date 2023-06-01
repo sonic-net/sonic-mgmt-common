@@ -1,1 +1,0 @@
-gnmi_set -username admin -password admin -replace /sonic-sflow:sonic-sflow/SFLOW/global/agent_id:@./03_set_agent_id.json  -target_addr 127.0.0.1:8080 -alsologtostderr -insecure true -pretty

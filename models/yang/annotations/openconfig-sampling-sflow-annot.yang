@@ -11,12 +11,6 @@ module openconfig-sampling-sflow-annot {
 
     deviation /oc-sampling:sampling/oc-sampling:sflow {
       deviate add {
-        sonic-ext:user-role-priv "write:netadmin";
-      }
-    }
-
-    deviation /oc-sampling:sampling/oc-sampling:sflow {
-      deviate add {
         sonic-ext:subtree-transformer "sflow_xfmr";
       }
     }

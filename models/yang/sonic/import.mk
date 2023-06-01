@@ -1,7 +1,7 @@
-
 ##
-# SONICYANG_IMPORTS is the list of sonic yang file names to be copied
-# from SONICYANG_IMPORT_DIR. It should contain only the base names.
+# SONICYANG_IMPORTS is the list of sonic yang files to be copied
+# from SONICYANG_IMPORT_DIR. Only the file basenames (like sonic-sflow.yang)
+# or glob patterns of basenames (like sonic-telemetry*.yang) can be specified.
 # Other sonic yangs referred by these will also be copied.
 #
 SONICYANG_IMPORTS += sonic-sflow.yang

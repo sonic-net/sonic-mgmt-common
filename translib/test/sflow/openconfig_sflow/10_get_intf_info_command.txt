@@ -1,1 +1,0 @@
-gnmi_get -username admin -password admin -xpath /openconfig-sampling-sflow:sampling/sflow/interfaces/interface[name=Ethernet0]/state -target_addr 127.0.0.1:8080 -alsologtostderr -insecure true -pretty

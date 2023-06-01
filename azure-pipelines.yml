@@ -98,6 +98,8 @@ stages:
 
         ./transformer.test -test.v -logtostderr || STATUS=1
 
+        ./testapp.test -test.v -logtostderr || STATUS=1
+
         popd
 
         exit ${STATUS}

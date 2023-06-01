@@ -1,1 +1,0 @@
-gnmi_set -username admin -password admin -update /sonic-sflow:sonic-sflow/SFLOW_SESSION/SFLOW_SESSION_LIST[port=Ethernet0]/sample_rate:@./10_set_intf_sample.json -target_addr 127.0.0.1:8080 -alsologtostderr -insecure true -pretty

@@ -1,9 +1,0 @@
-{
-  "sonic-sflow:SFLOW_SESSION_LIST": [
-    {
-      "port": "Ethernet0",
-      "admin_state": "down",
-      "sample_rate": 10000
-    }
-  ]
-}

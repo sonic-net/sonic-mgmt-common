@@ -1,7 +1,0 @@
-{"openconfig-sampling-sflow:collector": [
-    {
-     "address": "1.1.1.1",
-     "port": 4444,
-     "network-instance": "default"
-    }
-]}
