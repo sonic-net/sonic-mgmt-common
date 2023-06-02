@@ -16,6 +16,8 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+//go:build testapp
+// +build testapp
 
 package transformer_test
 

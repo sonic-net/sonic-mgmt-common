@@ -1,7 +1,7 @@
 # Yang models
 models/yang/*.yang                  usr/models/yang
 models/yang/common/*.yang           usr/models/yang
-#models/yang/extensions/*.yang       usr/models/yang
+models/yang/extensions/*.yang       usr/models/yang
 models/yang/sonic/*.yang            usr/models/yang
 models/yang/sonic/common/*.yang     usr/models/yang
 models/yang/annotations/*.yang      usr/models/yang
