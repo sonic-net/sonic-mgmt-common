@@ -185,7 +185,7 @@ func (pathXltr *subscribePathXlator) setTrgtYgXpathInfo() error {
 func (pathXlateInfo *XfmrSubscribePathXlateInfo) addPathXlateInfo(tblSpec *db.TableSpec, dbKey *db.Key, dBNum db.DBNum) *dbTableKeyInfo {
 	dbTblInfo := dbTableKeyInfo{Table: tblSpec, Key: dbKey, DbNum: dBNum}
 	pathXlateInfo.DbKeyXlateInfo = append(pathXlateInfo.DbKeyXlateInfo, &dbTblInfo)
-	if (pathXlateInfo.ygXpathInfo.yangType == YNG_LEAF || pathXlateInfo.ygXpathInfo.yangType == YNG_LEAF_LIST) &&
+	if (pathXlateInfo.ygXpathInfo.yangType == YANG_LEAF || pathXlateInfo.ygXpathInfo.yangType == YANG_LEAF_LIST) &&
 		pathXlateInfo.ygXpathInfo.subscriptionFlags.Has(subsDelAsUpdate) {
 		dbTblInfo.DeleteAction = apis.InspectPathOnDelete
 	}
@@ -1285,7 +1285,7 @@ func (reqXlator *subscribeReqXlator) translateChildNodePaths(ygXpathInfo *yangXp
 }
 
 func (pathXlateInfo *XfmrSubscribePathXlateInfo) isSamePathXlateInfo(parentPathXlateInfo *XfmrSubscribePathXlateInfo) bool {
-	if (pathXlateInfo.ygXpathInfo.yangType == YNG_LEAF || pathXlateInfo.ygXpathInfo.yangType == YNG_LEAF_LIST) &&
+	if (pathXlateInfo.ygXpathInfo.yangType == YANG_LEAF || pathXlateInfo.ygXpathInfo.yangType == YANG_LEAF_LIST) &&
 		pathXlateInfo.ygXpathInfo.subscriptionFlags.Has(subsDelAsUpdate) {
 		return false
 	}
@@ -1432,7 +1432,7 @@ func (reqXlator *subscribeReqXlator) traverseYgXpathAndTranslate(ygXpNode *ygXpa
 					}
 				}
 
-				if chldNode.ygXpathInfo.yangType != YNG_LIST && parentPathXlateInfo.hasDbTableInfo() {
+				if chldNode.ygXpathInfo.yangType != YANG_LIST && parentPathXlateInfo.hasDbTableInfo() {
 					// other than list node, that is for the container / leaf / leaf-list node
 					// the db key entry of the parent list node's table db key will be used as the table
 					// key for the container/leaf/leaf-list node's table
@@ -1849,8 +1849,7 @@ func (reqXlator *subscribeReqXlator) uriToAbsolutePath(rltvUri string) (*gnmipb.
 }
 
 func debugPrintXPathInfo(xpathInfo *yangXpathInfo) {
-	// TODO:INTG_CHANGES below commented code will be reverted during the code integration
-	//log.Infof("    yangType: %v\r\n", getYangTypeStrId(xpathInfo.yangType))
+	log.Infof("    yangType: %v\r\n", getYangTypeStrId(xpathInfo.yangType))
 	log.Info("      fieldName: ", xpathInfo.fieldName)
 	if xpathInfo.nameWithMod != nil {
 		log.Infof("    nameWithMod : %v\r\n", *xpathInfo.nameWithMod)
@@ -1924,11 +1923,9 @@ func debugPrintXPathInfo(xpathInfo *yangXpathInfo) {
 
 func getYgEntry(reqLogId string, ygXpath *yangXpathInfo, ygPath string) (*yang.Entry, error) {
 	ygEntry := ygXpath.yangEntry
-	// TODO:INTG_CHANGES below commented lines will be reverted during the code integration
-	// since this function "getYangEntryForXPath" has to be merged first
-	//if ygEntry == nil && (ygXpath.yangType == YNG_LEAF || ygXpath.yangType == YNG_LEAF_LIST) {
-	//	ygEntry = getYangEntryForXPath(ygPath)
-	//}
+	if ygEntry == nil && (ygXpath.yangType == YANG_LEAF || ygXpath.yangType == YANG_LEAF_LIST) {
+		ygEntry = getYangEntryForXPath(ygPath)
+	}
 	if ygEntry == nil {
 		if log.V(dbLgLvl) {
 			log.Warningf("%v : yangEntry is nil in the yangXpathInfo for the path:", reqLogId, ygPath)
@@ -1937,15 +1934,6 @@ func getYgEntry(reqLogId string, ygXpath *yangXpathInfo, ygPath string) (*yang.E
 	}
 	return ygEntry, nil
 }
-
-// TODO:INTG_CHANGES below const. are temporary changes, will be removed during the code integration
-// reference to YNG_LEAF_LIST, YNG_LEAF in this file will be replaced with YANG_LEAF_LIST, YANG_LEAF
-const (
-	YNG_LIST yangElementType = iota + 2
-	YNG_CONTAINER
-	YNG_LEAF
-	YNG_LEAF_LIST
-)
 
 func (keyRslvr *DbYangKeyResolver) handleValueXfmr(xfmrName string, operation Operation, keyName string, keyVal string) (keyLeafVal string, err error) {
 	if log.V(dbLgLvl) {
@@ -2107,11 +2095,9 @@ func (keyRslvr *DbYangKeyResolver) getDbYangListInfo(listName string) (*dbInfo, 
 
 func getYgDbEntry(reqLogId string, ygDbInfo *dbInfo, ygPath string) (*yang.Entry, error) {
 	ygEntry := ygDbInfo.dbEntry
-	// TODO:INTG_CHANGES below commented lines will be reverted during the code integration
-	// since this function "getYangEntryForXPath" has to be merged first
-	//if ygEntry == nil && (ygDbInfo.yangType == YANG_LEAF || ygDbInfo.yangType == YANG_LEAF_LIST) {
-	//	ygEntry = getYangEntryForXPath(ygPath)
-	//}
+	if ygEntry == nil && (ygDbInfo.yangType == YANG_LEAF || ygDbInfo.yangType == YANG_LEAF_LIST) {
+		ygEntry = getYangEntryForXPath(ygPath)
+	}
 	if ygEntry == nil {
 		if log.V(dbLgLvl) {
 			log.Warningf("%v : yangEntry is nil in the yangXpathInfo for the path:", reqLogId, ygPath)
