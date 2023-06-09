@@ -365,7 +365,7 @@ func XlateToDb(path string, oper int, d *db.DB, yg *ygot.GoStruct, yt *interface
 	return result, yangDefValMap, yangAuxValMap, err
 }
 
-func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, txCache interface{}) ([]byte, bool, error) {
+func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, txCache interface{}, qParams QueryParams) ([]byte, bool, error) {
 	var err error
 	var payload []byte
 	var inParamsForGet xlateFromDbParams

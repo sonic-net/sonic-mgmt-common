@@ -122,3 +122,15 @@ type xlateToParams struct {
 }
 
 type Operation int
+
+type ContentType uint8
+
+type QueryParams struct {
+        depthEnabled      bool
+        curDepth          uint
+        content           ContentType
+        fields            []string
+        fieldsFillAll     bool
+        allowFieldsXpath  map[string]bool
+        tgtFieldsXpathMap map[string][]string
+}

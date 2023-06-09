@@ -60,10 +60,20 @@ type appData struct {
 // These include RESTCONF query parameters like - depth, fields etc.
 type appOptions struct {
 
-	// depth limits subtree levels in the response data.
-	// 0 indicates unlimited depth.
-	// Valid for GET API only.
-	depth uint
+        // depth limits subtree levels in the response data.
+        // 0 indicates unlimited depth.
+        // Valid for GET API only.
+        depth uint
+
+        // content query parameter value receved from the URI
+        // possible value is one of 'config', 'nonconfig','all','state' or 'operational'
+        // Valid for GET API only.
+        content string
+
+        //fields query parameters
+        // paths of the fields that needs to be filtered in GET payload response
+        // Valid for GET API only.
+        fields []string
 
 	// deleteEmptyEntry indicates if the db entry should be deleted upon
 	// deletion of last field. This is a non standard option.

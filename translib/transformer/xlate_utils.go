@@ -1417,6 +1417,21 @@ func getYangNodeTypeFromUri(uri string) (yangElementType, error) {
 	return yangNodeType, nil
 }
 
+func NewQueryParams(depth uint, content string, fields []string) (QueryParams, error) {
+        var qparams QueryParams
+
+        xfmrLogInfo("NewQueryParams: depth:%v, content: %v, fields: %v", depth, content, fields)
+        //qpDepthContentPresent := false
+        if depth > 0 {
+                qparams.depthEnabled = true
+                qparams.curDepth = depth
+                //qpDepthContentPresent = true
+        } else {
+                qparams.curDepth = 0
+        }
+        return qparams, nil
+}
+
 func getXfmrSpecInfoFromUri(uri string) (interface{}, error) {
 	// function to extract xfmr spec info for a given sonic uri/path
 	var err error
@@ -1697,4 +1712,32 @@ func SonicUriHasSingletonContainer(uri string) bool {
 		}
 	}
 	return hasSingletonContainer
+}
+
+// IsEnabled : Exported version. translib.common_app needs this.
+func (qp *QueryParams) IsEnabled() bool {
+        return qp.isEnabled()
+}
+
+func (qp *QueryParams) isEnabled() bool {
+        return qp.isDepthEnabled() ||
+                qp.isContentEnabled() ||
+                qp.isFieldsEnabled()
+}
+
+func (qp *QueryParams) isDepthEnabled() bool {
+        return qp.depthEnabled
+}
+
+func (qp *QueryParams) IsContentEnabled() bool {
+        // IsEnabled : Exported version. translib.common_app needs this.
+        return qp.isContentEnabled()
+}
+
+func (qp *QueryParams) isContentEnabled() bool {
+	return false
+}
+
+func (qp *QueryParams) isFieldsEnabled() bool {
+        return len(qp.fields) != 0
 }

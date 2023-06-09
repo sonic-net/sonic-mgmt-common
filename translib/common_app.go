@@ -419,7 +419,14 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 		origXfmrYgotRoot, _ := ygot.DeepCopy((*app.ygotRoot).(ygot.GoStruct))
 		isEmptyPayload := false
 		appYgotStruct := (*app.ygotRoot).(ygot.GoStruct)
-		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache)
+		var qParams transformer.QueryParams
+                qParams, err = transformer.NewQueryParams(app.depth, app.content, app.fields)
+                if err != nil {
+                        log.Warning("Failed to process Query Params in xfmr : ", err)
+                        resPayload = []byte("{}")
+                        break
+                }
+		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams)
 		if err != nil {
 			resPayload = payload
 			break
@@ -476,13 +483,17 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 							err = tlerr.NotFound("Resource not found")
 							break
 						}
-						resPayload = payload
-						log.Info("No data available")
-						//TODO: Return not found error
-						//err = tlerr.NotFound("Resource not found")
-						break
-					}
-					resYgot = appYgotStruct
+						if !qParams.IsEnabled() {
+                                                        resPayload = payload
+                                                        log.Info("No data available")
+                                                        //TODO: Return not found error
+                                                        //err = tlerr.NotFound("Resource not found")
+                                                        break
+                                                }
+                                        }
+                                        if !qParams.IsEnabled() {
+                                                resYgot = appYgotStruct
+                                        }
 				}
 			}
 			if resYgot != nil {
