@@ -174,7 +174,7 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec KeySpec, result *map[db.DBNum]m
 	return err
 }
 
-func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *interface{}, txCache interface{}) (*[]KeySpec, error) {
+func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *interface{}, txCache interface{}, qParams QueryParams) (*[]KeySpec, error) {
 
 	var err error
 	var retdbFormat = make([]KeySpec, 0)
@@ -194,15 +194,21 @@ func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *
 
 		retdbFormat = fillSonicKeySpec(xpath, tableName, keyStr)
 	} else {
+		var reqUriXpath string
 		/* Extract the xpath and key from input xpath */
 		retData, _ := xpathKeyExtract(nil, ygRoot, GET, uri, requestUri, nil, nil, txCache, nil)
-		retdbFormat = fillKeySpecs(retData.xpath, retData.dbKey, &retdbFormat)
+		if requestUri == uri {
+			reqUriXpath = retData.xpath
+		} else {
+			reqUriXpath, _, _ = XfmrRemoveXPATHPredicates(requestUri)
+		}
+		retdbFormat = fillKeySpecs(reqUriXpath, &qParams, retData.xpath, retData.dbKey, &retdbFormat)
 	}
 
 	return &retdbFormat, err
 }
 
-func fillKeySpecs(yangXpath string, keyStr string, retdbFormat *[]KeySpec) []KeySpec {
+func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, keyStr string, retdbFormat *[]KeySpec) []KeySpec {
 	var err error
 	if xYangSpecMap == nil {
 		return *retdbFormat
@@ -239,8 +245,10 @@ func fillKeySpecs(yangXpath string, keyStr string, retdbFormat *[]KeySpec) []Key
 						if chlen > 0 {
 							children := make([]KeySpec, 0)
 							for _, childXpath := range xDbSpecMap[child].yangXpath {
-								children = fillKeySpecs(childXpath, "", &children)
-								dbFormat.Child = append(dbFormat.Child, children...)
+								if isChildTraversalRequired(reqUriXpath, qParams, childXpath) {
+									children = fillKeySpecs(reqUriXpath, qParams, childXpath, "", &children)
+									dbFormat.Child = append(dbFormat.Child, children...)
+								}
 							}
 						}
 					}
@@ -254,7 +262,9 @@ func fillKeySpecs(yangXpath string, keyStr string, retdbFormat *[]KeySpec) []Key
 						chlen := len(xDbSpecMap[child].yangXpath)
 						if chlen > 0 {
 							for _, childXpath := range xDbSpecMap[child].yangXpath {
-								*retdbFormat = fillKeySpecs(childXpath, "", retdbFormat)
+								if isChildTraversalRequired(reqUriXpath, qParams, childXpath) {
+									*retdbFormat = fillKeySpecs(reqUriXpath, qParams, childXpath, "", retdbFormat)
+								}
 							}
 						}
 					}
@@ -369,10 +379,11 @@ func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, 
 	var err error
 	var payload []byte
 	var inParamsForGet xlateFromDbParams
+	inParamsForGet.queryParams = qParams
 	xfmrLogInfo("received xpath = ", uri)
 	requestUri := uri
 
-	keySpec, _ := XlateUriToKeySpec(uri, requestUri, ygRoot, nil, txCache)
+	keySpec, _ := XlateUriToKeySpec(uri, requestUri, ygRoot, nil, txCache, qParams)
 	var dbresult = make(RedisDbMap)
 	for i := db.ApplDB; i < db.MaxDB; i++ {
 		dbresult[i] = make(map[string]map[string]db.Value)
@@ -488,7 +499,8 @@ func XlateFromDb(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, data R
 		}
 	}
 	dbTblKeyGetCache := inParamsForGet.dbTblKeyGetCache
-	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "", &dbData, txCache, nil, false)
+	qparams := inParamsForGet.queryParams
+	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "", &dbData, txCache, nil, false, qparams)
 	inParamsForGet.xfmrDbTblKeyCache = make(map[string]tblKeyCache)
 	inParamsForGet.dbTblKeyGetCache = dbTblKeyGetCache
 	payload, isEmptyPayload, err := dbDataToYangJsonCreate(inParamsForGet)

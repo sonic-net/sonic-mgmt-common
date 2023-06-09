@@ -1159,7 +1159,7 @@ func dbDataXfmrHandler(resultMap map[Operation]map[db.DBNum]map[string]map[strin
 	return nil
 }
 
-func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot *ygot.GoStruct, uri string, requestUri string, xpath string, oper Operation, tbl string, tblKey string, dbDataMap *RedisDbMap, txCache interface{}, resultMap map[string]interface{}, validate bool) xlateFromDbParams {
+func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot *ygot.GoStruct, uri string, requestUri string, xpath string, oper Operation, tbl string, tblKey string, dbDataMap *RedisDbMap, txCache interface{}, resultMap map[string]interface{}, validate bool, qParams QueryParams) xlateFromDbParams {
 	var inParamsForGet xlateFromDbParams
 	inParamsForGet.d = d
 	inParamsForGet.dbs = dbs
@@ -1175,6 +1175,8 @@ func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot 
 	inParamsForGet.txCache = txCache
 	inParamsForGet.resultMap = resultMap
 	inParamsForGet.validate = validate
+	inParamsForGet.queryParams = qParams
+
 
 	return inParamsForGet
 }
@@ -1430,6 +1432,50 @@ func NewQueryParams(depth uint, content string, fields []string) (QueryParams, e
                 qparams.curDepth = 0
         }
         return qparams, nil
+}
+
+func isChildTraversalRequired(xpath string, qParams *QueryParams, childXpath string) bool {
+        traverse := false
+        if len(xpath) == 0 || len(childXpath) == 0 {
+                return traverse
+        }
+        if !strings.HasPrefix(childXpath, xpath) {
+                return traverse
+        }
+        if qParams == nil || (!qParams.depthEnabled) {
+                // traversal required for all levels
+                return true
+        }
+        if strings.HasPrefix(childXpath, xpath) {
+                if !qParams.depthEnabled {
+                        return traverse
+                }
+
+                xpathList := strings.Split(xpath, "/")
+                xpathList = xpathList[1:]
+                childXpathList := strings.Split(childXpath, "/")
+                childXpathList = childXpathList[1:]
+
+                // Evaluate traversal required for childXpath w.r t requested depth
+                depthDiff := uint(len(childXpathList) - len(xpathList))
+                // The depth begins from 1 which is already included in the xpath considered
+                // Hence the difference in depth to be considered is 1 less than request depth
+                reqDiff := qParams.curDepth - 1
+                if depthDiff < reqDiff {
+                        // If the childXpath is non terminal container/list then table read is required
+                        traverse = true
+                } else if depthDiff == reqDiff {
+                        // When depth is met and the childXpath is container/list then table read is not required
+                        // only for terminal nodes DB read would be required
+                        if xspecInfo, ok := xYangSpecMap[childXpath]; ok {
+                                yangType := xspecInfo.yangType
+                                if yangType == YANG_LEAF_LIST || yangType == YANG_LEAF {
+                                        traverse = true
+                                }
+                        }
+                }
+        } // else not a child YANG path
+        return traverse
 }
 
 func getXfmrSpecInfoFromUri(uri string) (interface{}, error) {

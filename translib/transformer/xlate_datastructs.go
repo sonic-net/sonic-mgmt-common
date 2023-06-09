@@ -92,6 +92,7 @@ type xlateFromDbParams struct {
 	resultMap         map[string]interface{}
 	validate          bool
 	xfmrDbTblKeyCache map[string]tblKeyCache
+	queryParams       QueryParams
 	dbTblKeyGetCache  map[db.DBNum]map[string]map[string]bool
 }
 

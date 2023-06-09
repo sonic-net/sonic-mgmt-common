@@ -310,7 +310,7 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) []typeMapOfInterfac
 			yangKeys := yangKeyFromEntryGet(xDbSpecMap[xpath].dbEntry)
 			sonicKeyDataAdd(dbIdx, yangKeys, table, xDbSpecMap[xpath].dbEntry.Name, keyStr, curMap)
 			if len(curMap) > 0 {
-				linParamsForGet := formXlateFromDbParams(inParamsForGet.dbs[dbIdx], inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, inParamsForGet.uri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, keyStr, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate)
+				linParamsForGet := formXlateFromDbParams(inParamsForGet.dbs[dbIdx], inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, inParamsForGet.uri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, keyStr, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams)
 				sonicDbToYangDataFill(linParamsForGet)
 				curMap = linParamsForGet.resultMap
 				dbDataMap = linParamsForGet.dbDataMap
@@ -352,7 +352,7 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) {
 						fldName = fldName + "@"
 					}
 					curUri := inParamsForGet.uri + "/" + yangChldName
-					linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, curUri, inParamsForGet.requestUri, chldXpath, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate)
+					linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, curUri, inParamsForGet.requestUri, chldXpath, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams)
 					dbEntry := yangNode.dbEntry.Dir[yangChldName]
 					sonicDbToYangTerminalNodeFill(fldName, linParamsForGet, dbEntry)
 					resultMap = linParamsForGet.resultMap
@@ -367,7 +367,7 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) {
 						continue
 					}
 					d := inParamsForGet.dbs[xDbSpecMap[curTable].dbIndex]
-					linParamsForGet := formXlateFromDbParams(d, inParamsForGet.dbs, xDbSpecMap[curTable].dbIndex, inParamsForGet.ygRoot, curUri, inParamsForGet.requestUri, chldXpath, inParamsForGet.oper, curTable, curKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate)
+					linParamsForGet := formXlateFromDbParams(d, inParamsForGet.dbs, xDbSpecMap[curTable].dbIndex, inParamsForGet.ygRoot, curUri, inParamsForGet.requestUri, chldXpath, inParamsForGet.oper, curTable, curKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams)
 					sonicDbToYangDataFill(linParamsForGet)
 					curMap = linParamsForGet.resultMap
 					dbDataMap = linParamsForGet.dbDataMap
@@ -426,7 +426,18 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 	inParamsForGet.tblKey = key
 	fieldName := ""
 
-	if len(xpath) > 0 {
+	traverse := true
+        if inParamsForGet.queryParams.depthEnabled {
+                pathList := strings.Split(xpath, "/")
+                // Depth at requested URI starts at 1. Hence reduce the reqDepth calculated by 1
+                reqDepth := (len(pathList) - 1) + int(inParamsForGet.queryParams.curDepth) - 1
+                xfmrLogInfo("xpath: %v ,Sonic Yang len(pathlist) %v, reqDepth %v, sonic Field Index %v", xpath, len(pathList), reqDepth, SONIC_FIELD_INDEX)
+                if reqDepth < SONIC_FIELD_INDEX {
+                        traverse = false
+                }
+        }
+
+	if traverse && len(xpath) > 0 {
 		tokens := strings.Split(xpath, "/")
 		if len(tokens) > SONIC_FIELD_INDEX {
 			// Request is at  levelf/leaflist level
@@ -464,7 +475,7 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 				if yangType == YANG_LEAF_LIST {
 					fieldName = fieldName + "@"
 				}
-				linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, cdb, inParamsForGet.ygRoot, xpath, inParamsForGet.requestUri, uri, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate)
+				linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, cdb, inParamsForGet.ygRoot, xpath, inParamsForGet.requestUri, uri, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams)
 				sonicDbToYangTerminalNodeFill(fieldName, linParamsForGet, dbEntry)
 				resultMap = linParamsForGet.resultMap
 			} else if yangType == YANG_CONTAINER {
@@ -593,6 +604,11 @@ func yangListDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool) error 
 
 	_, ok := xYangSpecMap[xpath]
 	if ok {
+                // Do not handle list if the curdepth is 1
+                if inParamsForGet.queryParams.depthEnabled && (inParamsForGet.queryParams.curDepth <= 1) {
+                        return nil
+                }
+
 		if xYangSpecMap[xpath].xfmrTbl != nil {
 			xfmrTblFunc := *xYangSpecMap[xpath].xfmrTbl
 			if len(xfmrTblFunc) > 0 {
@@ -725,6 +741,7 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 			(len(xYangSpecMap[parentXpath].xfmrFunc) > 0 && (xYangSpecMap[parentXpath].xfmrFunc != xYangSpecMap[xpath].xfmrFunc)))) {
 			xfmrLogDebug("Parent subtree already handled cur uri: %v", xpath)
 			inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, GET, dbKey, dbDataMap, nil, nil, txCache)
+			inParams.queryParams = inParamsForGet.queryParams
 			err := xfmrHandlerFunc(inParams, xYangSpecMap[xpath].xfmrFunc)
 			inParamsForGet.ygRoot = ygRoot
 			inParamsForGet.dbDataMap = dbDataMap
@@ -733,7 +750,7 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 			}
 		}
 		if xYangSpecMap[xpath].hasChildSubTree {
-			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate)
+			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams)
 			linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 			linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
 			yangDataFill(linParamsForGet)
@@ -755,7 +772,7 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 					curMap[k] = kv
 				}
 			}
-			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpathKeyExtRet.xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate)
+			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpathKeyExtRet.xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams)
 			linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 			linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
 			yangDataFill(linParamsForGet)
@@ -785,6 +802,13 @@ func terminalNodeProcess(inParamsForGet xlateFromDbParams, terminalNodeQuery boo
 	dbDataMap := inParamsForGet.dbDataMap
 	txCache := inParamsForGet.txCache
 
+	 if uri != requestUri {
+                //Chk should be already done in yangDataFill
+                if inParamsForGet.queryParams.depthEnabled && inParamsForGet.queryParams.curDepth == 0 {
+                        return resFldValMap, err
+                }
+        }
+
 	_, ok := xYangSpecMap[xpath]
 	if !ok || yangEntry == nil {
 		logStr := fmt.Sprintf("No YANG entry found for xpath %v.", xpath)
@@ -795,6 +819,7 @@ func terminalNodeProcess(inParamsForGet xlateFromDbParams, terminalNodeQuery boo
 	cdb := xYangSpecMap[xpath].dbIndex
 	if len(xYangSpecMap[xpath].xfmrField) > 0 {
 		inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, GET, tblKey, dbDataMap, nil, nil, txCache)
+		inParams.queryParams = inParamsForGet.queryParams
 		fldValMap, err := leafXfmrHandlerFunc(inParams, xYangSpecMap[xpath].xfmrField)
 		inParamsForGet.ygRoot = ygRoot
 		inParamsForGet.dbDataMap = dbDataMap
@@ -913,6 +938,16 @@ func yangDataFill(inParamsForGet xlateFromDbParams) error {
 	yangNode, ok := xYangSpecMap[xpath]
 
 	if ok && yangNode.yangEntry != nil {
+		 if inParamsForGet.queryParams.depthEnabled {
+                        // If fields are available, we need to evaluate the depth after fields level is met
+                        // The depth upto the fields level is considered at level 1
+                        inParamsForGet.queryParams.curDepth = inParamsForGet.queryParams.curDepth - 1
+                        log.Infof("yangDataFill curdepth: %v, Path : %v", inParamsForGet.queryParams.curDepth, xpath)
+                        if inParamsForGet.queryParams.curDepth == 0 {
+                                return err
+                        }
+                }
+
 		for yangChldName := range yangNode.yangEntry.Dir {
 			chldXpath := xpath + "/" + yangChldName
 			if xYangSpecMap[chldXpath] != nil && xYangSpecMap[chldXpath].nameWithMod != nil {
@@ -923,6 +958,14 @@ func yangDataFill(inParamsForGet xlateFromDbParams) error {
 			inParamsForGet.xpath = chldXpath
 			inParamsForGet.uri = chldUri
 			if xYangSpecMap[chldXpath] != nil && yangNode.yangEntry.Dir[yangChldName] != nil {
+				chldYangType := xYangSpecMap[chldXpath].yangType
+
+				 if inParamsForGet.queryParams.depthEnabled && inParamsForGet.queryParams.curDepth == 1 {
+                                        if (chldYangType == YANG_CONTAINER) || (chldYangType == YANG_LIST) {
+                                                continue
+                                        }
+                                }
+
 				cdb := xYangSpecMap[chldXpath].dbIndex
 				inParamsForGet.curDb = cdb
 				if len(xYangSpecMap[chldXpath].validateFunc) > 0 && !validate {
@@ -930,6 +973,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams) error {
 					inParamsForGet.ygRoot = ygRoot
 					// TODO - handle non CONFIG-DB
 					inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, GET, xpathKeyExtRet.dbKey, dbDataMap, nil, nil, txCache)
+					inParams.queryParams = inParamsForGet.queryParams
 					res := validateHandlerFunc(inParams, xYangSpecMap[chldXpath].validateFunc)
 					if !res {
 						xfmrLogDebug("Further traversal not needed. Validate xfmr returns false for URI %v", chldUri)
@@ -941,7 +985,6 @@ func yangDataFill(inParamsForGet xlateFromDbParams) error {
 					inParamsForGet.dbDataMap = dbDataMap
 					inParamsForGet.ygRoot = ygRoot
 				}
-				chldYangType := xYangSpecMap[chldXpath].yangType
 				if chldYangType == YANG_LEAF || chldYangType == YANG_LEAF_LIST {
 					if len(xYangSpecMap[xpath].xfmrFunc) > 0 {
 						continue
@@ -1007,6 +1050,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams) error {
 							(len(xYangSpecMap[xpath].xfmrFunc) > 0 &&
 								(xYangSpecMap[xpath].xfmrFunc != xYangSpecMap[chldXpath].xfmrFunc)) {
 							inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, GET, "", dbDataMap, nil, nil, txCache)
+							inParams.queryParams = inParamsForGet.queryParams
 							err := xfmrHandlerFunc(inParams, xYangSpecMap[chldXpath].xfmrFunc)
 							inParamsForGet.dbDataMap = dbDataMap
 							inParamsForGet.ygRoot = ygRoot
@@ -1020,7 +1064,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams) error {
 						}
 					}
 					cmap2 := make(map[string]interface{})
-					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper, chtbl, tblKey, dbDataMap, inParamsForGet.txCache, cmap2, inParamsForGet.validate)
+					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper, chtbl, tblKey, dbDataMap, inParamsForGet.txCache, cmap2, inParamsForGet.validate, inParamsForGet.queryParams)
 					linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 					linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
 					err = yangDataFill(linParamsForGet)
@@ -1047,6 +1091,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams) error {
 							(len(xYangSpecMap[xpath].xfmrFunc) > 0 &&
 								(xYangSpecMap[xpath].xfmrFunc != xYangSpecMap[chldXpath].xfmrFunc)) {
 							inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, GET, "", dbDataMap, nil, nil, txCache)
+							inParams.queryParams = inParamsForGet.queryParams
 							err := xfmrHandlerFunc(inParams, xYangSpecMap[chldXpath].xfmrFunc)
 							if err != nil {
 								xfmrLogDebug("Error returned by %v: %v", xYangSpecMap[chldXpath].xfmrFunc, err)
@@ -1071,7 +1116,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams) error {
 							inParamsForGet.dbDataMap = dbDataMap
 						}
 					}
-					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper, lTblName, xpathKeyExtRet.dbKey, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate)
+					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper, lTblName, xpathKeyExtRet.dbKey, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams)
 					linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 					linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
 					yangListDataFill(linParamsForGet, false)
@@ -1122,12 +1167,19 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 		inParamsForGet.ygRoot = ygRoot
 		yangNode, ok := xYangSpecMap[xpathKeyExtRet.xpath]
 		if ok {
+			yangType := yangNode.yangType
+			//Check if the request depth is 1
+                        if inParamsForGet.queryParams.depthEnabled && inParamsForGet.queryParams.curDepth == 1 && (yangType == YANG_CONTAINER || yangType == YANG_LIST || yangType == YANG_MODULE) {
+                                return jsonData, true, err
+                        }
+
 			/* Invoke pre-xfmr is present for the YANG module */
 			moduleName := "/" + strings.Split(uri, "/")[1]
 			xfmrLogInfo("Module name for URI %s is %s", uri, moduleName)
 			if xYangModSpecMap != nil {
 				if modSpecInfo, specOk := xYangModSpecMap[moduleName]; specOk && (len(modSpecInfo.xfmrPre) > 0) {
 					inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, GET, "", dbDataMap, nil, nil, txCache)
+					inParams.queryParams = inParamsForGet.queryParams
 					err = preXfmrHandlerFunc(modSpecInfo.xfmrPre, inParams)
 					xfmrLogInfo("Invoked pre transformer: %v, dbDataMap: %v ", modSpecInfo.xfmrPre, dbDataMap)
 					if err != nil {
@@ -1139,13 +1191,13 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 				}
 			}
 
-			yangType := yangNode.yangType
 			validateHandlerFlag := false
 			tableXfmrFlag := false
 			IsValidate := false
 
 			if len(xYangSpecMap[xpathKeyExtRet.xpath].validateFunc) > 0 {
 				inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, GET, xpathKeyExtRet.dbKey, dbDataMap, nil, nil, txCache)
+				inParams.queryParams = inParamsForGet.queryParams
 				res := validateHandlerFunc(inParams, xYangSpecMap[xpathKeyExtRet.xpath].validateFunc)
 				inParamsForGet.dbDataMap = dbDataMap
 				inParamsForGet.ygRoot = ygRoot
@@ -1214,6 +1266,7 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 					}
 					if len(xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc) > 0 {
 						inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, GET, "", dbDataMap, nil, nil, txCache)
+						inParams.queryParams = inParamsForGet.queryParams
 						fldSbtErr = xfmrHandlerFunc(inParams, xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc)
 						if fldSbtErr != nil {
 							/*For request Uri pointing to leaf/leaf-list having subtree, error will be propagated
@@ -1256,6 +1309,7 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 					}
 					if len(xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc) > 0 {
 						inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, GET, "", dbDataMap, nil, nil, txCache)
+						inParams.queryParams = inParamsForGet.queryParams
 						err := xfmrHandlerFunc(inParams, xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc)
 						if err != nil {
 							xfmrLogInfo("Error returned by %v: %v", xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc, err)
@@ -1279,6 +1333,7 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 					isFirstCall := true
 					if len(xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc) > 0 {
 						inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, GET, "", dbDataMap, nil, nil, txCache)
+						inParams.queryParams = inParamsForGet.queryParams
 						err := xfmrHandlerFunc(inParams, xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc)
 						if err != nil {
 							if ((strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/"))) && (uri == requestUri) {
