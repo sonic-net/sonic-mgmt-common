@@ -36,7 +36,7 @@ var YangPath = "/usr/models/yang/" // OpenConfig-*.yang and sonic yang models pa
 var ModelsListFile = "models_list"
 var TblInfoJsonFile = "sonic_table_info.json"
 
-func getOcModelsList() ([]string, map[string]bool) {
+func getModelsList() ([]string, map[string]bool) {
 	var fileList []string
 	excludeSonicList := make(map[string]bool)
 	file, err := os.Open(YangPath + ModelsListFile)
@@ -86,9 +86,9 @@ func getDefaultModelsList(excludeList map[string]bool) []string {
 func init() {
 	initYangModelsPath()
 	initRegex()
-	ocList, excludeSncList := getOcModelsList()
+	modelsList, excludeSncList := getModelsList()
 	yangFiles := getDefaultModelsList(excludeSncList)
-	yangFiles = append(yangFiles, ocList...)
+	yangFiles = append(yangFiles, modelsList...)
 	xfmrLogInfo("Yang model List: %v", yangFiles)
 	err := loadYangModules(yangFiles...)
 	if err != nil {
