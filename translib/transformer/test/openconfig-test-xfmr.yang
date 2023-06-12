@@ -406,6 +406,25 @@ module openconfig-test-xfmr {
 
   }
 
+  grouping test-global-sensor-config {
+    container global-sensor {
+          description
+            "Configuration data for global sensor.";
+ 
+          leaf mode {
+            type string;
+            description
+              "global sensor mode";
+          }
+
+          leaf description {
+            type string;
+            description
+              "global sensor description";
+          }
+    }
+  }
+  
   ///////////////////
 
 
@@ -418,6 +437,7 @@ module openconfig-test-xfmr {
     uses test-sensor-group-top;
     uses test-set-top;
     uses interfaces-top;
+    uses test-global-sensor-config;
   }
   // augment statements
 

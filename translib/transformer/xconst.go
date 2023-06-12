@@ -23,7 +23,7 @@ const (
 	XFMR_EMPTY_STRING      = ""
 	XFMR_NONE_STRING       = "NONE"
 	SONIC_TABLE_INDEX      = 2
-	SONIC_LIST_INDEX       = 3
+	SONIC_TBL_CHILD_INDEX  = 3
 	SONIC_FIELD_INDEX      = 4
 	SONIC_TOPCONTR_INDEX   = 1
 	SONIC_MDL_PFX          = "sonic"

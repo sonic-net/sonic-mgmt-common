@@ -1,7 +1,9 @@
-# Transformer Unit Testing
+# Transformer Infra Unit Testing
 
-Following are the instructions on how to build and execute transformer unit test.
-The transformer folder (sonic-mgmt-common/translib/transformer) contains all the necessary source code files that includes transformer unit test framework files, callbacks to serve the annotations, unit-test file to exercise the transformer-translations.The test folder (sonic-mgmt-common/translib/transformer/test) contains the test-yangs and annotations. All these files are needed to build and execute transformer test binary.
+Following are the instructions on how to build and execute transformer infra unit test.
+The transformer folder (sonic-mgmt-common/translib/transformer) contains all the necessary source code files that includes transformer unit test framework files, callbacks to serve the annotations, transformer infra unit-test file to exercise the transformer-translations.The test folder (sonic-mgmt-common/translib/transformer/test) contains the test-yangs and annotations. All these files are needed to build and execute transformer infra test binary.
+
+Note: The transformer infra unit test files will use the build tag "xfmrtest". Other applications writing unit test cases will use the build tag "testapp". This is required to separate the app unit tests from transformer infra unit test files and not have the app tests duplicated in both the binaries if missing the correct build tag. The app unit test binary and transformer infra unit test binary are both added to the azure pipeline and will be run separately.
 
 * Generate transformer.test by building sonic-mgmt-common with the MAKE flag INCLUDE_TEST_MODELS=y to have the test yangs built
 * Copy the openconfig-test-xfmr.yang, openconfig-test-xfmr-annot.yang, sonic-test-xfmr.yang, sonic-test-xfmr-annot.yang to  mgmt-framework docker /usr/models/yang directory

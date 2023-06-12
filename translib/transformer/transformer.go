@@ -36,16 +36,25 @@ var YangPath = "/usr/models/yang/" // OpenConfig-*.yang and sonic yang models pa
 var ModelsListFile = "models_list"
 var TblInfoJsonFile = "sonic_table_info.json"
 
-func getOcModelsList() []string {
+func getModelsList() ([]string, map[string]bool) {
 	var fileList []string
+	excludeSonicList := make(map[string]bool)
 	file, err := os.Open(YangPath + ModelsListFile)
 	if err != nil {
-		return fileList
+		return fileList, excludeSonicList
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		fileEntry := scanner.Text()
+		if strings.HasPrefix(fileEntry, "-sonic") {
+			_, err := os.Stat(YangPath + fileEntry[1:])
+			if err != nil {
+				continue
+			}
+			excludeSonicList[fileEntry[1:]] = true
+			continue
+		}
 		if !strings.HasPrefix(fileEntry, "#") {
 			_, err := os.Stat(YangPath + fileEntry)
 			if err != nil {
@@ -54,10 +63,10 @@ func getOcModelsList() []string {
 			fileList = append(fileList, fileEntry)
 		}
 	}
-	return fileList
+	return fileList, excludeSonicList
 }
 
-func getDefaultModelsList() []string {
+func getDefaultModelsList(excludeList map[string]bool) []string {
 	var files []string
 	fileInfo, err := ioutil.ReadDir(YangPath)
 	if err != nil {
@@ -66,7 +75,9 @@ func getDefaultModelsList() []string {
 
 	for _, file := range fileInfo {
 		if strings.HasPrefix(file.Name(), "sonic-") && !strings.HasSuffix(file.Name(), "-dev.yang") && filepath.Ext(file.Name()) == ".yang" {
-			files = append(files, file.Name())
+			if _, ok := excludeList[file.Name()]; !ok {
+				files = append(files, file.Name())
+			}
 		}
 	}
 	return files
@@ -75,9 +86,9 @@ func getDefaultModelsList() []string {
 func init() {
 	initYangModelsPath()
 	initRegex()
-	ocList := getOcModelsList()
-	yangFiles := getDefaultModelsList()
-	yangFiles = append(yangFiles, ocList...)
+	modelsList, excludeSncList := getModelsList()
+	yangFiles := getDefaultModelsList(excludeSncList)
+	yangFiles = append(yangFiles, modelsList...)
 	xfmrLogInfo("Yang model List: %v", yangFiles)
 	err := loadYangModules(yangFiles...)
 	if err != nil {
