@@ -27,7 +27,7 @@ all:tests
 tests: $(OUT)
 
 %:%.go
-	make -C ../testdata/schema
+	make -C .. test-schema
 	@echo "Building $@ ..."
 	$(GO) build -mod=vendor -gcflags="all=-N -l" $<
 
