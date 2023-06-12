@@ -22,53 +22,67 @@ SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 TEST_FILES=$(wildcard *_test.go)
 TOP_DIR := ..
 BUILD_DIR:=$(TOP_DIR)/build/cvl
-CVL_PKG=$(TOP_DIR)/build/pkg/linux_amd64/cvl.a
 
 CVL_SCHEMA_DIR = $(BUILD_DIR)/schema
+CVL_SCHEMA     = $(CVL_SCHEMA_DIR)/.done
+SONIC_YANG_DIR   = $(TOP_DIR)/build/yang/sonic
+SONIC_YANG_FILES = $(shell find $(SONIC_YANG_DIR) -name '*.yang')
+YANG_SRC_DIR     = ../models/yang
+
 CVL_TEST_DIR = $(TOP_DIR)/build/tests/cvl
 CVL_TEST_BIN = $(CVL_TEST_DIR)/cvl.test
 CVL_TEST_SCHEMA_DIR = $(CVL_TEST_DIR)/testdata/schema
+CVL_TEST_SCHEMA     = $(CVL_TEST_SCHEMA_DIR)/.done
+CVL_TEST_YANGS      = $(wildcard testdata/schema/*.yang)
+CVL_TEST_YANGS     += $(wildcard $(YANG_SRC_DIR)/sonic/common/*.yang)
 
-DEFAULT_TARGETS = deps schema
+DEFAULT_TARGETS = $(CVL_SCHEMA)
 ifeq ($(NO_TEST_BINS),)
-DEFAULT_TARGETS += $(CVL_TEST_BIN) test-schema
+DEFAULT_TARGETS += $(CVL_TEST_BIN)
 endif
 
-default: $(DEFAULT_TARGETS)
+all: $(DEFAULT_TARGETS)
 
-all: $(DEFAULT_TARGETS) $(CVL_PKG)
+.SECONDEXPANSION:
 
-deps: 
-	mkdir -p $(BUILD_DIR)
+.PRECIOUS: %/.
+%/.:
+	mkdir -p $@
 
-$(CVL_PKG): $(SRC_FILES)
-	@echo "Building $@"
-	$(GO) build -mod=vendor -o $(CVL_PKG) ../cvl
-
-$(CVL_TEST_BIN): $(TEST_FILES) $(SRC_FILES) | test-schema
+$(CVL_TEST_BIN): $(TEST_FILES) $(SRC_FILES) $(CVL_TEST_SCHEMA)
 	cp -r testdata/*.json $(@D)/testdata
 	$(GO) test -mod=vendor -cover -coverpkg=../cvl,../cvl/internal/util,../cvl/internal/yparser -c ../cvl -o $@
 
 .PHONY: schema
-schema:
-	$(MAKE) -C schema
+schema: $(CVL_SCHEMA)
 
-test-schema: | schema
-	$(MAKE) -C testdata/schema
-	cp -n $(CVL_SCHEMA_DIR)/*.yin $(CVL_TEST_SCHEMA_DIR)/
+$(CVL_SCHEMA): $(SONIC_YANG_FILES) | $$(@D)/.
+	$(TOP_DIR)/tools/pyang/generate_yin.py \
+		--no-err-prefix \
+		--path=$(SONIC_YANG_DIR) \
+		--path=$(YANG_SRC_DIR)/common \
+		--out-dir=$(@D)
+	touch $@
 
-tests:
-	$(MAKE) -C tests
+.PHONY: test-schema
+test-schema: $(CVL_TEST_SCHEMA)
 
-gotest:schema test-schema
-	CVL_CFG_FILE=$(abspath .)/conf/cvl_cfg.json CVL_SCHEMA_PATH=$(CVL_TEST_SCHEMA_DIR) tests/run_test.sh
+$(CVL_TEST_SCHEMA): $(CVL_TEST_YANGS) | $$(@D)/.
+	$(TOP_DIR)/tools/pyang/generate_yin.py \
+		--no-err-prefix \
+		--path=testdata/schema \
+		--path=$(YANG_SRC_DIR)/common \
+		--path=$(YANG_SRC_DIR)/sonic/common \
+		--out-dir=$(@D)
+	touch $@
+
+gotest: $(CVL_TEST_SCHEMA)
+	CVL_CFG_FILE=$(abspath .)/conf/cvl_cfg.json \
+	CVL_SCHEMA_PATH=$(abspath $(CVL_TEST_SCHEMA_DIR)) \
+	tests/run_test.sh
 
 clean:
-	$(MAKE) -C tests clean
-	$(MAKE) -C schema clean
-	$(MAKE) -C testdata/schema clean
-	$(RM) -r $(CVL_PKG)
-	$(RM) -r $(CVL_TEST_DIR)
+	$(RM) -r $(CVL_TEST_DIR) $(BUILD_DIR)
 
 cleanall:clean
 

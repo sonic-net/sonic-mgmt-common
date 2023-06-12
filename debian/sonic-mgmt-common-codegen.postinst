@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd sonic/src/sonic-mgmt-common
+
+GITUSER=$(stat -c "%u:%g" .)
+
+GENSRC+=( build )
+GENSRC+=( $(awk '/^build\//{next} /^[^#]/{print $1}' < debian/sonic-mgmt-common-codegen.install) )
+
+for F in "${GENSRC[@]}"; do chown -vR ${GITUSER} "$F"; done
+

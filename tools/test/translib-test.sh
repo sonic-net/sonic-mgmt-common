@@ -13,6 +13,7 @@ OPTIONS:
   -json           Dump test logs in json format. Output can be piped to tools
                   like tparse or gotestsum.
   -vet=off        Equivalent to -vet=off option.
+  -tags BLDTAGS   Comma separated build tags to use. Defaults to "test"
 
 TESTARGS:         Any other arguments to be passed to TestMain. All values that
                   do not match above listed options are treated as test args.
@@ -39,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     -b|-bench) TARGS+=( -bench "$2" -benchmem -run "^$" ); shift 2;;
     -j|-json)  TARGS+=( -json ); ECHO=0; shift;;
     -vet=off)  TARGS+=( -vet=off ); shift;;
+    -tags)     TAG="$2"; shift 2;;
     *) PARGS+=( "$1"); shift;;
     esac
 done
