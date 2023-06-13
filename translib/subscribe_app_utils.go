@@ -20,7 +20,6 @@
 package translib
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -59,8 +58,6 @@ type yangMapTree struct {
 }
 
 func (nb *notificationInfoBuilder) Build() (translateSubResponse, error) {
-	log.Infof("translateSubscribe( %s )", nb.pathInfo.Path)
-
 	var err error
 	nb.requestPath, err = ygot.StringToStructuredPath(nb.pathInfo.Path)
 	if err != nil {
@@ -72,7 +69,6 @@ func (nb *notificationInfoBuilder) Build() (translateSubResponse, error) {
 	// Find matching yangMapTree node
 	index, ymap, recurse := nb.yangMap.match(nb.requestPath, 1)
 
-	log.Infof("Path match index %d", index)
 	if index < 0 {
 		return translateSubResponse{},
 			tlerr.InvalidArgs("unknown path: %s", nb.pathInfo.Path)
@@ -84,9 +80,6 @@ func (nb *notificationInfoBuilder) Build() (translateSubResponse, error) {
 		log.Warningf("translateSubscribe failed for path: \"%s\"; err=%s", nb.pathInfo.Path, err)
 		return translateSubResponse{}, tlerr.New("Internal error")
 	}
-
-	log.Infof("Found %d primary and %d subtree notificationAppInfo",
-		len(nb.primaryInfos), len(nb.subtreeInfos))
 
 	return translateSubResponse{
 		ntfAppInfoTrgt:      nb.primaryInfos,
@@ -186,7 +179,6 @@ func (nb *notificationInfoBuilder) SetFieldPrefix(prefix string) bool {
 
 	if len(nb.subtreePath) > 0 {
 		prefix = strings.Join(nb.subtreePath, "/") + "/" + prefix
-		log.Infof("Prefix updated to %v", prefix)
 	}
 	if i >= n {
 		// Request does not contain any additional elements beyond
@@ -352,29 +344,4 @@ func emptySubscribeResponse(reqPath string) (translateSubResponse, error) {
 	return translateSubResponse{
 		ntfAppInfoTrgt: []*notificationAppInfo{appInfo},
 	}, nil
-}
-
-// translateSubscribeBridge calls the new translateSubscribe() on an app and returns the
-// responses as per old signature. Will be removed after enhancing translib.Subscribe() API
-func translateSubscribeBridge(path string, app appInterface, dbs [db.MaxDB]*db.DB) (*notificationOpts, *notificationInfo, error) {
-	var nAppInfo *notificationAppInfo
-	resp, err := app.translateSubscribe(translateSubRequest{path: path, dbs: dbs})
-	if err == nil && len(resp.ntfAppInfoTrgt) != 0 {
-		nAppInfo = resp.ntfAppInfoTrgt[0]
-	}
-	if nAppInfo == nil {
-		return nil, nil, fmt.Errorf("subscribe not supported (%w)", err)
-	}
-
-	nOpts := &notificationOpts{
-		isOnChangeSupported: nAppInfo.isOnChangeSupported,
-		pType:               nAppInfo.pType,
-		mInterval:           nAppInfo.mInterval,
-	}
-	nInfo := &notificationInfo{dbno: nAppInfo.dbno}
-	if !nAppInfo.isNonDB() {
-		nInfo.table, nInfo.key = *nAppInfo.table, *nAppInfo.key
-	}
-
-	return nOpts, nInfo, nil
 }
