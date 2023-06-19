@@ -562,9 +562,9 @@ func getDBOptions(dbNo db.DBNum) db.Options {
 	var opt db.Options
 
 	switch dbNo {
-	case db.ApplDB, db.CountersDB:
+	case db.ApplDB, db.CountersDB, db.FlexCounterDB, db.AsicDB:
 		opt = getDBOptionsWithSeparator(dbNo, "", ":", ":")
-	case db.FlexCounterDB, db.AsicDB, db.ConfigDB, db.StateDB, db.ErrorDB, db.UserDB:
+	case db.ConfigDB, db.StateDB:
 		opt = getDBOptionsWithSeparator(dbNo, "", "|", "|")
 	}
 
