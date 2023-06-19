@@ -135,13 +135,10 @@ const (
 	ApplDB        DBNum = iota // 0
 	AsicDB                     // 1
 	CountersDB                 // 2
-	_                          // We skip number 3 since the LOGLEVEL_DB that was deprecated
 	ConfigDB                   // 4
 	FlexCounterDB              // 5
 	StateDB                    // 6
 	SnmpDB                     // 7
-	ErrorDB                    // 8
-	UserDB                     // 9
 	// All DBs added above this line, please ----
 	MaxDB //  The Number of DBs
 )
@@ -322,10 +319,6 @@ func getDBInstName (dbNo DBNum) string {
 		return "STATE_DB"
 	case SnmpDB:
 		return "SNMP_OVERLAY_DB"
-	case ErrorDB:
-		return "ERROR_DB"
-	case UserDB:
-		return "USER_DB"
 	}
 	return ""
 }
@@ -345,8 +338,6 @@ func GetdbNameToIndex(dbName string) DBNum {
 		dbIndex = FlexCounterDB
 	case "STATE_DB":
 		dbIndex = StateDB
-	case "ERROR_DB":
-		dbIndex = ErrorDB
 	}
 	return dbIndex
 }
@@ -382,7 +373,9 @@ func NewDB(opt Options) (*DB, error) {
 			glog.Warning("Database instance not present for the Db name: ", dbInstName)
 		}
 	} else {
-		glog.Error(fmt.Errorf("Invalid database number %d", dbId))
+		glog.Errorf("NewDB: invalid database number: %d", dbId)
+		e = tlerr.TranslibDBCannotOpen{}
+		goto NewDBExit
 	}
 
 	if opt.IsOnChangeEnabled && !opt.IsWriteDisabled {
@@ -428,7 +421,7 @@ func NewDB(opt Options) (*DB, error) {
 
 	if len(d.Opts.InitIndicator) == 0 {
 
-		glog.Info("NewDB: Init indication not requested")
+		glog.V(5).Info("NewDB: Init indication not requested")
 
 	} else if init, _ := d.client.Get(d.Opts.InitIndicator).Int(); init != 1 {
 

@@ -562,9 +562,9 @@ func getDBOptions(dbNo db.DBNum) db.Options {
 	var opt db.Options
 
 	switch dbNo {
-	case db.ApplDB, db.CountersDB:
+	case db.ApplDB, db.CountersDB, db.FlexCounterDB, db.AsicDB:
 		opt = getDBOptionsWithSeparator(dbNo, "", ":", ":")
-	case db.FlexCounterDB, db.AsicDB, db.ConfigDB, db.StateDB, db.ErrorDB, db.UserDB:
+	case db.ConfigDB, db.StateDB:
 		opt = getDBOptionsWithSeparator(dbNo, "", "|", "|")
 	}
 
@@ -1682,11 +1682,11 @@ func SonicUriHasSingletonContainer(uri string) bool {
 	}
 
 	xpath, _, err := XfmrRemoveXPATHPredicates(uri)
-        if err != nil || len(xpath) == 0 {
-                return hasSingletonContainer
-        }
+	if err != nil || len(xpath) == 0 {
+		return hasSingletonContainer
+	}
 
-        pathList := strings.Split(xpath, "/")
+	pathList := strings.Split(xpath, "/")
 
 	if len(pathList) > SONIC_TBL_CHILD_INDEX {
 		tblChldXpath := pathList[SONIC_TABLE_INDEX] + "/" + pathList[SONIC_TBL_CHILD_INDEX]
