@@ -1,11 +1,11 @@
 # Yang models
-models/yang/*.yang                  usr/models/yang
-models/yang/common/*.yang           usr/models/yang
-#models/yang/extensions/*.yang       usr/models/yang
-models/yang/sonic/*.yang            usr/models/yang
-models/yang/sonic/common/*.yang     usr/models/yang
-models/yang/annotations/*.yang      usr/models/yang
-config/transformer/models_list      usr/models/yang
+build/yang/*.yang                   usr/models/yang
+build/yang/common/*.yang            usr/models/yang
+#build/yang/extensions/*.yang       usr/models/yang
+build/yang/sonic/*.yang             usr/models/yang
+build/yang/sonic/common/*.yang      usr/models/yang
+build/yang/annotations/*.yang       usr/models/yang
+build/transformer/models_list       usr/models/yang
 models/yang/version.xml             usr/models/yang
 
 # CVL files
