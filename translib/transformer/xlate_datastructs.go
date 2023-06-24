@@ -122,16 +122,26 @@ type xlateToParams struct {
 	invokeCRUSubtreeOnceMap map[string]map[string]bool
 }
 
+type contentQPSpecMapInfo struct {
+	yangType              yangElementType
+	yangName              string
+	isReadOnly            bool
+	isOperationalNd       bool
+	hasNonTerminalNd      bool
+	hasChildOperationalNd bool
+	isOcMdl               bool
+}
+
 type Operation int
 
 type ContentType uint8
 
 type QueryParams struct {
-        depthEnabled      bool
-        curDepth          uint
-        content           ContentType
-        fields            []string
-        fieldsFillAll     bool
-        allowFieldsXpath  map[string]bool
-        tgtFieldsXpathMap map[string][]string
+	depthEnabled      bool
+	curDepth          uint
+	content           ContentType
+	fields            []string
+	fieldsFillAll     bool
+	allowFieldsXpath  map[string]bool
+	tgtFieldsXpathMap map[string][]string
 }

@@ -1177,7 +1177,6 @@ func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot 
 	inParamsForGet.validate = validate
 	inParamsForGet.queryParams = qParams
 
-
 	return inParamsForGet
 }
 
@@ -1420,62 +1419,74 @@ func getYangNodeTypeFromUri(uri string) (yangElementType, error) {
 }
 
 func NewQueryParams(depth uint, content string, fields []string) (QueryParams, error) {
-        var qparams QueryParams
+	var qparams QueryParams
 
-        xfmrLogInfo("NewQueryParams: depth:%v, content: %v, fields: %v", depth, content, fields)
-        //qpDepthContentPresent := false
-        if depth > 0 {
-                qparams.depthEnabled = true
-                qparams.curDepth = depth
-                //qpDepthContentPresent = true
-        } else {
-                qparams.curDepth = 0
-        }
-        return qparams, nil
+	xfmrLogInfo("NewQueryParams: depth:%v, content: %v, fields: %v", depth, content, fields)
+	if depth > 0 {
+		qparams.depthEnabled = true
+		qparams.curDepth = depth
+	} else {
+		qparams.curDepth = 0
+	}
+	if len(content) > 0 {
+		content = strings.ToLower(content)
+		if content == "all" {
+			qparams.content = QUERY_CONTENT_ALL
+		} else if content == "config" {
+			qparams.content = QUERY_CONTENT_CONFIG
+		} else if content == "nonconfig" || content == "state" {
+			qparams.content = QUERY_CONTENT_NONCONFIG
+		} else if content == "operational" {
+			qparams.content = QUERY_CONTENT_OPERATIONAL
+		}
+	} else {
+		qparams.content = QUERY_CONTENT_ALL
+	}
+	return qparams, nil
 }
 
 func isChildTraversalRequired(xpath string, qParams *QueryParams, childXpath string) bool {
-        traverse := false
-        if len(xpath) == 0 || len(childXpath) == 0 {
-                return traverse
-        }
-        if !strings.HasPrefix(childXpath, xpath) {
-                return traverse
-        }
-        if qParams == nil || (!qParams.depthEnabled) {
-                // traversal required for all levels
-                return true
-        }
-        if strings.HasPrefix(childXpath, xpath) {
-                if !qParams.depthEnabled {
-                        return traverse
-                }
+	traverse := false
+	if len(xpath) == 0 || len(childXpath) == 0 {
+		return traverse
+	}
+	if !strings.HasPrefix(childXpath, xpath) {
+		return traverse
+	}
+	if qParams == nil || (!qParams.depthEnabled) {
+		// traversal required for all levels
+		return true
+	}
+	if strings.HasPrefix(childXpath, xpath) {
+		if !qParams.depthEnabled {
+			return traverse
+		}
 
-                xpathList := strings.Split(xpath, "/")
-                xpathList = xpathList[1:]
-                childXpathList := strings.Split(childXpath, "/")
-                childXpathList = childXpathList[1:]
+		xpathList := strings.Split(xpath, "/")
+		xpathList = xpathList[1:]
+		childXpathList := strings.Split(childXpath, "/")
+		childXpathList = childXpathList[1:]
 
-                // Evaluate traversal required for childXpath w.r t requested depth
-                depthDiff := uint(len(childXpathList) - len(xpathList))
-                // The depth begins from 1 which is already included in the xpath considered
-                // Hence the difference in depth to be considered is 1 less than request depth
-                reqDiff := qParams.curDepth - 1
-                if depthDiff < reqDiff {
-                        // If the childXpath is non terminal container/list then table read is required
-                        traverse = true
-                } else if depthDiff == reqDiff {
-                        // When depth is met and the childXpath is container/list then table read is not required
-                        // only for terminal nodes DB read would be required
-                        if xspecInfo, ok := xYangSpecMap[childXpath]; ok {
-                                yangType := xspecInfo.yangType
-                                if yangType == YANG_LEAF_LIST || yangType == YANG_LEAF {
-                                        traverse = true
-                                }
-                        }
-                }
-        } // else not a child YANG path
-        return traverse
+		// Evaluate traversal required for childXpath w.r t requested depth
+		depthDiff := uint(len(childXpathList) - len(xpathList))
+		// The depth begins from 1 which is already included in the xpath considered
+		// Hence the difference in depth to be considered is 1 less than request depth
+		reqDiff := qParams.curDepth - 1
+		if depthDiff < reqDiff {
+			// If the childXpath is non terminal container/list then table read is required
+			traverse = true
+		} else if depthDiff == reqDiff {
+			// When depth is met and the childXpath is container/list then table read is not required
+			// only for terminal nodes DB read would be required
+			if xspecInfo, ok := xYangSpecMap[childXpath]; ok {
+				yangType := xspecInfo.yangType
+				if yangType == YANG_LEAF_LIST || yangType == YANG_LEAF {
+					traverse = true
+				}
+			}
+		}
+	} // else not a child YANG path
+	return traverse
 }
 
 func getXfmrSpecInfoFromUri(uri string) (interface{}, error) {
@@ -1531,6 +1542,255 @@ func getXfmrSpecInfoFromUri(uri string) (interface{}, error) {
 	}
 
 	return specInfo, err
+}
+
+func contentQParamTgtEval(uri string, qParams QueryParams) (bool, error) {
+	/*function to evaluate target URI , based on content query parameter to decide :
+	           1.)Return bad-request if Target Uri points to leaf/leaf-list and content
+	              query-param doesn't match to the read-only flag of that YANG node or
+		      doesn't match to the operationalQP flag in spec map.
+	           2.)Don't further process URI if its of OC Yang and points to container named
+	              "config" and content query-param is non-config or operational
+	           3.)Don't further process URI if its read-only container or list and content
+	              query-param is config
+	           Return values are true/false(whether to process request further) and error.
+	*/
+	var err error
+	var specInfo interface{}
+	var specInfoOk, isSonicUri bool
+	var yangEntry *yang.Entry
+	var yangType yangElementType
+	var dbSpecInfo *dbInfo
+	var xYangSpecInfo *yangXpathInfo
+	var processReq bool = true
+
+	yangXpath, _, _ := XfmrRemoveXPATHPredicates(uri)
+	if qParams.content == QUERY_CONTENT_ALL {
+		err = nil
+		processReq = true
+		goto exitContentTgtEval
+	}
+	if (qParams.content == QUERY_CONTENT_OPERATIONAL) && (isSonicYang(uri) || !strings.HasPrefix(uri, "/"+OC_MDL_PFX)) {
+		processReq = false
+		err = tlerr.InvalidArgsError{Format: "Bad Request - operational content type is invalid for sonic and non-openconfig YANG request."}
+		goto exitContentTgtEval
+	}
+	specInfo, err = getXfmrSpecInfoFromUri(uri)
+	if err != nil {
+		processReq = false
+		goto exitContentTgtEval
+	}
+
+	if isSonicYang(uri) {
+		isSonicUri = true
+		dbSpecInfo, specInfoOk = specInfo.(*dbInfo)
+		if specInfoOk {
+			yangType = dbSpecInfo.yangType
+			if yangType == YANG_LEAF || yangType == YANG_LEAF_LIST {
+				pathList := strings.Split(yangXpath, "/")
+				if len(pathList) > SONIC_FIELD_INDEX {
+					dbXpath := pathList[SONIC_TABLE_INDEX] + "/" + pathList[SONIC_FIELD_INDEX]
+					yangEntry = getYangEntryForXPath(dbXpath)
+				}
+			} else {
+				yangEntry = dbSpecInfo.dbEntry
+			}
+		}
+	} else {
+		xYangSpecInfo, specInfoOk = specInfo.(*yangXpathInfo)
+		if specInfoOk {
+			yangType = xYangSpecInfo.yangType
+			if yangType == YANG_LEAF || yangType == YANG_LEAF_LIST {
+				yangEntry = getYangEntryForXPath(yangXpath)
+			} else {
+				yangEntry = xYangSpecInfo.yangEntry
+			}
+		}
+	}
+
+	if !specInfoOk || (yangEntry == nil) {
+		processReq = false
+		err = fmt.Errorf("no YANG meta-data for translation for URI - %v", uri)
+		xfmrLogInfo("%v", err)
+		goto exitContentTgtEval
+	}
+	if !isSonicUri {
+		var isOcMdl bool
+		if strings.HasPrefix(uri, "/"+OC_MDL_PFX) {
+			isOcMdl = true
+		}
+		yangNdInfo := contentQPSpecMapInfo{
+			yangType:              yangType,
+			yangName:              yangEntry.Name,
+			isReadOnly:            yangEntry.ReadOnly(),
+			isOperationalNd:       xYangSpecInfo.operationalQP,
+			hasNonTerminalNd:      xYangSpecInfo.hasNonTerminalNode,
+			hasChildOperationalNd: xYangSpecInfo.hasChildOpertnlNd,
+			isOcMdl:               isOcMdl,
+		}
+		processReq, err = contentQParamYangNodeProcess(uri, yangNdInfo, qParams)
+	} else {
+		xfmrLogDebug("Sonic YANG content query param target URI eval")
+		//top container query
+		if strings.Count(uri, "/") == 1 {
+			processReq = true
+			goto exitContentTgtEval
+		}
+		processReq, err = sonicContentQParamYangNodeProcess(uri, yangType, yangEntry.ReadOnly(), qParams)
+	}
+
+exitContentTgtEval:
+	xfmrLogDebug("content target eval returning - process request further %v, error - %v", processReq, err)
+	return processReq, err
+
+}
+
+var rejectComplexYangNodeForQParamContent = func(content ContentType, isOcMdl bool, hasChildOpertnlNd bool) bool {
+	/* IETF model containeri/list having none RO child nodes */
+	ietf_pure_rw_complex_node := (content == QUERY_CONTENT_NONCONFIG) && (!isOcMdl) && (!hasChildOpertnlNd)
+
+	/* containeri/list having none opearational child nodes */
+	no_operational_children_complex_node := (content == QUERY_CONTENT_OPERATIONAL) && (!hasChildOpertnlNd)
+
+	if ietf_pure_rw_complex_node || no_operational_children_complex_node {
+		return true
+	}
+	return false
+}
+
+func contentQParamYangNodeProcess(uri string, yangNdInfo contentQPSpecMapInfo, qParams QueryParams) (bool, error) {
+	/*function to decide whether to traverse a Non-Sonic(OC & Ietf) YANG node based
+	  on content query params QUERY_CONTENT_CONFIG/QUERY_CONTENT_NONCONFIG/QUERY_CONTENT_OPERATIONAL.
+	*/
+	var processReq bool
+	var err error
+	var yangNdType yangElementType
+	content_mismatch_err := "Bad Request - requested content type doesn't match content type of terminal node uri."
+
+	if uri == "" {
+		processReq = false
+		err = fmt.Errorf("Empty URI sent")
+		goto contentQParamYangNodeProcessExit
+	}
+	yangNdType = yangNdInfo.yangType
+	if (qParams.content == QUERY_CONTENT_CONFIG) && (yangNdInfo.isReadOnly) { //applies to leaf, leaf-list, container and list
+		processReq = false
+		if yangNdType == YANG_LEAF || yangNdType == YANG_LEAF_LIST {
+			err = tlerr.InvalidArgsError{Format: content_mismatch_err}
+		}
+		goto contentQParamYangNodeProcessExit
+	}
+
+	switch yangNdType {
+	case YANG_LEAF, YANG_LEAF_LIST:
+		if (yangNdInfo.isReadOnly) && (qParams.content == QUERY_CONTENT_OPERATIONAL) {
+			if yangNdInfo.isOperationalNd {
+				processReq = true
+			} else {
+				processReq = false
+				err = tlerr.InvalidArgsError{Format: content_mismatch_err}
+			}
+		} else if ((qParams.content == QUERY_CONTENT_NONCONFIG) || (qParams.content == QUERY_CONTENT_OPERATIONAL)) && (!yangNdInfo.isReadOnly) {
+			processReq = false
+			err = tlerr.InvalidArgsError{Format: content_mismatch_err}
+		} else {
+			processReq = true
+		}
+	case YANG_CONTAINER:
+		containerNm := yangNdInfo.yangName
+		if strings.Contains(containerNm, ":") {
+			containerNm = strings.SplitN(containerNm, ":", 2)[1]
+		}
+
+		var oc_config_or_terminal_rw_container bool
+		/* OC model container either having name "config" or is a terminal RW container for content=nonconfig|operational */
+		if (qParams.content == QUERY_CONTENT_NONCONFIG) || (qParams.content == QUERY_CONTENT_OPERATIONAL) {
+			if yangNdInfo.isOcMdl {
+				if (containerNm == YANG_CONTAINER_NM_CONFIG) || ((!yangNdInfo.hasNonTerminalNd) && (!yangNdInfo.isReadOnly)) {
+					oc_config_or_terminal_rw_container = true
+				}
+			}
+		}
+		if oc_config_or_terminal_rw_container || rejectComplexYangNodeForQParamContent(qParams.content, yangNdInfo.isOcMdl, yangNdInfo.hasChildOperationalNd) {
+			processReq = false
+		} else {
+			processReq = true
+		}
+	case YANG_LIST:
+		var oc_terminal_rw_list bool
+
+		/* OC Model terminal RW list */
+		if (qParams.content == QUERY_CONTENT_NONCONFIG) || (qParams.content == QUERY_CONTENT_OPERATIONAL) {
+			if yangNdInfo.isOcMdl {
+				if (!yangNdInfo.hasNonTerminalNd) && (!yangNdInfo.isReadOnly) {
+					oc_terminal_rw_list = true
+				}
+			}
+		}
+		if oc_terminal_rw_list || rejectComplexYangNodeForQParamContent(qParams.content, yangNdInfo.isOcMdl, yangNdInfo.hasChildOperationalNd) {
+			processReq = false
+		} else {
+			processReq = true
+		}
+	default:
+		if ((qParams.content == QUERY_CONTENT_NONCONFIG) || (qParams.content == QUERY_CONTENT_OPERATIONAL)) && !yangNdInfo.isReadOnly {
+			processReq = false
+		} else {
+			processReq = true
+		}
+		xfmrLogDebug("default content QP processing for node type %v, for URI %v", yangNdType, uri)
+	}
+contentQParamYangNodeProcessExit:
+	xfmrLogDebug("returning process request - %v, error -%v , for URI - %v", processReq, err, uri)
+	return processReq, err
+}
+
+func sonicContentQParamYangNodeProcess(uri string, yangNdType yangElementType, ReadOnly bool, qParams QueryParams) (bool, error) {
+	var processReq bool
+	var err error
+	content_mismatch_err := "Bad Request - requested content type doesn't match content type of terminal node uri."
+
+	if uri == "" {
+		processReq = false
+		err = fmt.Errorf("Empty URI sent")
+		goto sonicContentQParamYangNodeProcessExit
+	}
+	if (qParams.content == QUERY_CONTENT_CONFIG) && (ReadOnly) {
+		processReq = false
+		if yangNdType == YANG_LEAF || yangNdType == YANG_LEAF_LIST {
+			err = tlerr.InvalidArgsError{Format: content_mismatch_err}
+		}
+		goto sonicContentQParamYangNodeProcessExit
+	}
+
+	switch yangNdType {
+	case YANG_LEAF, YANG_LEAF_LIST:
+		if (qParams.content == QUERY_CONTENT_NONCONFIG) && !ReadOnly {
+			processReq = false
+			err = tlerr.InvalidArgsError{Format: content_mismatch_err}
+		} else {
+			processReq = true
+		}
+	case YANG_CONTAINER, YANG_LIST:
+		/*as per sonic YANG guidelines when inner container(table) and list are ReadWrite
+		  then they DON"T have ReadOnly elements
+		*/
+		if (qParams.content == QUERY_CONTENT_NONCONFIG) && !ReadOnly {
+			processReq = false
+		} else {
+			processReq = true
+		}
+	default:
+		if (qParams.content == QUERY_CONTENT_NONCONFIG) && !ReadOnly {
+			processReq = false
+		} else {
+			processReq = true
+		}
+		xfmrLogDebug("default content QP processing for node type %v, for URI %v", yangNdType, uri)
+	}
+sonicContentQParamYangNodeProcessExit:
+	xfmrLogDebug("returning process request - %v, error -%v , for URI - %v", processReq, err, uri)
+	return processReq, err
 }
 
 func escapeKeyVal(val string) string {
@@ -1743,11 +2003,11 @@ func SonicUriHasSingletonContainer(uri string) bool {
 	}
 
 	xpath, _, err := XfmrRemoveXPATHPredicates(uri)
-        if err != nil || len(xpath) == 0 {
-                return hasSingletonContainer
-        }
+	if err != nil || len(xpath) == 0 {
+		return hasSingletonContainer
+	}
 
-        pathList := strings.Split(xpath, "/")
+	pathList := strings.Split(xpath, "/")
 
 	if len(pathList) > SONIC_TBL_CHILD_INDEX {
 		tblChldXpath := pathList[SONIC_TABLE_INDEX] + "/" + pathList[SONIC_TBL_CHILD_INDEX]
@@ -1762,22 +2022,22 @@ func SonicUriHasSingletonContainer(uri string) bool {
 
 // IsEnabled : Exported version. translib.common_app needs this.
 func (qp *QueryParams) IsEnabled() bool {
-        return qp.isEnabled()
+	return qp.isEnabled()
 }
 
 func (qp *QueryParams) isEnabled() bool {
-        return qp.isDepthEnabled() ||
-                qp.isContentEnabled() ||
-                qp.isFieldsEnabled()
+	return qp.isDepthEnabled() ||
+		qp.isContentEnabled() ||
+		qp.isFieldsEnabled()
 }
 
 func (qp *QueryParams) isDepthEnabled() bool {
-        return qp.depthEnabled
+	return qp.depthEnabled
 }
 
 func (qp *QueryParams) IsContentEnabled() bool {
-        // IsEnabled : Exported version. translib.common_app needs this.
-        return qp.isContentEnabled()
+	// IsEnabled : Exported version. translib.common_app needs this.
+	return qp.isContentEnabled()
 }
 
 func (qp *QueryParams) isContentEnabled() bool {
@@ -1785,5 +2045,5 @@ func (qp *QueryParams) isContentEnabled() bool {
 }
 
 func (qp *QueryParams) isFieldsEnabled() bool {
-        return len(qp.fields) != 0
+	return len(qp.fields) != 0
 }

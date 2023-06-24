@@ -192,7 +192,7 @@ func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *
 			}
 		}
 
-		retdbFormat = fillSonicKeySpec(xpath, tableName, keyStr)
+		retdbFormat = fillSonicKeySpec(xpath, tableName, keyStr, qParams.content)
 	} else {
 		var reqUriXpath string
 		/* Extract the xpath and key from input xpath */
@@ -275,7 +275,7 @@ func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, ke
 	return *retdbFormat
 }
 
-func fillSonicKeySpec(xpath string, tableName string, keyStr string) []KeySpec {
+func fillSonicKeySpec(xpath string, tableName string, keyStr string, content ContentType) []KeySpec {
 
 	var retdbFormat = make([]KeySpec, 0)
 
@@ -284,6 +284,9 @@ func fillSonicKeySpec(xpath string, tableName string, keyStr string) []KeySpec {
 		dbFormat.Ts.Name = tableName
 		cdb := db.ConfigDB
 		if _, ok := xDbSpecMap[tableName]; ok {
+			if (xDbSpecMap[tableName].dbEntry == nil) || ((content == QUERY_CONTENT_CONFIG) && (xDbSpecMap[tableName].dbEntry.ReadOnly())) || ((content == QUERY_CONTENT_NONCONFIG) && (!xDbSpecMap[tableName].dbEntry.ReadOnly())) {
+				return retdbFormat
+			}
 			cdb = xDbSpecMap[tableName].dbIndex
 		}
 		dbFormat.DbNum = cdb
@@ -301,6 +304,9 @@ func fillSonicKeySpec(xpath string, tableName string, keyStr string) []KeySpec {
 					for dir := range dbInfo.dbEntry.Dir {
 						_, ok := xDbSpecMap[dir]
 						if ok && xDbSpecMap[dir].yangType == YANG_CONTAINER {
+							if (xDbSpecMap[dir].dbEntry == nil) || ((content == QUERY_CONTENT_CONFIG) && (xDbSpecMap[dir].dbEntry.ReadOnly())) || ((content == QUERY_CONTENT_NONCONFIG) && (!xDbSpecMap[dir].dbEntry.ReadOnly())) {
+								continue
+							}
 							cdb := xDbSpecMap[dir].dbIndex
 							dbFormat := KeySpec{}
 							dbFormat.Ts.Name = dir
@@ -379,9 +385,29 @@ func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, 
 	var err error
 	var payload []byte
 	var inParamsForGet xlateFromDbParams
+	var processReq bool
 	inParamsForGet.queryParams = qParams
 	xfmrLogInfo("received xpath = ", uri)
 	requestUri := uri
+
+	if len(qParams.fields) > 0 {
+		xfmrLogDebug("Process fields QP") //todo
+	} else {
+		processReq, err = contentQParamTgtEval(uri, qParams)
+		if err != nil {
+			return []byte("{}"), false, err
+		}
+		if !processReq {
+			xfmrLogInfo("further processing of request not needed due to content query param.")
+			/* translib fills requested list-instance into ygot, but when there is content-mismatch
+			   we have to send empty payload response.So distinguish this case in common_app we send this err
+			*/
+			if IsListNode(uri) {
+				return []byte("{}"), true, tlerr.InternalError{Format: QUERY_CONTENT_MISMATCH_ERR}
+			}
+			return []byte("{}"), true, err
+		}
+	}
 
 	keySpec, _ := XlateUriToKeySpec(uri, requestUri, ygRoot, nil, txCache, qParams)
 	var dbresult = make(RedisDbMap)
@@ -711,6 +737,15 @@ func IsLeafListNode(uri string) bool {
 	result := false
 	yngNdType, err := getYangNodeTypeFromUri(uri)
 	if (err == nil) && (yngNdType == YANG_LEAF_LIST) {
+		result = true
+	}
+	return result
+}
+
+func IsListNode(uri string) bool {
+	result := false
+	yngNdType, err := getYangNodeTypeFromUri(uri)
+	if (err == nil) && (yngNdType == YANG_LIST) {
 		result = true
 	}
 	return result
