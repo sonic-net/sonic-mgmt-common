@@ -58,8 +58,20 @@ func TestGetMeta(t *testing.T) {
 	// Register CleanUp Function
 	t.Cleanup(func() { cleanupGM(t, d, true) })
 
+	e = d.StartTx(nil, nil)
+
+	if e != nil {
+		t.Errorf("StartTx() fails e = %v", e)
+	}
+
 	if e = d.SetEntry(gmTs, gmKey, gmEntry); e != nil {
 		t.Fatalf("d.SetEntry(%v,%v,%v) fails e: %v", gmTs, gmKey, gmEntry, e)
+	}
+
+	e = d.CommitTx()
+
+	if e != nil {
+		t.Errorf("CommitTx() fails e = %v", e)
 	}
 
 	if s, e := d.Get(cdbUpdated); e != nil {

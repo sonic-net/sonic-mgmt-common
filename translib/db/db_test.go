@@ -1598,7 +1598,7 @@ func TestSubscribe(t *testing.T) {
 
 	s, e := SubscribeDB(Options{
 		DBNo:               ConfigDB,
-		InitIndicator:      "CONFIG_DB_INITIALIZED",
+		InitIndicator:      "",
 		TableNameSeparator: "|",
 		KeySeparator:       "|",
 		DisableCVLCheck:    true,
