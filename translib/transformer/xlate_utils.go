@@ -1419,9 +1419,11 @@ func getYangNodeTypeFromUri(uri string) (yangElementType, error) {
 }
 
 func NewQueryParams(depth uint, content string, fields []string) (QueryParams, error) {
+	var err error
 	var qparams QueryParams
 
 	xfmrLogInfo("NewQueryParams: depth:%v, content: %v, fields: %v", depth, content, fields)
+	qpDepthContentPresent := false
 	if depth > 0 {
 		qparams.depthEnabled = true
 		qparams.curDepth = depth
@@ -1442,6 +1444,18 @@ func NewQueryParams(depth uint, content string, fields []string) (QueryParams, e
 	} else {
 		qparams.content = QUERY_CONTENT_ALL
 	}
+	if len(fields) > 0 {
+		if qpDepthContentPresent {
+			err = tlerr.NotSupported("Fields query parameter is not supported along with other query parameters.")
+			return qparams, err
+		}
+
+		// Need to fill based on how the field values are filled
+		// the fields can be xpaths for the fields to be filtered out
+		qparams.fields = fields
+		qparams.tgtFieldsXpathMap = make(map[string][]string)
+		qparams.allowFieldsXpath = make(map[string]bool)
+	}
 	return qparams, nil
 }
 
@@ -1453,11 +1467,43 @@ func isChildTraversalRequired(xpath string, qParams *QueryParams, childXpath str
 	if !strings.HasPrefix(childXpath, xpath) {
 		return traverse
 	}
-	if qParams == nil || (!qParams.depthEnabled) {
+	if qParams == nil || (!qParams.depthEnabled && qParams.content == QUERY_CONTENT_ALL) {
 		// traversal required for all levels
 		return true
 	}
 	if strings.HasPrefix(childXpath, xpath) {
+		if qParams.content != QUERY_CONTENT_ALL {
+			if xYangSpecInfo, specOk := xYangSpecMap[childXpath]; specOk {
+				var yangEntry *yang.Entry
+				yangType := xYangSpecInfo.yangType
+				if yangType == YANG_LEAF || yangType == YANG_LEAF_LIST {
+					yangEntry = getYangEntryForXPath(childXpath)
+				} else {
+					yangEntry = xYangSpecInfo.yangEntry
+				}
+				if yangEntry != nil {
+					var isOcMdl bool
+					if strings.HasPrefix(childXpath, "/"+OC_MDL_PFX) {
+						isOcMdl = true
+					}
+					yangNdInfo := contentQPSpecMapInfo{
+						yangType:              yangType,
+						yangName:              yangEntry.Name,
+						isReadOnly:            yangEntry.ReadOnly(),
+						isOperationalNd:       xYangSpecInfo.operationalQP,
+						hasNonTerminalNd:      xYangSpecInfo.hasNonTerminalNode,
+						hasChildOperationalNd: xYangSpecInfo.hasChildOpertnlNd,
+						isOcMdl:               isOcMdl,
+					}
+					traverse, _ = contentQParamYangNodeProcess(childXpath, yangNdInfo, *qParams)
+				} else {
+					xfmrLogInfo("yang entry is nil for xpath ", childXpath)
+				}
+			}
+			if !traverse {
+				xfmrLogInfo("Child traversal not needed for xpath %v due to content QP(%v)", childXpath, qParams.content)
+			}
+		}
 		if !qParams.depthEnabled {
 			return traverse
 		}
@@ -1791,6 +1837,122 @@ func sonicContentQParamYangNodeProcess(uri string, yangNdType yangElementType, R
 sonicContentQParamYangNodeProcessExit:
 	xfmrLogDebug("returning process request - %v, error -%v , for URI - %v", processReq, err, uri)
 	return processReq, err
+}
+
+/* Validate "fields" query parameter for sonic YANG */
+func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
+	var err error
+	curAllowedXpath := ""
+	if len(strings.Split(inParamsForGet.xpath, "/")) > 2 {
+		curAllowedXpath = strings.Split(inParamsForGet.xpath, "/")[2]
+	}
+	if len(curAllowedXpath) > 0 {
+		inParamsForGet.queryParams.allowFieldsXpath[curAllowedXpath] = true
+	}
+	for _, field := range inParamsForGet.queryParams.fields {
+		curXpath := inParamsForGet.tbl
+		curAllowedXpath = strings.Join(strings.Split(inParamsForGet.xpath, "/")[2:], "/")
+		fpath := strings.Split(field, "/")
+		for _, p := range fpath {
+			if strings.Contains(p, "[") {
+				err = tlerr.NotSupported("Yang node type list not supported in fields query parameter(%v).", field)
+				return err
+			}
+			if len(p) == 0 {
+				continue
+			}
+			if len(curXpath) > 0 {
+				curXpath += "/" + p
+			} else {
+				curXpath = p
+				curAllowedXpath = p
+			}
+			yNode, ok := xDbSpecMap[curXpath]
+			if !ok {
+				err = tlerr.InvalidArgs("Invalid field name/path: %v", field)
+				return err
+			}
+			/* check for list */
+			if yNode.yangType == YANG_LIST {
+				err = tlerr.NotSupported("Yang node type list not supported in fields query parameter(%v).", field)
+				return err
+			}
+			inParamsForGet.queryParams.allowFieldsXpath[curAllowedXpath] = true
+		}
+		if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[curXpath]; !ok {
+			if xDbSpecMap[curXpath].yangType == YANG_LEAF_LIST {
+				curXpath = curXpath + string('@')
+			}
+			inParamsForGet.queryParams.tgtFieldsXpathMap[curXpath] = []string{}
+		}
+	}
+	return err
+}
+
+/* Validate "fields" query parameter */
+func validateAndFillQpFields(inParamsForGet xlateFromDbParams) error {
+	var err error
+	for _, field := range inParamsForGet.queryParams.fields {
+		curXpath := inParamsForGet.xpath
+		fpath := strings.Split(field, "/")
+		curSubtree := xYangSpecMap[curXpath].xfmrFunc
+		fpathPrefix := ""
+		subtreeXpath := ""
+		subTreeFld := ""
+		if len(curSubtree) > 0 {
+			subtreeXpath = curXpath
+			subTreeFld = field
+		}
+		for _, p := range fpath {
+			/* check for list instance */
+			if strings.Contains(p, "[") {
+				err = tlerr.NotSupported("Yang node type list not in fields query parameter(%v).", field)
+				return err
+			}
+			if len(p) == 0 {
+				continue
+			}
+			if strings.Contains(p, ":") {
+				p = p[strings.LastIndex(p, ":")+1:]
+			}
+			curXpath += "/" + p
+			yNode, ok := xYangSpecMap[curXpath]
+			if !ok {
+				err = tlerr.InvalidArgs("Invalid field name/path: %v", field)
+				return err
+			}
+			/* check for list */
+			if yNode.yangType == YANG_LIST {
+				err = tlerr.NotSupported("Yang node type list not in fields query parameter(%v).", field)
+				return err
+			}
+
+			fpathPrefix += p + "/"
+			if len(yNode.xfmrFunc) > 0 && (curSubtree == "" || curSubtree != yNode.xfmrFunc) {
+				subtreeXpath = curXpath
+				if field == strings.TrimSuffix(fpathPrefix, "/") {
+					subTreeFld = ""
+				} else {
+					subTreeFld = strings.Replace(field, fpathPrefix, "", 1)
+				}
+				curSubtree = yNode.xfmrFunc
+			}
+			inParamsForGet.queryParams.allowFieldsXpath[curXpath] = true
+		}
+
+		if len(subtreeXpath) > 0 {
+			/* xpaths handled by subtree-xfmr */
+			if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[subtreeXpath]; !ok {
+				inParamsForGet.queryParams.tgtFieldsXpathMap[subtreeXpath] = []string{}
+			}
+			inParamsForGet.queryParams.tgtFieldsXpathMap[subtreeXpath] =
+				append(inParamsForGet.queryParams.tgtFieldsXpathMap[subtreeXpath], subTreeFld)
+		} else {
+			/* xpaths handled by infra */
+			inParamsForGet.queryParams.tgtFieldsXpathMap[curXpath] = []string{}
+		}
+	}
+	return err
 }
 
 func escapeKeyVal(val string) string {

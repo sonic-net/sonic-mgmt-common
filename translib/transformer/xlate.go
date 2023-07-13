@@ -392,6 +392,13 @@ func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, 
 
 	if len(qParams.fields) > 0 {
 		xfmrLogDebug("Process fields QP") //todo
+		yngNdType, nd_err := getYangNodeTypeFromUri(uri)
+		if nd_err != nil {
+			return []byte("{}"), false, nd_err
+		} else if (yngNdType == YANG_LEAF) || (yngNdType == YANG_LEAF_LIST) {
+			err = tlerr.InvalidArgsError{Format: "Bad Request - fields query parameter specified on a terminal node uri."}
+			return []byte("{}"), false, err
+		}
 	} else {
 		processReq, err = contentQParamTgtEval(uri, qParams)
 		if err != nil {

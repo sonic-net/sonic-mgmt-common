@@ -247,6 +247,15 @@ func sonicDbToYangTerminalNodeFill(field string, inParamsForGet xlateFromDbParam
 	resField := field
 	value := ""
 
+	if len(inParamsForGet.queryParams.fields) > 0 {
+		curFldXpath := inParamsForGet.tbl + "/" + field
+		if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[curFldXpath]; !ok {
+			if !inParamsForGet.queryParams.fieldsFillAll {
+				return
+			}
+		}
+	}
+
 	if inParamsForGet.dbDataMap != nil {
 		tblInstFields, dbDataExists := (*inParamsForGet.dbDataMap)[inParamsForGet.curDb][inParamsForGet.tbl][inParamsForGet.tblKey]
 		if dbDataExists {
@@ -360,6 +369,22 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) {
 				} else if chldYangType == YANG_CONTAINER {
 					curMap := make(map[string]interface{})
 					curUri := uri + "/" + yangChldName
+					if len(inParamsForGet.queryParams.fields) > 0 {
+						if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[chldXpath]; ok {
+							inParamsForGet.queryParams.fieldsFillAll = true
+						} else if _, ok := inParamsForGet.queryParams.allowFieldsXpath[chldXpath]; !ok {
+							if !inParamsForGet.queryParams.fieldsFillAll {
+								for path := range inParamsForGet.queryParams.tgtFieldsXpathMap {
+									if strings.HasPrefix(chldXpath, path) {
+										inParamsForGet.queryParams.fieldsFillAll = true
+									}
+								}
+								if !inParamsForGet.queryParams.fieldsFillAll {
+									continue
+								}
+							}
+						}
+					}
 					// container can have a static key, so extract key for current container
 					_, curKey, curTable := sonicXpathKeyExtract(curUri)
 					if _, specmapOk := xDbSpecMap[curTable]; !specmapOk || xDbSpecMap[curTable].dbEntry == nil {
@@ -386,6 +411,7 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) {
 					} else {
 						xfmrLogDebug("Empty container for xpath(%v)", curUri)
 					}
+					inParamsForGet.queryParams.fieldsFillAll = false
 					inParamsForGet.dbDataMap = linParamsForGet.dbDataMap
 					inParamsForGet.resultMap = resultMap
 				} else if chldYangType == YANG_LIST {
@@ -393,6 +419,22 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) {
 					curUri := uri + "/" + yangChldName
 					inParamsForGet.uri = curUri
 					inParamsForGet.xpath = chldXpath
+					if len(inParamsForGet.queryParams.fields) > 0 {
+						if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[chldXpath]; ok {
+							inParamsForGet.queryParams.fieldsFillAll = true
+						} else if _, ok := inParamsForGet.queryParams.allowFieldsXpath[chldXpath]; !ok {
+							if !inParamsForGet.queryParams.fieldsFillAll {
+								for path := range inParamsForGet.queryParams.tgtFieldsXpathMap {
+									if strings.HasPrefix(chldXpath, path) {
+										inParamsForGet.queryParams.fieldsFillAll = true
+									}
+								}
+								if !inParamsForGet.queryParams.fieldsFillAll {
+									continue
+								}
+							}
+						}
+					}
 					mapSlice = sonicDbToYangListFill(inParamsForGet)
 					dbDataMap = inParamsForGet.dbDataMap
 					if len(key) > 0 && len(mapSlice) == 1 { // Single instance query. Don't return array of maps
@@ -405,6 +447,7 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) {
 					} else {
 						xfmrLogDebug("Empty list for xpath(%v)", curUri)
 					}
+					inParamsForGet.queryParams.fieldsFillAll = false
 					inParamsForGet.resultMap = resultMap
 				} else if chldYangType == YANG_CHOICE || chldYangType == YANG_CASE {
 					inParamsForGet.xpath = chldXpath
@@ -425,6 +468,7 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) {
 func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, error) {
 	var err error
 	uri := inParamsForGet.uri
+	jsonData := "{}"
 	dbDataMap := inParamsForGet.dbDataMap
 	resultMap := inParamsForGet.resultMap
 	xpath, key, table := sonicXpathKeyExtract(uri)
@@ -441,6 +485,13 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 		xfmrLogInfo("xpath: %v ,Sonic Yang len(pathlist) %v, reqDepth %v, sonic Field Index %v", xpath, len(pathList), reqDepth, SONIC_FIELD_INDEX)
 		if reqDepth < SONIC_FIELD_INDEX {
 			traverse = false
+		}
+	}
+
+	if len(inParamsForGet.queryParams.fields) > 0 {
+		flderr := validateAndFillSonicQpFields(inParamsForGet)
+		if flderr != nil {
+			return jsonData, true, flderr
 		}
 	}
 
@@ -506,7 +557,7 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 
 	jsonMapData, _ := json.Marshal(resultMap)
 	isEmptyPayload := isJsonDataEmpty(string(jsonMapData))
-	jsonData := fmt.Sprintf("%v", string(jsonMapData))
+	jsonData = fmt.Sprintf("%v", string(jsonMapData))
 	if isEmptyPayload {
 		log.Warning("No data available")
 	}
@@ -957,6 +1008,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 
 		for yangChldName := range yangNode.yangEntry.Dir {
 			chldXpath := xpath + "/" + yangChldName
+			chFieldsFillAll := inParamsForGet.queryParams.fieldsFillAll
 			if xYangSpecMap[chldXpath] != nil && xYangSpecMap[chldXpath].nameWithMod != nil {
 				chldUri = uri + "/" + *(xYangSpecMap[chldXpath].nameWithMod)
 			} else {
@@ -1012,6 +1064,14 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 					if len(xYangSpecMap[xpath].xfmrFunc) > 0 {
 						continue
 					}
+					if !xYangSpecMap[chldXpath].isKey && len(inParamsForGet.queryParams.fields) > 0 {
+						if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[chldXpath]; !ok {
+							if !inParamsForGet.queryParams.fieldsFillAll {
+								xfmrLogDebug("Skip processing URI due to fields QP procesing - %v", chldUri)
+								continue
+							}
+						}
+					}
 					yangEntry := yangNode.yangEntry.Dir[yangChldName]
 					fldValMap, err := terminalNodeProcess(inParamsForGet, false, yangEntry)
 					dbDataMap = inParamsForGet.dbDataMap
@@ -1028,6 +1088,23 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 					tblKey := xpathKeyExtRet.dbKey
 					chtbl := xpathKeyExtRet.tableName
 					inParamsForGet.ygRoot = ygRoot
+
+					if len(inParamsForGet.queryParams.fields) > 0 {
+						if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[chldXpath]; ok {
+							chFieldsFillAll = true
+						} else if _, ok := inParamsForGet.queryParams.allowFieldsXpath[chldXpath]; !ok {
+							if !inParamsForGet.queryParams.fieldsFillAll {
+								for path := range inParamsForGet.queryParams.tgtFieldsXpathMap {
+									if strings.HasPrefix(chldXpath, path) {
+										chFieldsFillAll = true
+									}
+								}
+								if !chFieldsFillAll {
+									continue
+								}
+							}
+						}
+					}
 
 					if _, ok := (*dbDataMap)[cdb][chtbl][tblKey]; !ok && len(chtbl) > 0 {
 						qdbMapHasTblData := false
@@ -1090,6 +1167,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper, chtbl, tblKey, dbDataMap, inParamsForGet.txCache, cmap2, inParamsForGet.validate, inParamsForGet.queryParams)
 					linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 					linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
+					linParamsForGet.queryParams.fieldsFillAll = chFieldsFillAll
 					err = yangDataFill(linParamsForGet, isOcMdl)
 					cmap2 = linParamsForGet.resultMap
 					dbDataMap = linParamsForGet.dbDataMap
@@ -1151,6 +1229,8 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 					inParamsForGet.ygRoot = ygRoot
 
 				} else if chldYangType == YANG_CHOICE || chldYangType == YANG_CASE {
+					yangDataFill(inParamsForGet, isOcMdl)
+					//TODO error handling - prune QP API
 					resultMap = inParamsForGet.resultMap
 					dbDataMap = inParamsForGet.dbDataMap
 				} else {
@@ -1192,6 +1272,14 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 		yangNode, ok := xYangSpecMap[xpathKeyExtRet.xpath]
 		if ok {
 			yangType := yangNode.yangType
+			//Check if fields are valid
+			if len(inParamsForGet.queryParams.fields) > 0 {
+				flderr := validateAndFillQpFields(inParamsForGet)
+				if flderr != nil {
+					return jsonData, true, flderr
+				}
+			}
+
 			//Check if the request depth is 1
 			if inParamsForGet.queryParams.depthEnabled && inParamsForGet.queryParams.curDepth == 1 && (yangType == YANG_CONTAINER || yangType == YANG_LIST || yangType == YANG_MODULE) {
 				return jsonData, true, err
