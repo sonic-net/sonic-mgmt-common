@@ -30,7 +30,7 @@ static void customLogCb(LY_LOG_LEVEL level, const char* msg, const char* path) {
 }
 
 static void ly_set_log_callback(int enable) {
-	ly_set_log_clb(customLogCb, 0);
+	ly_set_log_clb(customLogCb, 1);
 	if (enable == 1) {
 		ly_verb(LY_LLDBG);
 	} else {

@@ -58,7 +58,6 @@ schema: $(CVL_SCHEMA)
 
 $(CVL_SCHEMA): $(SONIC_YANG_FILES) | $$(@D)/.
 	$(TOP_DIR)/tools/pyang/generate_yin.py \
-		--no-err-prefix \
 		--path=$(SONIC_YANG_DIR) \
 		--path=$(YANG_SRC_DIR)/common \
 		--out-dir=$(@D)
@@ -69,7 +68,6 @@ test-schema: $(CVL_TEST_SCHEMA)
 
 $(CVL_TEST_SCHEMA): $(CVL_TEST_YANGS) | $$(@D)/.
 	$(TOP_DIR)/tools/pyang/generate_yin.py \
-		--no-err-prefix \
 		--path=testdata/schema \
 		--path=$(YANG_SRC_DIR)/common \
 		--path=$(YANG_SRC_DIR)/sonic/common \

@@ -20,7 +20,6 @@
 package cvl_test
 
 import (
-	"fmt"
 	"testing"
 	"github.com/Azure/sonic-mgmt-common/cvl"
 )
@@ -72,6 +71,7 @@ func TestValidateEditConfig_Delete_Must_Check_Positive(t *testing.T) {
 
 	//Prepare data in Redis
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgDataAclRule :=  []cvl.CVLEditConfigData {
 		cvl.CVLEditConfigData {
@@ -83,17 +83,7 @@ func TestValidateEditConfig_Delete_Must_Check_Positive(t *testing.T) {
 		},
 	}
 
-	cvSess, _ := cvl.ValidationSessOpen()
-
-	cvlErrObj, err := cvSess.ValidateEditConfig(cfgDataAclRule)
-
-	 cvl.ValidationSessClose(cvSess)
-
-	if err != cvl.CVL_SUCCESS { //should not succeed
-		t.Errorf("Config Validation failed. %v", cvlErrObj)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgDataAclRule, Success)
 }
 
 func TestValidateEditConfig_Delete_Must_Check_Negative(t *testing.T) {
@@ -132,6 +122,7 @@ func TestValidateEditConfig_Delete_Must_Check_Negative(t *testing.T) {
 
 	//Prepare data in Redis
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgDataAclRule :=  []cvl.CVLEditConfigData {
 		cvl.CVLEditConfigData {
@@ -143,17 +134,15 @@ func TestValidateEditConfig_Delete_Must_Check_Negative(t *testing.T) {
 		},
 	}
 
-	cvSess, _ := cvl.ValidationSessOpen()
-
-	cvlErrObj, err := cvSess.ValidateEditConfig(cfgDataAclRule)
-
-	 cvl.ValidationSessClose(cvSess)
-
-	if err == cvl.CVL_SUCCESS { //should not succeed
-		t.Errorf("Config Validation failed. %v", cvlErrObj)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgDataAclRule, CVLErrorInfo{
+		ErrCode:          CVL_SEMANTIC_ERROR,
+		TableName:        "ACL_RULE",
+		Keys:             []string{"TestACL1", "Rule1"},
+		Field:            "aclname",
+		Value:            "TestACL1",
+		Msg:              mustExpressionErrMessage,
+		ConstraintErrMsg: "Ports are already bound to this rule.",
+	})
 }
 
 func TestValidateEditConfig_Create_ErrAppTag_In_Must_Negative(t *testing.T) {
@@ -165,23 +154,17 @@ func TestValidateEditConfig_Create_ErrAppTag_In_Must_Negative(t *testing.T) {
 			"VLAN|Vlan1001",
 			map[string]string{
 				"vlanid":   "102",
-				"members@": "Ethernet24,Ethernet8",
 			},
 		},
 	}
 
-	cvSess, _ := cvl.ValidationSessOpen()
-
-	cvlErrInfo, retCode := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	WriteToFile(fmt.Sprintf("\nCVL Error Info is  %v\n", cvlErrInfo))
-
-	if retCode == cvl.CVL_SUCCESS {
-		t.Errorf("Config Validation failed -- error details %v %v", cvlErrInfo, retCode)
-	}
-
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:   CVL_SEMANTIC_ERROR,
+		TableName: "VLAN",
+		//Keys:      []string{"Vlan1001"},   <<<< BUG: key is not filled if must expr is defined on list
+		Msg:       mustExpressionErrMessage,
+		ErrAppTag: "vlan-invalid",
+	})
 }
 
 func TestValidateEditConfig_MustExp_With_Default_Value_Positive(t *testing.T) {
@@ -208,21 +191,9 @@ func TestValidateEditConfig_MustExp_With_Default_Value_Positive(t *testing.T) {
         }
 
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
-        cvSess, _ := cvl.ValidationSessOpen()
-
-	//Try to add second element
-	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgData)
-
-
-	unloadConfigDB(rclient, depDataMap)
-
-        cvl.ValidationSessClose(cvSess)
-
-        if cvlErrInfo.ErrCode != cvl.CVL_SUCCESS {
-                t.Errorf("CFG_L2MC_TABLE creation should succeed %v", cvlErrInfo)
-        }
-
+	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_MustExp_With_Default_Value_Negative(t *testing.T) {
@@ -249,21 +220,29 @@ func TestValidateEditConfig_MustExp_With_Default_Value_Negative(t *testing.T) {
         }
 
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
-        cvSess, _ := cvl.ValidationSessOpen()
+	cvSess := NewTestSession(t)
 
 	//Try to add second element
 	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgData)
 
+	// Both query-interval and query-max-response-time have must expressions checking each other..
+	// Order of evaluation is random
+	expField, expValue := "query-interval", "9"
+	if cvlErrInfo.Field == "query-max-response-time" {
+		expField, expValue = "query-max-response-time", "10"
+	}
 
-	unloadConfigDB(rclient, depDataMap)
-
-        cvl.ValidationSessClose(cvSess)
-
-        if cvlErrInfo.ErrCode == cvl.CVL_SUCCESS {
-                t.Errorf("CFG_L2MC_TABLE creation should fail %v", cvlErrInfo)
-        }
-
+	verifyErr(t, cvlErrInfo, CVLErrorInfo{
+		ErrCode:          CVL_SEMANTIC_ERROR,
+		TableName:        "CFG_L2MC_TABLE",
+		Keys:             []string{"Vlan2002"},
+		Field:            expField, // "query-interval" or "query-max-response-time"
+		Value:            expValue, // "9" or "10"
+		Msg:              mustExpressionErrMessage,
+		ConstraintErrMsg: "Invalid IGMP Snooping query interval value.",
+	})
 }
 
 func TestValidateEditConfig_MustExp_Chained_Predicate_Positive(t *testing.T) {
@@ -346,21 +325,17 @@ func TestValidateEditConfig_MustExp_Chained_Predicate_Positive(t *testing.T) {
         }
 
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
-        cvSess, _ := cvl.ValidationSessOpen()
-
-	//Try to add second element
-	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgData)
-
-
-	unloadConfigDB(rclient, depDataMap)
-
-        cvl.ValidationSessClose(cvSess)
-
-        if cvlErrInfo.ErrCode == cvl.CVL_SUCCESS {
-                t.Errorf("INTERFACE creating failed failed -- error details %v", cvlErrInfo)
-        }
-
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode: CVL_SEMANTIC_ERROR,
+		//TableName:        "VLAN_INTERFACE",  <<< BUG: cvl returns VLAN_INTERFACE_IPADDR
+		Keys:             []string{"Vlan702", "1.1.2.0/32"},
+		Field:            "vlanName",
+		Value:            "Vlan702",
+		Msg:              mustExpressionErrMessage,
+		ConstraintErrMsg: "Vlan and port being member of same vlan can't have same IP prefix.",
+	})
 }
 
 func TestValidateEditConfig_MustExp_Within_Same_Table_Negative(t *testing.T) {
@@ -377,16 +352,16 @@ func TestValidateEditConfig_MustExp_Within_Same_Table_Negative(t *testing.T) {
                 },
         }
 
-        cvSess, _ := cvl.ValidationSessOpen()
-
-	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgData)
-
-        cvl.ValidationSessClose(cvSess)
-
-        if cvlErrInfo.ErrCode == cvl.CVL_SUCCESS {
-                t.Errorf("TAM_COLLECTOR_TABLE creation should fail, %v", cvlErrInfo)
-        }
-
+		verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+			ErrCode:          CVL_SEMANTIC_ERROR,
+			TableName:        "TAM_COLLECTOR_TABLE",
+			Keys:             []string{"Col10"},
+			Field:            "ipaddress-type",
+			Value:            "ipv6",
+			Msg:              mustExpressionErrMessage,
+			ConstraintErrMsg: "IP address and IP address type does not match.",
+			ErrAppTag:        "ipaddres-type-mismatch",
+		})
 }
 
 //Check if all data is fetched for xpath without predicate
@@ -417,19 +392,9 @@ func TestValidateEditConfig_MustExp_Without_Predicate_Positive(t *testing.T) {
         }
 
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
-        cvSess, _ := cvl.ValidationSessOpen()
-
-	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgData)
-	cvlErrInfo, _ = cvSess.ValidateEditConfig(cfgData) //second time call should succeed also
-
-        cvl.ValidationSessClose(cvSess)
-
-        if cvlErrInfo.ErrCode != cvl.CVL_SUCCESS {
-                t.Errorf("No predicate - config validation should succeed, %v", cvlErrInfo)
-        }
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_MustExp_Non_Key_As_Predicate_Negative(t *testing.T) {
@@ -469,20 +434,17 @@ func TestValidateEditConfig_MustExp_Non_Key_As_Predicate_Negative(t *testing.T) 
         }
 
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
-        cvSess, _ := cvl.ValidationSessOpen()
-
-	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgData)//should fail
-	cvlErrInfo, _ = cvSess.ValidateEditConfig(cfgData) //should fail again
-	cvlErrInfo, _ = cvSess.ValidateEditConfig(cfgData) //should fail again
-
-        cvl.ValidationSessClose(cvSess)
-
-        if cvlErrInfo.ErrCode == cvl.CVL_SUCCESS {
-                t.Errorf("Non key as predicate - config validation should fail, %v", cvlErrInfo)
-        }
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:   CVL_SEMANTIC_ERROR,
+		TableName: "VXLAN_TUNNEL_MAP",
+		Keys:      []string{"tun1", "vmap2"},
+		Field:     "vni",
+		Value:     "300",
+		Msg:       mustExpressionErrMessage,
+		ErrAppTag: "not-unique-vni",
+	})
 }
 
 func TestValidateEditConfig_MustExp_Non_Key_As_Predicate_In_External_Table_Positive(t *testing.T) {
@@ -532,18 +494,9 @@ func TestValidateEditConfig_MustExp_Non_Key_As_Predicate_In_External_Table_Posit
         }
 
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
-        cvSess, _ := cvl.ValidationSessOpen()
-
-	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgData)
-
-        cvl.ValidationSessClose(cvSess)
-
-        if cvlErrInfo.ErrCode != cvl.CVL_SUCCESS {
-                t.Errorf("Non key as predicate in external table - config validation should succeed, %v", cvlErrInfo)
-        }
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_MustExp_Update_Leaf_List_Positive(t *testing.T) {
@@ -556,6 +509,7 @@ func TestValidateEditConfig_MustExp_Update_Leaf_List_Positive(t *testing.T) {
 	}
 
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData := []cvl.CVLEditConfigData{
 		cvl.CVLEditConfigData{
@@ -568,17 +522,7 @@ func TestValidateEditConfig_MustExp_Update_Leaf_List_Positive(t *testing.T) {
 		},
 	}
 
-	cvSess, _ := cvl.ValidationSessOpen()
-
-	cvlErrInfo, retCode := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if retCode != cvl.CVL_SUCCESS {
-		t.Errorf("Config Validation failed -- error details %v %v", cvlErrInfo, retCode)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_MustExp_Add_NULL(t *testing.T) {
@@ -627,10 +571,8 @@ func testNullAdd(data ...cvl.CVLEditConfigData) func(*testing.T) {
 		var cfgData []cvl.CVLEditConfigData
 		for i, d := range data {
 			cfgData = append(cfgData, d)
-			errInfo, status := session.ValidateEditConfig(cfgData)
-			if status != cvl.CVL_SUCCESS {
-				t.Fatalf("unexpetced error: %v", errInfo)
-			}
+			errInfo, _ := session.ValidateEditConfig(cfgData)
+			verifyErr(t, errInfo, Success)
 
 			cfgData[i].VType = cvl.VALIDATE_NONE // dont validate for next op
 		}

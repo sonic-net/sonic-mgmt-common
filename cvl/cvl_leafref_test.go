@@ -57,8 +57,9 @@ func TestValidateEditConfig_Create_Chained_Leafref_DepData_Positive(t *testing.T
 
 	//Prepare data in Redis
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
-	cvSess, _ := cvl.ValidationSessOpen()
+	cvSess := NewTestSession(t)
 
 	cfgDataVlan := []cvl.CVLEditConfigData {
 		cvl.CVLEditConfigData {
@@ -71,12 +72,9 @@ func TestValidateEditConfig_Create_Chained_Leafref_DepData_Positive(t *testing.T
 		},
 	}
 
-	_, err := cvSess.ValidateEditConfig(cfgDataVlan)
+	errInfo, _  := cvSess.ValidateEditConfig(cfgDataVlan)
+	verifyErr(t, errInfo, Success)
 
-	if err != cvl.CVL_SUCCESS { //should succeed
-		t.Errorf("Config Validation failed.")
-		return
-	}
 
 	cfgDataAclRule :=  []cvl.CVLEditConfigData {
 		cvl.CVLEditConfigData {
@@ -95,16 +93,8 @@ func TestValidateEditConfig_Create_Chained_Leafref_DepData_Positive(t *testing.T
 		},
 	}
 
-
-	_, err = cvSess.ValidateEditConfig(cfgDataAclRule)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err != cvl.CVL_SUCCESS { //should succeed
-		t.Errorf("Config Validation failed.")
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	errInfo, _  = cvSess.ValidateEditConfig(cfgDataAclRule)
+	verifyErr(t, errInfo, Success)
 }
 
 func TestValidateEditConfig_Create_Leafref_To_NonKey_Positive(t *testing.T) {
@@ -119,6 +109,7 @@ func TestValidateEditConfig_Create_Leafref_To_NonKey_Positive(t *testing.T) {
 
 	//Prepare data in Redis
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData :=  []cvl.CVLEditConfigData {
 		cvl.CVLEditConfigData {
@@ -131,17 +122,8 @@ func TestValidateEditConfig_Create_Leafref_To_NonKey_Positive(t *testing.T) {
 			},
 		},
 	}
-	cvSess, _ := cvl.ValidationSessOpen()
 
-	_, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err != cvl.CVL_SUCCESS { //should not succeed
-		t.Errorf("Leafref to non key : Config Validation failed.")
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_Update_Leafref_To_NonKey_Negative(t *testing.T) {
@@ -156,6 +138,7 @@ func TestValidateEditConfig_Update_Leafref_To_NonKey_Negative(t *testing.T) {
 
 	//Prepare data in Redis
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData :=  []cvl.CVLEditConfigData {
 		cvl.CVLEditConfigData {
@@ -168,17 +151,16 @@ func TestValidateEditConfig_Update_Leafref_To_NonKey_Negative(t *testing.T) {
 			},
 		},
 	}
-	cvSess, _ := cvl.ValidationSessOpen()
 
-	_, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err == cvl.CVL_SUCCESS { //should not succeed
-		t.Errorf("Leafref to non key : Config Validation failed.")
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:   cvl.CVL_SEMANTIC_DEPENDENT_DATA_MISSING,
+		TableName: "DEVICE_METADATA",
+		Keys:      []string{"localhost"},
+		//Field:     "bgp_asn", /* BUG: cvl does not fill field & value */
+		//Value:     "17698",
+		ConstraintErrMsg: "No instance found for '17698'",
+		ErrAppTag:        "instance-required",
+	})
 }
 
 func TestValidateEditConfig_Create_Leafref_Multi_Key_Positive(t *testing.T) {
@@ -211,6 +193,7 @@ func TestValidateEditConfig_Create_Leafref_Multi_Key_Positive(t *testing.T) {
 
 	//Prepare data in Redis
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData :=  []cvl.CVLEditConfigData {
 		cvl.CVLEditConfigData {
@@ -223,17 +206,8 @@ func TestValidateEditConfig_Create_Leafref_Multi_Key_Positive(t *testing.T) {
 			},
 		},
 	}
-	cvSess, _ := cvl.ValidationSessOpen()
 
-	_, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err != cvl.CVL_SUCCESS { //should succeed
-		t.Errorf("Leafref to unique key in multiple keys: Config Validation failed.")
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_Create_Leafref_Multi_Key_Negative(t *testing.T) {
@@ -260,6 +234,7 @@ func TestValidateEditConfig_Create_Leafref_Multi_Key_Negative(t *testing.T) {
 
 	//Prepare data in Redis
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData :=  []cvl.CVLEditConfigData {
 		cvl.CVLEditConfigData {
@@ -272,18 +247,16 @@ func TestValidateEditConfig_Create_Leafref_Multi_Key_Negative(t *testing.T) {
 			},
 		},
 	}
-	cvSess, _ := cvl.ValidationSessOpen()
 
-	_, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err == cvl.CVL_SUCCESS {
-		//should not succeed
-		t.Errorf("Leafref to unique key in multiple keys: Config Validation failed.")
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:   cvl.CVL_SEMANTIC_DEPENDENT_DATA_MISSING,
+		TableName: "TAM_INT_IFA_FLOW_TABLE",
+		Keys:      []string{"Flow_1"},
+		// Field:            "acl-rule-name", /* BUG: cvl does not fill field & value */
+		// Value:            "Rule1",
+		ConstraintErrMsg: "No instance found for 'Rule1'",
+		ErrAppTag:        "instance-required",
+	})
 }
 
 func TestValidateEditConfig_Create_Leafref_With_Other_DataType_In_Union_Positive(t *testing.T) {
@@ -297,7 +270,7 @@ func TestValidateEditConfig_Create_Leafref_With_Other_DataType_In_Union_Positive
 	}
 
 	loadConfigDB(rclient, depDataMap)
-	cvSess, _ := cvl.ValidationSessOpen()
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData := []cvl.CVLEditConfigData{
 		cvl.CVLEditConfigData{
@@ -312,17 +285,7 @@ func TestValidateEditConfig_Create_Leafref_With_Other_DataType_In_Union_Positive
 		},
 	}
 
-
-	cvlErrInfo, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err != cvl.CVL_SUCCESS {
-		//Should succeed
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_Create_Leafref_With_Other_DataType_In_Union_Negative(t *testing.T) {
@@ -336,7 +299,7 @@ func TestValidateEditConfig_Create_Leafref_With_Other_DataType_In_Union_Negative
 	}
 
 	loadConfigDB(rclient, depDataMap)
-	cvSess, _ := cvl.ValidationSessOpen()
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData := []cvl.CVLEditConfigData{
 		cvl.CVLEditConfigData{
@@ -351,17 +314,14 @@ func TestValidateEditConfig_Create_Leafref_With_Other_DataType_In_Union_Negative
 		},
 	}
 
-
-	cvlErrInfo, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err == cvl.CVL_SUCCESS {
-		//Should succeed
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:   CVL_SYNTAX_ERROR,
+		TableName: "STP_PORT",
+		Keys:      []string{"Test12"},
+		Field:     "ifname",
+		Value:     "Test12",
+		Msg:       invalidValueErrMessage,
+	})
 }
 
 func TestValidateEditConfig_Create_Leafref_With_Other_DataType_In_Union_Non_Existing_Negative(t *testing.T) {
@@ -375,7 +335,7 @@ func TestValidateEditConfig_Create_Leafref_With_Other_DataType_In_Union_Non_Exis
 	}
 
 	loadConfigDB(rclient, depDataMap)
-	cvSess, _ := cvl.ValidationSessOpen()
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData := []cvl.CVLEditConfigData{
 		cvl.CVLEditConfigData{
@@ -390,17 +350,13 @@ func TestValidateEditConfig_Create_Leafref_With_Other_DataType_In_Union_Non_Exis
 		},
 	}
 
-
-	cvlErrInfo, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err == cvl.CVL_SUCCESS {
-		//Should fail as leafref does not exist
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:          cvl.CVL_SEMANTIC_DEPENDENT_DATA_MISSING,
+		TableName:        "STP_PORT",
+		Keys:             []string{"Ethernet3999"},
+		ConstraintErrMsg: "No instance found for 'Ethernet3999'",
+		ErrAppTag:        "instance-required",
+	})
 }
 
 func TestValidateEditConfig_Delete_Leafref(t *testing.T) {
