@@ -26,8 +26,132 @@ import (
 	"testing"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/openconfig/ygot/ygot"
 )
+
+var (
+	roDBs [db.MaxDB]*db.DB
+)
+
+func getReadOnlyDB() [db.MaxDB]*db.DB {
+	if roDBs[0] == nil {
+		roDBs, _ = getAllDbs(withWriteDisable)
+		addCleanupFunc("roDBs", closeAllTestDB)
+	}
+	return roDBs
+}
+
+func closeAllTestDB() error {
+	if roDBs[0] != nil {
+		closeAllDbs(roDBs[:])
+	}
+	return nil
+}
+
+func Test_isEmptyStruct_EmptyObj(t *testing.T) {
+	v := &ocbinds.OpenconfigAcl_Acl_AclSets_AclSet{}
+	if !isEmptyYgotStruct(v) {
+		t.FailNow()
+	}
+}
+
+func Test_isEmptyStruct_DirectAttr(t *testing.T) {
+	x := &ocbinds.OpenconfigAcl_Acl_AclSets_AclSet{
+		Name: ygot.String("Foo"),
+	}
+	if isEmptyYgotStruct(x) {
+		t.FailNow()
+	}
+}
+
+func Test_isEmptyStruct_NestedAttr(t *testing.T) {
+	x := new(ocbinds.OpenconfigAcl_Acl_AclSets_AclSet)
+	ygot.BuildEmptyTree(x)
+	x.Config.Description = ygot.String("Hello, world!")
+	if isEmptyYgotStruct(x) {
+		t.FailNow()
+	}
+}
+
+func Test_isEmptyStruct_EmptyContainers(t *testing.T) {
+	x := new(ocbinds.OpenconfigAcl_Acl_AclSets_AclSet)
+	ygot.BuildEmptyTree(x)
+	if !isEmptyYgotStruct(x) {
+		t.FailNow()
+	}
+}
+
+func Test_isEmptyStruct_EmptyTree(t *testing.T) {
+	x := new(ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_AclEntries_AclEntry)
+	ygot.BuildEmptyTree(x)
+	if !isEmptyYgotStruct(x) {
+		t.FailNow()
+	}
+}
+
+func Test_isEmptyStruct_NDeepAttr(t *testing.T) {
+	x := new(ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_AclEntries_AclEntry)
+	ygot.BuildEmptyTree(x)
+	x.Ipv4.Config.SourceAddress = ygot.String("1.2.3.4/32")
+	if isEmptyYgotStruct(x) {
+		t.FailNow()
+	}
+}
+
+func Test_isEmptyStruct_NDeepLeafList(t *testing.T) {
+	x := new(ocbinds.OpenconfigAcl_Acl_AclSets_AclSet_AclEntries_AclEntry)
+	ygot.BuildEmptyTree(x)
+	x.Transport.Config.TcpFlags = []ocbinds.E_OpenconfigPacketMatchTypes_TCP_FLAGS{ocbinds.OpenconfigPacketMatchTypes_TCP_FLAGS_TCP_ACK}
+	if isEmptyYgotStruct(x) {
+		t.FailNow()
+	}
+}
+
+func Test_isEmptyStruct_NDeepList(t *testing.T) {
+	x := new(ocbinds.OpenconfigAcl_Acl_AclSets_AclSet)
+	ygot.BuildEmptyTree(x)
+	x.AclEntries.NewAclEntry(10)
+	if isEmptyYgotStruct(x) {
+		t.FailNow()
+	}
+}
+
+func Test_clearListKeys(t *testing.T) {
+	x := new(ocbinds.OpenconfigAcl_Acl_AclSets_AclSet)
+	ygot.BuildEmptyTree(x)
+	x.Name = ygot.String("TEST")
+	x.Type = ocbinds.OpenconfigAcl_ACL_TYPE_ACL_IPV4
+	x.Config.Description = ygot.String("foo")
+
+	err := clearListKeys(x)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if x.Name != nil {
+		t.Errorf("Expected Name == nil; found \"%v\"", x.Name)
+	}
+	if x.Type != ocbinds.OpenconfigAcl_ACL_TYPE_UNSET {
+		t.Errorf("Expected Type == 0; found %v", x.Type)
+	}
+	if x.Config == nil || x.Config.Description == nil || *x.Config.Description != "foo" {
+		t.Errorf("Unexpected deletion of x.Config.Description")
+	}
+}
+
+func Benchmark_clearListKeys(b *testing.B) {
+	x := new(ocbinds.OpenconfigAcl_Acl_AclSets_AclSet)
+	for i := 0; i < b.N; i++ {
+		x.Name = ygot.String("TEST")
+		x.Type = ocbinds.OpenconfigAcl_ACL_TYPE_ACL_IPV4
+		err := clearListKeys(x)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+///////////////////
 
 // Messages is a utility to collect list of
 // formatted messages and log it later.
@@ -73,24 +197,16 @@ func testTranslateSubscribeForMode(t *testing.T, path string, mode NotificationT
 		path: path,
 		mode: mode,
 	}
-	app, _, err := getAppModule(path, Version{})
-	if err != nil {
-		tv.appError = err
-		return tv
+	sc := subscribeContext{
+		id:      fmt.Sprintf("test%d", subscribeCounter.Next()),
+		dbs:     getReadOnlyDB(),
+		recurse: true,
 	}
-
-	resp, err := (*app).translateSubscribe(
-		translateSubRequest{
-			ctxID:   t.Name(),
-			path:    path,
-			mode:    mode,
-			recurse: true,
-			dbs:     [db.MaxDB]*db.DB{},
-		})
-
+	pInfo, err := sc.translateSubscribe(path, mode)
 	if err != nil {
 		tv.appError = err
 	} else {
+		resp := pInfo.response
 		tv.targetInfos = resp.ntfAppInfoTrgt
 		tv.childInfos = resp.ntfAppInfoTrgtChlds
 	}

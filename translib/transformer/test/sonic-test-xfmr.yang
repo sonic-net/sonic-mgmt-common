@@ -164,5 +164,16 @@ module sonic-test-xfmr {
                         }
                 }
 
+                container TEST_SENSOR_GLOBAL {
+                        container global_sensor {
+                                 leaf mode {
+                                        type string;
+                                 }
+                                 leaf description {
+                                        type string;
+                                }
+                        }
+                }
+
 	}
 }

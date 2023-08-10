@@ -3,3 +3,4 @@ models/yang/allyangs.tree               sonic/src/sonic-mgmt-common/models/yang
 models/yang/allyangs_tree.html          sonic/src/sonic-mgmt-common/models/yang
 models/yang/sonic_allyangs.tree         sonic/src/sonic-mgmt-common/models/yang
 models/yang/sonic_allyangs_tree.html    sonic/src/sonic-mgmt-common/models/yang
+build/yang                              sonic/src/sonic-mgmt-common/build

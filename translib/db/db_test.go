@@ -101,11 +101,6 @@ var dbConfig = `
             "id" : 7,
             "separator": "|",
             "instance" : "redis"
-        },
-        "ERROR_DB" : {
-            "id" : 8,
-            "separator": ":",
-            "instance" : "redis"
         }
     },
     "VERSION" : "1.0"

@@ -280,8 +280,8 @@ func (pv *pathValidator) validateListKeyValues(schema *yang.Entry, gPath *gnmi.P
 		log.Warningf(errStr)
 		return tlerr.NotFoundError{Format: fmt.Sprintf("Invalid key present in the node path: %v; error: %s", gPath, errStr)}
 	}
-	if log.V(4) {
-		pretty.Print(ygotStruct)
+	if log.V(6) {
+		log.Infof("ygotStruct = %s", pretty.Sprint(ygotStruct))
 	}
 	if err := ygotStruct.Validate(&ytypes.LeafrefOptions{IgnoreMissingData: true}); err != nil {
 		errStr := fmt.Sprintf("error in ValidatedGoStruct.Validate: %v", err)

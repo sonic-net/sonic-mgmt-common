@@ -140,5 +140,12 @@ module openconfig-test-xfmr-annot {
         sonic-ext:virtual-table "true";
       }
     }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:global-sensor {
+      deviate add {
+	sonic-ext:table-name "TEST_SENSOR_GLOBAL";
+        sonic-ext:key-name "global_sensor";
+      }
+    }
 }
 

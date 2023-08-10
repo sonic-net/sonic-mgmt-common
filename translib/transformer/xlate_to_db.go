@@ -314,7 +314,7 @@ func dbMapDataFill(uri string, tableName string, keyName string, d map[string]in
 	}
 }
 
-func dbMapListDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
+func dbMapTableChildListDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
 	data := reflect.ValueOf(jsonData)
 	tblKeyName := strings.Split(dbEntry.Key, " ")
 	for idx := 0; idx < data.Len(); idx++ {
@@ -335,6 +335,13 @@ func dbMapListDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonDa
 		}
 		dbMapDataFill(uri, tableName, keyName, d, result)
 	}
+}
+
+func dbMapTableChildContainerDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
+	data := reflect.ValueOf(jsonData).Interface().(map[string]interface{})
+	keyName := dbEntry.Name
+	xfmrLogDebug("Container name %v will become table key.", keyName)
+	dbMapDataFill(uri, tableName, keyName, data, result)
 }
 
 func directDbMapData(uri string, tableName string, jsonData interface{}, result map[string]map[string]db.Value) bool {
@@ -359,8 +366,11 @@ func directDbMapData(uri string, tableName string, jsonData interface{}, result 
 				eType := curDbSpecData.yangType
 				switch eType {
 				case YANG_LIST:
-					xfmrLogDebug("Fill data for list uri(%v)", uri)
-					dbMapListDataFill(uri, tableName, curDbSpecData.dbEntry, v, result)
+					xfmrLogDebug("Fill data for list %v child of table level node %v", k, tableName)
+					dbMapTableChildListDataFill(uri, tableName, curDbSpecData.dbEntry, v, result)
+				case YANG_CONTAINER:
+					xfmrLogDebug("Fill data for container %v child of table level node %v", k, tableName)
+					dbMapTableChildContainerDataFill(uri, tableName, curDbSpecData.dbEntry, v, result)
 				default:
 					xfmrLogDebug("Invalid node type for uri(%v)", uri)
 				}
@@ -1007,7 +1017,6 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 
 func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri string, dbData RedisDbMap) (bool, error) {
 	var err error
-	pathList := splitUri(uri)
 
 	xpath, dbKey, table := sonicXpathKeyExtract(uri)
 	xfmrLogDebug("uri: %v xpath: %v table: %v, key: %v", uri, xpath, table, dbKey)
@@ -1015,6 +1024,14 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 	if (len(table) > 0) && (len(dbKey) > 0) {
 		tableExists := false
 		var derr error
+
+		pathList := splitUri(uri)
+		hasSingletonContainer := SonicUriHasSingletonContainer(uri)
+		if hasSingletonContainer && oper != DELETE {
+			// No resource check required for singleton container for CRU cases
+			return true, err
+		}
+
 		if oper == GET {
 			var cdb db.DBNum = db.ConfigDB
 			dbInfo, ok := xDbSpecMap[table]
@@ -1028,11 +1045,19 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 		} else {
 			// Valid table mapping exists. Read the table entry from DB
 			tableExists, derr = dbTableExists(d, table, dbKey, oper)
+			if hasSingletonContainer && oper == DELETE {
+				// Special case when we delete at container that does'nt exist. Return true to skip translation.
+                                if !tableExists {
+                                        return true, derr
+                                } else {
+                                        return true, nil
+                                }
+			}
 			if derr != nil {
 				return false, derr
 			}
 		}
-		if len(pathList) == SONIC_LIST_INDEX && (oper == UPDATE || oper == CREATE || oper == DELETE || oper == GET) && !tableExists {
+		if len(pathList) == SONIC_TBL_CHILD_INDEX && (oper == UPDATE || oper == CREATE || oper == DELETE || oper == GET) && !tableExists {
 			// Uri is at /sonic-module:sonic-module/container-table/list
 			// PATCH opertion permitted only if table exists in DB.
 			// POST case since the URI is the parent, the parent needs to exist
@@ -1041,8 +1066,8 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 			log.Warningf("Parent table %v with key %v does not exist for oper %v in DB", table, dbKey, oper)
 			err = tlerr.NotFound("Resource not found")
 			return false, err
-		} else if len(pathList) > SONIC_LIST_INDEX && !tableExists {
-			// Uri is at /sonic-module/container-table/list or /sonic-module/container-table/list/leaf
+		} else if len(pathList) > SONIC_TBL_CHILD_INDEX && !tableExists {
+			// Uri is at /sonic-module/container-table/list/leaf
 			// Parent table should exist for all CRUD cases
 			log.Warningf("Parent table %v with key %v does not exist in DB", table, dbKey)
 			err = tlerr.NotFound("Resource not found")
