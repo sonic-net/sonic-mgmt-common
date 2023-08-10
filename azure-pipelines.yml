@@ -49,7 +49,6 @@ stages:
         sudo sed -ri 's/^unixsocketperm .../unixsocketperm 777/' /etc/redis/redis.conf
         sudo sed -ri 's/redis-server.sock/redis.sock/' /etc/redis/redis.conf
         sudo service redis-server start
-        sudo config feature state sflow enabled
 
         # LIBYANG
         sudo dpkg -i ../target/debs/bullseye/libyang*1.0.73*.deb
@@ -79,7 +78,7 @@ stages:
 
         [[ -f tools/test/database_config.json ]] && \
             export DB_CONFIG_PATH=${PWD}/tools/test/database_config.json
-
+        redis-cli -n 4 HSET "FEATURE|sflow" "state" "enabled"
         # Run CVL tests
 
         pushd build/tests/cvl
