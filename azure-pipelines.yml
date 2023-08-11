@@ -78,7 +78,6 @@ stages:
 
         [[ -f tools/test/database_config.json ]] && \
             export DB_CONFIG_PATH=${PWD}/tools/test/database_config.json
-        redis-cli -n 4 HSET "FEATURE|sflow" "state" "enabled"
         # Run CVL tests
 
         pushd build/tests/cvl

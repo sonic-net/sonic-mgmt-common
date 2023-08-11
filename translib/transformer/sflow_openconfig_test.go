@@ -163,7 +163,7 @@ func Test_node_openconfig_sflow_collector(t *testing.T) {
 
 
 func Test_node_openconfig_sflow_interface(t *testing.T) {
-        var pre_req_map, expected_map, cleanuptbl , cleanuptbl_sflow map[string]interface{}
+	var pre_req_map, non_pre_req_map, expected_map, cleanuptbl , cleanuptbl_sflow map[string]interface{}
         var url, url_body_json string
 
 	//Sflow needs to be enabled to configure for an sflow interface
@@ -187,8 +187,12 @@ func Test_node_openconfig_sflow_interface(t *testing.T) {
 	pre_req_map = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet4": map[string]interface{}{
 		"admin_state": "down",
 		"sample_rate": "20000"}}}
+	non_pre_req_map = map[string]interface{}{"SFLOW_SESSION_TABLE": map[string]interface{}{"Ethernet4": map[string]interface{}{
+		"admin_state": "down",
+		"sample_rate": "20000"}}}
         cleanuptbl = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet4": ""}}
 	loadDB(db.ConfigDB, pre_req_map)
+	loadDB(db.ApplDB, non_pre_req_map)
 	time.Sleep(2 * time.Second)
 	url = "/openconfig-sampling-sflow:sampling/sflow/interfaces/interface[name=Ethernet4]"
 	t.Run("Test delete on sflow interface", processDeleteRequest(url, false))
@@ -196,6 +200,7 @@ func Test_node_openconfig_sflow_interface(t *testing.T) {
 	delete_expected := make(map[string]interface{})
         t.Run("Verify delete on sflow interface", verifyDbResult(rclient, "SFLOW_SESSION|Ethernet4", delete_expected, false))
 	unloadDB(db.ConfigDB, cleanuptbl)
+	unloadDB(db.ApplDB, non_pre_req_map)
 	time.Sleep(2 * time.Second)
 	t.Log("\n\n+++++++++++++ Done Performing Delete on Sflow Interface ++++++++++++")
 
@@ -203,17 +208,25 @@ func Test_node_openconfig_sflow_interface(t *testing.T) {
 	pre_req_map = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet8": map[string]interface{}{
 		"admin_state": "up",
 		"sample_rate": "30000"}}}
+	non_pre_req_map = map[string]interface{}{"SFLOW_SESSION_TABLE": map[string]interface{}{"Ethernet8": map[string]interface{}{
+		"admin_state": "up",
+		"sample_rate": "30000"}}}
 	loadDB(db.ConfigDB, pre_req_map)
+	loadDB(db.ApplDB, non_pre_req_map)
 	expected_get_json := "{\"openconfig-sampling-sflow:state\":{\"enabled\":true,\"name\":\"Ethernet8\",\"sampling-rate\":30000}}"
         url = "/openconfig-sampling-sflow:sampling/sflow/interfaces/interface[name=Ethernet8]/state"
 	t.Run("Test get on sflow interface", processGetRequest(url, expected_get_json, false))
 	time.Sleep(2 * time.Second)
 	cleanuptbl = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet8": ""}}
 	unloadDB(db.ConfigDB, cleanuptbl)
+	unloadDB(db.ApplDB, non_pre_req_map)
 	t.Log("\n\n+++++++++++++ Done Performing Get on SFlow Interface ++++++++++++")
 
         t.Log("\n\n+++++++++++++ Performing Put/Replace on Sflow Interface ++++++++++++")
 	pre_req_map = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet0": map[string]interface{}{
+		"admin_state": "up",
+		"sample_rate": "10000"}}}
+	non_pre_req_map = map[string]interface{}{"SFLOW_SESSION_TABLE": map[string]interface{}{"Ethernet0": map[string]interface{}{
 		"admin_state": "up",
 		"sample_rate": "10000"}}}
 	expected_map = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet0": map[string]interface{}{
@@ -221,12 +234,14 @@ func Test_node_openconfig_sflow_interface(t *testing.T) {
 		"sample_rate": "10000"}}}
         cleanuptbl = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet0": ""}}
         loadDB(db.ConfigDB, pre_req_map)
+        loadDB(db.ApplDB, non_pre_req_map)
         url = "/openconfig-sampling-sflow:sampling/sflow/interfaces/interface[name=Ethernet0]/config/enabled"
 	url_body_json = "{ \"openconfig-sampling-sflow:enabled\": false}"
         t.Run("Update admin-state for sflow interface", processSetRequest(url, url_body_json, "PUT", false, nil))
         time.Sleep(2 * time.Second)
         t.Run("Verify admin-state for sflow interface", verifyDbResult(rclient, "SFLOW_SESSION|Ethernet0", expected_map, false))
         unloadDB(db.ConfigDB, cleanuptbl)
+        unloadDB(db.ApplDB, non_pre_req_map)
         time.Sleep(2 * time.Second)
         t.Log("\n\n+++++++++++++ Done Performing Put/Replace on Sflow interface ++++++++++++")
 
@@ -234,11 +249,15 @@ func Test_node_openconfig_sflow_interface(t *testing.T) {
 	pre_req_map = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet0": map[string]interface{}{
 		"admin_state": "up",
 		"sample_rate": "10000"}}}
+	non_pre_req_map = map[string]interface{}{"SFLOW_SESSION_TABLE": map[string]interface{}{"Ethernet0": map[string]interface{}{
+		"admin_state": "up",
+		"sample_rate": "10000"}}}
 	expected_map = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet0": map[string]interface{}{
 		"admin_state": "up",
 		"sample_rate": "20000"}}}
         cleanuptbl = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet0": ""}}
         loadDB(db.ConfigDB, pre_req_map)
+        loadDB(db.ApplDB, non_pre_req_map)
         cleanuptbl_sflow = map[string]interface{}{"SFLOW": map[string]interface{}{"global": ""}}
         url = "/openconfig-sampling-sflow:sampling/sflow/interfaces/interface[name=Ethernet0]/config/sampling-rate"
 	url_body_json = "{ \"openconfig-sampling-sflow:sampling-rate\": 20000}"
@@ -247,6 +266,7 @@ func Test_node_openconfig_sflow_interface(t *testing.T) {
         t.Run("Verify sampling-rate on sflow interface", verifyDbResult(rclient, "SFLOW_SESSION|Ethernet0", expected_map, false))
         unloadDB(db.ConfigDB, cleanuptbl)
 	unloadDB(db.ConfigDB, cleanuptbl_sflow)
+        unloadDB(db.ApplDB, non_pre_req_map)
         time.Sleep(2 * time.Second)
         t.Log("\n\n+++++++++++++ Done Performing Patch on Sflow interface ++++++++++++")
 
