@@ -799,6 +799,9 @@ func getAllDbs(opts ...func(*db.Options)) ([db.MaxDB]*db.DB, error) {
 	var dbs [db.MaxDB]*db.DB
 	var err error
 	for dbNum := db.DBNum(0); dbNum < db.MaxDB; dbNum++ {
+		if len(dbNum.Name()) == 0 {
+			continue
+		}
 		dbs[dbNum], err = db.NewDB(getDBOptions(dbNum, opts...))
 		if err != nil {
 			closeAllDbs(dbs[:])
