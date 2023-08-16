@@ -132,6 +132,10 @@ type contentQPSpecMapInfo struct {
 	isOcMdl               bool
 }
 
+type qpSubtreePruningErr struct {
+	subtreePath string
+}
+
 type Operation int
 
 type ContentType uint8

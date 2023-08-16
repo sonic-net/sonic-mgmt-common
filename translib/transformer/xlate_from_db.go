@@ -697,6 +697,11 @@ func yangListDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool, isOcMd
 				dbDataMap = inParamsForGet.dbDataMap
 				if err != nil {
 					xfmrLogDebug("Error(%v) returned for %v", err, uri)
+					// abort GET request if QP Subtree Pruning API returns error
+					_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+					if qpSbtPruneErrOk {
+						return err
+					}
 				} else if (instMap != nil) && (len(instMap) > 0) {
 					mapSlice = append(mapSlice, instMap)
 				}
@@ -720,7 +725,19 @@ func yangListDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool, isOcMd
 	}
 
 	if len(tblList) == 0 {
-		xfmrLogInfo("Unable to traverse list as no table information available at URI %v. Please check if table mapping available", uri)
+		if (strings.HasSuffix(uri, "]") || strings.HasSuffix(uri, "]/")) && (len(xYangSpecMap[xpath].xfmrFunc) > 0 && xYangSpecMap[xpath].hasChildSubTree) {
+			err := yangDataFill(inParamsForGet, isOcMdl)
+			if err != nil {
+				xfmrLogInfo("yangListDataFill: error in its child subtree traversal for the xpath: %v", xpath)
+				_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+				if qpSbtPruneErrOk {
+					return err
+				}
+			}
+			return nil
+		} else {
+			xfmrLogInfo("Unable to traverse list as no table information available at URI %v. Please check if table mapping available", uri)
+		}
 	}
 
 	for _, tbl = range tblList {
@@ -736,6 +753,11 @@ func yangListDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool, isOcMd
 				dbDataMap = inParamsForGet.dbDataMap
 				if err != nil {
 					xfmrLogDebug("Error(%v) returned for %v", err, uri)
+					// abort GET request if QP Subtree Pruning API returns error
+					_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+					if qpSbtPruneErrOk {
+						return err
+					}
 				} else if (instMap != nil) && (len(instMap) > 0) {
 					mapSlice = append(mapSlice, instMap)
 				}
@@ -805,13 +827,25 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 			inParamsForGet.dbDataMap = dbDataMap
 			if err != nil {
 				xfmrLogDebug("Error returned by %v: %v", xYangSpecMap[xpath].xfmrFunc, err)
+				// abort GET request if QP Subtree Pruning API returns error
+				_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+				if qpSbtPruneErrOk {
+					return curMap, err
+				}
 			}
 		}
 		if xYangSpecMap[xpath].hasChildSubTree {
 			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams)
 			linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 			linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
-			yangDataFill(linParamsForGet, isOcMdl)
+			err := yangDataFill(linParamsForGet, isOcMdl)
+			if err != nil {
+				// abort GET request if QP Subtree Pruning API returns error
+				_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+				if qpSbtPruneErrOk {
+					return nil, err
+				}
+			}
 			curMap = linParamsForGet.resultMap
 			dbDataMap = linParamsForGet.dbDataMap
 			ygRoot = linParamsForGet.ygRoot
@@ -833,7 +867,14 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpathKeyExtRet.xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams)
 			linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 			linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
-			yangDataFill(linParamsForGet, isOcMdl)
+			err := yangDataFill(linParamsForGet, isOcMdl)
+			if err != nil {
+				// abort GET request if QP Subtree Pruning API returns error
+				_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+				if qpSbtPruneErrOk {
+					return curMap, err
+				}
+			}
 			curMap = linParamsForGet.resultMap
 			dbDataMap = linParamsForGet.dbDataMap
 			ygRoot = linParamsForGet.ygRoot
@@ -1156,6 +1197,11 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 							inParamsForGet.ygRoot = ygRoot
 							if err != nil {
 								xfmrLogDebug("Error returned by %v: %v", xYangSpecMap[xpath].xfmrFunc, err)
+								// abort GET request if QP Subtree Pruning API returns error
+								_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+								if qpSbtPruneErrOk {
+									return err
+								}
 							}
 						}
 						if !xYangSpecMap[chldXpath].hasChildSubTree {
@@ -1169,6 +1215,13 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 					linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
 					linParamsForGet.queryParams.fieldsFillAll = chFieldsFillAll
 					err = yangDataFill(linParamsForGet, isOcMdl)
+					if err != nil {
+						// abort GET request if QP Subtree Pruning API returns error
+						_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+						if qpSbtPruneErrOk {
+							return err
+						}
+					}
 					cmap2 = linParamsForGet.resultMap
 					dbDataMap = linParamsForGet.dbDataMap
 					ygRoot = linParamsForGet.ygRoot
@@ -1196,6 +1249,11 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 							err := xfmrHandlerFunc(inParams, xYangSpecMap[chldXpath].xfmrFunc)
 							if err != nil {
 								xfmrLogDebug("Error returned by %v: %v", xYangSpecMap[chldXpath].xfmrFunc, err)
+								// abort GET request if QP Subtree Pruning API returns error
+								_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+								if qpSbtPruneErrOk {
+									return err
+								}
 							}
 							inParamsForGet.dbDataMap = dbDataMap
 							inParamsForGet.ygRoot = ygRoot
@@ -1220,7 +1278,14 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper, lTblName, xpathKeyExtRet.dbKey, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams)
 					linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 					linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
-					yangListDataFill(linParamsForGet, false, isOcMdl)
+					err := yangListDataFill(linParamsForGet, false, isOcMdl)
+					if err != nil {
+						// abort GET request if QP Subtree Pruning API returns error
+						_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+						if qpSbtPruneErrOk {
+							return err
+						}
+					}
 					resultMap = linParamsForGet.resultMap
 					dbDataMap = linParamsForGet.dbDataMap
 					ygRoot = linParamsForGet.ygRoot
@@ -1229,8 +1294,14 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 					inParamsForGet.ygRoot = ygRoot
 
 				} else if chldYangType == YANG_CHOICE || chldYangType == YANG_CASE {
-					yangDataFill(inParamsForGet, isOcMdl)
-					//TODO error handling - prune QP API
+					err := yangDataFill(inParamsForGet, isOcMdl)
+					if err != nil {
+						// abort GET request if QP Subtree Pruning API returns error
+						_, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+						if qpSbtPruneErrOk {
+							return err
+						}
+					}
 					resultMap = inParamsForGet.resultMap
 					dbDataMap = inParamsForGet.dbDataMap
 				} else {
@@ -1382,13 +1453,21 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 					if len(xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc) > 0 {
 						inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, GET, "", dbDataMap, nil, nil, txCache)
 						inParams.queryParams = inParamsForGet.queryParams
-						fldSbtErr = xfmrHandlerFunc(inParams, xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc)
-						if fldSbtErr != nil {
+						xfmrFuncErr := xfmrHandlerFunc(inParams, xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc)
+						if xfmrFuncErr != nil {
 							/*For request Uri pointing to leaf/leaf-list having subtree, error will be propagated
 							  to handle check of leaf/leaf-list-instance existence in DB , which will be performed
 							  by subtree
+                                                          Error will also be propagated if QP Pruning API for subtree returns error
 							*/
-							xfmrLogInfo("Error returned by %v: %v", xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc, err)
+							_, qpSbtPruneErrOk := xfmrFuncErr.(*qpSubtreePruningErr)
+
+							if qpSbtPruneErrOk {
+								err = xfmrFuncErr
+							} else {
+								// propagate err from subtree callback
+								fldSbtErr = xfmrFuncErr
+							}
 							inParamsForGet.ygRoot = ygRoot
 							break
 						}
@@ -1427,7 +1506,10 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 						inParams.queryParams = inParamsForGet.queryParams
 						err := xfmrHandlerFunc(inParams, xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc)
 						if err != nil {
-							xfmrLogInfo("Error returned by %v: %v", xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc, err)
+							qpSbtPruneErr, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+							if qpSbtPruneErrOk {
+								err = tlerr.InternalError{Format: QUERY_PARAMETER_SBT_PRUNING_ERR, Path: qpSbtPruneErr.subtreePath}
+							}
 							return jsonData, true, err
 						}
 						inParamsForGet.dbDataMap = dbDataMap
@@ -1451,6 +1533,11 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 						inParams.queryParams = inParamsForGet.queryParams
 						err := xfmrHandlerFunc(inParams, xYangSpecMap[xpathKeyExtRet.xpath].xfmrFunc)
 						if err != nil {
+							qpSbtPruneErr, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+							if qpSbtPruneErrOk {
+								err = tlerr.InternalError{Format: QUERY_PARAMETER_SBT_PRUNING_ERR, Path: qpSbtPruneErr.subtreePath}
+								return jsonData, true, err
+							}
 							if ((strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/"))) && (uri == requestUri) {
 								// The error handling here is for the deferred resource check error being handled by the subtree for virtual table cases.
 								log.Warningf("Subtree at list instance level returns error %v for  URI  - %v", err, uri)
@@ -1501,6 +1588,12 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 		   is not available(via field-xfmr or field name)
 		*/
 		return jsonData, isEmptyPayload, fldErr
+	}
+	if err != nil {
+		qpSbtPruneErr, qpSbtPruneErrOk := err.(*qpSubtreePruningErr)
+		if qpSbtPruneErrOk {
+			return jsonData, isEmptyPayload, tlerr.InternalError{Format: QUERY_PARAMETER_SBT_PRUNING_ERR, Path: qpSbtPruneErr.subtreePath}
+		}
 	}
 
 	return jsonData, isEmptyPayload, nil

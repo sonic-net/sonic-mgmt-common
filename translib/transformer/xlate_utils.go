@@ -2209,3 +2209,7 @@ func (qp *QueryParams) isContentEnabled() bool {
 func (qp *QueryParams) isFieldsEnabled() bool {
 	return len(qp.fields) != 0
 }
+
+func (e *qpSubtreePruningErr) Error() string {
+	return fmt.Sprintf("Query Parameter pruning unsuccessful for subtree - %s", e.subtreePath)
+}
