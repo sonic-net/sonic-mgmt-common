@@ -31,6 +31,8 @@ import (
 	"testing"
 	"strconv"
 	"reflect"
+
+	"github.com/go-redis/redis/v7"
 )
 
 var dbConfig = `
@@ -165,7 +167,7 @@ TestMainRedo:
 
 
 	os.Exit(exitCode)
-	
+
 }
 
 /*
@@ -385,7 +387,7 @@ func TestTable(t * testing.T) {
 }
 
 
-/* Tests for 
+/* Tests for
 
 6.  Set an entry with Transaction (StartTx(), SetEntry(), CommitTx())
 7.  Delete an entry with Transaction (StartTx(), DeleteEntry(), CommitTx())
@@ -702,3 +704,15 @@ func TestSubscribe(t * testing.T) {
 	}
 }
 
+// setupTestData populates given test entries in db and deletes all those keys
+// whne the test case ends.
+func setupTestData(t *testing.T, redis *redis.Client, data map[string]map[string]interface{}) {
+	keys := make([]string, 0, len(data))
+	t.Cleanup(func() { redis.Del(keys...) })
+	for k, v := range data {
+		keys = append(keys, k)
+		if _, err := redis.HMSet(k, v).Result(); err != nil {
+			t.Fatalf("HMSET %s failed; err=%v", k, err)
+		}
+	}
+}

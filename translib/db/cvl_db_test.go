@@ -66,7 +66,7 @@ func verifyResult(t testing.TB, res, exp interface{}) {
 }
 
 func TestCvlDB_RedisCompatibility(t *testing.T) {
-	d1 := newTestDB(t, ConfigDB)
+	d1 := newTestDB(t, Options{DBNo: ConfigDB})
 	setupTestData(t, d1.client, map[string]map[string]interface{}{
 		"CVLDB|event|1": {"id": 1, "message": "hello, world!"},
 		"CVLDB|event|2": {"id": 2, "message": "foo bar"},
@@ -261,7 +261,7 @@ func TestCvlDB_RedisCompatibility(t *testing.T) {
 }
 
 func TestCvlDB_Search(t *testing.T) {
-	d := newTestDB(t, ConfigDB)
+	d := newTestDB(t, Options{DBNo: ConfigDB})
 	setupTestData(t, d.client, map[string]map[string]interface{}{
 		"CVLDB_PORT|Eth1": {"mtu": "6789", "admin": "up"},
 		"CVLDB_PORT|Po1":  {"mtu": "1444", "admin": "up"},
@@ -384,7 +384,7 @@ func TestCvlDB_Search(t *testing.T) {
 }
 
 func TestCvlDB_txn(t *testing.T) {
-	d1 := newTestDB(t, ConfigDB)
+	d1 := newTestDB(t, Options{DBNo: ConfigDB})
 	setupTestData(t, d1.client, map[string]map[string]interface{}{
 		"CVLDB|TXN|aaa": {"id": 1, "sev": "hi", "message": "hello, world!"},
 		"CVLDB|TXN|bbb": {"id": 2, "sev": "hi", "message": "foo bar"},
@@ -830,7 +830,7 @@ func TestCvlDB_txn(t *testing.T) {
 }
 
 func TestCvlDB_Tx_Search(t *testing.T) {
-	d := newTestDB(t, ConfigDB)
+	d := newTestDB(t, Options{DBNo: ConfigDB})
 	setupTestData(t, d.client, map[string]map[string]interface{}{
 		"CVLDB_PORT|Eth1": {"mtu": "6789", "admin": "up"},
 		"CVLDB_PORT|Po1":  {"mtu": "1444", "admin": "up"},
@@ -986,7 +986,7 @@ func TestCvlDB_Tx_Search(t *testing.T) {
 }
 
 func TestScaleCvlDb_Tx_Count(t *testing.T) {
-	d := newTestDB(t, ConfigDB)
+	d := newTestDB(t, Options{DBNo: ConfigDB})
 	if err := d.StartTx(nil, nil); err != nil {
 		t.Fatal("StartTx failed;", err)
 	}
@@ -1004,7 +1004,7 @@ func TestScaleCvlDb_Tx_Count(t *testing.T) {
 }
 
 func TestScaleCvlDb_Tx_Lookup(t *testing.T) {
-	d := newTestDB(t, ConfigDB)
+	d := newTestDB(t, Options{DBNo: ConfigDB})
 	if err := d.StartTx(nil, nil); err != nil {
 		t.Fatal("StartTx failed;", err)
 	}
@@ -1034,7 +1034,7 @@ func TestScaleCvlDb_Tx_Lookup(t *testing.T) {
 
 func BenchmarkCvlDb_Tx_Count(b *testing.B) {
 	b.StopTimer()
-	d := newTestDB(b, ConfigDB)
+	d := newTestDB(b, Options{DBNo: ConfigDB})
 
 	if err := d.StartTx(nil, nil); err != nil {
 		b.Fatal("StartTx failed;", err)
@@ -1060,7 +1060,7 @@ func BenchmarkCvlDb_Tx_Count(b *testing.B) {
 
 func BenchmarkCvlDb_Tx_Lookup(b *testing.B) {
 	b.StopTimer()
-	d := newTestDB(b, ConfigDB)
+	d := newTestDB(b, Options{DBNo: ConfigDB})
 
 	if err := d.StartTx(nil, nil); err != nil {
 		b.Fatal("StartTx failed;", err)
