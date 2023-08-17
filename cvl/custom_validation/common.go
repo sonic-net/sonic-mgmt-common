@@ -85,7 +85,6 @@ type CVLEditConfigData struct {
 	VOp       CVLOperation      //Operation type
 	Key       string            //Key format : "PORT|Ethernet4"
 	Data      map[string]string //Value :  {"alias": "40GE0/28", "mtu" : 9100,  "admin_status":  down}
-	ReplaceOp bool
 }
 
 // CVLErrorInfo CVL Error Structure
