@@ -7,10 +7,20 @@ trigger:
   branches:
     include:
     - master
+    - 202???
+
 pr:
   branches:
     include:
     - master
+    - 202???
+
+variables:
+  - name: BUILD_BRANCH
+    ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
+      value: $(System.PullRequest.TargetBranch)
+    ${{ else }}:
+      value: $(Build.SourceBranchName)
 
 stages:
 - stage: Build
@@ -35,10 +45,13 @@ stages:
       inputs:
         source: specific
         project: build
-        pipeline: 1
+        pipeline: 142
         artifact: sonic-buildimage.vs
         runVersion: 'latestFromBranch'
-        runBranch: 'refs/heads/master'
+        runBranch: 'refs/heads/$(BUILD_BRANCH)'
+        patterns: |
+            target/debs/bullseye/libyang*.deb
+            target/python-wheels/bullseye/sonic_yang_models*.whl
       displayName: "Download sonic buildimage"
 
     - script: |
@@ -52,10 +65,11 @@ stages:
 
         # LIBYANG
         sudo dpkg -i ../target/debs/bullseye/libyang*1.0.73*.deb
-
-        # sonic-yang-models
-        sudo pip3 install ../target/python-wheels/bullseye/sonic_yang_models-1.0-py3-none-any.whl
       displayName: "Install dependency"
+
+    - script: |
+        sudo pip3 install ../target/python-wheels/bullseye/sonic_yang_models-1.0-py3-none-any.whl
+      displayName: "Install sonic yangs"
 
     - script: |
         ls -l
