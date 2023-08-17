@@ -1032,9 +1032,19 @@ func TestScaleCvlDb_Tx_Lookup(t *testing.T) {
 	verifyResult(t, c.Lookup(s), exp)
 }
 
+func newBTestDB(t *testing.B, opts Options) *DB {
+	t.Helper()
+	d, err := NewDB(opts)
+	if err != nil {
+		t.Fatalf("NewDB() failed: %v", err)
+	}
+	t.Cleanup(func() { d.DeleteDB() })
+	return d
+}
+
 func BenchmarkCvlDb_Tx_Count(b *testing.B) {
 	b.StopTimer()
-	d := newTestDB(b, Options{DBNo: ConfigDB})
+	d := newBTestDB(b, Options{DBNo: ConfigDB})
 
 	if err := d.StartTx(nil, nil); err != nil {
 		b.Fatal("StartTx failed;", err)
@@ -1060,7 +1070,7 @@ func BenchmarkCvlDb_Tx_Count(b *testing.B) {
 
 func BenchmarkCvlDb_Tx_Lookup(b *testing.B) {
 	b.StopTimer()
-	d := newTestDB(b, Options{DBNo: ConfigDB})
+	d := newBTestDB(b, Options{DBNo: ConfigDB})
 
 	if err := d.StartTx(nil, nil); err != nil {
 		b.Fatal("StartTx failed;", err)
