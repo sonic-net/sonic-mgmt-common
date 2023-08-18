@@ -92,7 +92,6 @@ stages:
 
         [[ -f tools/test/database_config.json ]] && \
             export DB_CONFIG_PATH=${PWD}/tools/test/database_config.json
-
         # Run CVL tests
 
         pushd build/tests/cvl
@@ -114,6 +113,8 @@ stages:
         ./translib.test -test.v -logtostderr || STATUS=1
 
         ./transformer.test -test.v -logtostderr || STATUS=1
+
+        ./testapp.test -test.v -logtostderr || STATUS=1
 
         popd
 
