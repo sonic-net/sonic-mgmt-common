@@ -1853,6 +1853,7 @@ func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 		curXpath := inParamsForGet.tbl
 		curAllowedXpath = strings.Join(strings.Split(inParamsForGet.xpath, "/")[2:], "/")
 		fpath := strings.Split(field, "/")
+		curTable := inParamsForGet.tbl
 		for _, p := range fpath {
 			if strings.Contains(p, "[") {
 				err = tlerr.NotSupported("Yang node type list not supported in fields query parameter(%v).", field)
@@ -1866,9 +1867,10 @@ func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 			} else {
 				curXpath = p
 				curAllowedXpath = p
+				curTable = p
 			}
 			yNode, ok := xDbSpecMap[curXpath]
-			if !ok {
+			if !ok || yNode == nil {
 				err = tlerr.InvalidArgs("Invalid field name/path: %v", field)
 				return err
 			}
@@ -1876,6 +1878,10 @@ func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 			if yNode.yangType == YANG_LIST {
 				err = tlerr.NotSupported("Yang node type list not supported in fields query parameter(%v).", field)
 				return err
+			} else if yNode.yangType == YANG_CONTAINER && (yNode.dbEntry != nil) && (yNode.dbEntry.Parent != nil) && (curTable == yNode.dbEntry.Parent.Name) {
+				// singleton container case
+				curAllowedXpath = curXpath
+				curXpath = curTable
 			}
 			inParamsForGet.queryParams.allowFieldsXpath[curAllowedXpath] = true
 		}
@@ -2203,11 +2209,37 @@ func (qp *QueryParams) IsContentEnabled() bool {
 }
 
 func (qp *QueryParams) isContentEnabled() bool {
-	return false
+	return qp.content != QUERY_CONTENT_ALL
 }
 
 func (qp *QueryParams) isFieldsEnabled() bool {
 	return len(qp.fields) != 0
+}
+
+func (ct ContentType) String() string {
+	ret := "Unknown"
+	switch ct {
+	case QUERY_CONTENT_ALL:
+		ret = "ALL"
+	case QUERY_CONTENT_CONFIG:
+		ret = "CONFIG"
+	case QUERY_CONTENT_NONCONFIG:
+		ret = "NONCONFIG"
+	case QUERY_CONTENT_OPERATIONAL:
+		ret = "OPERATIONAL"
+	}
+	return ret
+}
+
+func (qp QueryParams) String() string {
+	qp_ptr := &qp
+	if qp_ptr.isEnabled() {
+		return fmt.Sprintf("QueryParams{depthEnabled: %v, curDepth: %v, content: %v, fields: %v, fieldsFillAll: %v, "+
+			"allowFieldsXpath: %v, tgtFieldsXpathMap: %v}", qp.depthEnabled, qp.curDepth, qp.content,
+			qp.fields, qp.fieldsFillAll, qp.allowFieldsXpath, qp.tgtFieldsXpathMap)
+	} else {
+		return ""
+	}
 }
 
 func (e *qpSubtreePruningErr) Error() string {

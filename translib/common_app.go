@@ -428,6 +428,15 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 		}
 		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams)
 		if err != nil {
+			// target URI for list GET request with QP content!=all and node's content-type mismatches the requested content-type, return empty payload
+			if isEmptyPayload && qParams.IsContentEnabled() && transformer.IsListNode(app.pathInfo.Path) {
+				if err.Error() == transformer.QUERY_CONTENT_MISMATCH_ERR {
+					err = nil
+				}
+			}
+			if err != nil {
+				log.Warning("transformer.GetAndXlateFromDB() returned : ", err)
+			}
 			resPayload = payload
 			break
 		}
