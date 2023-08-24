@@ -138,6 +138,12 @@ func prepareDb() bool {
 	}
 	rclient = rclientDBNum[db.ConfigDB]
 
+	rclientDBNum[db.ApplDB] = getDbClient(int(db.ApplDB))
+        if rclientDBNum[db.ApplDB] == nil {
+                fmt.Printf("error in getDbClient(int(db.ApplDB)")
+                return false
+        }
+
 	return true
 }
 
