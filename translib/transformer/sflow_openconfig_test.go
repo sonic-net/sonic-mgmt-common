@@ -68,7 +68,7 @@ func Test_node_on_openconfig_sflow(t *testing.T) {
         loadDB(db.ConfigDB, pre_req_map)
         expected_get_json := "{\"openconfig-sampling-sflow:state\":{\"agent\":\"Ethernet8\",\"enabled\":true,\"polling-interval\":300}}"
         url = "/openconfig-sampling-sflow:sampling/sflow/state"
-        t.Run("Test get on sflow node", processGetRequest(url, expected_get_json, false))
+        t.Run("Test get on sflow node", processGetRequest(url, nil, expected_get_json, false))
         time.Sleep(1 * time.Second)
         unloadDB(db.ConfigDB, cleanuptbl)
         t.Log("\n\n+++++++++++++ Done Performing Get on Sflow node ++++++++++++")
@@ -154,7 +154,7 @@ func Test_node_openconfig_sflow_collector(t *testing.T) {
 	loadDB(db.ConfigDB, pre_req_map)
 	expected_get_json := "{ \"openconfig-sampling-sflow:collectors\":{\"collector\":[{\"address\":\"3.3.3.3\",\"config\":{\"address\":\"3.3.3.3\",\"network-instance\":\"default\",\"port\":6666},\"network-instance\":\"default\",\"port\":6666,\"state\":{\"address\":\"3.3.3.3\",\"network-instance\":\"default\",\"port\":6666}}]}}"
         url = "/openconfig-sampling-sflow:sampling/sflow/collectors"
-	t.Run("Test get on collector node for sflow", processGetRequest(url, expected_get_json, false))
+	t.Run("Test get on collector node for sflow", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 	cleanuptbl = map[string]interface{}{"SFLOW_COLLECTOR": map[string]interface{}{"3.3.3.3_6666_default": ""}}
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -215,7 +215,7 @@ func Test_node_openconfig_sflow_interface(t *testing.T) {
 	loadDB(db.ApplDB, non_pre_req_map)
 	expected_get_json := "{\"openconfig-sampling-sflow:state\":{\"enabled\":true,\"name\":\"Ethernet8\",\"sampling-rate\":30000}}"
         url = "/openconfig-sampling-sflow:sampling/sflow/interfaces/interface[name=Ethernet8]/state"
-	t.Run("Test get on sflow interface", processGetRequest(url, expected_get_json, false))
+	t.Run("Test get on sflow interface", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(2 * time.Second)
 	cleanuptbl = map[string]interface{}{"SFLOW_SESSION": map[string]interface{}{"Ethernet8": ""}}
 	unloadDB(db.ConfigDB, cleanuptbl)

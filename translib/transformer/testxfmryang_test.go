@@ -73,7 +73,7 @@ func Test_node_exercising_subtree_xfmr_and_virtual_table(t *testing.T) {
 	loadDB(db.ConfigDB, pre_req_map)
 	expected_get_json := "{\"openconfig-test-xfmr:ingress-test-set\":[{\"config\":{\"set-name\":\"TestSet_03\",\"type\":\"openconfig-test-xfmr:TEST_SET_IPV6\"},\"set-name\":\"TestSet_03\",\"state\":{\"set-name\":\"TestSet_03\",\"type\":\"openconfig-test-xfmr:TEST_SET_IPV6\"},\"type\":\"openconfig-test-xfmr:TEST_SET_IPV6\"}]}"
 	url = "/openconfig-test-xfmr:test-xfmr/interfaces/interface[id=Eth_1]/ingress-test-sets/ingress-test-set[set-name=TestSet_03][type=TEST_SET_IPV6]"
-	t.Run("Test get on node exercising subtree-xfmr and virtual table.", processGetRequest(url, expected_get_json, false))
+	t.Run("Test get on node exercising subtree-xfmr and virtual table.", processGetRequest(url, nil, expected_get_json, false))
 	cleanuptbl = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_03_TEST_SET_IPV6": ""}}
 	unloadDB(db.ConfigDB, cleanuptbl)
 	t.Log("\n\n+++++++++++++ Done Performing Get on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
@@ -124,7 +124,7 @@ func Test_node_exercising_tableName_key_and_field_xfmr(t *testing.T) {
 	loadDB(db.ConfigDB, pre_req_map)
 	expected_get_json := "{\"openconfig-test-xfmr:test-sets\":{\"test-set\":[{\"config\":{\"description\":\"TestSet_03Description\",\"name\":\"TestSet_03\",\"type\":\"openconfig-test-xfmr:TEST_SET_IPV6\"},\"name\":\"TestSet_03\",\"state\":{\"description\":\"TestSet_03Description\",\"name\":\"TestSet_03\",\"type\":\"openconfig-test-xfmr:TEST_SET_IPV6\"},\"type\":\"openconfig-test-xfmr:TEST_SET_IPV6\"}]}}"
 	url = "/openconfig-test-xfmr:test-xfmr/test-sets"
-	t.Run("Test get on node exercising Table-Name, Key-Xfmr and Field-Xfmr.", processGetRequest(url, expected_get_json, false))
+	t.Run("Test get on node exercising Table-Name, Key-Xfmr and Field-Xfmr.", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 	cleanuptbl = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_03_TEST_SET_IPV6": ""}}
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -179,7 +179,7 @@ func Test_node_with_child_tableXfmr_keyXfmr_fieldNameXfmrs_nonConfigDB_data(t *t
 
 	get_expected := "{\"openconfig-test-xfmr:test-sensor-group\":[{\"config\":{\"color-hold-time\":10,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"},\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":10,\"counters\":{\"frame-in\":12345,\"frame-out\":678910},\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"},\"test-sensor-types\":{\"test-sensor-type\":[{\"config\":{\"exclude-filter\":\"filterB\",\"type\":\"sensora_testA\"},\"state\":{\"exclude-filter\":\"filterB\",\"type\":\"sensora_testA\"},\"type\":\"sensora_testA\"}]}}]}"
 
-	t.Run("Verify_get_on_node_with_child_table_key_field_xfmrs", processGetRequest(url, get_expected, false))
+	t.Run("Verify_get_on_node_with_child_table_key_field_xfmrs", processGetRequest(url, nil, get_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -308,7 +308,7 @@ func Test_sonic_yang_node_operations(t *testing.T) {
 	loadDB(db.CountersDB, prereq)
 
 	get_expected := "{\"sonic-test-xfmr:TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}"
-	t.Run("Get on Sonic table with key xfmr", processGetRequest(url, get_expected, false))
+	t.Run("Get on Sonic table with key xfmr", processGetRequest(url, nil, get_expected, false))
 
 	// Teardown
 	unloadDB(db.CountersDB, cleanuptbl)
@@ -397,7 +397,7 @@ func Test_node_exercising_singleton_container_and_keyname_mapping(t *testing.T) 
         loadDB(db.ConfigDB, pre_req_map)
         expected_get_json := "{\"openconfig-test-xfmr:global-sensor\": {\"description\": \"testdescription\",\"mode\": \"testmode\"}}"
         url = "/openconfig-test-xfmr:test-xfmr/global-sensor"
-        t.Run("Test get on node exercising mapping to sonic-yang singleton conatiner and key-name.", processGetRequest(url, expected_get_json, false))
+        t.Run("Test get on node exercising mapping to sonic-yang singleton conatiner and key-name.", processGetRequest(url, nil, expected_get_json, false))
         time.Sleep(1 * time.Second)
         unloadDB(db.ConfigDB, cleanuptbl)
         t.Log("\n\n+++++++++++++ Done Performing Get on Yang Node Exercising  mapping to sonic-yang singleton conatiner and key-name ++++++++++++")
@@ -487,7 +487,7 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
         loadDB(db.ConfigDB, prereq)
 
         get_expected := "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"mode_test\", \"description\": \"test description for single container\" }}}"
-        t.Run("Get on Sonic singleton container", processGetRequest(url, get_expected, false))
+        t.Run("Get on Sonic singleton container", processGetRequest(url, nil, get_expected, false))
 
         // Teardown
         unloadDB(db.ConfigDB, cleanuptbl)
