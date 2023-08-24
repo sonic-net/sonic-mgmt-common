@@ -303,11 +303,12 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) []typeMapOfInterfac
 	xpath := inParamsForGet.xpath
 	dbTblData := (*dbDataMap)[dbIdx][table]
 
-	for keyStr := range dbTblData {
-		curMap := make(map[string]interface{})
+	delKeyCnt := 0
+	for keyStr, dbVal := range dbTblData {
 		dbSpecData, ok := xDbSpecMap[table]
 		if ok && dbSpecData.keyName == nil && xDbSpecMap[xpath].dbEntry != nil {
 			yangKeys := yangKeyFromEntryGet(xDbSpecMap[xpath].dbEntry)
+			curMap := make(map[string]interface{})
 			sonicKeyDataAdd(dbIdx, yangKeys, table, xDbSpecMap[xpath].dbEntry.Name, keyStr, curMap)
 			if len(curMap) > 0 {
 				linParamsForGet := formXlateFromDbParams(inParamsForGet.dbs[dbIdx], inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, inParamsForGet.uri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, keyStr, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate)
@@ -315,12 +316,23 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) []typeMapOfInterfac
 				curMap = linParamsForGet.resultMap
 				dbDataMap = linParamsForGet.dbDataMap
 				inParamsForGet.dbDataMap = dbDataMap
+				if len(curMap) > 0 {
+					mapSlice = append(mapSlice, curMap)
+				}
+				delKeyCnt++
+				dbTblData[keyStr] = db.Value{}
+				delete(inParamsForGet.dbTblKeyGetCache[dbIdx][table], keyStr)
+			} else if len(dbVal.Field) == 0 {
+				delKeyCnt++
 			}
 		}
-		if len(curMap) > 0 {
-			mapSlice = append(mapSlice, curMap)
-		}
 	}
+
+	if len(dbTblData) == delKeyCnt {
+		delete((*dbDataMap)[dbIdx], table)
+		delete(inParamsForGet.dbTblKeyGetCache[dbIdx], table)
+	}
+
 	return mapSlice
 }
 
