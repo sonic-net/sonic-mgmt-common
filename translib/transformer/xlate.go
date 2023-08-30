@@ -85,7 +85,7 @@ func TraverseDb(dbs [db.MaxDB]*db.DB, spec KeySpec, result *map[db.DBNum]map[str
 		dataMap[i] = make(map[string]map[string]db.Value)
 	}
 
-	err := traverseDbHelper(dbs, spec, &dataMap, parentKey, dbTblKeyGetCache)
+	err := traverseDbHelper(dbs, &spec, &dataMap, parentKey, dbTblKeyGetCache)
 	if err != nil {
 		xfmrLogDebug("Didn't get all data from traverseDbHelper")
 		return err
@@ -109,7 +109,7 @@ func TraverseDb(dbs [db.MaxDB]*db.DB, spec KeySpec, result *map[db.DBNum]map[str
 	return nil
 }
 
-func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec KeySpec, result *map[db.DBNum]map[string]map[string]db.Value, parentKey *db.Key, dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool) error {
+func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]map[string]map[string]db.Value, parentKey *db.Key, dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool) error {
 	var err error
 	var dbOpts db.Options = getDBOptions(spec.DbNum)
 
@@ -119,28 +119,19 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec KeySpec, result *map[db.DBNum]m
 		// get an entry with a specific key
 		if spec.Ts.Name != XFMR_NONE_STRING { // Do not traverse for NONE table
 			data, err := dbs[spec.DbNum].GetEntry(&spec.Ts, spec.Key)
-			queriedDbInfo := make(map[string]map[string]bool)
-			queriedDbTblInfo := make(map[string]bool)
-			queriedDbTblInfo[strings.Join(spec.Key.Comp, separator)] = true
-			queriedDbInfo[spec.Ts.Name] = queriedDbTblInfo
-			if dbTblKeyGetCache == nil {
-				dbTblKeyGetCache = make(map[db.DBNum]map[string]map[string]bool)
-			}
-			dbTblKeyGetCache[spec.DbNum] = queriedDbInfo
+			dbKeyStr := strings.Join(spec.Key.Comp, separator)
 			if err != nil {
-				log.Warningf("Didn't get data for tbl(%v), key(%v) in traverseDbHelper", spec.Ts.Name, spec.Key)
+				updateDbDataMapAndKeyCache(dbKeyStr, &data, spec, result, dbTblKeyGetCache, false)
+				if log.V(5) {
+					log.Warningf("Didn't get data for tbl(%v), key(%v) in traverseDbHelper", spec.Ts.Name, spec.Key)
+				}
 				return err
 			}
-
-			if (*result)[spec.DbNum][spec.Ts.Name] == nil {
-				(*result)[spec.DbNum][spec.Ts.Name] = map[string]db.Value{strings.Join(spec.Key.Comp, separator): data}
-			} else {
-				(*result)[spec.DbNum][spec.Ts.Name][strings.Join(spec.Key.Comp, separator)] = data
-			}
+			updateDbDataMapAndKeyCache(dbKeyStr, &data, spec, result, dbTblKeyGetCache, true)
 		}
 		if len(spec.Child) > 0 {
 			for _, ch := range spec.Child {
-				err = traverseDbHelper(dbs, ch, result, &spec.Key, dbTblKeyGetCache)
+				err = traverseDbHelper(dbs, &ch, result, &spec.Key, dbTblKeyGetCache)
 			}
 		}
 	} else {
@@ -152,26 +143,57 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec KeySpec, result *map[db.DBNum]m
 				return err
 			}
 			xfmrLogDebug("keys for table %v in DB %v are %v", spec.Ts.Name, spec.DbNum, keys)
-			for i := range keys {
-				if parentKey != nil && !spec.IgnoreParentKey {
+			parentDbKeyStr := ""
+			if parentKey != nil && !spec.IgnoreParentKey {
+				parentDbKeyStr = strings.Join((*parentKey).Comp, separator)
+			}
+			for _, dbKey := range keys {
+				dbKeyStr := strings.Join(dbKey.Comp, separator)
+				if len(parentDbKeyStr) > 0 {
 					// TODO - multi-depth with a custom delimiter
-					if !strings.Contains(strings.Join(keys[i].Comp, separator), strings.Join((*parentKey).Comp, separator)) {
+					if !strings.Contains(dbKeyStr, parentDbKeyStr) {
 						continue
 					}
 				}
-				spec.Key = keys[i]
-				err = traverseDbHelper(dbs, spec, result, parentKey, dbTblKeyGetCache)
+				data, err := dbs[spec.DbNum].GetEntry(&spec.Ts, dbKey)
 				if err != nil {
-					xfmrLogDebug("Traversal didn't fetch for : %v", err)
+					log.Warningf("Table.GetEntry returned error %v for tbl(%v), and the key %v in traverseDbHelper", err, spec.Ts.Name, dbKey)
+					updateDbDataMapAndKeyCache(dbKeyStr, &data, spec, result, dbTblKeyGetCache, false)
+				} else if data.IsPopulated() {
+					updateDbDataMapAndKeyCache(dbKeyStr, &data, spec, result, dbTblKeyGetCache, true)
+				}
+				if len(spec.Child) > 0 {
+					for _, ch := range spec.Child {
+						err = traverseDbHelper(dbs, &ch, result, &dbKey, dbTblKeyGetCache)
+					}
 				}
 			}
 		} else if len(spec.Child) > 0 {
 			for _, ch := range spec.Child {
-				err = traverseDbHelper(dbs, ch, result, &spec.Key, dbTblKeyGetCache)
+				err = traverseDbHelper(dbs, &ch, result, &spec.Key, dbTblKeyGetCache)
 			}
 		}
 	}
 	return err
+}
+
+func updateDbDataMapAndKeyCache(dbKeyStr string, data *db.Value, spec *KeySpec,
+	result *map[db.DBNum]map[string]map[string]db.Value, dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool, readOk bool) {
+	if (*result)[spec.DbNum][spec.Ts.Name] == nil {
+		(*result)[spec.DbNum][spec.Ts.Name] = map[string]db.Value{dbKeyStr: *data}
+	} else {
+		(*result)[spec.DbNum][spec.Ts.Name][dbKeyStr] = *data
+	}
+	if dbTblKeyGetCache == nil {
+		dbTblKeyGetCache = make(map[db.DBNum]map[string]map[string]bool)
+	}
+	if dbTblKeyGetCache[spec.DbNum] == nil {
+		dbTblKeyGetCache[spec.DbNum] = make(map[string]map[string]bool)
+	}
+	if dbTblKeyGetCache[spec.DbNum][spec.Ts.Name] == nil {
+		dbTblKeyGetCache[spec.DbNum][spec.Ts.Name] = make(map[string]bool)
+	}
+	dbTblKeyGetCache[spec.DbNum][spec.Ts.Name][dbKeyStr] = readOk
 }
 
 func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *interface{}, txCache interface{}) (*[]KeySpec, error) {
