@@ -348,12 +348,6 @@ func Test_leaflist_node(t *testing.T) {
 	unloadDB(db.ConfigDB, cleanuptbl)
 	time.Sleep(1 * time.Second)
 	t.Log("\n\n+++++++++++++ Done Performing Put/Replace on Yang leaf-list Node demonstrating leaf-list contents swap ++++++++++++")
-
-	loadDB(db.ConfigDB, pre_req_map)
-	time.Sleep(1 * time.Second)
-
-	loadDB(db.ConfigDB, pre_req_map)
-	time.Sleep(1 * time.Second)
 }
 
 func Test_node_exercising_singleton_container_and_keyname_mapping(t *testing.T) {
@@ -491,4 +485,122 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 
         // Teardown
         unloadDB(db.ConfigDB, cleanuptbl)
+}
+
+// Query parameter UT cases
+
+func Test_Query_OCYang_Depth_Content_Get(t *testing.T) {
+
+        var qp queryParamsUT
+        qp.depth = 3
+
+	cleanuptbl := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": ""}, "TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": ""}, "TEST_SENSOR_A_TABLE": map[string]interface{}{"test_group_1|sensor_type_a_testA": ""}}
+        prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"colors@": "red,blue,green", "color-hold-time": "30"}}}
+	prereq_cntr := map[string]interface{}{"TEST_SENSOR_GROUP_COUNTERS": map[string]interface{}{"test_group_1": map[string]interface{}{"frame-in": "3435", "frame-out": "3452"}}}
+
+        // Setup - Prerequisite - None
+	unloadDB(db.ConfigDB, cleanuptbl)
+	unloadDB(db.CountersDB, prereq_cntr)
+	loadDB(db.ConfigDB, prereq)
+	loadDB(db.CountersDB, prereq_cntr)
+
+        t.Log("++++++++++++++  Test_Query_Depth3_Container_Get  +++++++++++++")
+        url := "/openconfig-test-xfmr:test-xfmr"
+        get_expected := "{}"
+        t.Run("Test_Query_Depth3_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Depth4_Container_Get  +++++++++++++")
+        qp.depth = 4
+        get_expected = "{\"openconfig-test-xfmr:test-xfmr\":{\"test-sensor-groups\":{\"test-sensor-group\":[{\"id\":\"test_group_1\"}]}}}"
+        t.Run("Test_Query_Depth4_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Depth8_Container_Get  +++++++++++++")
+        qp.depth = 8
+        get_expected = "{\"openconfig-test-xfmr:test-xfmr\":{\"test-sensor-groups\":{\"test-sensor-group\":[{\"config\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"},\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":30,\"counters\":{\"frame-in\":3435,\"frame-out\":3452},\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"}}]}}}"
+        t.Run("Test_Query_Depth8_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Depth0_Container_Get  +++++++++++++")
+        qp.depth = 0
+        t.Run("Test_Query_Depth0_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Depth3_List_Get  +++++++++++++")
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group"
+        qp.depth = 3
+	get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"config\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"},\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"}}]}"
+        t.Run("Test_Query_Depth3_List_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Depth3_List_Instance_Get  +++++++++++++")
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]"
+        t.Run("Test_Query_Depth3_List_Instance_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Depth2_Leaf_Get  +++++++++++++")
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/config/color-hold-time"
+        qp.depth = 2
+	get_expected = "{\"openconfig-test-xfmr:color-hold-time\":30}"
+        t.Run("Test_Query_Depth2_Leaf_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Content_All_Get +++++++++++++")
+        qp.depth = 0
+	qp.content = "all"
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]"
+        get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"config\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"},\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":30,\"counters\":{\"frame-in\":3435,\"frame-out\":3452},\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"}}]}"
+        t.Run("Test_Query_Content_All_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Content_Config_Get +++++++++++++")
+        qp.content = "config"
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group"
+	get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"config\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"},\"id\":\"test_group_1\"}]}"
+        t.Run("Test_Query_Content_Config_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Content_NonConfig_Get +++++++++++++")
+        qp.content = "nonconfig"
+        url = "/openconfig-test-xfmr:test-xfmr"
+	get_expected = "{\"openconfig-test-xfmr:test-xfmr\":{\"test-sensor-groups\":{\"test-sensor-group\":[{\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":30,\"counters\":{\"frame-in\":3435,\"frame-out\":3452},\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"}}]}}}"
+        t.Run("Test_Query_Content_NonConfig_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Content_Operational_Get +++++++++++++")
+        qp.content = "operational"
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups"
+	get_expected = "{\"openconfig-test-xfmr:test-sensor-groups\":{\"test-sensor-group\":[{\"id\":\"test_group_1\",\"state\":{\"counters\":{\"frame-in\":3435,\"frame-out\":3452}}}]}}"
+        t.Run("Test_Query_Content_Operational_Get", processGetRequest(url, &qp, get_expected, false))
+        t.Log("++++++++++++++  Test_Query_Content_Mismatch_Leaf_Get +++++++++++++")
+        qp.content = "config"
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id==test_group_1]/state/counters/frame-in"
+	get_expected = "{}"
+        expected_err := tlerr.InvalidArgsError{Format: "Bad Request - requested content type doesn't match content type of terminal node uri."}
+        t.Run("Test_Query_Content_Mismatch_Leaf_Get", processGetRequest(url, &qp, get_expected, true, expected_err))
+
+        t.Log("++++++++++++++  Test_Query_Content_Mismatch_Container_Get +++++++++++++")
+        qp.content = "nonconfig"
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id==test_group_1]/config"
+        get_expected = "{}"
+        t.Run("Test_Query_Content_Mismatch_Container_Get1", processGetRequest(url, &qp, get_expected, false))
+        qp.content = "config"
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/state"
+        t.Run("Test_Query_Content_Mismatch_Container_Get2", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Depth3_Content_Config_List_Get +++++++++++++")
+        qp.depth = 3
+        qp.content = "config"
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group"
+	get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"config\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"},\"id\":\"test_group_1\"}]}"
+        t.Run("Test_Query_Depth3_Content_Config_List_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Depth4_Content_All_Container_Get +++++++++++++")
+        qp.depth = 4
+        qp.content = "all"
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups"
+        get_expected = "{\"openconfig-test-xfmr:test-sensor-groups\":{\"test-sensor-group\":[{\"config\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"},\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"}}]}}"
+        t.Run("Test_Query_Depth4_Content_All_Container_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Depth3_Content_Nonconfig_ListInstance_Get +++++++++++++")
+        qp.depth = 3
+        qp.content = "nonconfig"
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]"
+        get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"}}]}" 
+        t.Run("Test_Query_Depth3_Content_NonConfig_ListInstance_Get", processGetRequest(url, &qp, get_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, prereq)
+	unloadDB(db.CountersDB, prereq_cntr)
 }
