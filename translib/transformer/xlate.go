@@ -196,7 +196,7 @@ func updateDbDataMapAndKeyCache(dbKeyStr string, data *db.Value, spec *KeySpec,
 	dbTblKeyGetCache[spec.DbNum][spec.Ts.Name][dbKeyStr] = readOk
 }
 
-func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *interface{}, txCache interface{}, qParams QueryParam    s) (*[]KeySpec, error) {
+func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *interface{}, txCache interface{}, qParams QueryParams) (*[]KeySpec, error) {
 
 	var err error
 	var retdbFormat = make([]KeySpec, 0)
