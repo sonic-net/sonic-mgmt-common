@@ -604,3 +604,105 @@ func Test_Query_OCYang_Depth_Content_Get(t *testing.T) {
 	unloadDB(db.ConfigDB, prereq)
 	unloadDB(db.CountersDB, prereq_cntr)
 }
+
+/* sonic yang GET operation query-parameter tests */
+func Test_sonic_yang_content_query_parameter_operations(t *testing.T) {
+        var qp queryParamsUT
+
+        t.Log("++++++++++++++  Test_content_all_query_parameter_on_sonic_yang  +++++++++++++")
+        prereq_sensor_global := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}}}
+        prereq_sensor_mode := map[string]interface{}{"TEST_SENSOR_MODE_TABLE": map[string]interface{}{"mode:testsensor123:3543": map[string]interface{}{"description": "Test sensor mode"}}}
+        url := "/sonic-test-xfmr:sonic-test-xfmr"
+        qp.content = "all"
+        //Setup
+        loadDB(db.ConfigDB, prereq_sensor_global)
+        loadDB(db.CountersDB, prereq_sensor_mode)
+        get_expected := "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
+        t.Run("Sonic yang query parameter content=all", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_content_config_query_parameter_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr"
+        qp.content = "config"
+        get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}}}}"
+        t.Run("Sonic yang query parameter content=config", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_content_nonconfig_query_parameter_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr"
+        qp.content = "nonconfig"
+        get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
+        t.Run("Sonic yang query parameter content=nonconfig", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_content_mismatch_error_query_parameter_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_MODE_TABLE/TEST_SENSOR_MODE_TABLE_LIST[id=3543][mode=testsensor123]/description"
+        qp.content = "config"
+        get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
+        get_expected = "{}"
+        exp_err := tlerr.InvalidArgsError{Format: "Bad Request - requested content type doesn't match content type of terminal node uri."}
+        t.Run("Sonic yang query parameter simple terminal node content mismatch error.", processGetRequest(url, &qp, get_expected, true, exp_err))
+        // Teardown
+        unloadDB(db.ConfigDB, prereq_sensor_global)
+        unloadDB(db.CountersDB, prereq_sensor_mode)
+
+}
+
+func Test_sonic_yang_depth_query_parameter_operations(t *testing.T) {
+        var qp queryParamsUT
+
+        t.Log("++++++++++++++  Test_depth_level_1_query_parameter_on_sonic_yang  +++++++++++++")
+        prereq_sensor_global := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}}}
+        url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/description"
+        qp.depth = 1
+        //Setup
+        loadDB(db.ConfigDB, prereq_sensor_global)
+        get_expected := "{\"sonic-test-xfmr:description\":\"testdescription\"}"
+        t.Run("Sonic yang query parameter depth=1", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_depth_level_2_query_parameter_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor"
+        qp.depth = 2
+        get_expected = "{\"sonic-test-xfmr:global_sensor\":{\"description\":\"testdescription\"}}"
+        t.Run("Sonic yang query parameter depth=2", processGetRequest(url, &qp, get_expected, false))
+
+
+        t.Log("++++++++++++++  Test_depth_level_4_query_parameter_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr"
+        qp.depth = 4
+        get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}}}}"
+        t.Run("Sonic yang query parameter depth=4", processGetRequest(url, &qp, get_expected, false))
+        // Teardown
+        unloadDB(db.ConfigDB, prereq_sensor_global)
+}
+
+func Test_sonic_yang_content_plus_depth_query_parameter_operations(t *testing.T) {
+        var qp queryParamsUT
+
+        prereq_sensor_global := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}}}
+        prereq_sensor_mode := map[string]interface{}{"TEST_SENSOR_MODE_TABLE": map[string]interface{}{"mode:testsensor123:3543": map[string]interface{}{"description": "Test sensor mode"}}}
+        t.Log("++++++++++++++  Test_content_all_depth_level_4_query_parameter_on_sonic_yang  +++++++++++++")
+        url := "/sonic-test-xfmr:sonic-test-xfmr"
+        qp.depth = 4
+        qp.content = "all"
+        //Setup
+        loadDB(db.ConfigDB, prereq_sensor_global)
+        loadDB(db.CountersDB, prereq_sensor_mode)
+        get_expected := "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
+        t.Run("Sonic yang query parameter content=all depth=4", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_content_config_depth_level_4_query_parameter_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr"
+        qp.depth = 4
+        qp.content = "config"
+        get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}}}}"
+        t.Run("Sonic yang query parameter content=config depth=4", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_content_nonconfig_depth_level_4_query_parameter_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr"
+        qp.depth = 4
+        qp.content = "nonconfig"
+        get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
+        t.Run("Sonic yang query parameter content=nonconfig depth=4", processGetRequest(url, &qp, get_expected, false))
+        // Teardown
+        unloadDB(db.ConfigDB, prereq_sensor_global)
+        unloadDB(db.CountersDB, prereq_sensor_mode)
+}
+
