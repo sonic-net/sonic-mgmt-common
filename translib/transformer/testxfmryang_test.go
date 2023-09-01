@@ -489,7 +489,7 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 
 // Query parameter UT cases
 
-func Test_Query_OCYang_Depth_Content_Get(t *testing.T) {
+func Test_Query_Params_OC_Yang_Get(t *testing.T) {
 
         var qp queryParamsUT
         qp.depth = 3
@@ -540,6 +540,7 @@ func Test_Query_OCYang_Depth_Content_Get(t *testing.T) {
         t.Run("Test_Query_Depth2_Leaf_Get", processGetRequest(url, &qp, get_expected, false))
 
         t.Log("++++++++++++++  Test_Query_Content_All_Get +++++++++++++")
+	// Reset Depth
         qp.depth = 0
 	qp.content = "all"
 	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]"
@@ -599,6 +600,46 @@ func Test_Query_OCYang_Depth_Content_Get(t *testing.T) {
         url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]"
         get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":30,\"group-colors\":[\"red\",\"blue\",\"green\"],\"id\":\"test_group_1\"}}]}" 
         t.Run("Test_Query_Depth3_Content_NonConfig_ListInstance_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Fields_Leaf_Get +++++++++++++")
+        // Reset Depth and Content
+        qp.depth = 0
+        qp.content = ""
+//      qp.fields = make([]string, 0)
+        qp.fields = []string{"config/color-hold-time"}
+        get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"config\":{\"color-hold-time\":30},\"id\":\"test_group_1\"}]}"
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]"
+        t.Run("Test_Query_Fields_Leaf_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Fields_MultiLeaf_Get +++++++++++++")
+//      qp.fields = make([]string, 0)
+        qp.fields = []string{"state/color-hold-time","state/counters/frame-in"}
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group"
+        get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":30,\"counters\":{\"frame-in\":3435}}}]}"
+        t.Run("Test_Query_Fields_MultiLeaf_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Fields_Container_Get +++++++++++++")
+//      qp.fields = make([]string, 0)
+        qp.fields = []string{"counters"}
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/state"
+        get_expected = "{\"openconfig-test-xfmr:state\":{\"counters\":{\"frame-in\":3435,\"frame-out\":3452}}}"
+        t.Run("Test_Query_Fields_Container_Get", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_Query_Fields_Error_IncorrectField_Get +++++++++++++")
+//      qp.fields = make([]string, 0)
+        qp.fields = []string{"state/color-hold-times"}
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]"
+        get_expected = "{}"
+        expected_err = tlerr.InvalidArgsError{Format: "Invalid field name/path: state/color-hold-times"}
+        t.Run("Test_Query_Fields_Error_IncorrectField_Get", processGetRequest(url, &qp, get_expected, true, expected_err))
+
+        t.Log("++++++++++++++  Test_Query_Fields_Error_Leaf_Get +++++++++++++")
+//      qp.fields = make([]string, 0)
+        qp.fields = []string{"color-hold-time"}
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/config/color-hold-time"
+        get_expected = "{}"
+        expected_err = tlerr.InvalidArgsError{Format: "Bad Request - fields query parameter specified on a terminal node uri."}
+        t.Run("Test_Query_Fields_Error_Leaf_Get", processGetRequest(url, &qp, get_expected, true, expected_err))
 
 	// Teardown
 	unloadDB(db.ConfigDB, prereq)
