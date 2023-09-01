@@ -747,3 +747,42 @@ func Test_sonic_yang_content_plus_depth_query_parameter_operations(t *testing.T)
         unloadDB(db.CountersDB, prereq_sensor_mode)
 }
 
+func Test_sonic_yang_fields_query_parameter_operations(t *testing.T) {
+        var qp queryParamsUT
+        qp.fields = make([]string, 0)
+
+        t.Log("++++++++++++++  Test_fields(single_field)_query_parameter_on_sonic_yang  +++++++++++++")
+        prereq := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}},"TEST_SENSOR_A_TABLE": map[string]interface{}{"test_group_1|sensor_type_a_testA": map[string]interface{}{"exclude_filter":"filter_filterB","description_a": "test group1 sensor type a descriptionXYZ"}, "test_group_2|sensor_type_a_testB": map[string]interface{}{"exclude_filter":"filter_filterA","description_a": "test group2 sensor type a descriptionB"}}}
+        url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_A_TABLE/TEST_SENSOR_A_TABLE_LIST"
+        qp.fields = append(qp.fields, "exclude_filter")
+        loadDB(db.ConfigDB, prereq)
+        get_expected := "{\"sonic-test-xfmr:TEST_SENSOR_A_TABLE_LIST\":[{\"exclude_filter\": \"filter_filterB\",\"id\": \"test_group_1\",\"type\": \"sensor_type_a_testA\" },{\"exclude_filter\": \"filter_filterA\",\"id\": \"test_group_2\",\"type\": \"sensor_type_a_testB\"}]}"
+        t.Run("Sonic yang query parameter fields(single field) ", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_fields(multiple_fields)_query_parameter_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr"
+        qp.fields = make([]string, 0)
+        qp.fields = append(qp.fields, "TEST_SENSOR_GLOBAL/global_sensor/description","TEST_SENSOR_A_TABLE")
+        get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\": {\"TEST_SENSOR_A_TABLE\": {\"TEST_SENSOR_A_TABLE_LIST\": [{\"description_a\": \"test group1 sensor type a descriptionXYZ\",\"exclude_filter\": \"filter_filterB\",\"id\": \"test_group_1\",\"type\": \"sensor_type_a_testA\"},{\"description_a\": \"test group2 sensor type a descriptionB\",\"exclude_filter\": \"filter_filterA\",\"id\": \"test_group_2\",\"type\": \"sensor_type_a_testB\"}]},\"TEST_SENSOR_GLOBAL\": {\"global_sensor\": {\"description\": \"testdescription\"}}}}"
+        t.Run("Sonic yang query parameter fields(multiple field) ", processGetRequest(url, &qp, get_expected, false))
+
+        t.Log("++++++++++++++  Test_invalid_fields_query_parameter_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+        qp.fields = make([]string, 0)
+        qp.fields = append(qp.fields, "global_sensor/desc")
+        get_expected = "{}"
+        exp_err := tlerr.InvalidArgsError{Format: "Invalid field name/path: global_sensor/desc"}
+        t.Run("Sonic yang query parameter invalid fields", processGetRequest(url, &qp, get_expected, true, exp_err))
+
+	t.Log("++++++++++++++  Test_invalid_fields_query_parameter_target_on_sonic_yang  +++++++++++++")
+        url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_A_TABLE/TEST_SENSOR_A_TABLE_LIST[id=test_group_1][type=sensor_type_a_testA]/exclude_filter"
+        qp.fields = make([]string, 0)
+        qp.fields = append(qp.fields, "exclude_filter")
+        get_expected = "{}"
+        exp_err = tlerr.InvalidArgsError{Format: "Bad Request - fields query parameter specified on a terminal node uri."}
+        t.Run("Sonic yang invalid fields query parameter request target", processGetRequest(url, &qp, get_expected, true, exp_err))
+        // Teardown
+        unloadDB(db.ConfigDB, prereq)
+}
+
+
