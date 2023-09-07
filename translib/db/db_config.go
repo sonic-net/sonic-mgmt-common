@@ -25,6 +25,8 @@ import (
 	io "io/ioutil"
 	"os"
 	"strconv"
+
+	"github.com/golang/glog"
 )
 
 var dbConfigMap = make(map[string]interface{})
@@ -130,4 +132,30 @@ func getDbTcpAddr(dbName string) string {
 	hostname := getDbHostName(dbName)
 	port := getDbPort(dbName)
 	return hostname + ":" + strconv.Itoa(port)
+}
+
+func getDbSock(dbName string) string {
+	inst := getDbInst(dbName)
+	if unix_socket_path, ok := inst["unix_socket_path"]; ok {
+		return unix_socket_path.(string)
+	} else {
+		glog.V(4).Info("getDbSock: 'unix_socket_path' is not a valid field")
+		return ""
+	}
+}
+
+func getDbPassword(dbName string) string {
+	inst := getDbInst(dbName)
+	password := ""
+	password_path, ok := inst["password_path"]
+	if !ok {
+		return password
+	}
+	data, er := io.ReadFile(password_path.(string))
+	if er != nil {
+		//
+	} else {
+		password = (string(data))
+	}
+	return password
 }

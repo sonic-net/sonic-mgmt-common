@@ -152,7 +152,6 @@ func processDeleteRequest(url string) func(*testing.T) {
 func getConfigDb() *db.DB {
 	configDb, _ := db.NewDB(db.Options{
 		DBNo:               db.ConfigDB,
-		InitIndicator:      "CONFIG_DB_INITIALIZED",
 		TableNameSeparator: "|",
 		KeySeparator:       "|",
 	})
