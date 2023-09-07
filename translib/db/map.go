@@ -23,14 +23,8 @@ Package db implements a wrapper over the go-redis/redis.
 package db
 
 import (
-	// "fmt"
-	// "strconv"
+	"time"
 
-	//	"reflect"
-	// "errors"
-	// "strings"
-
-	// "github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
 	// "github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
@@ -39,16 +33,95 @@ import (
 func init() {
 }
 
-
-
-
 func (d *DB) GetMap(ts *TableSpec, mapKey string) (string, error) {
 
 	if glog.V(3) {
 		glog.Info("GetMap: Begin: ", "ts: ", ts, " mapKey: ", mapKey)
 	}
 
-	v, e := d.client.HGet(ts.Name, mapKey).Result()
+	if (d == nil) || (d.client == nil) {
+		return "", tlerr.TranslibDBConnectionReset{}
+	}
+
+	// GetMapHits
+	// Time Start
+	var cacheHit bool
+	var now time.Time
+	var dur time.Duration
+	var stats Stats
+	if d.dbStatsConfig.TimeStats {
+		now = time.Now()
+	}
+
+	var mAP MAP
+	var e error
+	var v string
+
+	// If pseudoDB then do custom. TBD.
+
+	// If cache GetFromCache (CacheHit?)
+	if d.dbCacheConfig.PerConnection && d.dbCacheConfig.isCacheMap(ts.Name) {
+		var ok bool
+		if mAP, ok = d.cache.Maps[ts.Name]; ok {
+			if v, ok = mAP.mapMap[mapKey]; ok {
+				cacheHit = true
+			}
+		}
+	}
+
+	if !cacheHit {
+
+		glog.Info("GetMap: RedisCmd: ", d.Name(), ": ", "HGET ", ts.Name,
+			mapKey)
+		v, e = d.client.HGet(ts.Name, mapKey).Result()
+
+		// If cache SetCache (i.e. a cache miss)
+		if d.dbCacheConfig.PerConnection && d.dbCacheConfig.isCacheMap(ts.Name) {
+			if _, ok := d.cache.Maps[ts.Name]; !ok {
+				d.cache.Maps[ts.Name] = MAP{
+					ts:       ts,
+					complete: false,
+					mapMap:   make(map[string]string, InitialMapKeyCount),
+					db:       d,
+				}
+			}
+			d.cache.Maps[ts.Name].mapMap[mapKey] = v
+		}
+
+	}
+
+	// Time End, Time, Peak
+	if d.dbStatsConfig.MapStats {
+		stats = d.stats.Maps[ts.Name]
+	} else {
+		stats = d.stats.AllMaps
+	}
+
+	stats.Hits++
+	stats.GetMapHits++
+	if cacheHit {
+		stats.GetMapCacheHits++
+	}
+
+	if d.dbStatsConfig.TimeStats {
+		dur = time.Since(now)
+
+		if dur > stats.Peak {
+			stats.Peak = dur
+		}
+		stats.Time += dur
+
+		if dur > stats.GetMapPeak {
+			stats.GetMapPeak = dur
+		}
+		stats.GetMapTime += dur
+	}
+
+	if d.dbStatsConfig.MapStats {
+		d.stats.Maps[ts.Name] = stats
+	} else {
+		d.stats.AllMaps = stats
+	}
 
 	if glog.V(3) {
 		glog.Info("GetMap: End: ", "v: ", v, " e: ", e)
@@ -63,17 +136,103 @@ func (d *DB) GetMapAll(ts *TableSpec) (Value, error) {
 		glog.Info("GetMapAll: Begin: ", "ts: ", ts)
 	}
 
+	if (d == nil) || (d.client == nil) {
+		return Value{}, tlerr.TranslibDBConnectionReset{}
+	}
+
+	// GetMapAllHits
+	// Time Start
+	var cacheHit bool
+	var now time.Time
+	var dur time.Duration
+	var stats Stats
+	if d.dbStatsConfig.TimeStats {
+		now = time.Now()
+	}
+
+	var mAP MAP
+	var e error
 	var value Value
+	var v map[string]string
 
-	v, e := d.client.HGetAll(ts.Name).Result()
+	// If pseudoDB then do custom. TBD.
 
-	if len(v) != 0 {
-		value = Value{Field: v}
-	} else {
-		if glog.V(1) {
-			glog.Info("GetMapAll: HGetAll(): empty map")
+	// If cache GetFromCache (CacheHit?)
+	if d.dbCacheConfig.PerConnection && d.dbCacheConfig.isCacheMap(ts.Name) {
+		var ok bool
+		if mAP, ok = d.cache.Maps[ts.Name]; ok {
+			if mAP.complete {
+				cacheHit = true
+				value = Value{Field: mAP.mapMap}
+			}
 		}
-		e = tlerr.TranslibRedisClientEntryNotExist { Entry: ts.Name }
+	}
+
+	if !cacheHit {
+
+		glog.Info("GetMapAll: RedisCmd: ", d.Name(), ": ", "HGETALL ", ts.Name)
+		v, e = d.client.HGetAll(ts.Name).Result()
+
+		if len(v) != 0 {
+
+			value = Value{Field: v}
+
+			// If cache SetCache (i.e. a cache miss)
+			if d.dbCacheConfig.PerConnection && d.dbCacheConfig.isCacheMap(ts.Name) {
+				d.cache.Maps[ts.Name] = MAP{
+					ts:       ts,
+					complete: true,
+					mapMap:   v,
+					db:       d,
+				}
+			}
+
+		} else {
+			if glog.V(1) {
+				glog.Info("GetMapAll: HGetAll(): empty map")
+			}
+
+			if e != nil {
+				glog.Error("GetMapAll: ", d.Name(),
+					": HGetAll(", ts.Name, "): error: ", e.Error())
+			} else {
+				e = tlerr.TranslibRedisClientEntryNotExist{Entry: ts.Name}
+			}
+		}
+
+	}
+
+	// Time End, Time, Peak
+	if d.dbStatsConfig.MapStats {
+		stats = d.stats.Maps[ts.Name]
+	} else {
+		stats = d.stats.AllMaps
+	}
+
+	stats.Hits++
+	stats.GetMapAllHits++
+	if cacheHit {
+		stats.GetMapAllCacheHits++
+	}
+
+	if d.dbStatsConfig.TimeStats {
+		dur = time.Since(now)
+
+		if dur > stats.Peak {
+			stats.Peak = dur
+		}
+		stats.Time += dur
+
+		if dur > stats.GetMapAllPeak {
+			stats.GetMapAllPeak = dur
+		}
+		stats.GetMapAllTime += dur
+	}
+
+	if d.dbStatsConfig.MapStats {
+		d.stats.Maps[ts.Name] = stats
+	} else {
+		d.stats.AllMaps = stats
 	}
 
 	if glog.V(3) {
@@ -101,9 +260,11 @@ func (d *DB) SetMap(ts *TableSpec, mapKey string, mapValue string) error {
 
 	return e
 }
+
 // For Testing only. Do Not Use!!! ==============================
 
 // DeleteMapAll - There is no transaction support on these.
+// TBD: Unexport this. : Lower case it, and reference too
 func (d *DB) DeleteMapAll(ts *TableSpec) error {
 
 	if glog.V(3) {
@@ -118,6 +279,5 @@ func (d *DB) DeleteMapAll(ts *TableSpec) error {
 
 	return e
 }
+
 // For Testing only. Do Not Use!!! ==============================
-
-

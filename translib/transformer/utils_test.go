@@ -191,7 +191,6 @@ func processActionRequest(url string, jsonPayload string, oper string, user stri
 func getConfigDb() *db.DB {
 	configDb, _ := db.NewDB(db.Options{
 		DBNo:               db.ConfigDB,
-		InitIndicator:      "CONFIG_DB_INITIALIZED",
 		TableNameSeparator: "|",
 		KeySeparator:       "|",
 	})
