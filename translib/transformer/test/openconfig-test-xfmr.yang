@@ -127,6 +127,7 @@ module openconfig-test-xfmr {
               }
             }
           }
+          uses test-sensor-components-top;
         }
       }
   }
@@ -274,7 +275,9 @@ module openconfig-test-xfmr {
       }
     }
   }
+
   ////////////////////////////
+
   grouping test-sensor-group-config {
     description
       "Config parameters related to the test sensor groups";
@@ -370,6 +373,126 @@ module openconfig-test-xfmr {
  
   } 
  
+  ///////////////////
+  grouping test-sensor-component-config {
+    description
+      "Configuration data for sensor-components";
+
+    leaf name {
+      type string;
+      description
+        "Device name for the sensor component. ";
+    }
+    leaf type {
+      type enumeration {
+        enum TYPE1 {
+          description
+            "Component Type 1.";
+        }
+        enum TYPE2 {
+          description
+            "Component Type 2.";
+        }
+        enum TYPE3 {
+          description
+            "Component Type 3.";
+        }
+      }
+    }
+    leaf version {
+      type string;
+      description
+        "Version of the Component. ";
+    }
+    leaf description {
+      type string;
+      description
+        "Description, or comment, for the test sensor component";
+    }
+  }
+
+  grouping test-sensor-component-state {
+    description
+      "Operational State data for sensor components";
+	  leaf mfg-name {
+	     type string;
+	     description
+	       "System-supplied identifier for the manufacturer of the component.";
+	   }
+
+	   leaf mfg-date {
+	     type string;
+	     description
+	       "System-supplied representation of the component's
+	       manufacturing date.";
+	   }
+
+	   leaf hardware-version {
+	     type string;
+	      description
+                "For hardware components, this is the hardware revision of
+	        the component.";
+	   }
+
+	   leaf firmware-version {
+	      type string;
+	      description
+	        "For hardware components, this is the version of associated
+	        firmware that is running on the component, if applicable.";
+	   }
+  }
+
+  grouping test-sensor-components-top {
+      container test-sensor-components {
+        description
+          "Enclosing container for test sensor component references";
+
+        list test-sensor-component {
+          key "name type version";
+          description
+            "List of sensor component references";
+
+            leaf name {
+              type leafref {
+                path "../config/name";
+              }
+              description
+                "Reference to the name of component";
+            }
+
+            leaf type {
+              type leafref {
+                path "../config/type";
+              }
+              description
+                "Reference to the type of component";
+            }
+
+            leaf version {
+              type leafref {
+                path "../config/version";
+              }
+              description
+                "Reference to the version of component";
+            }
+
+            container config {
+                description
+                  "Configuration parameters to configure a sensor component";
+                uses test-sensor-component-config;
+            }
+
+            container state {
+                config false;
+                description
+                  "Operational state parameters of a sensor component";
+                uses test-sensor-component-config;
+		uses test-sensor-component-state;
+            }
+        }
+      }
+  }
+
   grouping interfaces-config {
     description
       "Configuration data for interface references";
@@ -424,9 +547,7 @@ module openconfig-test-xfmr {
           }
     }
   }
-  
   ///////////////////
-
 
   // data definition statements
 

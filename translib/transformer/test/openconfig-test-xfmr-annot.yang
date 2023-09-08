@@ -90,6 +90,12 @@ module openconfig-test-xfmr-annot {
       }
     }
 
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-components/oc-test-xfmr:test-sensor-component {
+      deviate add {
+            sonic-ext:table-name "TEST_SENSOR_COMPONENT_TABLE";
+      }
+    }
+
     deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:test-set {
       deviate add {
             sonic-ext:table-name "TEST_SET_TABLE";

@@ -605,28 +605,24 @@ func Test_Query_Params_OC_Yang_Get(t *testing.T) {
         // Reset Depth and Content
         qp.depth = 0
         qp.content = ""
-//      qp.fields = make([]string, 0)
         qp.fields = []string{"config/color-hold-time"}
         get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"config\":{\"color-hold-time\":30},\"id\":\"test_group_1\"}]}"
         url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]"
         t.Run("Test_Query_Fields_Leaf_Get", processGetRequest(url, &qp, get_expected, false))
 
         t.Log("++++++++++++++  Test_Query_Fields_MultiLeaf_Get +++++++++++++")
-//      qp.fields = make([]string, 0)
         qp.fields = []string{"state/color-hold-time","state/counters/frame-in"}
         url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group"
         get_expected = "{\"openconfig-test-xfmr:test-sensor-group\":[{\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":30,\"counters\":{\"frame-in\":3435}}}]}"
         t.Run("Test_Query_Fields_MultiLeaf_Get", processGetRequest(url, &qp, get_expected, false))
 
         t.Log("++++++++++++++  Test_Query_Fields_Container_Get +++++++++++++")
-//      qp.fields = make([]string, 0)
         qp.fields = []string{"counters"}
         url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/state"
         get_expected = "{\"openconfig-test-xfmr:state\":{\"counters\":{\"frame-in\":3435,\"frame-out\":3452}}}"
         t.Run("Test_Query_Fields_Container_Get", processGetRequest(url, &qp, get_expected, false))
 
         t.Log("++++++++++++++  Test_Query_Fields_Error_IncorrectField_Get +++++++++++++")
-//      qp.fields = make([]string, 0)
         qp.fields = []string{"state/color-hold-times"}
         url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]"
         get_expected = "{}"
@@ -634,7 +630,6 @@ func Test_Query_Params_OC_Yang_Get(t *testing.T) {
         t.Run("Test_Query_Fields_Error_IncorrectField_Get", processGetRequest(url, &qp, get_expected, true, expected_err))
 
         t.Log("++++++++++++++  Test_Query_Fields_Error_Leaf_Get +++++++++++++")
-//      qp.fields = make([]string, 0)
         qp.fields = []string{"color-hold-time"}
         url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/config/color-hold-time"
         get_expected = "{}"
@@ -784,5 +779,46 @@ func Test_sonic_yang_fields_query_parameter_operations(t *testing.T) {
         // Teardown
         unloadDB(db.ConfigDB, prereq)
 }
+
+func Test_OC_Sonic_OneOnOne_Composite_KeyMapping(t *testing.T) {
+
+	parent_prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"NULL": "NULL"}}}
+	prereq := map[string]interface{}{"TEST_SENSOR_COMPONENT_TABLE": map[string]interface{}{"FAN|TYPE1|14.31": map[string]interface{}{"description": "Test fan sensor type1 v14.31"}}}
+
+	// Setup - Prerequisite
+        unloadDB(db.ConfigDB, prereq)
+        loadDB(db.ConfigDB, parent_prereq)
+
+	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/test-sensor-components"
+/*
+	t.Log("++++++++++++++  Test_Set_OC_Sonic_OneOnOne_Composite_KeyMapping  +++++++++++++")
+
+	url_body_json := "{\"openconfig-test-xfmr:test-sensor-component\":[{\"config\":{\"name\":\"FAN\",\"type\":\"TYPE1\",\"version\":\"14.31\",\"description\":\"Test fan sensor type1 v14.31\"},\"name\":\"FAN\",\"type\":\"TYPE1\",\"version\":\"14.31\"}]}"
+
+	expected_map := map[string]interface{}{"TEST_SENSOR_COMPONENT_TABLE": map[string]interface{}{"FAN|TYPE1|14.31": map[string]interface{}{"description": "Test fan sensor type1 v14.31"}}}
+
+	t.Run("SET on OC_Sonic_OneOnOne_Composite_KeyMapping", processSetRequest(url, url_body_json, "POST", false, nil))
+	time.Sleep(1 * time.Second)
+	t.Run("Test OC-Sonic one-one composite key mapping", verifyDbResult(rclient, "TEST_SENSOR_COMPONENT_TABLE|FAN|TYPE1|14.31", expected_map, false))
+
+	// Teardown
+        unloadDB(db.ConfigDB, prereq)
+        unloadDB(db.ConfigDB, parent_prereq)
+*/
+	t.Log("++++++++++++++  Test_Get_OC_Sonic_OneOnOne_Composite_KeyMapping  +++++++++++++")
+
+        loadDB(db.ConfigDB, parent_prereq)
+        loadDB(db.ConfigDB, prereq)
+
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/test-sensor-components"
+
+	get_expected := "{\"openconfig-test-xfmr:test-sensor-components\":{\"test-sensor-component\":[{\"config\":{\"description\":\"test description\",\"name\":\"FAN\",\"type\":\"TYPE1\",\"version\":\"14.31\"},\"name\":\"FAN\",\"state\":{\"description\":\"test description\",\"name\":\"FAN\",\"type\":\"TYPE1\",\"version\":\"14.31\"},\"type\":\"TYPE1\",\"version\":\"14.31\"}]}}"
+	t.Run("GET on List_OC_Sonic_OneOnOne_Composite_KeyMapping", processGetRequest(url, nil, get_expected, false))
+
+        // Teardown
+        unloadDB(db.ConfigDB, prereq)
+        unloadDB(db.ConfigDB, parent_prereq)
+}
+
 
 
