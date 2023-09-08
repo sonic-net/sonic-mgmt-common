@@ -555,7 +555,7 @@ func XlateFromDb(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, data R
 	}
 	dbTblKeyGetCache := inParamsForGet.dbTblKeyGetCache
 	qparams := inParamsForGet.queryParams
-	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "", &dbData, txCache, nil, false, qparams)
+	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "", &dbData, txCache, nil, false, qparams, nil)
 	inParamsForGet.xfmrDbTblKeyCache = make(map[string]tblKeyCache)
 	inParamsForGet.dbTblKeyGetCache = dbTblKeyGetCache
 	payload, isEmptyPayload, err := dbDataToYangJsonCreate(inParamsForGet)

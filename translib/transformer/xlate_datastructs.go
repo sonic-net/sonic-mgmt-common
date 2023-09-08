@@ -94,6 +94,7 @@ type xlateFromDbParams struct {
 	xfmrDbTblKeyCache map[string]tblKeyCache
 	queryParams       QueryParams
 	dbTblKeyGetCache  map[db.DBNum]map[string]map[string]bool
+	listKeysMap       map[string]interface{}
 }
 
 type xlateToParams struct {

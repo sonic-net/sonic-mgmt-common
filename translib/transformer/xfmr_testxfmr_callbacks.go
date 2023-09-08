@@ -19,7 +19,6 @@
 //go:build xfmrtest
 // +build xfmrtest
 
-
 package transformer
 
 import (
@@ -50,7 +49,6 @@ func init() {
 	XlateFuncBind("DbToYang_test_set_key_xfmr", DbToYang_test_set_key_xfmr)
 
 	// Key leafrefed Field transformer functions
-	XlateFuncBind("DbToYang_test_sensor_group_id_field_xfmr", DbToYang_test_sensor_group_id_field_xfmr)
 	XlateFuncBind("DbToYang_test_sensor_type_field_xfmr", DbToYang_test_sensor_type_field_xfmr)
 	XlateFuncBind("DbToYang_test_set_name_field_xfmr", DbToYang_test_set_name_field_xfmr)
 
@@ -68,7 +66,7 @@ func init() {
 	XlateFuncBind("Subscribe_test_port_bindings_xfmr", Subscribe_test_port_bindings_xfmr)
 
 	// Sonic yang Key transformer functions
-        XlateFuncBind("DbToYang_test_sensor_mode_key_xfmr", DbToYang_test_sensor_mode_key_xfmr)
+	XlateFuncBind("DbToYang_test_sensor_mode_key_xfmr", DbToYang_test_sensor_mode_key_xfmr)
 }
 
 const (
@@ -109,24 +107,24 @@ var test_pre_xfmr PreXfmrFunc = func(inParams XfmrParams) error {
 
 var test_post_xfmr PostXfmrFunc = func(inParams XfmrParams) (map[string]map[string]db.Value, error) {
 
-        pathInfo := NewPathInfo(inParams.uri)
-        groupId := pathInfo.Var("id")
+	pathInfo := NewPathInfo(inParams.uri)
+	groupId := pathInfo.Var("id")
 
 	retDbDataMap := (*inParams.dbDataMap)[inParams.curDb]
 	log.Info("Entering test_post_xfmr Request URI path = ", inParams.requestUri)
 	if inParams.oper == UPDATE {
 		xpath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
 		if xpath == "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group/config/color-hold-time" {
-				holdTime := retDbDataMap["TEST_SENSOR_GROUP"][groupId].Field["color-hold-time"]
-				key := groupId + "|" + "sensor_type_a_post" + holdTime
-			        subOpCreateMap := make(map[db.DBNum]map[string]map[string]db.Value)
-			        subOpCreateMap[db.ConfigDB] = make(map[string]map[string]db.Value)
-				subOpCreateMap[db.ConfigDB]["TEST_SENSOR_A_TABLE"] = make(map[string]db.Value)
-				subOpCreateMap[db.ConfigDB]["TEST_SENSOR_A_TABLE"][key] = db.Value{Field: make(map[string]string)}
-				subOpCreateMap[db.ConfigDB]["TEST_SENSOR_A_TABLE"][key].Field["description_a"] = "Added instance in post xfmr"
-			        inParams.subOpDataMap[CREATE] = &subOpCreateMap
-                }
-        }
+			holdTime := retDbDataMap["TEST_SENSOR_GROUP"][groupId].Field["color-hold-time"]
+			key := groupId + "|" + "sensor_type_a_post" + holdTime
+			subOpCreateMap := make(map[db.DBNum]map[string]map[string]db.Value)
+			subOpCreateMap[db.ConfigDB] = make(map[string]map[string]db.Value)
+			subOpCreateMap[db.ConfigDB]["TEST_SENSOR_A_TABLE"] = make(map[string]db.Value)
+			subOpCreateMap[db.ConfigDB]["TEST_SENSOR_A_TABLE"][key] = db.Value{Field: make(map[string]string)}
+			subOpCreateMap[db.ConfigDB]["TEST_SENSOR_A_TABLE"][key].Field["description_a"] = "Added instance in post xfmr"
+			inParams.subOpDataMap[CREATE] = &subOpCreateMap
+		}
+	}
 	return retDbDataMap, nil
 }
 
@@ -260,19 +258,6 @@ var DbToYang_test_set_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[
 	log.Info("DbToYang_testsensor_type_key_xfmr rmap ", rmap)
 	return rmap, err
 
-}
-
-var DbToYang_test_sensor_group_id_field_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
-	var err error
-	result := make(map[string]interface{})
-	log.Info("DbToYang_test_sensor_group_id_field_xfmr - inParams.uri ", inParams.uri)
-
-	if len(inParams.key) > 0 {
-		result["id"] = inParams.key
-	}
-	log.Info("DbToYang_test_sensor_group_id_field_xfmr returns ", result)
-
-	return result, err
 }
 
 var DbToYang_test_sensor_type_field_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
@@ -482,7 +467,7 @@ var YangToDb_test_port_bindings_xfmr SubTreeXfmrYangToDb = func(inParams XfmrPar
 				testSetName := getTestSetKeyStrFromOCKey(inTestSetKey.SetName, inTestSetKey.Type)
 				testSetInterfacesMap[testSetName] = append(testSetInterfacesMap[testSetName], *intf.Id)
 				_, ok := testSetTableMap[testSetName]
-				if !ok  && inParams.oper == DELETE {
+				if !ok && inParams.oper == DELETE {
 					return res_map, tlerr.NotFound("Binding not found for test set  %v on %v", inTestSetKey.SetName, *intf.Id)
 				}
 				if inParams.oper == DELETE {
@@ -687,20 +672,20 @@ func convertSonicTestSetTypeToOC(testSetType string) ocbinds.E_OpenconfigTestXfm
 
 //Sonic yang key transformer functions
 var DbToYang_test_sensor_mode_key_xfmr SonicKeyXfmrDbToYang = func(inParams SonicXfmrParams) (map[string]interface{}, error) {
-        res_map := make(map[string]interface{})
-        /* from DB-key string(inParams.key) extract mode and id to fill into the res_map
+	res_map := make(map[string]interface{})
+	/* from DB-key string(inParams.key) extract mode and id to fill into the res_map
 	* db key contains the separator as well eg: "mode:test123:3545"
-         */
-        log.Info("DbToYang_test_sensor_mode_key_xfmr: key", inParams.key)
-        if len(inParams.key) > 0 {
-                /*split id and mode */
+	 */
+	log.Info("DbToYang_test_sensor_mode_key_xfmr: key", inParams.key)
+	if len(inParams.key) > 0 {
+		/*split id and mode */
 		temp := strings.SplitN(inParams.key, ":", 3)
 		if len(temp) >= 3 {
 			res_map["mode"] = temp[0] + ":" + temp[1]
-	                id := temp[2]
+			id := temp[2]
 			i64, _ := strconv.ParseUint(id, 10, 32)
 			i32 := uint32(i64)
-	                res_map["id"] = i32
+			res_map["id"] = i32
 		} else if len(temp) == 2 {
 			res_map["mode"] = temp[0]
 			res_map["id"] = temp[1]
@@ -708,7 +693,7 @@ var DbToYang_test_sensor_mode_key_xfmr SonicKeyXfmrDbToYang = func(inParams Soni
 			errStr := "Invalid Key in uri."
 			return res_map, tlerr.InvalidArgsError{Format: errStr}
 		}
-        }
-        log.Info("DbToYang_test_sensor_mode_key_xfmr: res_map - ", res_map)
-        return res_map, nil
+	}
+	log.Info("DbToYang_test_sensor_mode_key_xfmr: res_map - ", res_map)
+	return res_map, nil
 }
