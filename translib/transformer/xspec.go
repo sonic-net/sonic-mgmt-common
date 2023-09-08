@@ -76,6 +76,7 @@ type yangXpathInfo struct {
 	dbKeyCompCnt       int
 	subscriptionFlags  utils.Bits
 	isDataSrcDynamic   *bool
+	isRefByKey         bool
 }
 
 type dbInfo struct {
@@ -93,6 +94,7 @@ type dbInfo struct {
 	hasXfmrFn   bool
 	cascadeDel  int8
 	yangType    yangElementType
+	isKey       bool
 }
 
 type moduleAnnotInfo struct {
@@ -414,8 +416,12 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 
 		if ((yangType == YANG_LEAF) || (yangType == YANG_LEAF_LIST)) && (len(xpathData.fieldName) > 0) && (xpathData.tableName != nil) {
 			dbPath := *xpathData.tableName + "/" + xpathData.fieldName
-			if xDbSpecMap[dbPath] != nil {
+			_, ok := xDbSpecMap[dbPath]
+			if ok && xDbSpecMap[dbPath] != nil {
 				xDbSpecMap[dbPath].yangXpath = append(xDbSpecMap[dbPath].yangXpath, xpath)
+				if xDbSpecMap[dbPath].isKey {
+					xpathData.fieldName = ""
+				}
 			}
 		}
 
@@ -426,6 +432,7 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 
 			/* create list with current keys */
 			keyXpath := make([]string, len(strings.Split(entry.Key, " ")))
+			isOcMdl := strings.HasPrefix(xpath, "/"+OC_MDL_PFX)
 			for id, keyName := range strings.Split(entry.Key, " ") {
 				keyXpath[id] = xpath + "/" + keyName
 				if _, ok := xYangSpecMap[xpath+"/"+keyName]; !ok {
@@ -435,6 +442,34 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 					xYangSpecMap[xpath+"/"+keyName] = keyXpathData
 				}
 				xYangSpecMap[xpath+"/"+keyName].isKey = true
+				if isOcMdl {
+					var keyLfsInContainerXpaths []string
+					if configContEntry, ok := entry.Dir["config"]; ok && configContEntry != nil { //OC Mdl list has config container
+						if _, keyLfOk := configContEntry.Dir[keyName]; keyLfOk {
+							keyLfsInContainerXpaths = append(keyLfsInContainerXpaths, xpath+CONFIG_CNT_WITHIN_XPATH+keyName)
+						}
+					}
+
+					/* Mark OC Model list state-container leaves that are also list key-leaves,as isRefByKey,even though there
+					is no yang leaf-reference from list-key leaves.This will enable xfmr infra to fill them and elliminate
+					app annotation
+					*/
+					if stateContEntry, ok := entry.Dir["state"]; ok && stateContEntry != nil { //OC Mdl list has state container
+						if _, keyLfOk := stateContEntry.Dir[keyName]; keyLfOk {
+							keyLfsInContainerXpaths = append(keyLfsInContainerXpaths, xpath+STATE_CNT_WITHIN_XPATH+keyName)
+						}
+					}
+
+					for _, keyLfInContXpath := range keyLfsInContainerXpaths {
+						if _, ok := xYangSpecMap[keyLfInContXpath]; !ok {
+							xYangSpecMap[keyLfInContXpath] = new(yangXpathInfo)
+							xYangSpecMap[keyLfInContXpath].subscribeMinIntvl = XFMR_INVALID
+							xYangSpecMap[keyLfInContXpath].dbIndex = db.ConfigDB // default value
+						}
+						xYangSpecMap[keyLfInContXpath].isRefByKey = true
+					}
+
+				}
 			}
 
 			xpathData.keyXpath = make(map[int]*[]string, (parentKeyLen + 1))
@@ -626,7 +661,9 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 			}
 		}
 		xDbSpecPath = dbXpath
-		xDbSpecMap[dbXpath] = new(dbInfo)
+		if _, ok := xDbSpecMap[dbXpath]; !ok {
+			xDbSpecMap[dbXpath] = new(dbInfo)
+		}
 		xDbSpecMap[dbXpath].dbIndex = tblDbIndex
 		xDbSpecMap[dbXpath].yangType = entryType
 		xDbSpecMap[dbXpath].dbEntry = entry
@@ -656,6 +693,13 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 		} else if tblOk && (entryType == YANG_LIST && len(entry.Key) != 0) {
 			tblSpecInfo.listName = append(tblSpecInfo.listName, entry.Name)
 			xDbSpecMap[dbXpath].keyList = append(xDbSpecMap[dbXpath].keyList, strings.Split(entry.Key, " ")...)
+			for _, keyVal := range xDbSpecMap[dbXpath].keyList {
+				dbXpathForKeyLeaf := tableName + "/" + keyVal
+				if _, ok := xDbSpecMap[dbXpathForKeyLeaf]; !ok {
+					xDbSpecMap[dbXpathForKeyLeaf] = new(dbInfo)
+				}
+				xDbSpecMap[dbXpathForKeyLeaf].isKey = true
+			}
 		} else if entryType == YANG_LEAF || entryType == YANG_LEAF_LIST {
 			/* TODO - Uncomment this line once subscription changes for memory optimization ready
 			xDbSpecMap[dbXpath].dbEntry = nil //memory optimization - don't cache for leafy nodes
@@ -1178,6 +1222,7 @@ func mapPrint(fileName string) {
 			fmt.Fprintf(fp, "        %d. %#v\r\n", i, kd)
 		}
 		fmt.Fprintf(fp, "\r\n    isKey   : %v\r\n", d.isKey)
+		fmt.Fprintf(fp, "\r\n isRefByKey : %v\r\n", d.isRefByKey)
 		fmt.Fprintf(fp, "\r\n    operQP  : %v\r\n", d.operationalQP)
 		fmt.Fprintf(fp, "\r\n    hasChildOperQP  : %v\r\n", d.hasChildOpertnlNd)
 		fmt.Fprintf(fp, "\r\n    isDataSrcDynamic: ")
@@ -1206,6 +1251,7 @@ func dbMapPrint(fname string) {
 	for k, v := range xDbSpecMap {
 		fmt.Fprintf(fp, "     field:%v: \r\n", k)
 		fmt.Fprintf(fp, "     type     :%v \r\n", getYangTypeStrId(v.yangType))
+		fmt.Fprintf(fp, " isKey :%v \r\n", v.isKey)
 		fmt.Fprintf(fp, "     db-type  :%v \r\n", v.dbIndex)
 		fmt.Fprintf(fp, "     hasXfmrFn:%v \r\n", v.hasXfmrFn)
 		fmt.Fprintf(fp, "     module   :%v \r\n", v.module)

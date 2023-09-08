@@ -1180,7 +1180,7 @@ func dbDataXfmrHandler(resultMap map[Operation]map[db.DBNum]map[string]map[strin
 	return nil
 }
 
-func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot *ygot.GoStruct, uri string, requestUri string, xpath string, oper Operation, tbl string, tblKey string, dbDataMap *RedisDbMap, txCache interface{}, resultMap map[string]interface{}, validate bool, qParams QueryParams) xlateFromDbParams {
+func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot *ygot.GoStruct, uri string, requestUri string, xpath string, oper Operation, tbl string, tblKey string, dbDataMap *RedisDbMap, txCache interface{}, resultMap map[string]interface{}, validate bool, qParams QueryParams, listKeysMap map[string]interface{}) xlateFromDbParams {
 	var inParamsForGet xlateFromDbParams
 	inParamsForGet.d = d
 	inParamsForGet.dbs = dbs
@@ -1197,6 +1197,7 @@ func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot 
 	inParamsForGet.resultMap = resultMap
 	inParamsForGet.validate = validate
 	inParamsForGet.queryParams = qParams
+	inParamsForGet.listKeysMap = listKeysMap
 
 	return inParamsForGet
 }
@@ -2302,4 +2303,25 @@ func (qp QueryParams) String() string {
 
 func (e *qpSubtreePruningErr) Error() string {
 	return fmt.Sprintf("Query Parameter pruning unsuccessful for subtree - %s", e.subtreePath)
+}
+
+func extractLeafValFromUriKey(uri string, keyLeafNm string) string {
+	/* function to extract string value for key leaf from last list in uri
+	   string value will have unescaped characters if they were escaped in
+	   URI string
+	*/
+	var keyLeafVal string
+	xfmrLogDebug("Extract value for leaf %v from URI %v", keyLeafNm, uri)
+	uriElementList := splitUri(uri)
+	for idx := len(uriElementList) - 1; idx >= 0; idx-- {
+		pathInfo := NewPathInfo("/" + uriElementList[idx])
+		if (pathInfo != nil) && (len(pathInfo.Vars) > 0) {
+			if pathInfo.HasVar(keyLeafNm) {
+				keyLeafVal = pathInfo.Var(keyLeafNm)
+			}
+			break
+		}
+	}
+	xfmrLogDebug("Returning value %v for leaf %v", keyLeafVal, keyLeafNm)
+	return keyLeafVal
 }

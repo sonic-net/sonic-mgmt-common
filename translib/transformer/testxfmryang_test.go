@@ -790,7 +790,7 @@ func Test_OC_Sonic_OneOnOne_Composite_KeyMapping(t *testing.T) {
         loadDB(db.ConfigDB, parent_prereq)
 
 	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/test-sensor-components"
-/*
+
 	t.Log("++++++++++++++  Test_Set_OC_Sonic_OneOnOne_Composite_KeyMapping  +++++++++++++")
 
 	url_body_json := "{\"openconfig-test-xfmr:test-sensor-component\":[{\"config\":{\"name\":\"FAN\",\"type\":\"TYPE1\",\"version\":\"14.31\",\"description\":\"Test fan sensor type1 v14.31\"},\"name\":\"FAN\",\"type\":\"TYPE1\",\"version\":\"14.31\"}]}"
@@ -804,7 +804,7 @@ func Test_OC_Sonic_OneOnOne_Composite_KeyMapping(t *testing.T) {
 	// Teardown
         unloadDB(db.ConfigDB, prereq)
         unloadDB(db.ConfigDB, parent_prereq)
-*/
+
 	t.Log("++++++++++++++  Test_Get_OC_Sonic_OneOnOne_Composite_KeyMapping  +++++++++++++")
 
         loadDB(db.ConfigDB, parent_prereq)
@@ -820,5 +820,50 @@ func Test_OC_Sonic_OneOnOne_Composite_KeyMapping(t *testing.T) {
         unloadDB(db.ConfigDB, parent_prereq)
 }
 
+/*Test OC List having config container with leaves, that are referenced by list key-leafs and have no annotation.
+  Also covers the list's state container that have leaves same as list keys */
+func Test_NodeWithListHavingConfigLeafRefByKey_OC_Yang(t *testing.T) {
 
+        t.Log("++++++++++++++  Test_set_on_OC_yang_node_with_list_having_config_leaf_referenced_by_list_key  +++++++++++++")
+        pre_req := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"color-hold-time": "10"}}}
+        url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups"
+        // Payload
+        post_payload := "{\"openconfig-test-xfmr:test-sensor-group\":[ { \"id\" : \"test_group_1\", \"config\": { \"id\": \"test_group_1\"} } ]}"
+        post_sensor_group_expected := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"NULL": "NULL", "color-hold-time": "10"}}}
+        t.Run("Set on OC-Yang node with list having config leaf referenced by list key.", processSetRequest(url, post_payload, "POST", false))
+        time.Sleep(1 * time.Second)
+        t.Run("Verify set on OC-Yang node with list having config leaf referenced by list key.", verifyDbResult(rclient, "TEST_SENSOR_GROUP|test_group_1", post_sensor_group_expected, false))
+        // Teardown
+        unloadDB(db.ConfigDB, pre_req)
 
+        t.Log("++++++++++++++  Test get on OC yang node with list having config leaf referenced by list key and state leaf same as list key  +++++++++++++")
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group"
+        // Setup - Prerequisite
+        loadDB(db.ConfigDB, pre_req)
+        // Payload
+        get_expected := "{\"openconfig-test-xfmr:test-sensor-group\":[{\"config\":{\"color-hold-time\":10,\"id\":\"test_group_1\"},\"id\":\"test_group_1\",\"state\":{\"color-hold-time\":10,\"id\":\"test_group_1\"}}]}"
+        t.Run("Verify get on OC yang node with list having config leaf referenced by list key and state leaf same list key", processGetRequest(url, nil, get_expected, false))
+        // Teardown
+        unloadDB(db.ConfigDB, pre_req)
+
+        t.Log("++++++++++++++ GET on OC YANG config container leaf that is referenced by immediate parent list's key and has no app annotations +++++++++++++")
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/state/id"
+        // Setup - Prerequisite
+        loadDB(db.ConfigDB, pre_req)
+        // Payload
+        get_expected = "{\"openconfig-test-xfmr:id\":\"test_group_1\"}"
+        t.Run("Get on leaf in OC config container, with no app annotation, and is referenced by immediate parent list's key leaf", processGetRequest(url, nil, get_expected, false))
+        // Teardown
+        unloadDB(db.ConfigDB, pre_req)
+
+        t.Log("++++++++++++++ GET on OC YANG State container leaf that is same as immediate parent list's key and has no app annotations +++++++++++++")
+        url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/state/id"
+        // Setup - Prerequisite
+        loadDB(db.ConfigDB, pre_req)
+        // Payload
+        get_expected = "{\"openconfig-test-xfmr:id\":\"test_group_1\"}"
+        t.Run("Get on leaf in OC state container, with no app annotation, and is same as immediate parent list's key leaf", processGetRequest(url, nil, get_expected, false))
+        // Teardown
+        unloadDB(db.ConfigDB, pre_req)
+}
+                                 
