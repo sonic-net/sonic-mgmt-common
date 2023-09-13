@@ -606,8 +606,7 @@ func dbMapDelete(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 	if isSonicYang(uri) {
 		xpathPrefix, keyName, tableName := sonicXpathKeyExtract(uri)
 		xfmrLogInfo("Delete req: uri(\"%v\"), key(\"%v\"), xpathPrefix(\"%v\"), tableName(\"%v\").", uri, keyName, xpathPrefix, tableName)
-		resultMap[oper][db.ConfigDB] = result
-		xlateToData := formXlateToDbParam(d, ygRoot, oper, uri, requestUri, xpathPrefix, keyName, jsonData, resultMap, result, txCache, nil, subOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", tableName, nil)
+		xlateToData := formXlateToDbParam(d, ygRoot, oper, uri, requestUri, xpathPrefix, keyName, jsonData, resultMap, result, txCache, nil, subOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", tableName, nil, nil, nil)
 		err = sonicYangReqToDbMapDelete(xlateToData)
 		if err != nil {
 			return err
@@ -642,7 +641,7 @@ func dbMapDelete(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 					cascadeDelTbl = append(cascadeDelTbl, xpathKeyExtRet.tableName)
 				}
 			}
-			curXlateParams := formXlateToDbParam(d, ygRoot, oper, uri, requestUri, xpathKeyExtRet.xpath, xpathKeyExtRet.dbKey, jsonData, resultMap, result, txCache, nil, subOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", xpathKeyExtRet.tableName, nil)
+			curXlateParams := formXlateToDbParam(d, ygRoot, oper, uri, requestUri, xpathKeyExtRet.xpath, xpathKeyExtRet.dbKey, jsonData, resultMap, result, txCache, nil, subOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", xpathKeyExtRet.tableName, nil, nil, nil)
 			curXlateParams.xfmrDbTblKeyCache = make(map[string]tblKeyCache)
 			if len(spec.xfmrFunc) > 0 {
 				var dbs [db.MaxDB]*db.DB
@@ -839,6 +838,7 @@ func dbMapDelete(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 
 func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 	var err error
+	oper := xlateParams.oper
 	if xlateParams.tableName != "" {
 		// Specific table entry case
 		xlateParams.result[xlateParams.tableName] = make(map[string]db.Value)
@@ -878,7 +878,16 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 						}
 						if yangType == YANG_LEAF {
 							dbVal.Field = make(map[string]string)
-							dbVal.Field[fieldName] = ""
+							dbFldVal := ""
+							if len(dbEntry.Default) > 0 {
+								dbFldVal, err = unmarshalJsonToDbData(dbEntry, dbSpecField, fieldName, dbEntry.Default)
+								if err != nil {
+									log.Warningf("Couldn't unmarshal Json to DbData: path(\"%v\") error (\"%v\").", dbSpecField, err)
+									return err
+								}
+								oper = UPDATE
+							}
+							dbVal.Field[fieldName] = dbFldVal
 						}
 					}
 				}
@@ -908,5 +917,6 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 			}
 		}
 	}
+	xlateParams.resultMap[oper][db.ConfigDB] = xlateParams.result
 	return nil
 }

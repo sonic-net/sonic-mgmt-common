@@ -1230,7 +1230,7 @@ func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot 
 	return inParamsForGet
 }
 
-func formXlateToDbParam(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, requestUri string, xpathPrefix string, keyName string, jsonData interface{}, resultMap map[Operation]RedisDbMap, result map[string]map[string]db.Value, txCache interface{}, tblXpathMap map[string]map[string]map[string]bool, subOpDataMap map[Operation]*RedisDbMap, pCascadeDelTbl *[]string, xfmrErr *error, name string, value interface{}, tableName string, invokeSubtreeOnceMap map[string]map[string]bool) xlateToParams {
+func formXlateToDbParam(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, requestUri string, xpathPrefix string, keyName string, jsonData interface{}, resultMap map[Operation]RedisDbMap, result map[string]map[string]db.Value, txCache interface{}, tblXpathMap map[string]map[string]map[string]bool, subOpDataMap map[Operation]*RedisDbMap, pCascadeDelTbl *[]string, xfmrErr *error, name string, value interface{}, tableName string, invokeSubtreeOnceMap map[string]map[string]bool, yangDefValMap map[string]map[string]db.Value, yangAuxValMap map[string]map[string]db.Value) xlateToParams {
 	var inParamsForSet xlateToParams
 	inParamsForSet.d = d
 	inParamsForSet.ygRoot = ygRoot
@@ -1251,6 +1251,8 @@ func formXlateToDbParam(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri str
 	inParamsForSet.value = value
 	inParamsForSet.tableName = tableName
 	inParamsForSet.invokeCRUSubtreeOnceMap = invokeSubtreeOnceMap
+	inParamsForSet.yangDefValMap = yangDefValMap
+	inParamsForSet.yangAuxValMap = yangAuxValMap
 
 	return inParamsForSet
 }

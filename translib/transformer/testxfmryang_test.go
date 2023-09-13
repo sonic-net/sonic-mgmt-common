@@ -409,7 +409,7 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 
 	// Payload
 	post_payload := "{ \"sonic-test-xfmr:global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescp\" }}"
-	post_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp"}}}
+	post_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp", "reset-time": 5}}}
 
 	t.Run("Create on singleton sonic table yang node", processSetRequest(url, post_payload, "POST", false))
 	time.Sleep(1 * time.Second)
@@ -871,21 +871,21 @@ func Test_OC_Sonic_SingleKey_Mapping(t *testing.T) {
 
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
-/*
+
 	t.Log("++++++++++++++  Test_Get_OC_Sonic_SingleKey_Mapping  +++++++++++++")
 
 	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups"
 
-	get_expected := "{\"openconfig-test-xfmr:test-sensor-groups\":{\"test-sensor-group\":[{\"config\":{\"color-hold-time\":1354,\"id\":\"group1\\|1\"},\"id\":\"group1\\|1\",\"state\":{\"color-hold-time\":1354,\"id\":\"group1\\|1\"}}]}}"
+	get_expected := "{\"openconfig-test-xfmr:test-sensor-groups\":{\"test-sensor-group\":[{\"config\":{\"color-hold-time\":1354,\"id\":\"group1\\\\|1\"},\"id\":\"group1\\\\|1\",\"state\":{\"color-hold-time\":1354,\"id\":\"group1\\\\|1\"}}]}}"
 	t.Run("GET on OC_Sonic_Single_KeyMapping_OC_request", processGetRequest(url, nil, get_expected, false))
 
 	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GROUP"
 
-	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GROUP\":{\"TEST_SENSOR_GROUP_LIST\":[{\"color-hold-time\":1354,\"id\":\"group1\\|1\"}]}}"
+	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GROUP\":{\"TEST_SENSOR_GROUP_LIST\":[{\"color-hold-time\":1354,\"id\":\"group1\\\\|1\"}]}}"
 	t.Run("GET on OC_Sonic_Single_KeyMapping_SonicRequest", processGetRequest(url, nil, get_expected, false))
 	// Teardown
 	unloadDB(db.ConfigDB, prereq)
-*/
+
 	t.Log("++++++++++++++  Test_Get_Sonic_SingleKey_Mapping  +++++++++++++")
 
 	prereq = map[string]interface{}{"TEST_INTERFACE_MODE_TABLE": map[string]interface{}{"testname": map[string]interface{}{"description": "single key list entry"}, "testname|testmode": map[string]interface{}{"description": "double key list entry"}}}
@@ -900,4 +900,29 @@ func Test_OC_Sonic_SingleKey_Mapping(t *testing.T) {
 
 	// Teardown
 	unloadDB(db.ConfigDB, prereq)
+}
+
+func Test_sonic_yang_default_value_handling(t *testing.T) {
+	t.Log("++++++++++++++  Test_set_on_sonic_yang_where_default_value_for_a_node_not_present_in_payload  +++++++++++++")
+	pre_req := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": ""}, "TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": ""}}
+	//setup
+	unloadDB(db.ConfigDB, pre_req)
+	url := "/sonic-test-xfmr:sonic-test-xfmr"
+	post_payload := "{ \"sonic-test-xfmr:TEST_SENSOR_GROUP\": { \"TEST_SENSOR_GROUP_LIST\": [ { \"id\": \"test_group_1\" } ] }, \"sonic-test-xfmr:TEST_SENSOR_GLOBAL\": { \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescription\"} }}"
+	sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription", "mode": "testmode", "reset-time": 5}}}
+	sensor_group_expected := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"color-hold-time": 10}}}
+	t.Run("Test set on sonic yang where default value for a node not present in payload.", processSetRequest(url, post_payload, "POST", false, nil))
+	t.Run("Verify set on sonic yang where default value for a node not present in payload for list node", verifyDbResult(rclient, "TEST_SENSOR_GROUP|test_group_1", sensor_group_expected, false))
+	t.Run("Verify set on sonic yang where default value for a node not present in payload for singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", sensor_global_expected, false))
+	//Teardown
+	unloadDB(db.ConfigDB, pre_req)
+
+	t.Log("++++++++++++++  Test_delete_reseting_sonic_yang_leaf_node_to_default  +++++++++++++")
+	pre_req = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset-time": 19}}}
+	//setup
+	loadDB(db.ConfigDB, pre_req)
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/reset-time"
+	sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset-time": 5}}}
+	t.Run("Test delete reseting sonic yang leaf node to default", processDeleteRequest(url, false))
+	t.Run("Verify delete reseting sonic yang leaf node to default", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", sensor_global_expected, false))
 }

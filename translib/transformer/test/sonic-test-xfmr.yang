@@ -36,6 +36,7 @@ module sonic-test-xfmr {
 
         			leaf color-hold-time {
 			            type uint32;
+			            default 10;
 			            description "Hold time";
 			        }
 			}
@@ -194,7 +195,11 @@ module sonic-test-xfmr {
                                  }
                                  leaf description {
                                         type string;
-                                }
+                                 }
+                                 leaf reset-time {
+                                       type uint32;
+                                       default 5;
+                                 }
                         }
                 }
 
