@@ -876,7 +876,9 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 				listKeyMap = make(map[string]interface{})
 				for k, kv := range curKeyMap {
 					curMap[k] = kv
+					listKeyMap[k] = kv
 				}
+
 			}
 			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpathKeyExtRet.xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams, listKeyMap)
 			linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
