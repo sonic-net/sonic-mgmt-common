@@ -198,5 +198,30 @@ module sonic-test-xfmr {
                         }
                 }
 
+                container TEST_INTERFACE_MODE_TABLE {
+                        list TEST_INTERFACE_MODE_TABLE_LIST {
+                                key "name";
+
+                                leaf name {
+                                        type string;
+                                }
+                                leaf description {
+                                        type string;
+                                }
+                        }
+                        list TEST_INTERFACE_MODE_TABLE_IPADDR_LIST {
+                                key "name mode";
+
+                                leaf name {
+                                        type string;
+                                }
+                                leaf mode {
+                                        type string;
+                                }
+                                leaf description {
+                                        type string;
+                                }
+                        }
+                }
 	}
 }

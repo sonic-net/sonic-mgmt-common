@@ -40,7 +40,6 @@ import (
 func initRegex() {
 	rgpIpv6 = regexp.MustCompile(`(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?`)
 	rgpMac = regexp.MustCompile(`([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$`)
-	rgpIsMac = regexp.MustCompile(`^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$`)
 
 }
 
@@ -202,8 +201,14 @@ func dbKeyToYangDataConvert(uri string, requestUri string, xpath string, tableNa
 		}
 	}
 
+	oneOnOnemapping := hasSameOcSonicKeys(uri, xpath, tableName)
 	keyNameList := yangKeyFromEntryGet(xYangSpecMap[xpath].yangEntry)
-	keyDataList := strings.SplitN(dbKey, dbKeySep, -1)
+	var keyDataList []string
+	if len(keyNameList) == 1 && oneOnOnemapping {
+		keyDataList = append(keyDataList, dbKey)
+	} else {
+		keyDataList = strings.SplitN(dbKey, dbKeySep, -1)
+	}
 	uriWithKey := fmt.Sprintf("%v", xpath)
 	uriWithKeyCreate := true
 	if len(keyDataList) == 0 {
@@ -246,7 +251,7 @@ func dbKeyToYangDataConvert(uri string, requestUri string, xpath string, tableNa
 
 	rmap := make(map[string]interface{})
 	keyNameValSame := len(keyNameList) == len(keyDataList)
-	if len(keyNameList) > 1 && !keyNameValSame && !hasSameOcSonicKeys(uri, xpath, tableName) {
+	if len(keyNameList) > 1 && !keyNameValSame && !oneOnOnemapping {
 		log.Warningf("No key transformer found for multi element yang key mapping to a single redis key string, for uri %v", uri)
 		errStr := fmt.Sprintf("Error processing key for list %v", uri)
 		err = fmt.Errorf("%v", errStr)
@@ -335,10 +340,6 @@ func hasMacAddString(val string) bool {
 	return rgpMac.MatchString(val)
 }
 
-func isMacAddString(val string) bool {
-	return rgpIsMac.MatchString(val)
-}
-
 func getYangTerminalNodeTypeName(xpathPrefix string, keyName string) string {
 	keyXpath := xpathPrefix + "/" + keyName
 	dbEntry := getYangEntryForXPath(keyXpath)
@@ -381,15 +382,19 @@ func sonicKeyDataAdd(dbIndex db.DBNum, keyNameList []string, xpathPrefix string,
 	dbOpts = getDBOptions(dbIndex)
 	keySeparator := dbOpts.KeySeparator
 	/* num of key separators will be less than number of keys */
-	if len(keyNameList) == 1 && keySeparator == ":" {
-		yngTerminalNdTyName := getYangTerminalNodeTypeName(xpathPrefix, keyNameList[0])
-		if yngTerminalNdTyName == "mac-address" && isMacAddString(keyStr) {
-			keyValList = strings.SplitN(keyStr, keySeparator, len(keyNameList))
-		} else if (yngTerminalNdTyName == "ip-address" || yngTerminalNdTyName == "ip-prefix" || yngTerminalNdTyName == "ipv6-prefix" || yngTerminalNdTyName == "ipv6-address") && hasIpv6AddString(keyStr) {
-			keyValList = strings.SplitN(keyStr, keySeparator, len(keyNameList))
-		} else {
-			keyValList = strings.SplitN(keyStr, keySeparator, -1)
-			xfmrLogDebug("Single key non ipv6/mac address for : separator")
+	if len(keyNameList) == 1 {
+		if tblSpecInfo, ok := xDbSpecMap[xpathPrefix]; ok && tblSpecInfo != nil {
+			if len(tblSpecInfo.listName) > 1 {
+				/* Multi list table case.keyStr may be of list having more than 1 key-element
+				   So as not to incorrectly map such keyStr to list with single key-element
+				   split the keyStr.If the keyStr is that of list having single key-element
+				   no split will happen and mapping will be correct.Note if key-value in keyStr
+				   contains separator then app will need key-xfmr.
+				*/
+				keyValList = strings.SplitN(keyStr, keySeparator, -1)
+			} else {
+				keyValList = append(keyValList, keyStr)
+			}
 		}
 	} else if strings.Count(keyStr, keySeparator) == len(keyNameList)-1 {
 		/* number of keys will match number of key values */

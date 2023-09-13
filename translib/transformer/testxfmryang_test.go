@@ -864,3 +864,40 @@ func Test_NodeWithListHavingConfigLeafRefByKey_OC_Yang(t *testing.T) {
 	// Teardown
 	unloadDB(db.ConfigDB, pre_req)
 }
+
+func Test_OC_Sonic_SingleKey_Mapping(t *testing.T) {
+
+	prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"group1\\|1": map[string]interface{}{"color-hold-time": "1354"}}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+/*
+	t.Log("++++++++++++++  Test_Get_OC_Sonic_SingleKey_Mapping  +++++++++++++")
+
+	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups"
+
+	get_expected := "{\"openconfig-test-xfmr:test-sensor-groups\":{\"test-sensor-group\":[{\"config\":{\"color-hold-time\":1354,\"id\":\"group1\\|1\"},\"id\":\"group1\\|1\",\"state\":{\"color-hold-time\":1354,\"id\":\"group1\\|1\"}}]}}"
+	t.Run("GET on OC_Sonic_Single_KeyMapping_OC_request", processGetRequest(url, nil, get_expected, false))
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GROUP"
+
+	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GROUP\":{\"TEST_SENSOR_GROUP_LIST\":[{\"color-hold-time\":1354,\"id\":\"group1\\|1\"}]}}"
+	t.Run("GET on OC_Sonic_Single_KeyMapping_SonicRequest", processGetRequest(url, nil, get_expected, false))
+	// Teardown
+	unloadDB(db.ConfigDB, prereq)
+*/
+	t.Log("++++++++++++++  Test_Get_Sonic_SingleKey_Mapping  +++++++++++++")
+
+	prereq = map[string]interface{}{"TEST_INTERFACE_MODE_TABLE": map[string]interface{}{"testname": map[string]interface{}{"description": "single key list entry"}, "testname|testmode": map[string]interface{}{"description": "double key list entry"}}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_INTERFACE_MODE_TABLE"
+
+	get_expected = "{\"sonic-test-xfmr:TEST_INTERFACE_MODE_TABLE\":{\"TEST_INTERFACE_MODE_TABLE_IPADDR_LIST\":[{\"description\":\"double key list entry\",\"mode\":\"testmode\",\"name\":\"testname\"}],\"TEST_INTERFACE_MODE_TABLE_LIST\":[{\"description\":\"single key list entry\",\"name\":\"testname\"}]}}"
+	t.Run("GET on Sonic_Single_KeyMapping", processGetRequest(url, nil, get_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, prereq)
+}

@@ -25,7 +25,7 @@ import (
 	"github.com/openconfig/ygot/ygot"
 )
 
-var rgpIpv6, rgpMac, rgpIsMac *regexp.Regexp
+var rgpIpv6, rgpMac *regexp.Regexp
 
 type yangElementType uint8
 
