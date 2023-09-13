@@ -88,6 +88,14 @@ func (e TranslibTransactionFail) Error() string {
 type TranslibDBSubscribeFail struct {
 }
 
+type TranslibDBScriptFail struct {
+	Description string
+}
+
+func (e TranslibDBScriptFail) Error() string {
+	return p.Sprintf("Translib Redis Error: DB Script Fail: %s", e.Description)
+}
+
 func (e TranslibDBSubscribeFail) Error() string {
 	return p.Sprintf("Translib Redis Error: DB Subscribe Fail")
 }

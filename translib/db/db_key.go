@@ -101,6 +101,15 @@ func (k Key) Matches(pattern Key) bool {
 	return true
 }
 
+// IsAllKeyPattern returns true if it is an all key wildcard pattern.
+// (i.e. A key with a single component "*")
+func (k *Key) IsAllKeyPattern() bool {
+	if (len(k.Comp) == 1) && (k.Comp[0] == "*") {
+		return true
+	}
+	return false
+}
+
 // patternMatch checks if the value matches a key pattern.
 // vIndex and pIndex are start positions of value and pattern strings to match.
 // Mimics redis pattern matcher - i.e, glob like pattern matcher which
