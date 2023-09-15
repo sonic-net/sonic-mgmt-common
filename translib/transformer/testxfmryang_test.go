@@ -925,4 +925,40 @@ func Test_sonic_yang_default_value_handling(t *testing.T) {
 	sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset-time": 5}}}
 	t.Run("Test delete reseting sonic yang leaf node to default", processDeleteRequest(url, false))
 	t.Run("Verify delete reseting sonic yang leaf node to default", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", sensor_global_expected, false))
+	//Teardown
+	unloadDB(db.ConfigDB, pre_req)
+}
+
+// Test partial key at whole list level
+func Test_WholeList_PartialKey(t *testing.T) {
+
+	/* Delete at whole list returning partial key / parent key. Test if only relevant instances are deleted  */
+	parent_prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_1": map[string]interface{}{"NULL": "NULL"}}}
+	prereq := map[string]interface{}{"TEST_SENSOR_ZONE_TABLE": map[string]interface{}{"sensor_group_1|zoneA": map[string]interface{}{"description": "sensor_group_1 zoneA instance"}, "sensor_group_2|zoneA": map[string]interface{}{"description": "sensor_group_2 zoneA instance"}}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, parent_prereq)
+	loadDB(db.ConfigDB, prereq)
+
+	t.Log("++++++++++++++  GET Test_PartialKey_Get +++++++++++++")
+	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=sensor_group_1]"
+	get_expected := "{\"openconfig-test-xfmr:test-sensor-group\":[{\"config\":{\"id\":\"sensor_group_1\"},\"id\":\"sensor_group_1\",\"state\":{\"id\":\"sensor_group_1\"},\"test-sensor-zones\":{\"test-sensor-zone\":[{\"config\":{\"description\":\"sensor_group_1 zoneA instance\",\"zone\":\"zoneA\"},\"state\":{\"zone\":\"zoneA\"},\"zone\":\"zoneA\"}]}}]}"
+
+	t.Run("GET on Test_WholeList_PartialKey_Get", processGetRequest(url, nil, get_expected, false))
+
+	t.Log("++++++++++++++  DELETE Test_WholeList_PartialKey_Delete +++++++++++++")
+
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=sensor_group_1]/test-sensor-zones/test-sensor-zone"
+
+	expected_del := map[string]interface{}{}
+	expected_map := map[string]interface{}{"TEST_SENSOR_ZONE_TABLE": map[string]interface{}{"sensor_group_2|zoneA": map[string]interface{}{"description": "sensor_group_2 zoneA instance"}}}
+
+	t.Run("DELETE on whole list with partial/ parent key, ", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("DELETE on whole list with partial/parent key - verify child table instance with parent key gets deleted", verifyDbResult(rclient, "TEST_SENSOR_ZONE_TABLE|sensor_group_1|zoneA", expected_del, false))
+	t.Run("DELETE on whole list with partial/parent key - verify child table instance not having parent key still exists", verifyDbResult(rclient, "TEST_SENSOR_ZONE_TABLE|sensor_group_2|zoneA", expected_map, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, parent_prereq)
+	unloadDB(db.ConfigDB, prereq)
 }

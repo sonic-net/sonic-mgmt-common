@@ -40,6 +40,7 @@ type KeySpec struct {
 	Key             db.Key
 	Child           []KeySpec
 	IgnoreParentKey bool
+	IsPartialKey    bool
 }
 
 type NotificationType int

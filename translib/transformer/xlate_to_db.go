@@ -651,7 +651,6 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 		return tlerr.NotFoundError{Format: errStr}
 	}
 
-
 	moduleNm := "/" + strings.Split(uri, "/")[1]
 	xfmrLogInfo("Module name for URI %s is %s", uri, moduleNm)
 
@@ -1395,7 +1394,9 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 		if xpathKeyExtRet.isVirtualTbl {
 			return true, nil
 		}
-		if len(xpathKeyExtRet.tableName) > 0 && len(xpathKeyExtRet.dbKey) > 0 {
+		if !((strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/"))) { //uri points to entire list
+			return true, nil
+		} else if len(xpathKeyExtRet.tableName) > 0 && len(xpathKeyExtRet.dbKey) > 0 {
 			// Read the table entry from DB
 			exists := false
 			var derr error
@@ -1429,8 +1430,6 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 			} else {
 				return true, nil
 			}
-		} else if !((strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/"))) { //uri points to entire list
-			return true, nil
 		} else {
 			log.Warningf("Parent table check: Unable to get valid table and key err: %v, table %v, key %v. Please verify table and key mapping", xerr, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey)
 			return false, xerr

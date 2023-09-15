@@ -141,6 +141,24 @@ module sonic-test-xfmr {
                         }
                 }
 
+                container TEST_SENSOR_ZONE_TABLE {
+                        list TEST_SENSOR_ZONE_TABLE_LIST {
+                                key "id zone";
+
+                                leaf id {
+                                    type string;
+                                }
+
+                               leaf zone {
+                                    type string;
+                                }
+
+                                leaf description {
+                                    type string;
+                                }
+                        }
+                }
+
                 container TEST_SET_TABLE {
 
                         list TEST_SET_TABLE_LIST {

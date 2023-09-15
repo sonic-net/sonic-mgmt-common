@@ -128,6 +128,7 @@ module openconfig-test-xfmr {
             }
           }
           uses test-sensor-components-top;
+	  uses test-sensor-zones-top;
         }
       }
   }
@@ -492,6 +493,57 @@ module openconfig-test-xfmr {
         }
       }
   }
+
+  grouping test-sensor-zones-top {
+      container test-sensor-zones {
+          description
+              "Top level container to hold a set of sensor
+               zones grouped together";
+
+          list test-sensor-zone {
+              key "zone";
+              description
+                "List of zones of sensors which together
+                 comprise a test sensor grouping.";
+
+              leaf zone {
+                type leafref {
+                  path "../config/zone";
+                }
+                description
+                  "Reference to the sensor zone";
+              }
+
+              container config {
+                description
+                  "Configuration parameters to configure zone of a sensor grouping";
+		  leaf zone {
+                    type string;
+                    description
+                      "Reference to the sensor zone";
+                  }
+                 leaf description {
+                   type string;
+                   description
+                    "global sensor description";
+                 }
+              }
+
+              container state {
+                config false;
+                description
+                  "State data of the configured zones of a sensor grouping";
+		leaf zone {
+                  type string;
+                  description
+                    "Reference to the sensor zone";
+                }
+              }
+          }
+      }
+  }
+
+
 
   grouping interfaces-config {
     description

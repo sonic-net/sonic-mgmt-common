@@ -45,6 +45,8 @@ func init() {
 	// Key transformer functions
 	XlateFuncBind("YangToDb_test_sensor_type_key_xfmr", YangToDb_test_sensor_type_key_xfmr)
 	XlateFuncBind("DbToYang_test_sensor_type_key_xfmr", DbToYang_test_sensor_type_key_xfmr)
+	XlateFuncBind("YangToDb_test_sensor_zone_key_xfmr", YangToDb_test_sensor_zone_key_xfmr)
+	XlateFuncBind("DbToYang_test_sensor_zone_key_xfmr", DbToYang_test_sensor_zone_key_xfmr)
 	XlateFuncBind("YangToDb_test_set_key_xfmr", YangToDb_test_set_key_xfmr)
 	XlateFuncBind("DbToYang_test_set_key_xfmr", DbToYang_test_set_key_xfmr)
 
@@ -210,6 +212,48 @@ var DbToYang_test_sensor_type_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParam
 	rmap["type"] = sensorType
 
 	log.Info("DbToYang_test_sensor_type_key_xfmr rmap ", rmap)
+	return rmap, err
+}
+
+var YangToDb_test_sensor_zone_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var sensor_zone_key string
+	var err error
+
+	log.Info("YangToDb_test_sensor_zone_key_xfmr - inParams.uri ", inParams.uri)
+
+	pathInfo := NewPathInfo(inParams.uri)
+	groupId := pathInfo.Var("id")
+	sensorZone := pathInfo.Var("zone")
+	if groupId == "" {
+		return sensor_zone_key, err
+	}
+	if sensorZone == "" && (inParams.oper == DELETE || inParams.oper == GET) {
+		return groupId, err
+	}
+	if len(groupId) > 0 {
+		sensor_zone_key = groupId + "|" + sensorZone
+	}
+	log.Info("YangToDb_test_sensor_zone_key_xfmr returns", sensor_zone_key)
+	return sensor_zone_key, err
+}
+
+var DbToYang_test_sensor_zone_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+
+	rmap := make(map[string]interface{})
+	var err error
+	if log.V(3) {
+		log.Info("Entering DbToYang_test_sensor_zone_key_xfmr inParams.uri ", inParams.uri)
+	}
+	var sensorZone string
+
+	if strings.Contains(inParams.key, "|") {
+		key_split := strings.Split(inParams.key, "|")
+		sensorZone = key_split[1]
+	}
+
+	rmap["zone"] = sensorZone
+
+	log.Info("DbToYang_test_sensor_zone_key_xfmr rmap ", rmap)
 	return rmap, err
 }
 

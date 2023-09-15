@@ -318,7 +318,7 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) []typeMapOfInterfac
 		if ok && dbSpecData.keyName == nil && xDbSpecMap[xpath].dbEntry != nil {
 			yangKeys := yangKeyFromEntryGet(xDbSpecMap[xpath].dbEntry)
 			curMap := make(map[string]interface{})
-			sonicKeyDataAdd(dbIdx, yangKeys, table, xDbSpecMap[xpath].dbEntry.Name, keyStr, curMap)
+			sonicKeyDataAdd(dbIdx, yangKeys, table, xDbSpecMap[xpath].dbEntry.Name, keyStr, curMap, false)
 			if len(curMap) > 0 {
 				linParamsForGet := formXlateFromDbParams(inParamsForGet.dbs[dbIdx], inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, inParamsForGet.uri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, keyStr, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams, nil)
 				sonicDbToYangDataFill(linParamsForGet)
@@ -596,9 +596,13 @@ func fillDbDataMapForTbl(uri string, xpath string, tblName string, tblKey string
 	dbFormat.Ts.Name = tblName
 	dbFormat.DbNum = cdb
 	if tblKey != "" {
+		if !isSonicYang(uri) {
+			// Identify if the dbKey is a partial key
+			dbFormat.IsPartialKey = verifyPartialKeyForOc(uri, xpath, tblKey)
+		}
 		if tblSpecInfo, ok := xDbSpecMap[tblName]; ok && tblSpecInfo.hasXfmrFn {
 			/* key from URI should be converted into redis-db key, to read data */
-			tblKey, err = dbKeyValueXfmrHandler(CREATE, cdb, tblName, tblKey)
+			tblKey, err = dbKeyValueXfmrHandler(CREATE, cdb, tblName, tblKey, dbFormat.IsPartialKey)
 			if err != nil {
 				log.Warningf("Value-xfmr for table(%v) & key(%v) didn't do conversion.", tblName, tblKey)
 				return nil, err
