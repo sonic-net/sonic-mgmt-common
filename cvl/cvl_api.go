@@ -379,6 +379,8 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 			//Check max-element constraint 
 			if ret := c.checkMaxElemConstraint(OP_CREATE, tbl); ret != CVL_SUCCESS {
 				cvlErrObj.ErrCode = CVL_SYNTAX_ERROR
+				cvlErrObj.TableName = tbl
+				cvlErrObj.Keys = splitKeyComponents(tbl, key)
 				cvlErrObj.ErrAppTag = "too-many-elements"
 				cvlErrObj.Msg = "Max elements limit reached"
 				cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
@@ -399,6 +401,9 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 				for field := range cfgData[i].Data {
 					if (c.checkDeleteConstraint(cfgData, tbl, key, field) != CVL_SUCCESS) {
 						cvlErrObj.ErrCode = CVL_SEMANTIC_ERROR
+						cvlErrObj.TableName = tbl
+						cvlErrObj.Keys = splitKeyComponents(tbl, key)
+						cvlErrObj.Field = field
 						cvlErrObj.Msg = "Validation failed for Delete operation, given instance is in use"
 						cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
 						cvlErrObj.ErrAppTag = "instance-in-use"
@@ -411,6 +416,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 						cvlErrObj.ErrCode = CVL_SEMANTIC_ERROR
 						cvlErrObj.Msg = "Mandatory field getting deleted"
 						cvlErrObj.TableName = tbl
+						cvlErrObj.Keys = splitKeyComponents(tbl, key)
 						cvlErrObj.Field = field
 						cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
 						cvlErrObj.ErrAppTag = "mandatory-field-delete"
@@ -427,6 +433,8 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 				//Now check delete constraints
 				if (c.checkDeleteConstraint(cfgData, tbl, key, "") != CVL_SUCCESS) {
 					cvlErrObj.ErrCode = CVL_SEMANTIC_ERROR
+					cvlErrObj.TableName = tbl
+					cvlErrObj.Keys = splitKeyComponents(tbl, key)
 					cvlErrObj.Msg = "Validation failed for Delete operation, given instance is in use"
 					cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
 					cvlErrObj.ErrAppTag = "instance-in-use"
@@ -498,6 +506,8 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 					CVL_LOG(WARNING, "\nValidateEditConfig(): Key = %s already exists", cfgData[i].Key)
 					cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_ALREADY_EXIST
 					cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
+					cvlErrObj.TableName = tbl
+					cvlErrObj.Keys = splitKeyComponents(tbl, key)
 					return cvlErrObj, CVL_SEMANTIC_KEY_ALREADY_EXIST
 
 				} else {
@@ -514,6 +524,8 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 				CVL_LOG(WARNING, "\nValidateEditConfig(): Key = %s does not exist", cfgData[i].Key)
 				cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_NOT_EXIST
 				cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
+				cvlErrObj.TableName = tbl
+				cvlErrObj.Keys = splitKeyComponents(tbl, key)
 				return cvlErrObj, CVL_SEMANTIC_KEY_NOT_EXIST
 			}
 
@@ -530,6 +542,8 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 				CVL_LOG(WARNING, "\nValidateEditConfig(): Key = %s does not exist", cfgData[i].Key)
 				cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_NOT_EXIST
 				cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
+				cvlErrObj.TableName = tbl
+				cvlErrObj.Keys = splitKeyComponents(tbl, key)
 				return cvlErrObj, CVL_SEMANTIC_KEY_NOT_EXIST
 			}
 

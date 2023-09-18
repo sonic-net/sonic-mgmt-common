@@ -36,8 +36,8 @@ func TestValidateEditConfig_When_Exp_In_Choice_Negative(t *testing.T) {
 	}
 
 	loadConfigDB(rclient, depDataMap)
+	defer unloadConfigDB(rclient, depDataMap)
 
-	cvSess, _ := cvl.ValidationSessOpen()
 	cfgDataRule := []cvl.CVLEditConfigData{
 		cvl.CVLEditConfigData{
 			cvl.VALIDATE_ALL,
@@ -49,23 +49,19 @@ func TestValidateEditConfig_When_Exp_In_Choice_Negative(t *testing.T) {
 				"SRC_IP":            "10.1.1.1/32", //Invalid field
 				"L4_SRC_PORT":       "1909",
 				"IP_PROTOCOL":       "103",
-				"DST_IP":            "20.2.2.2/32", //Invalid field
 				"L4_DST_PORT_RANGE": "9000-12000",
 			},
 		},
 	}
 
-
-	cvlErrInfo, err := cvSess.ValidateEditConfig(cfgDataRule)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err == cvl.CVL_SUCCESS {
-		//Should fail
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgDataRule, CVLErrorInfo{
+		ErrCode:   CVL_SEMANTIC_ERROR,
+		TableName: "ACL_RULE",
+		//Keys:      []string{"TestACL1", "Rule1"},  <<< BUG: cvl is not populating the key
+		Field: "SRC_IP",
+		Value: "10.1.1.1/32",
+		Msg:   whenExpressionErrMessage,
+	})
 }
 
 func TestValidateEditConfig_When_Exp_In_Leaf_Positive(t *testing.T) {
@@ -79,7 +75,7 @@ func TestValidateEditConfig_When_Exp_In_Leaf_Positive(t *testing.T) {
 	}
 
 	loadConfigDB(rclient, depDataMap)
-	cvSess, _ := cvl.ValidationSessOpen()
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData := []cvl.CVLEditConfigData{
 		cvl.CVLEditConfigData{
@@ -94,17 +90,7 @@ func TestValidateEditConfig_When_Exp_In_Leaf_Positive(t *testing.T) {
 		},
 	}
 
-
-	cvlErrInfo, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err != cvl.CVL_SUCCESS {
-		//Should succeed
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_When_Exp_In_Leaf_Negative(t *testing.T) {
@@ -118,7 +104,7 @@ func TestValidateEditConfig_When_Exp_In_Leaf_Negative(t *testing.T) {
 	}
 
 	loadConfigDB(rclient, depDataMap)
-	cvSess, _ := cvl.ValidationSessOpen()
+	defer unloadConfigDB(rclient, depDataMap)
 
 	cfgData := []cvl.CVLEditConfigData{
 		cvl.CVLEditConfigData{
@@ -127,21 +113,17 @@ func TestValidateEditConfig_When_Exp_In_Leaf_Negative(t *testing.T) {
 			"STP_PORT|Ethernet4",
 			map[string]string{
 				"enabled": "true",
-				"edge_port": "true",
 				"link_type": "shared",
 			},
 		},
 	}
 
-
-	cvlErrInfo, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err == cvl.CVL_SUCCESS {
-		//Should succeed
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:   CVL_SEMANTIC_ERROR,
+		TableName: "STP_PORT",
+		Keys:      []string{"Ethernet4"},
+		Field:     "link_type",
+		Value:     "shared",
+		Msg:       whenExpressionErrMessage,
+	})
 }
