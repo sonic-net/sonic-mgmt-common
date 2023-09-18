@@ -76,7 +76,7 @@ index 225468e..5c5ea23 100644
  	if len(yt.Pattern) != 0 {
  		out += fmt.Sprintf(", Pattern: %s", strings.Join(yt.Pattern, " or "))
 diff --git a/util/path.go b/util/path.go
-index c5709dc..552a2e4 100644
+index c5709dc..decfc08 100644
 --- a/util/path.go
 +++ b/util/path.go
 @@ -12,6 +12,9 @@
@@ -89,12 +89,12 @@ index c5709dc..552a2e4 100644
  package util
  
  import (
-@@ -19,10 +22,13 @@ import (
+@@ -19,10 +22,14 @@ import (
  	"fmt"
  	"reflect"
  	"strings"
--
 +	"sync"
+ 
  	"github.com/openconfig/goyang/pkg/yang"
  )
  
@@ -104,7 +104,22 @@ index c5709dc..552a2e4 100644
  // SchemaPaths returns all the paths in the path tag.
  func SchemaPaths(f reflect.StructField) ([][]string, error) {
  	var out [][]string
-@@ -49,25 +55,39 @@ func SchemaPaths(f reflect.StructField) ([][]string, error) {
+@@ -40,34 +47,52 @@ func SchemaPaths(f reflect.StructField) ([][]string, error) {
+ 
+ // RelativeSchemaPath returns a path to the schema for the struct field f.
+ // Paths are embedded in the "path" struct tag and can be either simple:
+-//   e.g. "path:a"
++//
++//	e.g. "path:a"
++//
+ // or composite (if path compression is used) e.g.
+-//   e.g. "path:config/a|a"
++//
++//	e.g. "path:config/a|a"
++//
+ // In the latter case, this function returns {"config", "a"}, because only the
+ // longer path exists in the data tree and we want the schema for that node.
+ // This case is found in OpenConfig leaf-ref cases where the key of a list is a
  // leafref; the schema *yang.Entry for the field is given by
  // schema.Dir["config"].Dir["a"].
  func RelativeSchemaPath(f reflect.StructField) ([]string, error) {
@@ -160,7 +175,22 @@ index c5709dc..552a2e4 100644
  }
  
  // SchemaTreePath returns the schema tree path of the supplied yang.Entry
-@@ -215,6 +235,10 @@ func FindLeafRefSchema(schema *yang.Entry, pathStr string) (*yang.Entry, error)
+@@ -174,10 +199,10 @@ func removeXPATHPredicates(s string) (string, error) {
+ // FindLeafRefSchema returns a schema Entry at the path pathStr relative to
+ // schema if it exists, or an error otherwise.
+ // pathStr has either:
+-//  - the relative form "../a/b/../b/c", where ".." indicates the parent of the
+-//    node, or
+-//  - the absolute form "/a/b/c", which indicates the absolute path from the
+-//    root of the schema tree.
++//   - the relative form "../a/b/../b/c", where ".." indicates the parent of the
++//     node, or
++//   - the absolute form "/a/b/c", which indicates the absolute path from the
++//     root of the schema tree.
+ func FindLeafRefSchema(schema *yang.Entry, pathStr string) (*yang.Entry, error) {
+ 	if pathStr == "" {
+ 		return nil, fmt.Errorf("leafref schema %s has empty path", schema.Name)
+@@ -215,6 +240,10 @@ func FindLeafRefSchema(schema *yang.Entry, pathStr string) (*yang.Entry, error)
  		refSchema = refSchema.Dir[pe]
  	}
  
@@ -171,6 +201,60 @@ index c5709dc..552a2e4 100644
  	return refSchema, nil
  }
  
+@@ -271,7 +300,7 @@ func StripModulePrefix(name string) string {
+ // names. The path returned omits any leading or trailing empty elements when
+ // splitting on the / character.
+ func PathStringToElements(path string) []string {
+-	parts := SplitPath(path)
++	parts := SplitPath2(path)
+ 	// Remove leading empty element
+ 	if len(parts) > 0 && parts[0] == "" {
+ 		parts = parts[1:]
+@@ -283,6 +312,44 @@ func PathStringToElements(path string) []string {
+ 	return parts
+ }
+ 
++// SplitPath2 splits path across unescaped /.
++// Any / inside square brackets are ignored.
++func SplitPath2(path string) []string {
++	var parts []string
++	var buf bytes.Buffer
++
++	var inKey, inEscape bool
++
++	var ch rune
++	for _, ch = range path {
++		switch {
++		case ch == '[' && !inEscape:
++			inKey = true
++		case ch == ']' && !inEscape:
++			inKey = false
++		case ch == '\\' && !inEscape:
++			inEscape = true
++			if inKey {
++				buf.WriteRune(ch)
++			}
++			continue
++		case ch == '/' && !inEscape && !inKey:
++			parts = append(parts, buf.String())
++			buf.Reset()
++			continue
++		}
++
++		buf.WriteRune(ch)
++		inEscape = false
++	}
++
++	if buf.Len() != 0 || (len(path) != 1 && ch == '/') {
++		parts = append(parts, buf.String())
++	}
++
++	return parts
++}
++
+ // SplitPath splits path across unescaped /.
+ // Any / inside square brackets are ignored.
+ func SplitPath(path string) []string {
 diff --git a/util/reflect.go b/util/reflect.go
 index 6f9f3ea..457a245 100644
 --- a/util/reflect.go
@@ -877,7 +961,7 @@ index d3e54b9..6d16641 100644
 +	return nil, fmt.Errorf("No match found in the existingKeys map.")
 +}
 diff --git a/ytypes/container.go b/ytypes/container.go
-index 9864a2c..b3446fd 100644
+index 9864a2c..3209c78 100644
 --- a/ytypes/container.go
 +++ b/ytypes/container.go
 @@ -12,6 +12,9 @@
@@ -896,7 +980,7 @@ index 9864a2c..b3446fd 100644
  				if errs := Validate(cschema, fieldValue); errs != nil {
 -					errors = util.AppendErrs(errors, util.PrefixErrors(errs, cschema.Path()))
 +					if errs.Error() != "ERROR_READONLY_OBJECT_FOUND" {
-+						errors = util.AppendErrs(errors, util.PrefixErrors(errs, cschema.Path()))	
++						errors = util.AppendErrs(errors, util.PrefixErrors(errs, cschema.Path()))
 +					} else if len(errors) == 0 {
 +						errors = util.AppendErrs(errors, errs)
 +					}
@@ -906,27 +990,28 @@ index 9864a2c..b3446fd 100644
  				// Either an element in choice schema subtree, or bad field.
  				// If the former, it will be found in the choice check below.
  				extraFields[fieldName] = nil
-@@ -100,6 +107,10 @@ func validateContainer(schema *yang.Entry, value ygot.GoStruct) util.Errors {
- 	if len(extraFields) > 0 {
+@@ -101,6 +108,10 @@ func validateContainer(schema *yang.Entry, value ygot.GoStruct) util.Errors {
  		errors = util.AppendErr(errors, fmt.Errorf("fields %v are not found in the container schema %s", stringMapSetToSlice(extraFields), schema.Name))
  	}
-+	
+ 
 +	if len(errors) == 0 && schema.ReadOnly() == true {
 +		errors = util.AppendErrs(errors, util.NewErrs(fmt.Errorf("ERROR_READONLY_OBJECT_FOUND")))
 +	}
- 
++
  	return util.UniqueErrors(errors)
  }
-@@ -138,6 +149,92 @@ func unmarshalContainer(schema *yang.Entry, parent interface{}, jsonTree interfa
+ 
+@@ -138,6 +149,94 @@ func unmarshalContainer(schema *yang.Entry, parent interface{}, jsonTree interfa
  	return unmarshalStruct(schema, parent, jt, enc, opts...)
  }
  
 +// unmarshalKeyFieldsInStruct unmarshals a JSON tree into a struct only for the Key fields.
 +// schema is the YANG schema of the node corresponding to the struct being unmarshalled into.
-+// mapParent is the interface which of type map holds this parent struct with the key 
++// mapParent is the interface which of type map holds this parent struct with the key
 +// parent is the parent struct, which must be a struct ptr.
 +// jsonTree is a JSON data tree which must be a map[string]interface{}.
-+func unmarshalKeyFieldsInStruct (schema *yang.Entry, mapParent interface{}, parent interface{}, jsonTree map[string]interface{}, enc Encoding, opts ...UnmarshalOpt) error {
++// returns key as formatted string, else error
++func unmarshalKeyFieldsInStruct(schema *yang.Entry, mapParent interface{}, parent interface{}, jsonTree map[string]interface{}, enc Encoding, opts ...UnmarshalOpt) (string, error) {
 +	destv := reflect.ValueOf(parent).Elem()
 +
 +	keySet := make(map[string]bool)
@@ -941,7 +1026,8 @@ index 9864a2c..b3446fd 100644
 +			keySet[fName] = true
 +		}
 +	}
-+			
++
++	keyStr := ""
 +	// Range over the parent struct fields. For each field, check if the data
 +	// is present in the JSON tree and if so unmarshal it into the field.
 +	for i := 0; i < destv.NumField(); i++ {
@@ -949,7 +1035,7 @@ index 9864a2c..b3446fd 100644
 +		ft := destv.Type().Field(i)
 +		if _, ok := keySet[ft.Name]; !ok {
 +			continue
-+		} 
++		}
 +		// Skip annotation fields since they do not have a schema.
 +		// TODO(robjs): Implement unmarshalling annotations.
 +		if util.IsYgotAnnotation(ft) {
@@ -958,27 +1044,27 @@ index 9864a2c..b3446fd 100644
 +
 +		cschema, err := util.ChildSchema(schema, ft)
 +		if err != nil {
-+			return err
++			return "", err
 +		}
 +		if cschema == nil {
-+			return fmt.Errorf("unmarshalContainer could not find schema for type %T, field name %s", parent, ft.Name)
++			return "", fmt.Errorf("unmarshalContainer could not find schema for type %T, field name %s", parent, ft.Name)
 +		}
 +		jsonValue, err := getJSONTreeValForField(schema, cschema, ft, jsonTree)
 +		if err != nil {
-+			return err
++			return "", err
 +		}
 +		// Store the data tree path of the current field. These will be used
 +		// at the end to ensure that there are no excess elements in the JSON
 +		// tree not covered by any data path.
 +		sp, err := dataTreePaths(schema, cschema, ft)
 +		if err != nil {
-+			return err
++			return "", err
 +		}
 +		if jsonValue == nil {
 +			util.DbgPrint("field %s paths %v not present in tree", ft.Name, sp)
 +			continue
 +		}
-+
++		keyStr = keyStr + fmt.Sprintf("%v", jsonValue) + "#"
 +		util.DbgPrint("populating field %s type %s with paths %v.", ft.Name, ft.Type, sp)
 +		// Only create a new field if it is nil, otherwise update just the
 +		// fields that are in the data tree being passed to unmarshal, and
@@ -1000,25 +1086,25 @@ index 9864a2c..b3446fd 100644
 +			p = f.Interface()
 +		}
 +		if err := unmarshalGeneric(cschema, p, jsonValue, enc, opts...); err != nil {
-+			return err
++			return "", err
 +		}
 +	}
-+	
-+	return nil
++
++	return keyStr, nil
 +}
 +
  // unmarshalStruct unmarshals a JSON tree into a struct.
  //   schema is the YANG schema of the node corresponding to the struct being
  //     unmarshalled into.
-@@ -217,7 +314,10 @@ func unmarshalStruct(schema *yang.Entry, parent interface{}, jsonTree map[string
+@@ -217,7 +316,10 @@ func unmarshalStruct(schema *yang.Entry, parent interface{}, jsonTree map[string
  		}
  	}
  
 -	util.DbgPrint("container after unmarshal:\n%s\n", pretty.Sprint(destv.Interface()))
 +	if util.IsDebugLibraryEnabled() {
 +		util.DbgPrint("container after unmarshal:\n%s\n", pretty.Sprint(destv.Interface()))
-+	} 
-+	
++	}
++
  	return nil
  }
  
@@ -1242,7 +1328,7 @@ index 1d4195a..55de85c 100644
 +}
 \ No newline at end of file
 diff --git a/ytypes/list.go b/ytypes/list.go
-index ec52ee3..35f32f5 100644
+index ec52ee3..c312ec3 100644
 --- a/ytypes/list.go
 +++ b/ytypes/list.go
 @@ -12,6 +12,9 @@
@@ -1255,15 +1341,16 @@ index ec52ee3..35f32f5 100644
  package ytypes
  
  import (
-@@ -22,6 +25,7 @@ import (
+@@ -19,6 +22,8 @@ import (
+ 	"reflect"
+ 	"strings"
+ 
++	log "github.com/golang/glog"
++	"github.com/google/go-cmp/cmp"
  	"github.com/kylelemons/godebug/pretty"
  	"github.com/openconfig/goyang/pkg/yang"
  	"github.com/openconfig/ygot/util"
-+	log "github.com/golang/glog"
- )
- 
- // Refer to: https://tools.ietf.org/html/rfc6020#section-7.8.
-@@ -217,6 +221,9 @@ func validateListSchema(schema *yang.Entry) error {
+@@ -217,6 +222,9 @@ func validateListSchema(schema *yang.Entry) error {
  		if len(schema.Key) == 0 {
  			return fmt.Errorf("list %s with config set must have a key", schema.Name)
  		}
@@ -1273,7 +1360,7 @@ index ec52ee3..35f32f5 100644
  		keys := strings.Fields(schema.Key)
  		keysMissing := make(map[string]bool)
  		for _, v := range keys {
-@@ -232,6 +239,7 @@ func validateListSchema(schema *yang.Entry) error {
+@@ -232,6 +240,7 @@ func validateListSchema(schema *yang.Entry) error {
  		}
  	}
  
@@ -1281,73 +1368,153 @@ index ec52ee3..35f32f5 100644
  	return nil
  }
  
-@@ -317,6 +325,9 @@ func unmarshalList(schema *yang.Entry, parent interface{}, jsonList interface{},
+@@ -271,6 +280,31 @@ func nameMatchesPath(fieldName string, path []string) (bool, error) {
+ 	return false, fmt.Errorf("expected field %s path to have one or two elements, got %v", fieldName, path)
+ }
+ 
++func isKeyHasStructPtr(key reflect.Value) bool {
++	switch key.Type().Kind() {
++	case reflect.Ptr:
++		return true
++	case reflect.Interface:
++		key = key.Elem()
++		switch key.Type().Kind() {
++		case reflect.Ptr:
++			return true
++		case reflect.Struct:
++		default:
++			return false
++		}
++	case reflect.Struct:
++	default:
++		return false
++	}
++	for i, n := 0, key.NumField(); i < n; i++ {
++		if isKeyHasStructPtr(key.Field(i)) {
++			return true
++		}
++	}
++	return false
++}
++
+ // unmarshalList unmarshals a JSON array into a list parent, which must be a
+ // map or slice ptr.
+ //   schema is the schema of the schema node corresponding to the struct being
+@@ -316,6 +350,22 @@ func unmarshalList(schema *yang.Entry, parent interface{}, jsonList interface{},
+ 	if !util.IsTypeStructPtr(listElementType) {
  		return fmt.Errorf("unmarshalList for %s parent type %T, has bad field type %v", listElementType, parent, listElementType)
  	}
- 
-+	isListUpdate := (util.IsTypeMap(t) && isAllowUpdateInListMap(opts))
++	isUpdate := (util.IsTypeMap(t) && isAllowUpdateInListMap(opts))
++	isListUpdate := isUpdate
 +	mapV := reflect.ValueOf(parent)
-+	
++
++	isKeyHasPtr := false
++	keyCnt := 0
++	if isListUpdate {
++		keyCnt = mapV.Len()
++		if keyCnt == 0 {
++			isListUpdate = false
++		} else {
++			itr := mapV.MapRange()
++			itr.Next()
++			isKeyHasPtr = isKeyHasStructPtr(itr.Key())
++		}
++	}
+ 
  	// Iterate over JSON list. Each JSON list element is a map with the field
  	// name as the key. The JSON values must be unmarshaled and inserted into
- 	// the new struct list element. When all fields of the new element have been
-@@ -330,16 +341,41 @@ func unmarshalList(schema *yang.Entry, parent interface{}, jsonList interface{},
+@@ -325,22 +375,75 @@ func unmarshalList(schema *yang.Entry, parent interface{}, jsonList interface{},
+ 	// types respectively.
+ 	// For a keyed list, the value(s) of the key are derived from the key fields
+ 	// in the new list element.
++	keyMap := make(map[string]bool)
+ 	for _, le := range jl {
+ 		var err error
  		jt := le.(map[string]interface{})
  		newVal := reflect.New(listElementType.Elem())
  		util.DbgPrint("creating a new list element val of type %v", newVal.Type())
 -		if err := unmarshalStruct(schema, newVal.Interface(), jt, enc, opts...); err != nil {
 -			return err
++		keyStr := ""
++		if isUpdate {
++			keyStr, err = unmarshalKeyFieldsInStruct(schema, parent, newVal.Interface(), jt, enc, opts...)
++			if err != nil {
++				log.Warning("Error in unmarshaling key fields: ", err, " and the structure type: ", newVal.Type())
++				pretty.Print(newVal.Interface())
++				pretty.Print(jt)
++				log.Info("Error in unmarshaling: schema key: ", schema.Key, " - parent type : ", reflect.TypeOf(parent), " - key type", reflect.TypeOf(parent).Key())
++				return err
++			} else if log.V(6) {
++				log.Info("unmarshalKeyFieldsInStruct: key in string format: ", keyStr)
++			}
++			if keyCnt == 0 && !keyMap[keyStr] {
++				isListUpdate = false
++			}
++		}
 +		if !isListUpdate {
 +			if err := unmarshalStruct(schema, newVal.Interface(), jt, enc, opts...); err != nil {
 +				return err
 +			}
  		}
 -
-+		
  		switch {
  		case util.IsTypeMap(t):
-+			if isListUpdate {
-+				if err = unmarshalKeyFieldsInStruct(schema, parent, newVal.Interface(), jt, enc, opts...); err != nil {
-+					log.Warning ("Error in unmarshaling key fields: ", err, " and the structure type: ", newVal.Type())
-+					pretty.Print(newVal.Interface())
-+					pretty.Print(jt)
-+					log.Info("Error in unmarshaling: schema key: ", schema.Key, " - parent type : ", reflect.TypeOf(parent), " - key type", reflect.TypeOf(parent).Key())
-+					return err
-+				}
-+			}
  			newKey, err := makeKeyForInsert(schema, parent, newVal)
  			if err != nil {
  				return err
  			}
+-			err = util.InsertIntoMap(parent, newKey.Interface(), newVal.Interface())
++			isKeyExist := false
 +			if isListUpdate {
-+				if listKV := mapV.MapIndex(newKey); listKV.IsValid() {
++				if isKeyHasPtr {
++					iter := mapV.MapRange()
++					for iter.Next() {
++						if cmp.Equal(iter.Key().Interface(), newKey.Interface()) {
++							newVal = iter.Value()
++							isKeyExist = true
++							if !keyMap[keyStr] {
++								keyCnt--
++								keyMap[keyStr] = true
++							}
++							break
++						}
++					}
++				} else if listKV := mapV.MapIndex(reflect.ValueOf(newKey.Interface())); listKV.IsValid() {
 +					if log.V(6) {
-+						log.Info("Unmarshaling: key's type: ",newKey.Type()," with value: ", newKey, " already exist in the map for the structure: ", listKV.Type())
-+						log.Info("Unmarshaling: schema.Key: ",schema.Key," - parent type : ", reflect.TypeOf(parent), " - key type", reflect.TypeOf(parent).Key())
++						log.Info("Unmarshaling: key's type: ", newKey.Type(), " with value: ", newKey, " already exist in the map for the structure: ", listKV.Type())
++						log.Info("Unmarshaling: schema.Key: ", schema.Key, " - parent type : ", reflect.TypeOf(parent), " - key type", reflect.TypeOf(parent).Key())
 +						pretty.Print(listKV.Interface())
 +						pretty.Print(jt)
 +					}
 +					newVal = listKV
++					isKeyExist = true
++					if !keyMap[keyStr] {
++						keyCnt--
++						keyMap[keyStr] = true
++					}
 +				}
 +				if err := unmarshalStruct(schema, newVal.Interface(), jt, enc, opts...); err != nil {
 +					return err
 +				}
 +			}
- 			err = util.InsertIntoMap(parent, newKey.Interface(), newVal.Interface())
++			if !isKeyExist {
++				err = util.InsertIntoMap(parent, newKey.Interface(), newVal.Interface())
++			}
  		case util.IsTypeSlicePtr(t):
  			err = util.InsertIntoSlice(parent, newVal.Interface())
-@@ -350,7 +386,9 @@ func unmarshalList(schema *yang.Entry, parent interface{}, jsonList interface{},
+ 		default:
+@@ -350,7 +453,9 @@ func unmarshalList(schema *yang.Entry, parent interface{}, jsonList interface{},
  			return err
  		}
  	}
 -	util.DbgPrint("list after unmarshal:\n%s\n", pretty.Sprint(parent))
 +	if util.IsDebugLibraryEnabled() {
-+		util.DbgPrint("list after unmarshal:\n%s\n", pretty.Sprint(parent))	
++		util.DbgPrint("list after unmarshal:\n%s\n", pretty.Sprint(parent))
 +	}
  
  	return nil
  }
-@@ -394,11 +432,91 @@ func makeValForInsert(schema *yang.Entry, parent interface{}, keys map[string]st
+@@ -394,11 +499,91 @@ func makeValForInsert(schema *yang.Entry, parent interface{}, keys map[string]st
  		if util.IsValuePtr(fv) {
  			ft = ft.Elem()
  		}
@@ -1397,7 +1564,7 @@ index ec52ee3..35f32f5 100644
 +					break
 +				}
 +			}
-+			
++
 +			if nv.IsValid() == false {
 +				ets, err := schemaToEnumTypes(cschema, val.Type())
 +				if err != nil {
@@ -1441,7 +1608,7 @@ index ec52ee3..35f32f5 100644
  		return util.InsertIntoStruct(val.Interface(), fn, nv.Interface())
  	}
  
-@@ -468,6 +586,8 @@ func makeKeyForInsert(schema *yang.Entry, parentMap interface{}, newVal reflect.
+@@ -468,6 +653,8 @@ func makeKeyForInsert(schema *yang.Entry, parentMap interface{}, newVal reflect.
  	kv, err := getKeyValue(newVal.Elem(), schema.Key)
  	if err != nil {
  		return reflect.ValueOf(nil), err
@@ -1450,18 +1617,62 @@ index ec52ee3..35f32f5 100644
  	}
  	util.DbgPrint("key value is %v.", kv)
  
-@@ -494,6 +614,9 @@ func insertAndGetKey(schema *yang.Entry, root interface{}, keys map[string]strin
+@@ -494,6 +681,9 @@ func insertAndGetKey(schema *yang.Entry, root interface{}, keys map[string]strin
  	}
  
  	// TODO(yusufsn): When the key is a leafref, its target should be filled out.
-+    if (len(keys) == 0) { 
-+         return nil, nil
-+    } 
++	if len(keys) == 0 {
++		return nil, nil
++	}
  	mapVal, err := makeValForInsert(schema, root, keys)
  	if err != nil {
  		return nil, fmt.Errorf("failed to create map value for insert, root %T, keys %v: %v", root, keys, err)
+@@ -557,3 +747,43 @@ func getKeyValue(structVal reflect.Value, key string) (interface{}, error) {
+ 
+ 	return nil, fmt.Errorf("could not find key field %s in struct type %s", key, structVal.Type())
+ }
++
++// UnmarshalListKey creates the key and its value (ygot struct) and insert into the map return the created ygot struct
++// if the key is not already present in the map
++func UnmarshalListKey(schema *yang.Entry, root interface{}, keys map[string]string) (interface{}, error) {
++	switch {
++	case schema.Key == "":
++		return nil, fmt.Errorf("unkeyed list can't be traversed, type %T, keys %v", root, keys)
++	case !util.IsValueMap(reflect.ValueOf(root)):
++		return nil, fmt.Errorf("root has type %T, want map", root)
++	}
++	if len(keys) == 0 {
++		return nil, nil
++	}
++
++	mapVal, err := makeValForInsert(schema, root, keys)
++	if err != nil {
++		return nil, fmt.Errorf("failed to create map value for insert, root %T, keys %v: %v", root, keys, err)
++	}
++
++	mapKey, err := makeKeyForInsert(schema, root, mapVal)
++	if err != nil {
++		return nil, err
++	}
++
++	mapV := reflect.ValueOf(root)
++
++	if listKV := mapV.MapIndex(mapKey); listKV.IsValid() {
++		if log.V(5) {
++			log.Info("Unmarshaling: key's type: ", mapKey.Type(), " with value: ", mapKey, " already exist in the map for the structure: ", listKV.Type())
++		}
++		return listKV.Interface(), nil
++	}
++
++	err = util.InsertIntoMap(root, mapKey.Interface(), mapVal.Interface())
++	if err != nil {
++		return nil, fmt.Errorf("failed to insert into map %T, keys %v: %v", root, keys, err)
++	}
++
++	return mapVal.Interface(), nil
++}
 diff --git a/ytypes/node.go b/ytypes/node.go
-index bad8474..1bce0ba 100644
+index bad8474..e38c0f9 100644
 --- a/ytypes/node.go
 +++ b/ytypes/node.go
 @@ -12,6 +12,9 @@
@@ -1474,15 +1685,26 @@ index bad8474..1bce0ba 100644
  package ytypes
  
  import (
-@@ -25,6 +28,7 @@ import (
+@@ -24,6 +27,8 @@ import (
+ 	"google.golang.org/grpc/codes"
  	"google.golang.org/grpc/status"
  
- 	gpb "github.com/openconfig/gnmi/proto/gnmi"
 +	"strings"
++
+ 	gpb "github.com/openconfig/gnmi/proto/gnmi"
  )
  
- // Type retrieveNodeArgs contains the set of parameters that changes
-@@ -140,6 +144,16 @@ func retrieveNodeContainer(schema *yang.Entry, root interface{}, path *gpb.Path,
+@@ -53,6 +58,9 @@ type retrieveNodeArgs struct {
+ 	// specifically to deal with uint values being streamed as positive int
+ 	// values.
+ 	tolerateJSONInconsistenciesForVal bool
++	// if retListMap is set to true then target list map will be retrieved
++	// if the target node of the path is list without keys
++	retListMap bool
+ }
+ 
+ // retrieveNode is an internal function that retrieves the node specified by
+@@ -140,6 +148,16 @@ func retrieveNodeContainer(schema *yang.Entry, root interface{}, path *gpb.Path,
  				if err := util.InitializeStructField(root, ft.Name); err != nil {
  					return nil, status.Errorf(codes.Unknown, "failed to initialize struct field %s in %T, child schema %v, path %v", ft.Name, root, cschema, path)
  				}
@@ -1499,44 +1721,83 @@ index bad8474..1bce0ba 100644
  			}
  
  			// If delete is specified, and the path is exhausted, then we set the
-@@ -243,6 +257,13 @@ func retrieveNodeList(schema *yang.Entry, root interface{}, path, traversedPath
+@@ -202,6 +220,11 @@ func retrieveNodeList(schema *yang.Entry, root interface{}, path, traversedPath
+ 		return nil, status.Errorf(codes.InvalidArgument, "root has type %T, expect map", root)
+ 	}
+ 
++	if len(path.GetElem()[0].GetKey()) == 0 && args.retListMap {
++		// returning list map, since there is no keys present in the path
++		return []*TreeNode{{Path: traversedPath, Schema: schema, Data: root}}, nil
++	}
++
+ 	var matches []*TreeNode
+ 
+ 	listKeyT := rv.Type().Key()
+@@ -243,6 +266,17 @@ func retrieveNodeList(schema *yang.Entry, root interface{}, path, traversedPath
  			if err != nil {
  				return nil, status.Errorf(codes.InvalidArgument, "failed to convert %v to a string, path %v: %v", kv, path, err)
  			}
 +
 +			if strings.Contains(keyAsString, "\\") {
-+				keyPath, err := ygot.StringToStructuredPath(schema.Name+"["+schema.Key+"="+keyAsString+"]")
-+				if err != nil { return nil, status.Errorf(codes.InvalidArgument, "failed to convert %v to a string, path %v: %v", kv, path, err) }
-+				if len(keyPath.Elem) == 1 { keyAsString = keyPath.Elem[0].Key[schema.Key] }
++				keyPath, err := ygot.StringToStructuredPath(schema.Name + "[" + schema.Key + "=" + keyAsString + "]")
++				if err != nil {
++					return nil, status.Errorf(codes.InvalidArgument, "failed to convert %v to a string, path %v: %v", kv, path, err)
++				}
++				if len(keyPath.Elem) == 1 {
++					keyAsString = keyPath.Elem[0].Key[schema.Key]
++				}
 +			}
 +
  			if keyAsString == pathKey {
  				remainingPath := util.PopGNMIPath(path)
  				if args.delete && len(remainingPath.GetElem()) == 0 {
-@@ -287,6 +308,11 @@ func retrieveNodeList(schema *yang.Entry, root interface{}, path, traversedPath
+@@ -287,6 +321,15 @@ func retrieveNodeList(schema *yang.Entry, root interface{}, path, traversedPath
  			if err != nil {
  				return nil, status.Errorf(codes.Unknown, "failed to convert the field value to string, field %v: %v", fieldName, err)
  			}
 +			if strings.Contains(keyAsString, "\\") {
-+				keyPath, err := ygot.StringToStructuredPath(schema.Name+"["+schemaKey+"="+keyAsString+"]")
-+				if err != nil { return nil, status.Errorf(codes.Unknown, "failed to convert the field value to string, field %v: %v", fieldName, err) }
-+				if len(keyPath.Elem) == 1 { keyAsString = keyPath.Elem[0].Key[schemaKey] }
++				keyPath, err := ygot.StringToStructuredPath(schema.Name + "[" + schemaKey + "=" + keyAsString + "]")
++				if err != nil {
++					return nil, status.Errorf(codes.Unknown, "failed to convert the field value to string, field %v: %v", fieldName, err)
++				}
++				if len(keyPath.Elem) == 1 {
++					keyAsString = keyPath.Elem[0].Key[schemaKey]
++				}
 +			}
  			if !(args.handleWildcards && pathKey == "*") && pathKey != keyAsString {
  				match = false
  				break
-@@ -319,6 +345,11 @@ func retrieveNodeList(schema *yang.Entry, root interface{}, path, traversedPath
+@@ -319,6 +362,11 @@ func retrieveNodeList(schema *yang.Entry, root interface{}, path, traversedPath
  		if err != nil {
  			return nil, err
  		}
 +
-+		if (key == nil) {
-+			return []*TreeNode{{Path: traversedPath,Schema: schema,Data: root,}}, nil
++		if key == nil {
++			return []*TreeNode{{Path: traversedPath, Schema: schema, Data: root}}, nil
 +		}
 +
  		nodes, err := retrieveNode(schema, rv.MapIndex(reflect.ValueOf(key)).Interface(), util.PopGNMIPath(path), appendElem(traversedPath, path.GetElem()[0]), args)
  		if err != nil {
  			return nil, err
+@@ -345,6 +393,18 @@ func GetOrCreateNode(schema *yang.Entry, root interface{}, path *gpb.Path) (inte
+ 	return nodes[0].Data, nodes[0].Schema, nil
+ }
+ 
++// GetOrCreateTargetNode function is similar to GetOrCreateNode function, but it returns the list map object
++// if the target node of the path is list without keys
++func GetOrCreateTargetNode(schema *yang.Entry, root interface{}, path *gpb.Path) (interface{}, *yang.Entry, error) {
++	nodes, err := retrieveNode(schema, root, path, nil, retrieveNodeArgs{modifyRoot: true, retListMap: true})
++	if err != nil {
++		return nil, nil, err
++	}
++
++	// There must be a result as this function initializes nodes along the supplied path.
++	return nodes[0].Data, nodes[0].Schema, nil
++}
++
+ // TreeNode wraps an individual entry within a YANG data tree to return to a caller.
+ type TreeNode struct {
+ 	// Schema is the schema entry for the data tree node, specified as a goyang Entry struct.
 diff --git a/ytypes/string_type.go b/ytypes/string_type.go
 index 4ae91e2..f91bd74 100644
 --- a/ytypes/string_type.go

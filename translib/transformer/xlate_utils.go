@@ -33,6 +33,7 @@ import (
 	log "github.com/golang/glog"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/goyang/pkg/yang"
+	"github.com/openconfig/ygot/util"
 	"github.com/openconfig/ygot/ygot"
 	"github.com/openconfig/ygot/ytypes"
 )
@@ -1232,6 +1233,147 @@ func xlateUnMarshallUri(ygRoot *ygot.GoStruct, uri string) (*interface{}, error)
 	}
 
 	return &ygNode, nil
+}
+
+func (ygtXltr *ygotXlator) validate() error {
+	uri := ygtXltr.ygotCtx.relUri
+
+	if len(uri) == 0 {
+		ygtXltr.ygotCtx.err = errors.New("Error: URI is empty")
+		log.Warning("ygotXlator: validate: " + ygtXltr.ygotCtx.err.Error())
+		return ygtXltr.ygotCtx.err
+	}
+
+	if ygtXltr.ygotCtx.ygParentObj == nil {
+		ygtXltr.ygotCtx.err = fmt.Errorf("ygot object is nil for the URI %v", uri)
+		log.Warning("ygotXlator: validate:: " + ygtXltr.ygotCtx.err.Error())
+		return ygtXltr.ygotCtx.err
+	}
+
+	if ygtXltr.ygotCtx.ygSchema == nil {
+		ygtXltr.ygotCtx.err = fmt.Errorf("ygSchema is nil for the URI %v; for the ygot object: %v", uri, ygtXltr.getParentObjName())
+		log.Warning("ygotXlator: validate:: " + ygtXltr.ygotCtx.err.Error())
+		return ygtXltr.ygotCtx.err
+	}
+	return nil
+}
+
+func (ygtXltr ygotXlator) getParentObjName() string {
+	return fmt.Sprintf("%v", reflect.ValueOf(*ygtXltr.ygotCtx.ygParentObj))
+}
+
+func (ygtXltr ygotXlator) uriToPath() (*gnmi.Path, error) {
+	path, err := ygot.StringToPath(ygtXltr.ygotCtx.relUri, ygot.StructuredPath)
+	if err != nil {
+		ygtXltr.ygotCtx.err = fmt.Errorf("error: %v for the ygSchema: %v; ygot obj: %v; URI: %v",
+			err.Error(), ygtXltr.ygotCtx.ygSchema.Name, ygtXltr.getParentObjName(), ygtXltr.ygotCtx.relUri)
+		log.Warning(ygtXltr.ygotCtx.err)
+		return nil, ygtXltr.ygotCtx.err
+	}
+	ygtXltr.stripModulePrefix(path)
+	return path, nil
+}
+
+func (ygtXltr ygotXlator) stripModulePrefix(path *gnmi.Path) {
+	for _, p := range path.Elem {
+		if strings.Contains(p.Name, ":") {
+			pathSlice := strings.Split(p.Name, ":")
+			p.Name = pathSlice[len(pathSlice)-1]
+		}
+	}
+}
+
+func (ygtXltr ygotXlator) getListPath(path *gnmi.Path) *gnmi.Path {
+	listPath := &gnmi.Path{}
+	listPath.Elem = append(listPath.Elem, &gnmi.PathElem{Name: path.Elem[0].Name})
+	return listPath
+}
+
+func (ygtXltr ygotXlator) unmarshalListKey(path *gnmi.Path) error {
+
+	listPath := ygtXltr.getListPath(path)
+	objIntf, ygListSchema, err := ytypes.GetOrCreateTargetNode(ygtXltr.ygotCtx.ygSchema, *ygtXltr.ygotCtx.ygParentObj, listPath)
+	if err != nil {
+		objName := fmt.Sprintf("%v", reflect.ValueOf(*ygtXltr.ygotCtx.ygParentObj))
+		return fmt.Errorf("error in getting the target object: %v; for the ygSchema: %v; "+
+			"ygot obj: %v for the given URI: %v",
+			err.Error(), ygtXltr.ygotCtx.ygSchema.Name, objName, listPath)
+	}
+
+	listObj, err := ytypes.UnmarshalListKey(ygListSchema, objIntf, path.Elem[0].Key)
+	if err != nil {
+		objName := fmt.Sprintf("%v", reflect.ValueOf(objIntf))
+		return fmt.Errorf("error in creating the target ygot list struct with key: %v; for the ygSchema: %v; "+
+			"ygot obj: %v for the given path: %v",
+			err.Error(), ygListSchema.Name, objName, path)
+	} else if listObj == nil {
+		objName := fmt.Sprintf("%v", reflect.ValueOf(objIntf))
+		return fmt.Errorf("error in creating the target ygot list struct with key for the ygSchema: %v; "+
+			"ygot obj: %v for the given path: %v", ygListSchema.Name, objName, path)
+	}
+
+	var ygStructPtr *ygot.GoStruct
+	if ygStruct, ok := listObj.(ygot.GoStruct); ok {
+		ygStructPtr = &ygStruct
+	} else {
+		objName := fmt.Sprintf("%v", reflect.ValueOf(objIntf))
+		return fmt.Errorf("error in casting the target ygot list struct with key for the ygSchema: %v; "+
+			"ygot obj: %v for the given path: %v", ygListSchema.Name, objName, path)
+	}
+
+	retPath := util.PopGNMIPath(path)
+	path.Elem = retPath.Elem
+	if len(path.GetElem()) == 0 {
+		ygtXltr.ygotCtx.trgtYgSchema = ygListSchema
+		ygtXltr.ygotCtx.trgtYgObj = ygStructPtr
+	} else {
+		ygtXltr.ygotCtx.ygParentObj = ygStructPtr
+		ygtXltr.ygotCtx.ygSchema = ygListSchema
+	}
+
+	return nil
+}
+
+func (ygtXltr ygotXlator) translate() error {
+	if err := ygtXltr.validate(); err != nil {
+		return err
+	}
+
+	path, err := ygtXltr.uriToPath()
+	if err != nil {
+		return err
+	}
+
+	if len(path.Elem) == 0 {
+		ygtXltr.ygotCtx.err = fmt.Errorf("path is empty for the given uri %v; for the ygot object: %v", ygtXltr.ygotCtx.relUri, ygtXltr.getParentObjName())
+		return ygtXltr.ygotCtx.err
+	}
+
+	if len(path.Elem[0].Key) > 0 {
+		if err := ygtXltr.unmarshalListKey(path); err != nil {
+			ygtXltr.ygotCtx.err = err
+			log.Warning(ygtXltr.ygotCtx.err)
+			return ygtXltr.ygotCtx.err
+		}
+		if len(path.GetElem()) == 0 {
+			return nil
+		}
+	}
+
+	ygNode, ygEntry, err := ytypes.GetOrCreateTargetNode(ygtXltr.ygotCtx.ygSchema, *ygtXltr.ygotCtx.ygParentObj, path)
+	if err != nil {
+		ygtXltr.ygotCtx.err = fmt.Errorf("error in getting the target object: %v; for the ygSchema: %v; "+
+			"ygot obj: %v for the given URI: %v",
+			err.Error(), ygtXltr.ygotCtx.ygSchema.Name, ygtXltr.getParentObjName(), ygtXltr.ygotCtx.relUri)
+		log.Warning(ygtXltr.ygotCtx.err)
+		return ygtXltr.ygotCtx.err
+	}
+
+	ygtXltr.ygotCtx.trgtYgSchema = ygEntry
+	if ygStruct, ok := ygNode.(ygot.GoStruct); ok {
+		ygtXltr.ygotCtx.trgtYgObj = &ygStruct
+	}
+	return nil
 }
 
 func splitUri(uri string) []string {
