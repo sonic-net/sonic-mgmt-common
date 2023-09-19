@@ -670,6 +670,13 @@ func splitRedisKey(key string) (string, string) {
 	return tblName, key[prefixLen:]
 }
 
+func splitKeyComponents(table, keyComps string) []string {
+	if m := modelInfo.tableInfo[table]; m != nil {
+		return strings.Split(keyComps, m.redisKeyDelim)
+	}
+	return nil
+}
+
 //Get the YANG list name from Redis key and table name
 //This just returns same YANG list name as Redis table name
 //when 1:1 mapping is there. For one Redis table to 
@@ -878,12 +885,27 @@ func (c *CVL) validate (data *yparser.YParserNode) CVLRetCode {
 	return CVL_SUCCESS
 }
 
-func  createCVLErrObj(errObj yparser.YParserError) CVLErrorInfo {
+func  createCVLErrObj(errObj yparser.YParserError, srcNode *jsonquery.Node) CVLErrorInfo {
+	errCode := CVLRetCode(errObj.ErrCode)
+	if errObj.ErrCode == yparser.YP_INTERNAL_UNKNOWN {
+		errCode = CVL_INTERNAL_UNKNOWN
+	}
+
+	// YParserError may not contain table or key info when creating a field (libyang issue)
+	// Fill the missing info from source json data tree
+	if srcNode != nil && srcNode.Parent != nil {
+		if len(errObj.TableName) == 0 {
+			errObj.TableName = srcNode.Parent.Data
+			errObj.Keys = splitKeyComponents(errObj.TableName, srcNode.Data)
+		} else if len(errObj.Keys) == 0 && errObj.TableName == srcNode.Parent.Data {
+			errObj.Keys = splitKeyComponents(errObj.TableName, srcNode.Data)
+		}
+	}
 
 	cvlErrObj :=  CVLErrorInfo {
 		TableName : errObj.TableName,
-		ErrCode   : CVLRetCode(errObj.ErrCode),
-		CVLErrDetails : cvlErrorMap[CVLRetCode(errObj.ErrCode)],
+		ErrCode   : errCode,
+		CVLErrDetails : cvlErrorMap[errCode],
 		Keys      : errObj.Keys,
 		Value     : errObj.Value,
 		Field     : errObj.Field,

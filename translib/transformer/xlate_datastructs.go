@@ -22,6 +22,7 @@ import (
 	"regexp"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -139,6 +140,7 @@ type qpSubtreePruningErr struct {
 
 type Operation int
 
+
 type ContentType uint8
 
 type QueryParams struct {
@@ -150,3 +152,17 @@ type QueryParams struct {
 	allowFieldsXpath  map[string]bool
 	tgtFieldsXpathMap map[string][]string
 }
+
+type ygotUnMarshalCtx struct {
+	ygParentObj  *ygot.GoStruct
+	relUri       string
+	ygSchema     *yang.Entry
+	trgtYgObj    *ygot.GoStruct
+	trgtYgSchema *yang.Entry
+	err          error
+}
+
+type ygotXlator struct {
+	ygotCtx *ygotUnMarshalCtx
+}
+

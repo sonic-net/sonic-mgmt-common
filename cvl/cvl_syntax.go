@@ -137,7 +137,7 @@ parent *yparser.YParserNode, multileaf *[]*yparser.YParserLeafValue) CVLErrorInf
 				jsonFieldNode.FirstChild.Data, &batchInnerListLeaf)
 
 				if errObj := c.yp.AddMultiLeafNodes(modelInfo.tableInfo[tableName].module, listNode, batchInnerListLeaf); errObj.ErrCode != yparser.YP_SUCCESS {
-					cvlErrObj = createCVLErrObj(errObj)
+					cvlErrObj = createCVLErrObj(errObj, jsonNode)
 					CVL_LOG(WARNING, "Failed to create innner list leaf nodes, data = %v", batchInnerListLeaf)
 					return cvlErrObj
 				}
@@ -266,7 +266,7 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node)(*yparser.
 			TRACE_LOG(TRACE_CACHE, "Starting batch leaf creation - %v\n", c.batchLeaf)
 			//process batch leaf creation
 			if errObj := c.yp.AddMultiLeafNodes(modelInfo.tableInfo[tableName].module, listNode, c.batchLeaf); errObj.ErrCode != yparser.YP_SUCCESS {
-				cvlErrObj = createCVLErrObj(errObj)
+				cvlErrObj = createCVLErrObj(errObj, jsonNode)
 				CVL_LOG(WARNING, "Failed to create leaf nodes, data = %v", c.batchLeaf)
 				return nil, cvlErrObj
 			}
