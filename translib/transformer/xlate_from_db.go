@@ -876,6 +876,18 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 		inParamsForGet.ygRoot = ygRoot
 		var listKeyMap map[string]interface{}
 		if dbKey == keyFromCurUri || keyFromCurUri == "" {
+			isValid := inParamsForGet.validate
+			if len(xYangSpecMap[xpath].validateFunc) > 0 && !inParamsForGet.validate {
+				inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, GET, xpathKeyExtRet.dbKey, dbDataMap, nil, nil, txCache)
+				res := validateHandlerFunc(inParams, xYangSpecMap[xpath].validateFunc)
+				if !res {
+					xfmrLogDebug("Further traversal not needed. Validate xfmr returns false for URI %v", curUri)
+					return nil, nil
+				} else {
+					isValid = res
+				}
+			}
+
 			if dbKey == keyFromCurUri {
 				listKeyMap = make(map[string]interface{})
 				for k, kv := range curKeyMap {
@@ -884,7 +896,7 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 				}
 
 			}
-			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpathKeyExtRet.xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams, listKeyMap)
+			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpathKeyExtRet.xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, isValid, inParamsForGet.queryParams, listKeyMap)
 			linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 			linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
 			err := yangDataFill(linParamsForGet, isOcMdl)
@@ -1086,8 +1098,6 @@ func terminalNodeProcess(inParamsForGet xlateFromDbParams, terminalNodeQuery boo
 
 func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 	var err error
-	validate := inParamsForGet.validate
-	isValid := validate
 	dbs := inParamsForGet.dbs
 	ygRoot := inParamsForGet.ygRoot
 	uri := inParamsForGet.uri
@@ -1121,6 +1131,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 			}
 			inParamsForGet.xpath = chldXpath
 			inParamsForGet.uri = chldUri
+			isValid := inParamsForGet.validate
 			if xYangSpecMap[chldXpath] != nil && yangNode.yangEntry.Dir[yangChldName] != nil {
 				chldYangType := xYangSpecMap[chldXpath].yangType
 				if inParamsForGet.queryParams.content != QUERY_CONTENT_ALL {
@@ -1148,7 +1159,8 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 
 				cdb := xYangSpecMap[chldXpath].dbIndex
 				inParamsForGet.curDb = cdb
-				if len(xYangSpecMap[chldXpath].validateFunc) > 0 && !validate {
+				/* For list validate handler is evaluated at each instance */
+				if len(xYangSpecMap[chldXpath].validateFunc) > 0 && !inParamsForGet.validate && chldYangType != YANG_LIST {
 					xpathKeyExtRet, _ := xpathKeyExtract(dbs[cdb], ygRoot, GET, chldUri, requestUri, dbDataMap, nil, txCache, inParamsForGet.xfmrDbTblKeyCache)
 					inParamsForGet.ygRoot = ygRoot
 					// TODO - handle non CONFIG-DB
@@ -1161,7 +1173,6 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 					} else {
 						isValid = res
 					}
-					inParamsForGet.validate = isValid
 					inParamsForGet.dbDataMap = dbDataMap
 					inParamsForGet.ygRoot = ygRoot
 				}
@@ -1274,7 +1285,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 						}
 					}
 					cmap2 := make(map[string]interface{})
-					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper, chtbl, tblKey, dbDataMap, inParamsForGet.txCache, cmap2, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.listKeysMap)
+					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper, chtbl, tblKey, dbDataMap, inParamsForGet.txCache, cmap2, isValid, inParamsForGet.queryParams, inParamsForGet.listKeysMap)
 					linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 					linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
 					linParamsForGet.queryParams.fieldsFillAll = chFieldsFillAll

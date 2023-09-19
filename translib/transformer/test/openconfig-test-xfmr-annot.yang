@@ -78,6 +78,20 @@ module openconfig-test-xfmr-annot {
       }
     }
 
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:sensor-a-light-sensors {
+      deviate add {
+	sonic-ext:table-name "NONE";
+        sonic-ext:get-validate "light_sensor_validate";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:sensor-a-light-sensors/oc-test-xfmr:sensor-a-light-sensor {
+      deviate add {
+            sonic-ext:table-name "TEST_SENSOR_A_LIGHT_SENSOR_TABLE";
+            sonic-ext:key-transformer "sensor_a_light_sensor_key_xfmr";
+      }
+    }
+
     deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-components/oc-test-xfmr:test-sensor-component {
       deviate add {
             sonic-ext:table-name "TEST_SENSOR_COMPONENT_TABLE";
@@ -86,7 +100,7 @@ module openconfig-test-xfmr-annot {
 
     deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-zones {
       deviate add {
-            sonic-ext:table-name "NONE
+            sonic-ext:table-name "NONE";
       }
     }
 
