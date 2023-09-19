@@ -22,12 +22,14 @@ package yparser
 /* Yang parser using libyang library */
 
 import (
-	"os"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
+	"unsafe"
+
 	//lint:ignore ST1001 This is safe to dot import for util package
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
-	"unsafe"
 )
 
 /*
@@ -331,6 +333,9 @@ const (
 	YP_OP_DELETE
 )
 
+// cvl-yin generator adds this prefix to all user defined error messages.
+const customErrorPrefix = "[Error]"
+
 var yparserInitialized bool = false
 
 func TRACE_LOG(tracelevel CVLTraceLevel, fmtStr string, args ...interface{}) {
@@ -596,7 +601,6 @@ func getErrorDetails() YParserError {
 	var errMessage string
 	var ElemName string
 	var errText string
-	var msg string
 	var ypErrCode YParserRetCode =  YP_INTERNAL_UNKNOWN
 	var errMsg, errPath, errAppTag string
 
@@ -606,14 +610,7 @@ func getErrorDetails() YParserError {
 
 	if (ypErrFirst == nil) {
                return  YParserError {
-                       TableName : errtableName,
                        ErrCode : ypErrCode,
-                       Keys    : key,
-                       Value : ElemVal,
-                       Field : ElemName,
-                       Msg        :  errMessage,
-                       ErrTxt: errText,
-                       ErrAppTag: errAppTag,
                }
        }
 
@@ -630,94 +627,44 @@ func getErrorDetails() YParserError {
 	       errAppTag = C.GoString(ypErrFirst.prev.apptag)
 	}
 
+	// Try to resolve table, keys and field name from the error path.
+	errtableName, key, ElemName = parseLyPath(errPath)
 
-	/* Example error messages.
-	1. Leafref "/sonic-port:sonic-port/sonic-port:PORT/sonic-port:ifname" of value "Ethernet668" points to a non-existing leaf. 
-	(path: /sonic-interface:sonic-interface/INTERFACE[portname='Ethernet668'][ip_prefix='10.0.0.0/31']/portname)
-	2. A vlan interface member cannot be part of portchannel which is already a vlan member
-	(path: /sonic-vlan:sonic-vlan/VLAN[name='Vlan1001']/members[.='Ethernet8'])
-	3. Value "ch1" does not satisfy the constraint "Ethernet([1-3][0-9]{3}|[1-9][0-9]{2}|[1-9][0-9]|[0-9])" (range, length, or pattern). 
-	(path: /sonic-vlan:sonic-vlan/VLAN[name='Vlan1001']/members[.='ch1'])*/
-
-
-	/* Fetch the TABLE Name which are in CAPS. */
-	resultTable := strings.SplitN(errPath, "[", 2)
-	if (len(resultTable) >= 2) {
-		resultTab := strings.Split(resultTable[0], "/")
-		errtableName = resultTab[len(resultTab) -1]
-
-		/* Fetch the Error Elem Name. */
-		resultElem := strings.Split(resultTable[1], "/")
-		ElemName = resultElem[len(resultElem) -1]
-	}
-
-	/* Fetch the invalid field name. */
-	// errMsg is like: Invalid value "Port1" in "dst_port" element.
-	result := strings.Split(errMsg, "\"")
-	if (len(result) > 1) {
-		for i := range result {
-			if (strings.Contains(result[i], "value")) ||
-			(strings.Contains(result[i], "Value")) {
-				ElemVal = result[i+1]
-			}
-
-			if (strings.Contains(result[i], "element") || strings.Contains(result[i], "Element")) && (i > 0) {
-				ElemName = result[i-1]
-			}
+	if !strings.HasPrefix(errMsg, customErrorPrefix) {
+		// libyang generated error message.. try to extract the field value & name
+		ElemVal = parseLyMessage(errMsg, lyBadValue)
+		if len(ElemName) == 0 { // if not resolved from path
+			ElemName = parseLyMessage(errMsg, lyElemPrefix, lyElemSuffix)
 		}
-	} else if (len(result) == 1) {
-		/* Custom contraint error message like in must statement. 
-		This can be used by App to display to user.
-		*/
-		errText = errMsg
-	}
-
-	// Find key elements 
-	resultKey := strings.Split(errPath, "=")
-	for i := range resultKey {
-		if (strings.Contains(resultKey[i], "]")) {
-			newRes := strings.Split(resultKey[i], "]")
-			key = append(key, newRes[0])
-		}
-	}
-
-	/* Form the error message. */
-	msg = "["
-	for _, elem := range key {
-		msg = msg + elem + " "
-	}
-	msg = msg + "]"
-
-	/* For non-constraint related errors , print below error message. */
-	if (len(result) > 1) {
-		errMessage = errtableName + " with keys" + msg + " has field " +
-		ElemName + " with invalid value " + ElemVal
-	}else {
-		/* Dependent data validation error. */
-		errMessage = "Dependent data validation failed for table " +
-		errtableName + " with keys" + msg
-	}
-
-
-	if (C.ly_errno == C.LY_EVALID) {  //Validation failure
-		ypErrCode =  translateLYErrToYParserErr(int(ypErrFirst.prev.vecode))
 	} else {
-		switch (C.ly_errno) {
-		case C.LY_EMEM:
-			errText = "Memory allocation failure"
+		errText = errMsg[len(customErrorPrefix):]
+	}
 
-		case C.LY_ESYS:
-			errText = "System call failure"
-
-		case C.LY_EINVAL:
-			errText = "Invalid value"
-
-		case C.LY_EINT:
-			errText = "Internal error"
-
-		case C.LY_EPLUGIN:
-			errText = "Error reported by a plugin"
+	switch C.ly_errno {
+	case C.LY_EVALID:
+		// validation failure
+		ypErrCode = translateLYErrToYParserErr(int(ypErrFirst.prev.vecode))
+		if len(ElemName) != 0 {
+			errMessage = "Field \"" + ElemName + "\" has invalid value"
+			if len(ElemVal) != 0 {
+				errMessage += " " + strconv.Quote(ElemVal)
+			}
+		} else {
+			errMessage = "Data validation failed"
 		}
+	case C.LY_EINVAL:
+		// invalid node. With our usage it will be the field name.
+		ypErrCode = YP_SYNTAX_ERROR
+		if field := parseLyMessage(errMsg, lyUnknownElem); len(field) != 0 {
+			ElemName = field
+			errMessage = "Unknown field \"" + field + "\""
+		} else {
+			errMessage = "Invalid value"
+		}
+	case C.LY_EMEM:
+		errMessage = "Resources exhausted"
+	default:
+		errMessage = "Internal error"
 	}
 
 	errObj := YParserError {
@@ -853,7 +800,7 @@ func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 						exp.ErrCode = C.GoString(must[idx].eapptag)
 					}
 					if (must[idx].emsg != nil) {
-						exp.ErrStr = C.GoString(must[idx].emsg)
+						exp.ErrStr = strings.TrimPrefix(C.GoString(must[idx].emsg), customErrorPrefix)
 					}
 
 					l.XpathExpr[leafName] = append(l.XpathExpr[leafName],
@@ -957,7 +904,7 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 						exp.ErrCode = C.GoString(must[idx].eapptag)
 					}
 					if (must[idx].emsg != nil) {
-						exp.ErrStr = C.GoString(must[idx].emsg)
+						exp.ErrStr = strings.TrimPrefix(C.GoString(must[idx].emsg), customErrorPrefix)
 					}
 
 					l.XpathExpr[listName] = append(l.XpathExpr[listName],
