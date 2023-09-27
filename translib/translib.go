@@ -79,16 +79,19 @@ type SetResponse struct {
 	Err    error
 }
 
+type QueryParameters struct {
+	Depth   uint     // range 1 to 65535, default is <U+0093>0<U+0094> i.e. all
+	Content string   // all, config, non-config(REST)/state(GNMI), operational(GNMI only)
+	Fields  []string // list of fields from NBI
+}
+
 type GetRequest struct {
 	Path          string
 	FmtType       TranslibFmtType
 	User          UserRoles
 	AuthEnabled   bool
 	ClientVersion Version
-
-	// Depth limits the depth of data subtree in the response
-	// payload. Default value 0 indicates there is no limit.
-	Depth uint
+	QueryParams   QueryParameters
 }
 
 type GetResponse struct {
@@ -452,7 +455,7 @@ func Get(req GetRequest) (GetResponse, error) {
 		return resp, err
 	}
 
-	opts := appOptions{depth: req.Depth}
+	opts := appOptions{depth: req.QueryParams.Depth, content: req.QueryParams.Content, fields: req.QueryParams.Fields}
 	err = appInitialize(app, appInfo, path, nil, &opts, GET)
 
 	if err != nil {

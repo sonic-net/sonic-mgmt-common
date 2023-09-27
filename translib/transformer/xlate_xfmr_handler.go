@@ -21,6 +21,7 @@ package transformer
 import (
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
 func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string) error {
@@ -48,7 +49,25 @@ func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string) error {
 			}
 		}
 	}
+	if (err == nil) && inParams.queryParams.isEnabled() {
+		log.Infof("xfmrPruneQP: func %v URI %v, requestUri %v",
+			xfmrFuncNm, inParams.uri, inParams.requestUri)
+		err = xfmrPruneQP(inParams.ygRoot, inParams.queryParams,
+			inParams.uri, inParams.requestUri)
+		if err != nil {
+			xfmrLogInfo("xfmrPruneQP: returned error %v", err)
+			// following will allow xfmr to distinguish subtree vs pruning API err to abort GET request
+			err = &qpSubtreePruningErr{subtreePath: inParams.uri}
+		}
+	}
 	return err
+}
+
+/*Place holder for xfmrPruneQP API */
+func xfmrPruneQP(ygRoot *ygot.GoStruct, queryParams QueryParams, uri string,
+	requestUri string) error {
+	// TODO
+	return nil
 }
 
 func leafXfmrHandlerFunc(inParams XfmrParams, xfmrFieldFuncNm string) (map[string]interface{}, error) {

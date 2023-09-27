@@ -32,6 +32,12 @@ const (
 	IANA_MDL_PFX           = "iana-"
 	PATH_XFMR_RET_ARGS     = 1
 	PATH_XFMR_RET_ERR_INDX = 0
+
+	YANG_CONTAINER_NM_CONFIG  = "config"
+	CONFIG_CNT_SUFFIXED_XPATH = "/config"
+	STATE_CNT_SUFFIXED_XPATH  = "/state"
+	CONFIG_CNT_WITHIN_XPATH   = "/config/"
+	STATE_CNT_WITHIN_XPATH    = "/state/"
 )
 
 const (
@@ -50,6 +56,18 @@ const (
 	XFMR_DISABLE
 	XFMR_ENABLE
 	XFMR_DEFAULT_ENABLE
+)
+
+const (
+	QUERY_CONTENT_ALL ContentType = iota
+	QUERY_CONTENT_CONFIG
+	QUERY_CONTENT_NONCONFIG
+	QUERY_CONTENT_OPERATIONAL
+)
+
+const (
+	QUERY_CONTENT_MISMATCH_ERR      = "Query Parameter Content mismatch"
+	QUERY_PARAMETER_SBT_PRUNING_ERR = "Query Parameter processing unsuccessful"
 )
 
 const (

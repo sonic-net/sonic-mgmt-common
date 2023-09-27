@@ -93,7 +93,9 @@ type xlateFromDbParams struct {
 	resultMap         map[string]interface{}
 	validate          bool
 	xfmrDbTblKeyCache map[string]tblKeyCache
+	queryParams       QueryParams
 	dbTblKeyGetCache  map[db.DBNum]map[string]map[string]bool
+	listKeysMap       map[string]interface{}
 }
 
 type xlateToParams struct {
@@ -122,7 +124,34 @@ type xlateToParams struct {
 	invokeCRUSubtreeOnceMap map[string]map[string]bool
 }
 
+type contentQPSpecMapInfo struct {
+	yangType              yangElementType
+	yangName              string
+	isReadOnly            bool
+	isOperationalNd       bool
+	hasNonTerminalNd      bool
+	hasChildOperationalNd bool
+	isOcMdl               bool
+}
+
+type qpSubtreePruningErr struct {
+	subtreePath string
+}
+
 type Operation int
+
+
+type ContentType uint8
+
+type QueryParams struct {
+	depthEnabled      bool
+	curDepth          uint
+	content           ContentType
+	fields            []string
+	fieldsFillAll     bool
+	allowFieldsXpath  map[string]bool
+	tgtFieldsXpathMap map[string][]string
+}
 
 type ygotUnMarshalCtx struct {
 	ygParentObj  *ygot.GoStruct
@@ -136,3 +165,4 @@ type ygotUnMarshalCtx struct {
 type ygotXlator struct {
 	ygotCtx *ygotUnMarshalCtx
 }
+

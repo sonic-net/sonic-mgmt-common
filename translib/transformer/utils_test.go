@@ -30,6 +30,12 @@ import (
 	"github.com/go-redis/redis/v7"
 )
 
+type queryParamsUT struct {
+	depth   uint
+	content string
+	fields  []string
+}
+
 func checkErr(t *testing.T, err error, expErr error) {
 	if err.Error() != expErr.Error() {
 		t.Fatalf("Error %v, Expect Err: %v", err, expErr)
@@ -38,12 +44,22 @@ func checkErr(t *testing.T, err error, expErr error) {
 	}
 }
 
-func processGetRequest(url string, expectedRespJson string, errorCase bool, expErr ...error) func(*testing.T) {
+func processGetRequest(url string, qparams *queryParamsUT, expectedRespJson string, errorCase bool, expErr ...error) func(*testing.T) {
 	return func(t *testing.T) {
 		var expectedMap map[string]interface{}
 		var receivedMap map[string]interface{}
+		var qp QueryParameters
 
-		response, err := Get(GetRequest{Path: url, User: UserRoles{Name: "admin", Roles: []string{"admin"}} })
+		qp.Depth = 0
+		qp.Content = ""
+		qp.Fields = make([]string, 0)
+
+		if qparams != nil {
+			qp.Depth = qparams.depth
+			qp.Content = qparams.content
+			qp.Fields = qparams.fields
+		}
+		response, err := Get(GetRequest{Path: url, User: UserRoles{Name: "admin", Roles: []string{"admin"}}, QueryParams: qp})
 		if err != nil {
 			if !errorCase {
 				t.Fatalf("Error %v received for Url: %s", err, url)

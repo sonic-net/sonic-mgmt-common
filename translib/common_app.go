@@ -419,8 +419,24 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 		origXfmrYgotRoot, _ := ygot.DeepCopy((*app.ygotRoot).(ygot.GoStruct))
 		isEmptyPayload := false
 		appYgotStruct := (*app.ygotRoot).(ygot.GoStruct)
-		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache)
+		var qParams transformer.QueryParams
+		qParams, err = transformer.NewQueryParams(app.depth, app.content, app.fields)
 		if err != nil {
+			log.Warning("transformer.NewQueryParams() returned : ", err)
+			resPayload = []byte("{}")
+			break
+		}
+		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams)
+		if err != nil {
+			// target URI for list GET request with QP content!=all and node's content-type mismatches the requested content-type, return empty payload
+			if isEmptyPayload && qParams.IsContentEnabled() && transformer.IsListNode(app.pathInfo.Path) {
+				if err.Error() == transformer.QUERY_CONTENT_MISMATCH_ERR {
+					err = nil
+				}
+			}
+			if err != nil {
+				log.Warning("transformer.GetAndXlateFromDB() returned : ", err)
+			}
 			resPayload = payload
 			break
 		}
@@ -429,6 +445,12 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 			resPayload = payload
 			break
 		}
+		if isEmptyPayload && (app.depth == 1) && !transformer.IsLeafNode(app.pathInfo.Path) && !transformer.IsLeafListNode(app.pathInfo.Path) {
+			// target URI for Container or list GET request with depth = 1, returns empty payload
+			resPayload = payload
+			break
+		}
+
 		targetObj, tgtObjCastOk := (*app.ygotTarget).(ygot.GoStruct)
 		if !tgtObjCastOk {
 			/*For ygotTarget populated by tranlib, for query on leaf level and list(without instance) level,
@@ -476,13 +498,17 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 							err = tlerr.NotFound("Resource not found")
 							break
 						}
-						resPayload = payload
-						log.Info("No data available")
-						//TODO: Return not found error
-						//err = tlerr.NotFound("Resource not found")
-						break
+						if !qParams.IsEnabled() {
+							resPayload = payload
+							log.Info("No data available")
+							//TODO: Return not found error
+							//err = tlerr.NotFound("Resource not found")
+							break
+						}
 					}
-					resYgot = appYgotStruct
+					if !qParams.IsEnabled() {
+						resYgot = appYgotStruct
+					}
 				}
 			}
 			if resYgot != nil {

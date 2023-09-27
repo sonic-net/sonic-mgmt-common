@@ -117,6 +117,29 @@ module sonic-test-xfmr {
                         }
                 }
 
+                container TEST_SENSOR_COMPONENT_TABLE {
+
+                        list TEST_SENSOR_COMPONENT_TABLE_LIST {
+                                key "name type version";
+
+                                leaf name {
+                                    type string;
+                                }
+
+                               leaf type {
+                                    type string;
+                                }
+
+                                leaf version {
+                                    type string;
+                                }
+
+                                leaf description {
+                                    type string;
+                                }
+                        }
+                }
+
                 container TEST_SET_TABLE {
 
                         list TEST_SET_TABLE_LIST {

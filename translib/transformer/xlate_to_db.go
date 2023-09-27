@@ -184,21 +184,37 @@ func mapFillDataUtil(xlateParams xlateToParams) error {
 	}
 
 	if len(xpathInfo.fieldName) == 0 {
-		xfmrLogInfo("Field for yang-path(\"%v\") not found in DB.", xlateParams.xpath)
+		if xpathInfo.isRefByKey || (xpathInfo.isKey && strings.HasPrefix(xlateParams.uri, "/"+IETF_MDL_PFX)) {
+			dataToDBMapAdd(xlateParams.tableName, xlateParams.keyName, xlateParams.result, "NULL", "NULL")
+			xfmrLogDebug("%v - Either an OC YANG leaf path referenced by list key or IETF YANG list key, ", xlateParams.xpath,
+				"maps to no actual field in sonic yang so dummy row added to create instance in DB.")
+		} else {
+			xfmrLogInfo("Field for YANG path(\"%v\") not found in DB.", xlateParams.xpath)
+		}
 		return nil
 	}
 	fieldName := xpathInfo.fieldName
 	valueStr := ""
 
 	fieldXpath := xlateParams.tableName + "/" + fieldName
-	_, ok = xDbSpecMap[fieldXpath]
+	xDbSpecInfo, ok := xDbSpecMap[fieldXpath]
 	dbEntry := getYangEntryForXPath(fieldXpath)
-	if !ok || (dbEntry == nil) {
+	if !ok || (xDbSpecInfo == nil) || (dbEntry == nil) {
 		logStr := fmt.Sprintf("Failed to find the xDbSpecMap: xpath(\"%v\").", fieldXpath)
 		log.Warning(logStr)
 		return nil
 	}
-
+	if xDbSpecInfo.isKey {
+		if xpathInfo.isRefByKey || (xpathInfo.isKey && strings.HasPrefix(xlateParams.uri, "/"+IETF_MDL_PFX)) {
+			// apps use this leaf in payload to create an instance, redis needs atleast one field:val to create an instance
+			dataToDBMapAdd(xlateParams.tableName, xlateParams.keyName, xlateParams.result, "NULL", "NULL") // redis needs atleast one field:val to create an instance
+			xfmrLogDebug("%v - Either an OC YANG leaf path referenced by list key or IETF YANG list key, ", xlateParams.xpath,
+				"maps to key in sonic YANG - %v so dummy row added to create instance in DB.", fieldXpath)
+		} else {
+			xfmrLogInfo("OC YANG leaf path(%v), maps to key in sonic YANG - %v which cannot be filled as a field in DB instance", xlateParams.xpath, fieldXpath)
+		}
+		return nil
+	}
 	if xpathInfo.yangType == YANG_LEAF_LIST {
 		/* Both YANG side and DB side('@' suffix field) the data type is leaf-list */
 		xfmrLogDebug("Yang type and DB type is Leaflist for field  = %v", xlateParams.xpath)
@@ -506,7 +522,7 @@ func dbMapDefaultFieldValFill(xlateParams xlateToParams, tblUriList []string) er
 								}
 							} else if len(childNode.fieldName) > 0 {
 								var xfmrErr error
-								if _, ok := xDbSpecMap[tblName+"/"+childNode.fieldName]; ok {
+								if xDbSpecInfo, ok := xDbSpecMap[tblName+"/"+childNode.fieldName]; ok && (xDbSpecInfo != nil) && (!xDbSpecInfo.isKey) {
 									if tblXfmrPresent {
 										chldTblNm, ctErr := tblNameFromTblXfmrGet(*childNode.xfmrTbl, inParamsTblXfmr, xlateParams.xfmrDbTblKeyCache)
 										xfmrLogDebug("Table transformer %v for xpath %v returned table %v", *childNode.xfmrTbl, childXpath, chldTblNm)
@@ -531,6 +547,18 @@ func dbMapDefaultFieldValFill(xlateParams xlateToParams, tblUriList []string) er
 											dataToDBMapAdd(tblName, dbKey, xlateParams.yangAuxValMap, childNode.fieldName, "")
 										}
 									}
+								}
+							} else if childNode.isRefByKey {
+								/* this case occurs only for static table-name, table-xfmr always has field-name
+								   assigned by infra when there no explicit annotation from user.
+								   Also key-leaf in config container has no default value, so here we handle only
+								   REPLACE yangAuxValMap filling */
+								if xlateParams.oper != REPLACE {
+									continue
+								}
+								_, ok := xlateParams.result[tblName][dbKey].Field["NULL"]
+								if !ok {
+									dataToDBMapAdd(tblName, dbKey, xlateParams.yangAuxValMap, "NULL", "")
 								}
 							}
 						}
@@ -827,15 +855,15 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 			curUri, _ := uriWithKeyCreate(xlateParams.uri, xlateParams.xpath, data)
 			_, ok := xYangSpecMap[xlateParams.xpath]
 			if ok && len(xYangSpecMap[xlateParams.xpath].xfmrKey) > 0 {
-				/* key transformer present */
+				// key transformer present
 				curYgotNode, nodeErr := yangNodeForUriGet(curUri, xlateParams.ygRoot)
 				if nodeErr != nil {
 					curYgotNode = nil
 				}
-				inParams := formXfmrInputRequest(xlateParams.d, dbs, db.MaxDB, xlateParams.ygRoot, curUri, xlateParams.requestUri, xlateParams.oper, "", nil, xlateParams.subOpDataMap, curYgotNode, xlateParams.txCache)
+				inParams := formXfmrInputRequest(xlateParams.d, dbs, db.ConfigDB, xlateParams.ygRoot, curUri, xlateParams.requestUri, xlateParams.oper, "", nil, xlateParams.subOpDataMap, curYgotNode, xlateParams.txCache)
 
 				ktRetData, err := keyXfmrHandler(inParams, xYangSpecMap[xlateParams.xpath].xfmrKey)
-				//if key transformer is called without key values in curUri ignore the error
+				// if key transformer is called without key values in curUri ignore the error
 				if err != nil && strings.HasSuffix(curUri, "]") {
 					if xlateParams.xfmrErr != nil && *xlateParams.xfmrErr == nil {
 						*xlateParams.xfmrErr = err
@@ -846,7 +874,7 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 			} else if ok && xYangSpecMap[xlateParams.xpath].keyName != nil {
 				curKey = *xYangSpecMap[xlateParams.xpath].keyName
 			} else {
-				curKey = keyCreate(xlateParams.keyName, xlateParams.xpath, data, xlateParams.d.Opts.KeySeparator)
+				curKey = keyCreate(xlateParams, curUri, data)
 			}
 			curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, xlateParams.xpath, curKey, data, xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, "", "", "", xlateParams.invokeCRUSubtreeOnceMap)
 			retErr = yangReqToDbMapCreate(curXlateParams)
@@ -969,7 +997,7 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 					_, ok := xYangSpecMap[xpath]
 					// Process the terminal node only if the targetUri is at terminal Node or if the leaf is not at parent level
 					if ok && strings.HasPrefix(curXpath, reqXpath) {
-						if (!xYangSpecMap[xpath].isKey) || (len(xYangSpecMap[xpath].xfmrField) > 0) {
+						if (!xYangSpecMap[xpath].isKey) || (len(xYangSpecMap[xpath].xfmrField) > 0) || (xYangSpecMap[xpath].isKey && strings.HasPrefix(xlateParams.uri, "/"+IETF_MDL_PFX)) {
 							if len(xYangSpecMap[xpath].xfmrFunc) == 0 {
 								value := jData.MapIndex(key).Interface()
 								xfmrLogDebug("data field: key(\"%v\"), value(\"%v\").", key, value)
@@ -1047,11 +1075,11 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 			tableExists, derr = dbTableExists(d, table, dbKey, oper)
 			if hasSingletonContainer && oper == DELETE {
 				// Special case when we delete at container that does'nt exist. Return true to skip translation.
-                                if !tableExists {
-                                        return true, derr
-                                } else {
-                                        return true, nil
-                                }
+				if !tableExists {
+					return true, derr
+				} else {
+					return true, nil
+				}
 			}
 			if derr != nil {
 				return false, derr

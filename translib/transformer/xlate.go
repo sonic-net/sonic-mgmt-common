@@ -196,7 +196,7 @@ func updateDbDataMapAndKeyCache(dbKeyStr string, data *db.Value, spec *KeySpec,
 	dbTblKeyGetCache[spec.DbNum][spec.Ts.Name][dbKeyStr] = readOk
 }
 
-func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *interface{}, txCache interface{}) (*[]KeySpec, error) {
+func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *interface{}, txCache interface{}, qParams QueryParams) (*[]KeySpec, error) {
 
 	var err error
 	var retdbFormat = make([]KeySpec, 0)
@@ -214,17 +214,23 @@ func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *
 			}
 		}
 
-		retdbFormat = fillSonicKeySpec(xpath, tableName, keyStr)
+		retdbFormat = fillSonicKeySpec(xpath, tableName, keyStr, qParams.content)
 	} else {
+		var reqUriXpath string
 		/* Extract the xpath and key from input xpath */
 		retData, _ := xpathKeyExtract(nil, ygRoot, GET, uri, requestUri, nil, nil, txCache, nil)
-		retdbFormat = fillKeySpecs(retData.xpath, retData.dbKey, &retdbFormat)
+		if requestUri == uri {
+			reqUriXpath = retData.xpath
+		} else {
+			reqUriXpath, _, _ = XfmrRemoveXPATHPredicates(requestUri)
+		}
+		retdbFormat = fillKeySpecs(reqUriXpath, &qParams, retData.xpath, retData.dbKey, &retdbFormat)
 	}
 
 	return &retdbFormat, err
 }
 
-func fillKeySpecs(yangXpath string, keyStr string, retdbFormat *[]KeySpec) []KeySpec {
+func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, keyStr string, retdbFormat *[]KeySpec) []KeySpec {
 	var err error
 	if xYangSpecMap == nil {
 		return *retdbFormat
@@ -261,8 +267,10 @@ func fillKeySpecs(yangXpath string, keyStr string, retdbFormat *[]KeySpec) []Key
 						if chlen > 0 {
 							children := make([]KeySpec, 0)
 							for _, childXpath := range xDbSpecMap[child].yangXpath {
-								children = fillKeySpecs(childXpath, "", &children)
-								dbFormat.Child = append(dbFormat.Child, children...)
+								if isChildTraversalRequired(reqUriXpath, qParams, childXpath) {
+									children = fillKeySpecs(reqUriXpath, qParams, childXpath, "", &children)
+									dbFormat.Child = append(dbFormat.Child, children...)
+								}
 							}
 						}
 					}
@@ -276,7 +284,9 @@ func fillKeySpecs(yangXpath string, keyStr string, retdbFormat *[]KeySpec) []Key
 						chlen := len(xDbSpecMap[child].yangXpath)
 						if chlen > 0 {
 							for _, childXpath := range xDbSpecMap[child].yangXpath {
-								*retdbFormat = fillKeySpecs(childXpath, "", retdbFormat)
+								if isChildTraversalRequired(reqUriXpath, qParams, childXpath) {
+									*retdbFormat = fillKeySpecs(reqUriXpath, qParams, childXpath, "", retdbFormat)
+								}
 							}
 						}
 					}
@@ -287,7 +297,7 @@ func fillKeySpecs(yangXpath string, keyStr string, retdbFormat *[]KeySpec) []Key
 	return *retdbFormat
 }
 
-func fillSonicKeySpec(xpath string, tableName string, keyStr string) []KeySpec {
+func fillSonicKeySpec(xpath string, tableName string, keyStr string, content ContentType) []KeySpec {
 
 	var retdbFormat = make([]KeySpec, 0)
 
@@ -296,6 +306,9 @@ func fillSonicKeySpec(xpath string, tableName string, keyStr string) []KeySpec {
 		dbFormat.Ts.Name = tableName
 		cdb := db.ConfigDB
 		if _, ok := xDbSpecMap[tableName]; ok {
+			if (xDbSpecMap[tableName].dbEntry == nil) || ((content == QUERY_CONTENT_CONFIG) && (xDbSpecMap[tableName].dbEntry.ReadOnly())) || ((content == QUERY_CONTENT_NONCONFIG) && (!xDbSpecMap[tableName].dbEntry.ReadOnly())) {
+				return retdbFormat
+			}
 			cdb = xDbSpecMap[tableName].dbIndex
 		}
 		dbFormat.DbNum = cdb
@@ -313,6 +326,9 @@ func fillSonicKeySpec(xpath string, tableName string, keyStr string) []KeySpec {
 					for dir := range dbInfo.dbEntry.Dir {
 						_, ok := xDbSpecMap[dir]
 						if ok && xDbSpecMap[dir].yangType == YANG_CONTAINER {
+							if (xDbSpecMap[dir].dbEntry == nil) || ((content == QUERY_CONTENT_CONFIG) && (xDbSpecMap[dir].dbEntry.ReadOnly())) || ((content == QUERY_CONTENT_NONCONFIG) && (!xDbSpecMap[dir].dbEntry.ReadOnly())) {
+								continue
+							}
 							cdb := xDbSpecMap[dir].dbIndex
 							dbFormat := KeySpec{}
 							dbFormat.Ts.Name = dir
@@ -387,14 +403,42 @@ func XlateToDb(path string, oper int, d *db.DB, yg *ygot.GoStruct, yt *interface
 	return result, yangDefValMap, yangAuxValMap, err
 }
 
-func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, txCache interface{}) ([]byte, bool, error) {
+func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, txCache interface{}, qParams QueryParams) ([]byte, bool, error) {
 	var err error
 	var payload []byte
 	var inParamsForGet xlateFromDbParams
+	var processReq bool
+	inParamsForGet.queryParams = qParams
 	xfmrLogInfo("received xpath = ", uri)
 	requestUri := uri
 
-	keySpec, _ := XlateUriToKeySpec(uri, requestUri, ygRoot, nil, txCache)
+	if len(qParams.fields) > 0 {
+		xfmrLogDebug("Process fields QP") //todo
+		yngNdType, nd_err := getYangNodeTypeFromUri(uri)
+		if nd_err != nil {
+			return []byte("{}"), false, nd_err
+		} else if (yngNdType == YANG_LEAF) || (yngNdType == YANG_LEAF_LIST) {
+			err = tlerr.InvalidArgsError{Format: "Bad Request - fields query parameter specified on a terminal node uri."}
+			return []byte("{}"), false, err
+		}
+	} else {
+		processReq, err = contentQParamTgtEval(uri, qParams)
+		if err != nil {
+			return []byte("{}"), false, err
+		}
+		if !processReq {
+			xfmrLogInfo("further processing of request not needed due to content query param.")
+			/* translib fills requested list-instance into ygot, but when there is content-mismatch
+			   we have to send empty payload response.So distinguish this case in common_app we send this err
+			*/
+			if IsListNode(uri) {
+				return []byte("{}"), true, tlerr.InternalError{Format: QUERY_CONTENT_MISMATCH_ERR}
+			}
+			return []byte("{}"), true, err
+		}
+	}
+
+	keySpec, _ := XlateUriToKeySpec(uri, requestUri, ygRoot, nil, txCache, qParams)
 	var dbresult = make(RedisDbMap)
 	for i := db.ApplDB; i < db.MaxDB; i++ {
 		dbresult[i] = make(map[string]map[string]db.Value)
@@ -510,7 +554,8 @@ func XlateFromDb(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, data R
 		}
 	}
 	dbTblKeyGetCache := inParamsForGet.dbTblKeyGetCache
-	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "", &dbData, txCache, nil, false)
+	qparams := inParamsForGet.queryParams
+	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "", &dbData, txCache, nil, false, qparams, nil)
 	inParamsForGet.xfmrDbTblKeyCache = make(map[string]tblKeyCache)
 	inParamsForGet.dbTblKeyGetCache = dbTblKeyGetCache
 	payload, isEmptyPayload, err := dbDataToYangJsonCreate(inParamsForGet)
@@ -721,6 +766,15 @@ func IsLeafListNode(uri string) bool {
 	result := false
 	yngNdType, err := getYangNodeTypeFromUri(uri)
 	if (err == nil) && (yngNdType == YANG_LEAF_LIST) {
+		result = true
+	}
+	return result
+}
+
+func IsListNode(uri string) bool {
+	result := false
+	yngNdType, err := getYangNodeTypeFromUri(uri)
+	if (err == nil) && (yngNdType == YANG_LIST) {
 		result = true
 	}
 	return result

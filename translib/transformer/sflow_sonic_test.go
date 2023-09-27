@@ -58,7 +58,7 @@ func Test_node_sonic_sflow(t *testing.T) {
 	// Verify global configurations
 	url = "/sonic-sflow:sonic-sflow/SFLOW/global"
 	url_body_json = "{\"sonic-sflow:global\":{\"admin_state\":\"up\",\"agent_id\":\"Ethernet4\",\"polling_interval\":100}}"
-	t.Run("Verify sFlow global configurations", processGetRequest(url, url_body_json, false))
+	t.Run("Verify sFlow global configurations", processGetRequest(url, nil, url_body_json, false))
 
 	//Delete sflow global configurations
 	url = "/sonic-sflow:sonic-sflow/SFLOW"
@@ -68,7 +68,7 @@ func Test_node_sonic_sflow(t *testing.T) {
 	//Verify deleted sflow global configuration
 	url = "/sonic-sflow:sonic-sflow/SFLOW"
 	url_body_json = "{}"
-	t.Run("Verify delete on sflow node", processGetRequest(url, url_body_json, false))
+	t.Run("Verify delete on sflow node", processGetRequest(url, nil, url_body_json, false))
 }
 
 func Test_node_sonic_sflow_collector(t *testing.T) {
@@ -82,7 +82,7 @@ func Test_node_sonic_sflow_collector(t *testing.T) {
 
 	// Verify sFlow collector configurations
 	url = "/sonic-sflow:sonic-sflow/SFLOW_COLLECTOR/SFLOW_COLLECTOR_LIST[name=1.1.1.1_6343_default]"
-	t.Run("Verify sFlow collector", processGetRequest(url, url_body_json, false))
+	t.Run("Verify sFlow collector", processGetRequest(url, nil, url_body_json, false))
 
 	// Set collector ip
 	url = "/sonic-sflow:sonic-sflow/SFLOW_COLLECTOR/SFLOW_COLLECTOR_LIST[name=1.1.1.1_6343_default]/collector_ip"
@@ -104,7 +104,7 @@ func Test_node_sonic_sflow_collector(t *testing.T) {
 	//Verify collector port
 	url = "/sonic-sflow:sonic-sflow/SFLOW_COLLECTOR/SFLOW_COLLECTOR_LIST"
 	url_body_json = "{}"
-	t.Run("Verify delete on sFlow collector", processGetRequest(url, url_body_json, false))
+	t.Run("Verify delete on sFlow collector", processGetRequest(url, nil, url_body_json, false))
 }
 
 func Test_node_sonic_sflow_interface(t *testing.T) {
@@ -137,7 +137,7 @@ func Test_node_sonic_sflow_interface(t *testing.T) {
 	url_body_json = "{}"
 	err_str := "Resource not found"
         expected_err := tlerr.NotFoundError{Format: err_str}
-	t.Run("Verify delete on sFlow Interface", processGetRequest(url, url_body_json, true, expected_err))
+	t.Run("Verify delete on sFlow Interface", processGetRequest(url, nil, url_body_json, true, expected_err))
 
 	//Delete sflow global configurations
 	url = "/sonic-sflow:sonic-sflow/SFLOW"
@@ -147,5 +147,5 @@ func Test_node_sonic_sflow_interface(t *testing.T) {
 	//Verify deleted sflow global configuration
 	url = "/sonic-sflow:sonic-sflow/SFLOW"
 	url_body_json = "{}"
-	t.Run("Verify delete on sFlow collector", processGetRequest(url, url_body_json, false))
+	t.Run("Verify delete on sFlow collector", processGetRequest(url, nil,  url_body_json, false))
 }
