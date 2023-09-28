@@ -886,6 +886,7 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 				} else {
 					isValid = res
 				}
+
 			}
 
 			if dbKey == keyFromCurUri {
