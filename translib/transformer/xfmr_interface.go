@@ -52,6 +52,7 @@ type XfmrParams struct {
 	pCascadeDelTbl       *[]string //used to populate list of tables needed cascade delete by subtree overloaded methods
 	yangDefValMap        map[string]map[string]db.Value
 	queryParams          QueryParams
+	pruneDone            *bool
 	invokeCRUSubtreeOnce *bool
 }
 
