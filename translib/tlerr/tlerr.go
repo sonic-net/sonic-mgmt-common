@@ -140,10 +140,53 @@ func (e TranslibDBConnectionReset) Error() string {
 	return p.Sprintf("Translib Redis Error: DB Connection Reset")
 }
 
+type TranslibDBTxCmdsLim struct {
+}
+
+func (e TranslibDBTxCmdsLim) Error() string {
+	return p.Sprintf("Translib Error: DB Transaction Commands Limit Exceeded")
+}
+
+type DBLockType int
+
+const (
+	DBLockGeneric DBLockType = iota
+	DBLockConfigSession
+)
+
+type TranslibDBLock struct {
+	Type DBLockType
+}
+
+func (e TranslibDBLock) Error() string {
+	return p.Sprintf("Translib Error: DB Resource Lock")
+}
+
 type TranslibDBNotSupported struct {
 	Description string
 }
 
 func (e TranslibDBNotSupported) Error() string {
 	return p.Sprintf("Translib Redis Error: Not Supported: %s", e.Description)
+}
+
+type TranslibTimeoutError struct {
+}
+
+func (e TranslibTimeoutError) Error() string {
+	return p.Sprintf("Translib Timeout Error")
+}
+
+type TranslibInvalidSession struct {
+}
+
+func (e TranslibInvalidSession) Error() string {
+	return p.Sprintf("Translib Invalid Session Error")
+}
+
+type TranslibBusy struct {
+}
+
+func (e TranslibBusy) Error() string {
+	return p.Sprintf("Translib Busy")
 }

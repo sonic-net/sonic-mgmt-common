@@ -72,8 +72,6 @@ func (d *DB) ExistKeysPattern(ts *TableSpec, pat Key) (bool, error) {
 		}
 	}()
 
-	// If pseudoDB then follow the path of !IsWriteDisabled with Tx Cache. TBD.
-
 	if !d.Opts.IsWriteDisabled {
 
 		// If Write is enabled, then just call GetKeysPattern() and check

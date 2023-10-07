@@ -57,8 +57,6 @@ func (d *DB) GetMap(ts *TableSpec, mapKey string) (string, error) {
 	var e error
 	var v string
 
-	// If pseudoDB then do custom. TBD.
-
 	// If cache GetFromCache (CacheHit?)
 	if d.dbCacheConfig.PerConnection && d.dbCacheConfig.isCacheMap(ts.Name) {
 		var ok bool
@@ -154,8 +152,6 @@ func (d *DB) GetMapAll(ts *TableSpec) (Value, error) {
 	var e error
 	var value Value
 	var v map[string]string
-
-	// If pseudoDB then do custom. TBD.
 
 	// If cache GetFromCache (CacheHit?)
 	if d.dbCacheConfig.PerConnection && d.dbCacheConfig.isCacheMap(ts.Name) {

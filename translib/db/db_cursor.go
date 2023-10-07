@@ -121,8 +121,6 @@ func (d *DB) NewScanCursor(ts *TableSpec, pattern Key, scOpts *ScanCursorOpts) (
 		return nil, err
 	}
 
-	// If pseudoDB then return not supported. Return NotSupport above too. TBD.
-
 	var countHint int64 = 10
 	scnType := KeyScanType // default is key scanner
 
