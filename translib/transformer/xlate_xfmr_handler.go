@@ -49,7 +49,7 @@ func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string) error {
 			}
 		}
 	}
-	if (err == nil) && inParams.queryParams.isEnabled() {
+	if (err == nil) && inParams.queryParams.isEnabled() && !(*inParams.pruneDone) {
 		log.Infof("xfmrPruneQP: func %v URI %v, requestUri %v",
 			xfmrFuncNm, inParams.uri, inParams.requestUri)
 		err = xfmrPruneQP(inParams.ygRoot, inParams.queryParams,
