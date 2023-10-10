@@ -242,13 +242,13 @@ func subHdlrSA(d *DB, sN SessNotif, cN string, skey *SKey, key *Key,
 				if reflect.DeepEqual(entry, sE0) {
 					recvHSet = true
 				} else {
-					fmt.Println("subHdlr: recvHSet %v != %v\n", entry, sE0)
+					fmt.Printf("subHdlr: recvHSet %v != %v\n", entry, sE0)
 				}
 			} else {
-				fmt.Println("subHdlr: recvHSet: GetEntry err = %v\n", err)
+				fmt.Printf("subHdlr: recvHSet: GetEntry err = %v\n", err)
 			}
 		} else {
-			fmt.Println("subHdlr: recvHSet: key: %v != redisKey %v\n", key, sK)
+			fmt.Printf("subHdlr: recvHSet: key: %v != redisKey %v\n", key, sK)
 		}
 	case SEventHDel:
 		if d.key2redis(skey.Ts, *key) == sK {
@@ -256,13 +256,13 @@ func subHdlrSA(d *DB, sN SessNotif, cN string, skey *SKey, key *Key,
 				if reflect.DeepEqual(entry, sE1) {
 					recvHDel = true
 				} else {
-					fmt.Println("subHdlr: recvHDel %v != %v\n", entry, sE1)
+					fmt.Printf("subHdlr: recvHDel %v != %v\n", entry, sE1)
 				}
 			} else {
-				fmt.Println("subHdlr: recvHDel: GetEntry err = %v\n", err)
+				fmt.Printf("subHdlr: recvHDel: GetEntry err = %v\n", err)
 			}
 		} else {
-			fmt.Println("subHdlr: recvHDel: key: %v != redisKey %v\n", key, sK)
+			fmt.Printf("subHdlr: recvHDel: key: %v != redisKey %v\n", key, sK)
 		}
 	case SEventDel:
 		if d.key2redis(skey.Ts, *key) == sK {
@@ -270,13 +270,13 @@ func subHdlrSA(d *DB, sN SessNotif, cN string, skey *SKey, key *Key,
 				if _, ok := err.(tlerr.TranslibRedisClientEntryNotExist); ok {
 					recvDel = true
 				} else {
-					fmt.Println("subHdlr: recvHDel error mismatch %v\n", err)
+					fmt.Printf("subHdlr: recvHDel error mismatch %v\n", err)
 				}
 			} else {
-				fmt.Println("subHdlr: recvDel: GetEntry success = %v\n", entry)
+				fmt.Printf("subHdlr: recvDel: GetEntry success = %v\n", entry)
 			}
 		} else {
-			fmt.Println("subHdlr: recvDel: key: %v != redisKey %v\n", key, sK)
+			fmt.Printf("subHdlr: recvDel: key: %v != redisKey %v\n", key, sK)
 		}
 	}
 
