@@ -25,82 +25,79 @@ code written in python using that SDK to Go Language.
 
 Example:
 
- * Initialization:
+  - Initialization:
 
-        d, _ := db.NewDB(db.Options {
-                        DBNo              : db.ConfigDB,
-                        InitIndicator     : "CONFIG_DB_INITIALIZED",
-                        TableNameSeparator: "|",
-                        KeySeparator      : "|",
-                      })
+    d, _ := db.NewDB(db.Options {
+    DBNo              : db.ConfigDB,
+    InitIndicator     : "CONFIG_DB_INITIALIZED",
+    TableNameSeparator: "|",
+    KeySeparator      : "|",
+    })
 
- * Close:
+  - Close:
 
-        d.DeleteDB()
+    d.DeleteDB()
 
+  - No-Transaction SetEntry
 
- * No-Transaction SetEntry
+    tsa := db.TableSpec { Name: "ACL_TABLE" }
+    tsr := db.TableSpec { Name: "ACL_RULE" }
 
-        tsa := db.TableSpec { Name: "ACL_TABLE" }
-        tsr := db.TableSpec { Name: "ACL_RULE" }
+    ca := make([]string, 1, 1)
 
-        ca := make([]string, 1, 1)
+    ca[0] = "MyACL1_ACL_IPV4"
+    akey := db.Key { Comp: ca}
+    avalue := db.Value {map[string]string {"ports":"eth0","type":"mirror" }}
 
-        ca[0] = "MyACL1_ACL_IPV4"
-        akey := db.Key { Comp: ca}
-        avalue := db.Value {map[string]string {"ports":"eth0","type":"mirror" }}
+    d.SetEntry(&tsa, akey, avalue)
 
-        d.SetEntry(&tsa, akey, avalue)
+  - GetEntry
 
- * GetEntry
+    avalue, _ := d.GetEntry(&tsa, akey)
 
-        avalue, _ := d.GetEntry(&tsa, akey)
+  - GetKeys
 
- * GetKeys
+    keys, _ := d.GetKeys(&tsa);
 
-        keys, _ := d.GetKeys(&tsa);
+  - GetKeysPattern
 
- * GetKeysPattern
+    keys, _ := d.GetKeys(&tsa, akeyPattern);
 
-        keys, _ := d.GetKeys(&tsa, akeyPattern);
+  - No-Transaction DeleteEntry
 
- * No-Transaction DeleteEntry
+    d.DeleteEntry(&tsa, akey)
 
-        d.DeleteEntry(&tsa, akey)
+  - GetTable
 
- * GetTable
+    ta, _ := d.GetTable(&tsa)
 
-        ta, _ := d.GetTable(&tsa)
+  - No-Transaction DeleteTable
 
- * No-Transaction DeleteTable
+    d.DeleteTable(&ts)
 
-        d.DeleteTable(&ts)
+  - Transaction
 
- * Transaction
+    rkey := db.Key { Comp: []string { "MyACL2_ACL_IPV4", "RULE_1" }}
+    rvalue := db.Value { Field: map[string]string {
+    "priority" : "0",
+    "packet_action" : "eth1",
+    },
+    }
 
-        rkey := db.Key { Comp: []string { "MyACL2_ACL_IPV4", "RULE_1" }}
-        rvalue := db.Value { Field: map[string]string {
-                "priority" : "0",
-                "packet_action" : "eth1",
-                        },
-                }
+    d.StartTx([]db.WatchKeys { {Ts: &tsr, Key: &rkey} },
+    []*db.TableSpec { &tsa, &tsr })
 
-        d.StartTx([]db.WatchKeys { {Ts: &tsr, Key: &rkey} },
-                  []*db.TableSpec { &tsa, &tsr })
+    d.SetEntry( &tsa, akey, avalue)
+    d.SetEntry( &tsr, rkey, rvalue)
 
-        d.SetEntry( &tsa, akey, avalue)
-        d.SetEntry( &tsr, rkey, rvalue)
+    e := d.CommitTx()
 
-        e := d.CommitTx()
+  - Transaction Abort
 
- * Transaction Abort
-
-        d.StartTx([]db.WatchKeys {},
-                  []*db.TableSpec { &tsa, &tsr })
-        d.DeleteEntry( &tsa, rkey)
-        d.AbortTx()
-
-
+    d.StartTx([]db.WatchKeys {},
+    []*db.TableSpec { &tsa, &tsr })
+    d.DeleteEntry( &tsa, rkey)
+    d.AbortTx()
 */
 package db
 
@@ -114,9 +111,9 @@ import (
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/cvl"
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
-	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 )
 
 const (
@@ -215,7 +212,7 @@ type TableSpec struct {
 	// can have TableSeparator as part of the key. Otherwise, we cannot
 	// tell where the key component begins.
 	CompCt int
-	// NoDelete flag (if it is set to true) is to skip the row entry deletion from 
+	// NoDelete flag (if it is set to true) is to skip the row entry deletion from
 	// the table when the "SetEntry" or "ModEntry" method is called with empty Value Field map.
 	NoDelete bool
 }
@@ -261,8 +258,8 @@ type DB struct {
 	onCReg dbOnChangeReg // holds OnChange enabled table names
 	// dbCache is used by both PerConnection cache, and OnChange cache
 	// On a DB handle, the two are mutually exclusive.
-	cache  dbCache
-	stats  DBStats
+	cache dbCache
+	stats DBStats
 
 	dbStatsConfig DBStatsConfig
 	dbCacheConfig DBCacheConfig
@@ -285,7 +282,7 @@ func (dbNo DBNum) Name() string {
 	return (getDBInstName(dbNo))
 }
 
-func getDBInstName (dbNo DBNum) string {
+func getDBInstName(dbNo DBNum) string {
 	switch dbNo {
 	case ApplDB:
 		return "APPL_DB"
@@ -550,13 +547,13 @@ func (d *DB) getEntry(ts *TableSpec, key Key, forceReadDB bool) (Value, error) {
 	var ok bool
 	entry := d.key2redis(ts, key)
 	useCache := ((d.Opts.IsOnChangeEnabled && d.onCReg.isCacheTable(ts.Name)) ||
-				(d.dbCacheConfig.PerConnection &&
-					d.dbCacheConfig.isCacheTable(ts.Name)))
+		(d.dbCacheConfig.PerConnection &&
+			d.dbCacheConfig.isCacheTable(ts.Name)))
 
 	// check in Tx cache first
 	if value, ok = d.txTsEntryMap[ts.Name][entry]; !ok {
 		// If cache GetFromCache (CacheHit?)
-		if (useCache && !forceReadDB) {
+		if useCache && !forceReadDB {
 			if table, ok = d.cache.Tables[ts.Name]; ok {
 				if value, ok = table.entry[entry]; ok {
 					value = value.Copy()
@@ -598,11 +595,11 @@ func (d *DB) getEntry(ts *TableSpec, key Key, forceReadDB bool) (Value, error) {
 				d.cache.Tables = make(map[string]Table, d.onCReg.size())
 			}
 			d.cache.Tables[ts.Name] = Table{
-				ts:    ts,
-				entry: make(map[string]Value),
+				ts:       ts,
+				entry:    make(map[string]Value),
 				complete: false,
 				patterns: make(map[string][]Key),
-				db:    d,
+				db:       d,
 			}
 		}
 		d.cache.Tables[ts.Name].entry[entry] = value.Copy()
@@ -1207,7 +1204,7 @@ func (d *DB) RunScript(script *redis.Script, keys []string, args ...interface{})
 		return nil
 	}
 
-    return script.Run(d.client, keys, args...)
+	return script.Run(d.client, keys, args...)
 }
 
 // DeleteEntry deletes an entry(row) in the table.
@@ -1258,7 +1255,7 @@ func (d *DB) ModEntry(ts *TableSpec, key Key, value Value) error {
 				glog.Info("ModEntry: Mapping to DeleteEntry()")
 			}
 			e = d.DeleteEntry(ts, key)
-		}		
+		}
 		goto ModEntryExit
 	}
 
@@ -1677,7 +1674,7 @@ func (d *DB) AbortTx() error {
 		e = errors.New("Cannot issue UNWATCH in txStateMultiExec")
 	default:
 		glog.Error("AbortTx: Unknown, txState: ", d.txState)
-		 e = errors.New("Unknown State: " + string(rune(d.txState)))
+		e = errors.New("Unknown State: " + string(rune(d.txState)))
 	}
 
 	if e != nil {

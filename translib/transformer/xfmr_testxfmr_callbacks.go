@@ -670,7 +670,7 @@ func convertSonicTestSetTypeToOC(testSetType string) ocbinds.E_OpenconfigTestXfm
 	return testSetOrigType
 }
 
-//Sonic yang key transformer functions
+// Sonic yang key transformer functions
 var DbToYang_test_sensor_mode_key_xfmr SonicKeyXfmrDbToYang = func(inParams SonicXfmrParams) (map[string]interface{}, error) {
 	res_map := make(map[string]interface{})
 	/* from DB-key string(inParams.key) extract mode and id to fill into the res_map

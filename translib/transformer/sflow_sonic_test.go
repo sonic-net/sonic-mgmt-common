@@ -22,19 +22,18 @@
 package transformer_test
 
 import (
-        "testing"
-        "time"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"testing"
+	"time"
 )
 
-
 func Test_node_sonic_sflow(t *testing.T) {
-        var url, url_body_json string
+	var url, url_body_json string
 
 	//Add sflow node
 	url = "/sonic-sflow:sonic-sflow/SFLOW"
 	url_body_json = "{ \"sonic-sflow:global\": { \"admin_state\": \"down\", \"polling_interval\": 0, \"agent_id\": \"Ethernet0\" }}"
-	t.Run("Add sFlow collector", processSetRequest(url, url_body_json, "POST", false,nil))
+	t.Run("Add sFlow collector", processSetRequest(url, url_body_json, "POST", false, nil))
 	time.Sleep(1 * time.Second)
 
 	//Set admin state
@@ -72,12 +71,12 @@ func Test_node_sonic_sflow(t *testing.T) {
 }
 
 func Test_node_sonic_sflow_collector(t *testing.T) {
-        var url, url_body_json string
+	var url, url_body_json string
 
 	//Add sFlow collector
 	url = "/sonic-sflow:sonic-sflow/SFLOW_COLLECTOR"
 	url_body_json = "{ \"sonic-sflow:SFLOW_COLLECTOR_LIST\": [ { \"name\": \"1.1.1.1_6343_default\", \"collector_ip\": \"1.1.1.1\", \"collector_port\": 6343, \"collector_vrf\": \"default\" } ]}"
-	t.Run("Add sFlow collector", processSetRequest(url, url_body_json, "POST", false,nil))
+	t.Run("Add sFlow collector", processSetRequest(url, url_body_json, "POST", false, nil))
 	time.Sleep(1 * time.Second)
 
 	// Verify sFlow collector configurations
@@ -108,18 +107,18 @@ func Test_node_sonic_sflow_collector(t *testing.T) {
 }
 
 func Test_node_sonic_sflow_interface(t *testing.T) {
-        var url, url_body_json string
+	var url, url_body_json string
 
 	//Sflow needs to be enabled to configure for the interface
 	url = "/sonic-sflow:sonic-sflow/SFLOW"
 	url_body_json = "{ \"sonic-sflow:global\": { \"admin_state\": \"up\", \"polling_interval\": 0, \"agent_id\": \"Ethernet0\" }}"
-	t.Run("Enable sFlow", processSetRequest(url, url_body_json, "POST", false,nil))
+	t.Run("Enable sFlow", processSetRequest(url, url_body_json, "POST", false, nil))
 	time.Sleep(1 * time.Second)
 
 	//Configure for the sflow interface
 	url = "/sonic-sflow:sonic-sflow/SFLOW_SESSION"
 	url_body_json = "{ \"sonic-sflow:SFLOW_SESSION_LIST\": [ { \"port\": \"Ethernet0\", \"admin_state\": \"up\", \"sample_rate\": 10000 } ]}"
-	t.Run("Configure sFlow interface", processSetRequest(url, url_body_json, "POST", false,nil))
+	t.Run("Configure sFlow interface", processSetRequest(url, url_body_json, "POST", false, nil))
 	time.Sleep(1 * time.Second)
 
 	//Changing the sampling-rate
@@ -128,7 +127,7 @@ func Test_node_sonic_sflow_interface(t *testing.T) {
 	t.Run("Configuring the sampling_rate in sflow interface", processSetRequest(url, url_body_json, "PATCH", false))
 	time.Sleep(1 * time.Second)
 
-	//Deleting the configured interface 
+	//Deleting the configured interface
 	url = "/sonic-sflow:sonic-sflow/SFLOW_SESSION/SFLOW_SESSION_LIST[port=Ethernet0]"
 	t.Run("Delete on configured sflow interface", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
@@ -136,7 +135,7 @@ func Test_node_sonic_sflow_interface(t *testing.T) {
 	//Verify the deleted sflow interface
 	url_body_json = "{}"
 	err_str := "Resource not found"
-        expected_err := tlerr.NotFoundError{Format: err_str}
+	expected_err := tlerr.NotFoundError{Format: err_str}
 	t.Run("Verify delete on sFlow Interface", processGetRequest(url, nil, url_body_json, true, expected_err))
 
 	//Delete sflow global configurations
@@ -147,5 +146,5 @@ func Test_node_sonic_sflow_interface(t *testing.T) {
 	//Verify deleted sflow global configuration
 	url = "/sonic-sflow:sonic-sflow/SFLOW"
 	url_body_json = "{}"
-	t.Run("Verify delete on sFlow collector", processGetRequest(url, nil,  url_body_json, false))
+	t.Run("Verify delete on sFlow collector", processGetRequest(url, nil, url_body_json, false))
 }

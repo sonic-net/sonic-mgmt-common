@@ -18,12 +18,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 package cvl
+
 import (
-	"github.com/go-redis/redis/v7"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/util"
+	"github.com/go-redis/redis/v7"
 )
 
-//Redis server side script
+// Redis server side script
 func loadLuaScript(luaScripts map[string]*redis.Script) {
 
 	// Find entry which has given fieldName and value

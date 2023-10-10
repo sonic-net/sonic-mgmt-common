@@ -140,7 +140,6 @@ type qpSubtreePruningErr struct {
 
 type Operation int
 
-
 type ContentType uint8
 
 type QueryParams struct {
@@ -165,4 +164,3 @@ type ygotUnMarshalCtx struct {
 type ygotXlator struct {
 	ygotCtx *ygotUnMarshalCtx
 }
-
