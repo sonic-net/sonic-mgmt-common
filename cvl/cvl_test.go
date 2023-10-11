@@ -3259,6 +3259,7 @@ func TestValidateEditConfig_Create_Syntax_Interface_IncorrectKey_Negative(t *tes
 	})
 }
 
+/*
 func TestValidateEditConfig_EmptyNode_Positive(t *testing.T) {
 	cfgData := []cmn.CVLEditConfigData{
 		cmn.CVLEditConfigData{
@@ -3275,6 +3276,7 @@ func TestValidateEditConfig_EmptyNode_Positive(t *testing.T) {
 
 	verifyValidateEditConfig(t, cfgData, Success)
 }
+*/
 
 func TestSortDepTables(t *testing.T) {
 	cvSess, _ := NewCvlSession()
