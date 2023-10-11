@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -43,9 +43,6 @@ import "C"
 import (
 	"encoding/json"
 	"fmt"
-	set "github.com/Workiva/go-datastructures/set"
-	"github.com/go-redis/redis/v7"
-	log "github.com/golang/glog"
 	"io"
 	"io/ioutil"
 	fileLog "log"
@@ -56,6 +53,10 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	set "github.com/Workiva/go-datastructures/set"
+	"github.com/go-redis/redis/v7"
+	log "github.com/golang/glog"
 )
 
 var CVL_SCHEMA string = "schema/"
@@ -67,7 +68,12 @@ const ENV_VAR_SONIC_DB_CONFIG_FILE = "DB_CONFIG_PATH"
 
 var sonic_db_config = make(map[string]interface{})
 
-//package init function
+type Formatter func(string) string
+
+var formatterFunctionsMap map[string]Formatter
+var redisOptions *redis.Options
+
+// package init function
 func init() {
 	if os.Getenv("CVL_SCHEMA_PATH") != "" {
 		CVL_SCHEMA = os.Getenv("CVL_SCHEMA_PATH") + "/"
@@ -77,20 +83,29 @@ func init() {
 		CVL_CFG_FILE = os.Getenv("CVL_CFG_FILE")
 	}
 
+	isLogToFile = false
+	for i := TRACE_MIN; i <= TRACE_MAX; i++ {
+		cvlTraceFlags = cvlTraceFlags | (1 << i)
+	}
+
 	//Initialize mutex
 	logFileMutex = &sync.Mutex{}
 
 	//Initialize DB settings
 	dbCfgInit()
+	redisOptions = &redis.Options{}
+
+	formatterFunctionsMap = make(map[string]Formatter)
 }
 
 var cvlCfgMap map[string]string
 var isLogToFile bool
+var logFileName string = CVL_LOG_FILE
 var logFileSize int
 var pLogFile *os.File
 var logFileMutex *sync.Mutex
 
-//CVLLogLevel Logging Level for CVL global logging
+// CVLLogLevel Logging Level for CVL global logging
 type CVLLogLevel uint8
 
 const (
@@ -108,7 +123,7 @@ const (
 
 var cvlTraceFlags uint32
 
-//CVLTraceLevel Logging levels for CVL Tracing
+// CVLTraceLevel Logging levels for CVL Tracing
 type CVLTraceLevel uint32
 
 const (
@@ -180,20 +195,15 @@ func customLogCallback(level C.LY_LOG_LEVEL, msg *C.char, path *C.char) {
 	}
 }
 
-func IsTraceLevelSet(tracelevel CVLTraceLevel) bool {
+func IsTraceAllowed(tracelevel CVLTraceLevel) bool {
+	return isTraceLevelSet(tracelevel) && bool(log.V(log.Level(INFO_TRACE)))
+}
+
+func isTraceLevelSet(tracelevel CVLTraceLevel) bool {
 	return (cvlTraceFlags & (uint32)(tracelevel)) != 0
 }
 
 func TRACE_LEVEL_LOG(tracelevel CVLTraceLevel, fmtStr string, args ...interface{}) {
-
-	/*
-		if (IsTraceSet() == false) {
-			return
-		}
-
-		level = (level - INFO_API) + 1;
-	*/
-
 	traceEnabled := false
 	if (cvlTraceFlags & (uint32)(tracelevel)) != 0 {
 		traceEnabled = true
@@ -213,14 +223,14 @@ func TRACE_LEVEL_LOG(tracelevel CVLTraceLevel, fmtStr string, args ...interface{
 		fmt.Printf(fmtStr+"\n", args...)
 	} else {
 		if traceEnabled {
-			fmtStr = "[CVL] : " + fmtStr
+			fmtStr = "[CVL:" + traceLevelMap[int(tracelevel)] + "] " + fmtStr
 			//Trace logs has verbose level INFO_TRACE
 			log.V(INFO_TRACE).Infof(fmtStr, args...)
 		}
 	}
 }
 
-//Logs to /tmp/cvl.log file
+// Logs to /tmp/cvl.log file
 func logToCvlFile(format string, args ...interface{}) {
 	if pLogFile == nil {
 		return
@@ -248,9 +258,9 @@ func logToCvlFile(format string, args ...interface{}) {
 		//close the file first
 		pLogFile.Close()
 
-		pFile, err := os.OpenFile(CVL_LOG_FILE,
+		pFile, err := os.OpenFile(logFileName,
 			os.O_RDONLY, 0666)
-		pFileOut, errOut := os.OpenFile(CVL_LOG_FILE+".tmp",
+		pFileOut, errOut := os.OpenFile(logFileName+".tmp",
 			os.O_WRONLY|os.O_CREATE, 0666)
 
 		if (err != nil) && (errOut != nil) {
@@ -259,7 +269,7 @@ func logToCvlFile(format string, args ...interface{}) {
 			pFile.Seek(int64(logFileSize*30/100), io.SeekStart)
 			_, err := io.Copy(pFileOut, pFile)
 			if err == nil {
-				os.Rename(CVL_LOG_FILE+".tmp", CVL_LOG_FILE)
+				os.Rename(logFileName+".tmp", logFileName)
 			}
 		}
 
@@ -271,10 +281,10 @@ func logToCvlFile(format string, args ...interface{}) {
 		}
 
 		// Reopen the file
-		pLogFile, err := os.OpenFile(CVL_LOG_FILE,
+		pLogFile, err := os.OpenFile(logFileName,
 			os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
-			fmt.Printf("Error in opening log file %s, %v", CVL_LOG_FILE, err)
+			fmt.Printf("Error in opening log file %s, %v", logFileName, err)
 		} else {
 			fileLog.SetOutput(pLogFile)
 		}
@@ -344,12 +354,18 @@ func applyCvlLogFileConfig() {
 		logFileSize, _ = strconv.Atoi(fileSize)
 	}
 
+	if fileName, exists := cvlCfgMap["LOG_FILE_NAME"]; exists {
+		logFileName = fileName
+	} else {
+		logFileName = CVL_LOG_FILE
+	}
+
 	if enabled == "true" {
-		pFile, err := os.OpenFile(CVL_LOG_FILE,
+		pFile, err := os.OpenFile(logFileName,
 			os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 
 		if err != nil {
-			fmt.Printf("Error in opening log file %s, %v", CVL_LOG_FILE, err)
+			fmt.Printf("Error in opening log file %s, %v", logFileName, err)
 		} else {
 			pLogFile = pFile
 			fileLog.SetOutput(pLogFile)
@@ -402,7 +418,7 @@ func ReadConfFile() map[string]string {
 		return nil
 	}
 
-	CVL_LEVEL_LOG(INFO, "Current Values of CVL Configuration File %v", cvlCfgMap)
+	CVL_LEVEL_LOG(INFO_DEBUG, "Current Values of CVL Configuration File %v", cvlCfgMap)
 	var index uint32
 
 	for index = TRACE_MIN; index <= TRACE_MAX; index++ {
@@ -434,9 +450,9 @@ func SkipSemanticValidation() bool {
 	return false
 }
 
-//Function to read Redis DB configuration from file.
-//In absence of the file, it uses default config for CONFIG_DB
-//so that CVL UT will pass in development environment.
+// Function to read Redis DB configuration from file.
+// In absence of the file, it uses default config for CONFIG_DB
+// so that CVL UT will pass in development environment.
 func dbCfgInit() {
 	defaultDBConfig := `{
 		"INSTANCES": {
@@ -495,7 +511,7 @@ func dbCfgInit() {
 	}
 }
 
-//Get list of DB
+// Get list of DB
 func getDbList() map[string]interface{} {
 	db_list, ok := sonic_db_config["DATABASES"].(map[string]interface{})
 	if !ok {
@@ -505,7 +521,7 @@ func getDbList() map[string]interface{} {
 	return db_list
 }
 
-//Get DB instance based on given DB name
+// Get DB instance based on given DB name
 func getDbInst(dbName string) map[string]interface{} {
 	db, ok := sonic_db_config["DATABASES"].(map[string]interface{})[dbName]
 	if !ok {
@@ -525,7 +541,7 @@ func getDbInst(dbName string) map[string]interface{} {
 	return inst.(map[string]interface{})
 }
 
-//GetDbSeparator Get DB separator based on given DB name
+// GetDbSeparator Get DB separator based on given DB name
 func GetDbSeparator(dbName string) string {
 	db_list := getDbList()
 	separator, ok := db_list[dbName].(map[string]interface{})["separator"]
@@ -536,7 +552,7 @@ func GetDbSeparator(dbName string) string {
 	return separator.(string)
 }
 
-//GetDbId Get DB id on given db name
+// GetDbId Get DB id on given db name
 func GetDbId(dbName string) int {
 	db_list := getDbList()
 	id, ok := db_list[dbName].(map[string]interface{})["id"]
@@ -547,7 +563,7 @@ func GetDbId(dbName string) int {
 	return int(id.(float64))
 }
 
-//GetDbSock Get DB socket path
+// GetDbSock Get DB socket path
 func GetDbSock(dbName string) string {
 	inst := getDbInst(dbName)
 	unix_socket_path, ok := inst["unix_socket_path"]
@@ -561,7 +577,24 @@ func GetDbSock(dbName string) string {
 	return unix_socket_path.(string)
 }
 
-//GetDbTcpAddr Get DB TCP endpoint
+//GetDbPassword Get DB password
+func GetDbPassword(dbName string) string {
+	inst := getDbInst(dbName)
+	password := ""
+	password_path, ok := inst["password_path"]
+	if !ok {
+		return password
+	}
+	data, er := ioutil.ReadFile(password_path.(string))
+	if er != nil {
+		//
+	} else {
+		password = (string(data))
+	}
+	return password
+}
+
+// GetDbTcpAddr Get DB TCP endpoint
 func GetDbTcpAddr(dbName string) string {
 	inst := getDbInst(dbName)
 	hostname, ok := inst["hostname"]
@@ -579,36 +612,13 @@ func GetDbTcpAddr(dbName string) string {
 	return fmt.Sprintf("%v:%v", hostname, port)
 }
 
-//NewDbClient Get new redis client
+// NewDbClient Get new redis client
 func NewDbClient(dbName string) *redis.Client {
 	var redisClient *redis.Client = nil
 
-	//Try unix domain socket first
-	if dbSock := GetDbSock(dbName); dbSock != "" {
-		redisClient = redis.NewClient(&redis.Options{
-			Network:  "unix",
-			Addr:     dbSock,
-			Password: "",
-			DB:       GetDbId(dbName),
-		})
-	} else {
-		//Otherwise, use TCP socket
-		redisClient = redis.NewClient(&redis.Options{
-			Network:  "tcp",
-			Addr:     GetDbTcpAddr(dbName),
-			Password: "",
-			DB:       GetDbId(dbName),
-		})
-	}
+	redisClient = redis.NewClient(getRedisOptions(dbName))
 
 	if redisClient == nil {
-		return nil
-	}
-
-	//Check the connectivity
-	_, err := redisClient.Ping().Result()
-	if err != nil {
-		CVL_LEVEL_LOG(ERROR, "Failed to connect to Redis server %v", err)
 		return nil
 	}
 
@@ -651,4 +661,66 @@ func GetDifference(a, b []string) []string {
 	}
 
 	return res
+}
+
+// GetTableAndKeyFromRedisKey This will return tableName and Key from given rediskey.
+// For ex. rediskey = PORTCHANNEL_MEMBER|PortChannel1|Ethernet4
+// Output will be "PORTCHANNEL_MEMBER" and "PortChannel1|Ethernet4"
+func GetTableAndKeyFromRedisKey(redisKey, delim string) (string, string) {
+	if len(delim) == 0 || len(redisKey) == 0 {
+		return "", ""
+	}
+
+	idx := strings.Index(redisKey, delim)
+	if idx < 0 {
+		return "", ""
+	}
+
+	return redisKey[:idx], redisKey[idx+1:]
+}
+
+func AddToFormatterFuncsMap(s string, f Formatter) error {
+	if _, ok := formatterFunctionsMap[s]; !ok {
+		formatterFunctionsMap[s] = f
+	} else {
+		return fmt.Errorf("Formatter '%s' is already registered", s)
+	}
+
+	return nil
+}
+
+func Format(fname string, val string) string {
+	if formatter, ok := formatterFunctionsMap[fname]; ok {
+		return formatter(val)
+	} else {
+		return val
+	}
+}
+
+func UpdateRedisOptions(opts *redis.Options) {
+	redisOptions = opts
+}
+
+func getRedisOptions(dbName string) *redis.Options {
+	var dbNetwork, dbAddr string
+
+	// need to create copy of redisOptions because few attributes
+	// like DBId, dbAddr, password are Db specific.
+	var opt redis.Options = *redisOptions
+
+	//Try unix domain socket first
+	if dbSock := GetDbSock(dbName); dbSock != "" {
+		dbNetwork = "unix"
+		dbAddr = dbSock
+	} else {
+		dbNetwork = "tcp"
+		dbAddr = GetDbTcpAddr(dbName)
+	}
+
+	opt.Network = dbNetwork
+	opt.Addr = dbAddr
+	opt.Password = GetDbPassword(dbName)
+	opt.DB = GetDbId(dbName)
+
+	return &opt
 }

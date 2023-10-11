@@ -49,6 +49,7 @@ func main() {
 					"stage": "INGRESS",
 					"type":  "L3",
 				},
+				false,
 			},
 			cvl.CVLEditConfigData{
 				cvl.VALIDATE_ALL,
@@ -62,6 +63,7 @@ func main() {
 					"DST_IP":            "20.2.2.2/32",
 					"L4_DST_PORT_RANGE": "9000-12000",
 				},
+				false,
 			},
 		}
 
@@ -87,6 +89,7 @@ func main() {
 					"stage": "INGRESS",
 					"type":  "MIRROR",
 				},
+				false,
 			},
 		}
 
@@ -111,6 +114,7 @@ func main() {
 					"src_ip": "10.1.0.32",
 					"dst_ip": "2.2.2.2",
 				},
+				false,
 			},
 		}
 
@@ -133,6 +137,7 @@ func main() {
 					"src_ip": "10.1.0.32",
 					"dst_ip": "2.2.2.2",
 				},
+				false,
 			},
 			cvl.CVLEditConfigData{
 				cvl.VALIDATE_ALL,
@@ -141,6 +146,7 @@ func main() {
 				map[string]string{
 					"MIRROR_ACTION": "everflow",
 				},
+				false,
 			},
 		}
 
@@ -163,12 +169,14 @@ func main() {
 				cvl.OP_DELETE,
 				"MIRROR_SESSION|everflow",
 				map[string]string{},
+				false,
 			},
 			cvl.CVLEditConfigData{
 				cvl.VALIDATE_ALL,
 				cvl.OP_DELETE,
 				"ACL_RULE|MyACL11_ACL_IPV4|RULE_1",
 				map[string]string{},
+				false,
 			},
 		}
 

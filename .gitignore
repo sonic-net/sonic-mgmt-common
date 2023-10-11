@@ -9,3 +9,5 @@ __pycache__
 *.yin
 *.tree
 translib/ocbinds/ocbinds.go
+models/yang/*.md
+.idea

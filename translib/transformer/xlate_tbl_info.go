@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"io/ioutil"
 	"os"
 
@@ -115,8 +116,8 @@ func sortPerTblDeps(ordTblListMap map[string][]string) error {
 	var err error
 
 	errStr := "Failed to create cvl session"
-	cvSess, status := cvl.ValidationSessOpen()
-	if status != cvl.CVL_SUCCESS {
+	cvSess, status := db.NewValidationSession()
+	if status != nil {
 		log.Warningf("CVL validation session creation failed(%v).", status)
 		err = fmt.Errorf("%v", errStr)
 		return err

@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 ################################################################################
 #                                                                              #
-#  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or   #
+#  Copyright 2021 Broadcom. The term Broadcom refers to Broadcom Inc. and/or   #
 #  its subsidiaries.                                                           #
 #                                                                              #
 #  Licensed under the Apache License, Version 2.0 (the "License");             #
@@ -17,7 +17,6 @@
 #  limitations under the License.                                              #
 #                                                                              #
 ################################################################################
-
 import pyang
 if pyang.__version__ > '2.4':
     from pyang.repository import FileRepository
@@ -25,7 +24,7 @@ if pyang.__version__ > '2.4':
 else:
     from pyang import FileRepository
     from pyang import Context
-from io import StringIO 
+from io import StringIO
 from xml.sax.saxutils import quoteattr
 from xml.sax.saxutils import escape
 
@@ -36,12 +35,15 @@ from pyang import syntax
 from pyang import statements
 from pyang import error
 
-new_line = '' #replace with '\n' for adding new line
+new_line ='' #replace with '\n' for adding new line
 indent_space = '' #replace with ' ' for indentation
 ns_indent_space = '' #replace with ' ' for indentation
 yin_namespace = "urn:ietf:params:xml:ns:yang:yin:1"
 err_prefix = '[Error]'
-
+TBL_KEY_EXT = "tbl-key"
+TBL_KEY_EXT_PREFIX = "sonic-ext"
+SONIC_EXTENSION_MOD = "sonic-extension"
+syntax.yin_map[f"{TBL_KEY_EXT_PREFIX}:{TBL_KEY_EXT}"] = ("value", False)
 revision_added = False
 mod_dict = dict()
 
@@ -50,6 +52,8 @@ class ContainerToListPlugin():
         self.refs = dict()
         for module in modules:
             self.process_children(modules[module], level=0)
+            if module == SONIC_EXTENSION_MOD:
+                self.add_sonic_extension(modules[module], TBL_KEY_EXT)
         for module in modules:
             self.replace_refs(modules[module])
 
@@ -74,10 +78,49 @@ class ContainerToListPlugin():
             for child in stmt.substmts:
                 self.process_children(child, level + 1)
 
+    def add_sonic_extension(self, module_stmt, ext):
+        # Check if the TBL_KEY_EXT extension already exists
+        for s in module_stmt.substmts:
+            if s.keyword == "extension" and s.arg == ext:
+                # Extension already exists, no need to add
+                return
+
+        # If not present, add the extension
+        ext_stmt = statements.Statement(module_stmt, module_stmt, module_stmt.pos, "extension", ext)
+        arg_stmt = statements.Statement(module_stmt, ext_stmt, ext_stmt.pos, "argument", "value")
+        ext_stmt.substmts.append(arg_stmt)
+        module_stmt.substmts.append(ext_stmt)
+
+    def use_sonic_extension(self, stmt, ext, key_name):
+        # Get the module statement using stmt.top
+        module_stmt = stmt.top
+
+        # Check if sonic-extensions.yang is already imported
+        sonic_ext_prefix = None
+        for s in module_stmt.substmts:
+            if s.keyword == "import" and s.arg == SONIC_EXTENSION_MOD:
+                for sub_s in s.substmts:
+                    if sub_s.keyword == "prefix":
+                        sonic_ext_prefix = sub_s.arg
+                        break
+                break
+
+        # If not imported, add the import statement and set the prefix
+        if sonic_ext_prefix is None:
+            sonic_ext_prefix = TBL_KEY_EXT_PREFIX
+            import_stmt = statements.Statement(module_stmt, module_stmt, module_stmt.pos, "import", SONIC_EXTENSION_MOD)
+            prefix_stmt = statements.Statement(module_stmt, import_stmt, import_stmt.pos, "prefix", sonic_ext_prefix)
+            import_stmt.substmts.append(prefix_stmt)
+            module_stmt.substmts.insert(4, import_stmt)
+
+        # Add the TBL_KEY_EXT extension statement using the extracted/defined prefix
+        tbl_key_stmt = statements.Statement(stmt.top, stmt, stmt.pos, f"{sonic_ext_prefix}:{ext}", key_name)
+        stmt.substmts.insert(2, tbl_key_stmt)
+
     def convert_container_to_list(self, stmt):
         key_name = stmt.arg
         parent_stmt = stmt.parent
-        list_name = parent_stmt.arg + "_LIST"
+        list_name = f"{parent_stmt.arg}_{key_name}_LIST"
         old_xpath = statements.mk_path_str(stmt, with_prefixes=True, prefix_to_module=True)
         print(f"====> Transforming container {old_xpath} to list")
         old_container_path = statements.mk_path_str(stmt, with_prefixes=False)
@@ -110,17 +153,21 @@ class ContainerToListPlugin():
             1,
             statements.Statement(stmt.top, stmt, stmt.pos, "key", "key_id"),
         )
+        self.use_sonic_extension(stmt, TBL_KEY_EXT, key_name)
         new_list_path = statements.mk_path_str(stmt, with_prefixes=False)
-        new_list_path = f"{new_list_path}[key_id='{key_name}']"
         new_xpath = statements.mk_path_str(stmt, with_prefixes=True, prefix_to_module=True)
-        new_xpath = f"{new_xpath}[key_id='{key_name}']"
         if stmt.i_module.arg not in self.refs:
             self.refs[stmt.i_module.arg] = dict()
         self.refs[stmt.i_module.arg][old_xpath] = new_xpath
-        self.update_local_references(stmt, parent_stmt.arg, key_name, old_container_path, new_list_path)
+        self.update_local_references(stmt, parent_stmt.arg, key_name, list_name, old_container_path, new_list_path)
 
     def collect_statements(self, stmt, stmts):
-        if stmt.keyword in ["must", "when", "leafref"]:
+        if stmt.keyword == "type" and stmt.arg == "leafref":
+            # Grab the path statement
+            path_stmt = [s for s in stmt.substmts if s.keyword == 'path']
+            if path_stmt:
+                stmts.append(path_stmt[0])
+        if stmt.keyword in ["must", "when"]:
             stmts.append(stmt)
         for child in stmt.substmts:
             self.collect_statements(child, stmts)
@@ -129,11 +176,12 @@ class ContainerToListPlugin():
         normalized_path = re.sub(r'/+', '/', path)  # Replace multiple '/' with a single '/'
         return normalized_path.replace(old_substring, new_substring)
 
-    def update_local_references(self, stmt, table_name, key_name, old_container_path, new_list_path):
+    def update_local_references(self, stmt, table_name, key_name, list_name, old_container_path, new_list_path):
             refs = dict()
-            refs[f"../../{table_name}/{key_name}"] = f"../../{table_name}/{table_name}_LIST[key_id='{key_name}']"
-            refs[f"../../../{table_name}/{key_name}"] = f"../../../{table_name}/{table_name}_LIST[key_id='{key_name}']"
-            refs[f"../../../../{table_name}/{key_name}"] = f"../../../../{table_name}/{table_name}_LIST[key_id='{key_name}']"
+            refs[f"../../{key_name}"] = f"../../{list_name}"
+            refs[f"../../{table_name}/{key_name}"] = f"../../{table_name}/{list_name}"
+            refs[f"../../../{table_name}/{key_name}"] = f"../../../{table_name}/{list_name}"
+            refs[f"../../../../{table_name}/{key_name}"] = f"../../../../{table_name}/{list_name}"
             stmts = []
             self.collect_statements(stmt.top, stmts)
             # Replace relative References
@@ -264,7 +312,6 @@ def emit_yin(ctx, module, fd):
                         fd.write(sonic-acl.yin * len(module.keyword))
                         fd.write(sonic-acl.yin + ' xmlns:' + prefix.arg + '=' +
                                  quoteattr(namespace.arg))
-            
     for imp in module.search('import'):
         prefix = imp.search_one('prefix')
         if prefix is not None:
@@ -289,7 +336,7 @@ def emit_yin(ctx, module, fd):
     for s in substmts:
         emit_stmt(ctx, module, s, fd, indent_space, indent_space)
     fd.write(('</%s>' + new_line) % module.keyword)
-    
+
 def emit_stmt(ctx, module, stmt, fd, indent, indentstep):
     global revision_added
 
@@ -301,8 +348,8 @@ def emit_stmt(ctx, module, stmt, fd, indent, indentstep):
 
     #Don't keep the following keywords as they are not used in CVL
     # stmt.raw_keyword == "revision" or
-    if ((stmt.raw_keyword == "organization" or 
-            stmt.raw_keyword == "contact" or 
+    if ((stmt.raw_keyword == "organization" or
+            stmt.raw_keyword == "contact" or
             stmt.raw_keyword == "rpc" or
             stmt.raw_keyword == "notification" or
             stmt.raw_keyword == "description")):

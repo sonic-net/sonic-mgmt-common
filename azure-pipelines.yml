@@ -90,8 +90,10 @@ stages:
         STATUS=0
         DEBDIR=$(realpath debian/sonic-mgmt-common)
 
-        [[ -f tools/test/database_config.json ]] && \
-            export DB_CONFIG_PATH=${PWD}/tools/test/database_config.json
+        # Update unixsocket path in database_config.json
+        tools/test/dbconfig.py -o build/tests/database_config.json
+        export DB_CONFIG_PATH=${PWD}/build/tests/database_config.json
+
         # Run CVL tests
 
         pushd build/tests/cvl

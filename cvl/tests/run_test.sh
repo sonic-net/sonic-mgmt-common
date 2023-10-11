@@ -18,12 +18,12 @@ fi
 
 #Run test and display report
 if [ "${NOREPORT}:" != ":" ] ; then
-	go test -mod=vendor -v -cover ${coverpkgs} ${testcase}
+	go test -mod=vendor -v -tags test -cover ${coverpkgs} ${testcase}
 elif [ "${COVERAGE}:" != ":" ] ; then
-	go test -mod=vendor -v -cover -coverprofile coverage.out ${coverpkgs} ${testcase}
+	go test -mod=vendor -v -tags test -cover -coverprofile coverage.out ${coverpkgs} ${testcase}
 	go tool cover -html=coverage.out
 else
-	go test -mod=vendor -v -cover -json ${profiling} ${testcase} | tparse -smallscreen -all
+	go test -mod=vendor -v -tags test -cover -json ${profiling} ${testcase} | tparse -smallscreen -all
 fi
 
 #With profiling 

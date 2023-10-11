@@ -28,11 +28,12 @@ import (
 )
 
 const (
-	CVL_SUCCESS                = cvl.CVL_SUCCESS
-	CVL_SYNTAX_ERROR           = cvl.CVL_SYNTAX_ERROR
-	CVL_SEMANTIC_ERROR         = cvl.CVL_SEMANTIC_ERROR
-	CVL_SYNTAX_MAXIMUM_INVALID = cvl.CVL_SYNTAX_MAXIMUM_INVALID
-	CVL_SYNTAX_MINIMUM_INVALID = cvl.CVL_SYNTAX_MINIMUM_INVALID
+	CVL_SUCCESS                         = cvl.CVL_SUCCESS
+	CVL_SYNTAX_ERROR                    = cvl.CVL_SYNTAX_ERROR
+	CVL_SEMANTIC_ERROR                  = cvl.CVL_SEMANTIC_ERROR
+	CVL_SYNTAX_MAXIMUM_INVALID          = cvl.CVL_SYNTAX_MAXIMUM_INVALID
+	CVL_SYNTAX_MINIMUM_INVALID          = cvl.CVL_SYNTAX_MINIMUM_INVALID
+	CVL_SEMANTIC_DEPENDENT_DATA_MISSING = cvl.CVL_SEMANTIC_DEPENDENT_DATA_MISSING
 )
 
 var Success = CVLErrorInfo{ErrCode: CVL_SUCCESS}
@@ -49,19 +50,15 @@ func compareErr(val, exp CVLErrorInfo) bool {
 		(len(exp.ErrAppTag) == 0 || val.ErrAppTag == exp.ErrAppTag)
 }
 
-func verifyErr(t *testing.T, res, exp CVLErrorInfo) {
-	t.Helper()
+func verifyErr(t *testing.T, res, exp CVLErrorInfo) bool {
 	expandMessagePatterns(&exp)
-	if !compareErr(res, exp) {
-		t.Fatalf("CVLErrorInfo verification failed\nExpected: %#v\nReceived: %#v", exp, res)
+	ok := compareErr(res, exp)
+	if !ok {
+		t.Errorf("CVLErrorInfo verification failed in %s", t.Name())
+		t.Errorf("Expected: %#v", exp)
+		t.Errorf("Received: %#v", res)
 	}
-}
-
-func verifyValidateEditConfig(t *testing.T, data []CVLEditConfigData, exp CVLErrorInfo) {
-	t.Helper()
-	c := NewTestSession(t)
-	res, _ := c.ValidateEditConfig(data)
-	verifyErr(t, res, exp)
+	return ok
 }
 
 func expandMessagePatterns(ex *CVLErrorInfo) {
@@ -83,3 +80,83 @@ const (
 	whenExpressionErrMessage = "When expression validation failed"
 	instanceInUseErrMessage  = "Validation failed for Delete operation, given instance is in use"
 )
+
+func verifyValidateEditConfig(t *testing.T, data []CVLEditConfigData, exp CVLErrorInfo) {
+	c := NewTestSession(t)
+	res, _ := c.ValidateEditConfig(data)
+	verifyErr(t, res, exp)
+}
+
+func TestCVLErrorInfo_Message(t *testing.T) {
+	t.Run("success", func(tt *testing.T) {
+		verifyErrorInfoMessage(tt, Success, "")
+	})
+
+	t.Run("withConstraintMsg", func(tt *testing.T) {
+		errInfo := CVLErrorInfo{
+			ErrCode:          CVL_SYNTAX_ERROR,
+			TableName:        "INTERFACE",
+			Keys:             []string{"Ethernet0"},
+			Msg:              "Syntax error",
+			ConstraintErrMsg: "Hello, world!",
+		}
+		verifyErrorInfoMessage(tt, errInfo, "Hello, world!")
+	})
+
+	t.Run("noMsg", func(tt *testing.T) {
+		errInfo := CVLErrorInfo{
+			ErrCode:   CVL_SYNTAX_ERROR,
+			TableName: "INTERFACE",
+			Keys:      []string{"Ethernet0"},
+		}
+		verifyErrorInfoMessage(tt, errInfo, "Internal error")
+	})
+
+	t.Run("withTableNameOnly", func(tt *testing.T) {
+		errInfo := CVLErrorInfo{
+			ErrCode:   CVL_SYNTAX_ERROR,
+			TableName: "INTERFACE",
+			Msg:       "Syntax error 1",
+		}
+		verifyErrorInfoMessage(tt, errInfo, "Syntax error 1 in INTERFACE table")
+	})
+
+	t.Run("withTableNameAndKey", func(tt *testing.T) {
+		errInfo := CVLErrorInfo{
+			ErrCode:   CVL_SYNTAX_ERROR,
+			TableName: "INTERFACE",
+			Keys:      []string{"Ethernet0"},
+			Msg:       "Syntax error 2",
+		}
+		verifyErrorInfoMessage(tt, errInfo,
+			"Syntax error 2 in INTERFACE table entry [Ethernet0]")
+	})
+
+	t.Run("withTableNameAndMultiKeys", func(tt *testing.T) {
+		errInfo := CVLErrorInfo{
+			ErrCode:   CVL_SYNTAX_ERROR,
+			TableName: "INTERFACE",
+			Keys:      []string{"Ethernet0", "1.0.0.0/8"},
+			Msg:       "Syntax error 3",
+		}
+		verifyErrorInfoMessage(tt, errInfo,
+			"Syntax error 3 in INTERFACE table entry [Ethernet0 1.0.0.0/8]")
+	})
+
+	t.Run("noTableName", func(tt *testing.T) {
+		errInfo := CVLErrorInfo{
+			ErrCode: CVL_SYNTAX_ERROR,
+			Keys:    []string{"Ethernet0", "1.0.0.0/8"},
+			Msg:     "Syntax error 4",
+		}
+		verifyErrorInfoMessage(tt, errInfo, "Syntax error 4")
+	})
+}
+
+func verifyErrorInfoMessage(t *testing.T, errInfo CVLErrorInfo, exp string) {
+	if s := errInfo.Message(); s != exp {
+		t.Errorf("Message() check failed for %#v", errInfo)
+		t.Errorf("Expected %q", exp)
+		t.Errorf("Received %q", s)
+	}
+}

@@ -20,12 +20,14 @@
 package cvl_test
 
 import (
-	"github.com/Azure/sonic-mgmt-common/cvl"
 	"testing"
+
+	"github.com/Azure/sonic-mgmt-common/cvl"
+	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 )
 
 func TestValidateEditConfig_Delete_Must_Check_Positive(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"PORT": map[string]interface{}{
 			"Ethernet3": map[string]interface{}{
 				"alias": "hundredGigE1",
@@ -67,18 +69,15 @@ func TestValidateEditConfig_Delete_Must_Check_Positive(t *testing.T) {
 				"L4_DST_PORT_RANGE": "9000-12000",
 			},
 		},
-	}
+	})
 
-	//Prepare data in Redis
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
-
-	cfgDataAclRule := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_DELETE,
+	cfgDataAclRule := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_DELETE,
 			"ACL_RULE|TestACL2|Rule2",
 			map[string]string{},
+			false,
 		},
 	}
 
@@ -86,7 +85,7 @@ func TestValidateEditConfig_Delete_Must_Check_Positive(t *testing.T) {
 }
 
 func TestValidateEditConfig_Delete_Must_Check_Negative(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"PORT": map[string]interface{}{
 			"Ethernet3": map[string]interface{}{
 				"alias": "hundredGigE1",
@@ -117,18 +116,15 @@ func TestValidateEditConfig_Delete_Must_Check_Negative(t *testing.T) {
 				"L4_DST_PORT_RANGE": "9000-12000",
 			},
 		},
-	}
+	})
 
-	//Prepare data in Redis
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
-
-	cfgDataAclRule := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_DELETE,
+	cfgDataAclRule := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_DELETE,
 			"ACL_RULE|TestACL1|Rule1",
 			map[string]string{},
+			false,
 		},
 	}
 
@@ -143,16 +139,131 @@ func TestValidateEditConfig_Delete_Must_Check_Negative(t *testing.T) {
 	})
 }
 
+func TestValidateEditConfig_Not_equal_in_predicate_postive(t *testing.T) {
+
+	setupTestData(t, map[string]interface{}{
+		"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+			"test1": map[string]interface{}{
+				"ifname": "Ethernet0",
+			},
+			"test2": map[string]interface{}{
+				"ifname":     "Ethernet4",
+				"delay-time": "10",
+			},
+		}})
+
+	// Create of another entry with unused port
+	t.Run("create_entry_unused_port", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test3",
+			Data: map[string]string{
+				"ifname": "Ethernet8",
+			}}})
+		verifyErr(tt, res, Success)
+	})
+
+	// Update of ifname to an unused port
+	t.Run("update_ifname_unused_port", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_UPDATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test2",
+			Data: map[string]string{
+				"ifname": "Ethernet12",
+			}}})
+		verifyErr(tt, res, Success)
+	})
+
+	// Update of some other attribute
+	t.Run("update_other_attr", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_UPDATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test2",
+			Data: map[string]string{
+				"delay-time": "12",
+			}}})
+		verifyErr(tt, res, Success)
+	})
+	// Delete of some other attribute
+	t.Run("delete_other_attr", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_DELETE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test2",
+			Data: map[string]string{
+				"delay-time": "",
+			}}})
+		verifyErr(tt, res, Success)
+	})
+}
+
+func TestValidateEditConfig_Not_equal_in_predicate_negative(t *testing.T) {
+
+	setupTestData(t, map[string]interface{}{
+		"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+			"test1": map[string]interface{}{
+				"ifname": "Ethernet0",
+			},
+			"test2": map[string]interface{}{
+				"ifname":     "Ethernet4",
+				"delay-time": "10",
+			},
+		}})
+	// Create of entry with already existing ifname
+	t.Run("create_entry_already_existing_port", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test3",
+			Data: map[string]string{
+				"ifname": "Ethernet0",
+			}}})
+		verifyErr(tt, res, CVLErrorInfo{
+			ErrCode:   CVL_SEMANTIC_ERROR,
+			TableName: "EVPN_ETHERNET_SEGMENT",
+			Field:     "ifname",
+			Msg:       mustExpressionErrMessage,
+		})
+	})
+
+	// Update of ifname to already used port name
+	t.Run("update_ifname_already_existing_port", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_UPDATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test2",
+			Data: map[string]string{
+				"ifname": "Ethernet0",
+			}}})
+		verifyErr(tt, res, CVLErrorInfo{
+			ErrCode:   CVL_SEMANTIC_ERROR,
+			TableName: "EVPN_ETHERNET_SEGMENT",
+			Field:     "ifname",
+			Msg:       mustExpressionErrMessage,
+		})
+	})
+}
+
 func TestValidateEditConfig_Create_ErrAppTag_In_Must_Negative(t *testing.T) {
 
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"VLAN|Vlan1001",
 			map[string]string{
 				"vlanid": "102",
 			},
+			false,
 		},
 	}
 
@@ -166,62 +277,60 @@ func TestValidateEditConfig_Create_ErrAppTag_In_Must_Negative(t *testing.T) {
 }
 
 func TestValidateEditConfig_MustExp_With_Default_Value_Positive(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"VLAN": map[string]interface{}{
 			"Vlan2001": map[string]interface{}{
 				"vlanid": "2001",
 			},
 		},
-	}
+	})
 
 	//Try to create er interface collding with vlan interface IP prefix
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"CFG_L2MC_TABLE|Vlan2001",
 			map[string]string{
 				"enabled":                 "true",
 				"query-max-response-time": "25", //default query-interval = 125
 			},
+			false,
 		},
 	}
-
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
 
 	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_MustExp_With_Default_Value_Negative(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"VLAN": map[string]interface{}{
 			"Vlan2002": map[string]interface{}{
 				"vlanid": "2002",
 			},
 		},
-	}
+	})
 
 	//Try to create er interface collding with vlan interface IP prefix
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"CFG_L2MC_TABLE|Vlan2002",
 			map[string]string{
 				"enabled":        "true",
 				"query-interval": "9", //default query-max-response-time = 10
 			},
+			false,
 		},
 	}
 
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
-
-	cvSess := NewTestSession(t)
+	cvSess, _ := NewCvlSession()
 
 	//Try to add second element
 	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgData)
+
+	cvl.ValidationSessClose(cvSess)
 
 	// Both query-interval and query-max-response-time have must expressions checking each other..
 	// Order of evaluation is random
@@ -242,7 +351,7 @@ func TestValidateEditConfig_MustExp_With_Default_Value_Negative(t *testing.T) {
 }
 
 func TestValidateEditConfig_MustExp_Chained_Predicate_Positive(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"VLAN": map[string]interface{}{
 			"Vlan701": map[string]interface{}{
 				"vlanid":   "701",
@@ -305,22 +414,20 @@ func TestValidateEditConfig_MustExp_Chained_Predicate_Positive(t *testing.T) {
 				"NULL": "NULL",
 			},
 		},
-	}
+	})
 
 	//Try to create er interface collding with vlan interface IP prefix
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"VLAN_INTERFACE|Vlan702|1.1.2.0/32",
 			map[string]string{
 				"NULL": "NULL",
 			},
+			false,
 		},
 	}
-
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
 
 	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
 		ErrCode: CVL_SEMANTIC_ERROR,
@@ -335,15 +442,16 @@ func TestValidateEditConfig_MustExp_Chained_Predicate_Positive(t *testing.T) {
 
 func TestValidateEditConfig_MustExp_Within_Same_Table_Negative(t *testing.T) {
 	//Try to create
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"TAM_COLLECTOR_TABLE|Col10",
 			map[string]string{
 				"ipaddress-type": "ipv6", //Invalid ip address type
 				"ipaddress":      "10.101.1.2",
 			},
+			false,
 		},
 	}
 
@@ -359,9 +467,9 @@ func TestValidateEditConfig_MustExp_Within_Same_Table_Negative(t *testing.T) {
 	})
 }
 
-//Check if all data is fetched for xpath without predicate
+// Check if all data is fetched for xpath without predicate
 func TestValidateEditConfig_MustExp_Without_Predicate_Positive(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"VLAN": map[string]interface{}{
 			"Vlan201": map[string]interface{}{
 				"vlanid":   "201",
@@ -372,28 +480,26 @@ func TestValidateEditConfig_MustExp_Without_Predicate_Positive(t *testing.T) {
 				"members@": "Ethernet4",
 			},
 		},
-	}
+	})
 
 	//Try to create
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"VLAN_INTERFACE|Vlan201",
 			map[string]string{
 				"NULL": "NULL",
 			},
+			false,
 		},
 	}
-
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
 
 	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_MustExp_Non_Key_As_Predicate_Negative(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"VLAN": map[string]interface{}{
 			"Vlan201": map[string]interface{}{
 				"vlanid": "201",
@@ -413,23 +519,21 @@ func TestValidateEditConfig_MustExp_Non_Key_As_Predicate_Negative(t *testing.T) 
 				"vni":  "300",
 			},
 		},
-	}
+	})
 
 	//Try to create
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"VXLAN_TUNNEL_MAP|tun1|vmap2",
 			map[string]string{
 				"vlan": "Vlan202",
 				"vni":  "300", //same VNI is not valid
 			},
+			false,
 		},
 	}
-
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
 
 	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
 		ErrCode:   CVL_SEMANTIC_ERROR,
@@ -443,7 +547,7 @@ func TestValidateEditConfig_MustExp_Non_Key_As_Predicate_Negative(t *testing.T) 
 }
 
 func TestValidateEditConfig_MustExp_Non_Key_As_Predicate_In_External_Table_Positive(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"VLAN": map[string]interface{}{
 			"Vlan201": map[string]interface{}{
 				"vlanid": "201",
@@ -474,46 +578,42 @@ func TestValidateEditConfig_MustExp_Non_Key_As_Predicate_In_External_Table_Posit
 				"vni":  "303",
 			},
 		},
-	}
+	})
 
 	//Try to create
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"VRF|vrf101",
 			map[string]string{
 				"vni": "302",
 			},
+			false,
 		},
 	}
-
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
 
 	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_MustExp_Update_Leaf_List_Positive(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"VLAN": map[string]interface{}{
 			"Vlan202": map[string]interface{}{
 				"vlanid": "202",
 			},
 		},
-	}
+	})
 
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
-
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_UPDATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_UPDATE,
 			"VLAN|Vlan202",
 			map[string]string{
 				"members@": "Ethernet4,Ethernet8",
 			},
+			false,
 		},
 	}
 
@@ -521,7 +621,7 @@ func TestValidateEditConfig_MustExp_Update_Leaf_List_Positive(t *testing.T) {
 }
 
 func TestValidateEditConfig_MustExp_Add_NULL(t *testing.T) {
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"INTERFACE": map[string]interface{}{
 			"Ethernet20": map[string]interface{}{
 				"unnumbered": "Loopback1",
@@ -535,41 +635,42 @@ func TestValidateEditConfig_MustExp_Add_NULL(t *testing.T) {
 				"NULL": "NULL",
 			},
 		},
+	})
+
+	delUnnumber := cmn.CVLEditConfigData{
+		VType:     cmn.VALIDATE_ALL,
+		VOp:       cmn.OP_DELETE,
+		Key:       "INTERFACE|Ethernet20",
+		Data:      map[string]string{"unnumbered": ""},
+		ReplaceOp: false,
 	}
 
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
-
-	delUnnumber := cvl.CVLEditConfigData{
-		VType: cvl.VALIDATE_ALL,
-		VOp:   cvl.OP_DELETE,
-		Key:   "INTERFACE|Ethernet20",
-		Data:  map[string]string{"unnumbered": ""},
-	}
-
-	addNull := cvl.CVLEditConfigData{
-		VType: cvl.VALIDATE_ALL,
-		VOp:   cvl.OP_UPDATE,
-		Key:   "INTERFACE|Ethernet20",
-		Data:  map[string]string{"NULL": "NULL"},
+	addNull := cmn.CVLEditConfigData{
+		VType:     cmn.VALIDATE_ALL,
+		VOp:       cmn.OP_UPDATE,
+		Key:       "INTERFACE|Ethernet20",
+		Data:      map[string]string{"NULL": "NULL"},
+		ReplaceOp: false,
 	}
 
 	t.Run("before", testNullAdd(addNull, delUnnumber))
 	t.Run("after", testNullAdd(delUnnumber, addNull))
 }
 
-func testNullAdd(data ...cvl.CVLEditConfigData) func(*testing.T) {
+func testNullAdd(data ...cmn.CVLEditConfigData) func(*testing.T) {
 	return func(t *testing.T) {
-		session, _ := cvl.ValidationSessOpen()
+		session, _ := NewCvlSession()
 		defer cvl.ValidationSessClose(session)
 
-		var cfgData []cvl.CVLEditConfigData
+		var cfgData []cmn.CVLEditConfigData
 		for i, d := range data {
 			cfgData = append(cfgData, d)
-			errInfo, _ := session.ValidateEditConfig(cfgData)
-			verifyErr(t, errInfo, Success)
+			errInfo, status := session.ValidateEditConfig(cfgData)
+			if status != cvl.CVL_SUCCESS {
+				t.Fatalf("unexpetced error: %v", errInfo)
+			}
 
-			cfgData[i].VType = cvl.VALIDATE_NONE // dont validate for next op
+			cfgData[i].VType = cmn.VALIDATE_NONE // dont validate for next op
 		}
 	}
 }

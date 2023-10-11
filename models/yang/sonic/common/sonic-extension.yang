@@ -53,4 +53,15 @@ module sonic-extension {
 			 Platform specific validation can be implemented using custom validation.";
 		argument "handler"; 
 	}
+
+        extension dependent-on {
+                description
+                        "Entension to define dependency on other table. So during create/update,
+                        operation will be performed first on parent table and then on this table.
+                        In delete operation, this table will be deleted first and then parent table.
+                        This extension can be defined only under list. Table name should always
+                        suffixed with '_LIST' as modeled in yang.
+                        e.g. - dependent-on STP_LIST";
+                argument "value";
+        }
 }

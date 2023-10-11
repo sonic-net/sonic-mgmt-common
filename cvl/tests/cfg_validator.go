@@ -21,10 +21,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/Azure/sonic-mgmt-common/cvl"
 	"io/ioutil"
 	"os"
 	"time"
+
+	"github.com/Azure/sonic-mgmt-common/cvl"
 )
 
 func main() {

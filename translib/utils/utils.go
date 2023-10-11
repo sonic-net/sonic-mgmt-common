@@ -20,9 +20,10 @@
 package utils
 
 import (
-	//"github.com/Azure/sonic-mgmt-common/translib/db"
 	"fmt"
+	//"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/cvl"
+	"github.com/Azure/sonic-mgmt-common/translib/db"
 	log "github.com/golang/glog"
 )
 
@@ -32,9 +33,8 @@ func SortAsPerTblDeps(tblLst []string) ([]string, error) {
 	var err error
 	logStr := "Failure in CVL API to sort table list as per dependencies."
 
-	cvSess, cvlRetSess := cvl.ValidationSessOpen()
-	if cvlRetSess != cvl.CVL_SUCCESS {
-
+	cvSess, cvlRetSess := db.NewValidationSession()
+	if cvlRetSess != nil {
 		log.Errorf("Failure in creating CVL validation session object required to use CVl API(sort table list as per dependencies) - %v", cvlRetSess)
 		err = fmt.Errorf("%v", logStr)
 		return resultTblLst, err

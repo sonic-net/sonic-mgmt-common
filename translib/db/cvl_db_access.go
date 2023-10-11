@@ -21,6 +21,7 @@ package db
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	"github.com/Azure/sonic-mgmt-common/cvl"
@@ -39,9 +40,7 @@ func (d *DB) NewValidationSession() (*cvl.CVL, error) {
 		return nil, tlerr.TranslibDBNotSupported{}
 	}
 
-	//TODO: INTG_CHANGES: uncomment the below commented line
-	//if c, status := cvl.ValidationSessOpen(&cvlDBAccess{d}); status != cvl.CVL_SUCCESS {
-	if c, status := cvl.ValidationSessOpen(); status != cvl.CVL_SUCCESS {
+	if c, status := cvl.ValidationSessOpen(&cvlDBAccess{d}); status != cvl.CVL_SUCCESS {
 		return nil, tlerr.TranslibCVLFailure{Code: int(status)}
 	} else {
 		return c, nil
@@ -49,9 +48,7 @@ func (d *DB) NewValidationSession() (*cvl.CVL, error) {
 }
 
 func NewValidationSession() (*cvl.CVL, error) {
-	//TODO: INTG_CHANGES: uncomment the below commented line
-	//if c, status := cvl.ValidationSessOpen(nil); status != cvl.CVL_SUCCESS {
-	if c, status := cvl.ValidationSessOpen(); status != cvl.CVL_SUCCESS {
+	if c, status := cvl.ValidationSessOpen(nil); status != cvl.CVL_SUCCESS {
 		return nil, tlerr.TranslibCVLFailure{Code: int(status)}
 	} else {
 		return c, nil
@@ -72,9 +69,7 @@ func (c *cvlDBAccess) Exists(key string) ctypes.IntResult {
 }
 
 func (c *cvlDBAccess) Keys(pattern string) ctypes.StrSliceResult {
-	//TODO: INTG_CHANGES: uncomment the below commented line
-	//ts, pat := c.Db.redis2ts_key(pattern)
-	ts, pat := TableSpec{}, Key{}
+	ts, pat := c.Db.redis2ts_key(pattern)
 	keys, err := c.Db.GetKeysPattern(&ts, pat)
 	switch err.(type) {
 	case tlerr.TranslibRedisClientEntryNotExist:
@@ -120,9 +115,7 @@ func (c *cvlDBAccess) HMGet(key string, fields ...string) ctypes.SliceResult {
 }
 
 func (c *cvlDBAccess) HGetAll(key string) ctypes.StrMapResult {
-	//TODO: INTG_CHANGES: uncomment the below commented line
-	//ts, k := c.Db.redis2ts_key(key)
-	ts, k := TableSpec{}, Key{}
+	ts, k := c.Db.redis2ts_key(key)
 	v, err := c.Db.GetEntry(&ts, k)
 	switch err.(type) {
 	case tlerr.TranslibRedisClientEntryNotExist:
@@ -135,84 +128,77 @@ func (c *cvlDBAccess) HGetAll(key string) ctypes.StrMapResult {
 }
 
 func (c *cvlDBAccess) getTxData(pattern string, incRow bool) ([]byte, error) {
-	//TODO: INTG_CHANGES: uncomment the below commented line
-	//ts, dbKey := c.Db.redis2ts_key(pattern)
-	ts, dbKey := TableSpec{}, Key{}
+	ts, dbKey := c.Db.redis2ts_key(pattern)
 	if log.V(5) {
 		log.Infof("cvlDBAccess: getTxData: TableSpec: %v, Key: %v", ts, dbKey)
 	}
 
 	keyVals := make(map[string]map[string]string)
 
-	//TODO: INTG_CHANGES: uncomment the below commented line
-	//for k := range c.Db.txTsEntryMap[ts.Name] {
-	//	if patternMatch(k, 0, pattern, 0) {
-	//		if len(c.Db.txTsEntryMap[ts.Name][k].Field) > 0 {
-	//			if incRow {
-	//				keyVals[k] = c.Db.txTsEntryMap[ts.Name][k].Field
-	//			} else {
-	//				keyVals[k] = map[string]string{}
-	//			}
-	//		} else {
-	//			keyVals[k] = nil
-	//		}
-	//	}
-	//}
+	for k := range c.Db.txTsEntryMap[ts.Name] {
+		if patternMatch(k, 0, pattern, 0) {
+			if len(c.Db.txTsEntryMap[ts.Name][k].Field) > 0 {
+				if incRow {
+					keyVals[k] = c.Db.txTsEntryMap[ts.Name][k].Field
+				} else {
+					keyVals[k] = map[string]string{}
+				}
+			} else {
+				keyVals[k] = nil
+			}
+		}
+	}
 
 	return json.Marshal(keyVals)
 }
 
 func (c *cvlDBAccess) Lookup(s ctypes.Search) ctypes.JsonResult {
-	//TODO: INTG_CHANGES: uncomment the below commented lines
-	//var count string
-	//if s.Limit > 0 {
-	//	count = strconv.Itoa(s.Limit)
-	//}
-	//
-	//txEntries, err := c.getTxData(s.Pattern, true)
-	//if err != nil {
-	//	log.Warningf("cvlDBAccess: Lookup: error in getTxData: %v", err)
-	//	return strResult{"", err}
-	//}
-	//
-	//v, err := cvl.RunLua(
-	//	"filter_entries",
-	//	s.Pattern,
-	//	strings.Join(s.KeyNames, "|"),
-	//	predicateToReturnStmt(s.Predicate),
-	//	"", // Select fields -- not used by the lua script
-	//	count,
-	//	txEntries,
-	//)
-	//if err != nil {
-	//	return strResult{"", err}
-	//}
-	//return strResult{v.(string), nil}
-	return nil
+	var count string
+	if s.Limit > 0 {
+		count = strconv.Itoa(s.Limit)
+	}
+
+	txEntries, err := c.getTxData(s.Pattern, true)
+	if err != nil {
+		log.Warningf("cvlDBAccess: Lookup: error in getTxData: %v", err)
+		return strResult{"", err}
+	}
+
+	v, err := cvl.RunLua(
+		"filter_entries",
+		s.Pattern,
+		strings.Join(s.KeyNames, "|"),
+		predicateToReturnStmt(s.Predicate),
+		"", // Select fields -- not used by the lua script
+		count,
+		txEntries,
+	)
+	if err != nil {
+		return strResult{"", err}
+	}
+	return strResult{v.(string), nil}
 }
 
 func (c *cvlDBAccess) Count(s ctypes.Search) ctypes.IntResult {
-	//TODO: INTG_CHANGES: uncomment the below commented lines
-	//incRow := len(s.Predicate) > 0 || len(s.WithField) > 0
-	//txEntries, err := c.getTxData(s.Pattern, incRow)
-	//if err != nil {
-	//	log.Warningf("cvlDBAccess: Count: error in getTxData: %v", err)
-	//	return intResult{0, err}
-	//}
-	//// Advanced key search, with match criteria on has values
-	//v, err := cvl.RunLua(
-	//	"count_entries",
-	//	s.Pattern,
-	//	strings.Join(s.KeyNames, "|"),
-	//	predicateToReturnStmt(s.Predicate),
-	//	s.WithField,
-	//	txEntries,
-	//)
-	//if err != nil {
-	//	return intResult{0, err}
-	//}
-	//return intResult{v.(int64), nil}
-	return nil
+	incRow := len(s.Predicate) > 0 || len(s.WithField) > 0
+	txEntries, err := c.getTxData(s.Pattern, incRow)
+	if err != nil {
+		log.Warningf("cvlDBAccess: Count: error in getTxData: %v", err)
+		return intResult{0, err}
+	}
+	// Advanced key search, with match criteria on has values
+	v, err := cvl.RunLua(
+		"count_entries",
+		s.Pattern,
+		strings.Join(s.KeyNames, "|"),
+		predicateToReturnStmt(s.Predicate),
+		s.WithField,
+		txEntries,
+	)
+	if err != nil {
+		return intResult{0, err}
+	}
+	return intResult{v.(int64), nil}
 }
 
 func (c *cvlDBAccess) Pipeline() ctypes.PipeResult {
@@ -330,23 +316,22 @@ func (pr *pipeKeysResult) update(c *cvlDBAccess) {
 		keyMap[keys[i]] = true
 	}
 
-	//TODO: INTG_CHANGES: uncomment the below commented line
-	//ts, dbKey := c.Db.redis2ts_key(pr.pattern)
-	//if log.V(5) {
-	//	log.Infof("dbAccessPipe: TableSpec: %v, Key: %v", ts, dbKey)
-	//}
-	//
-	//for k := range c.Db.txTsEntryMap[ts.Name] {
-	//	if patternMatch(k, 0, pr.pattern, 0) {
-	//		if keyMap[k] {
-	//			if len(c.Db.txTsEntryMap[ts.Name][k].Field) == 0 {
-	//				keyMap[k] = false
-	//			}
-	//		} else if len(c.Db.txTsEntryMap[ts.Name][k].Field) > 0 {
-	//			keyMap[k] = true
-	//		}
-	//	}
-	//}
+	ts, dbKey := c.Db.redis2ts_key(pr.pattern)
+	if log.V(5) {
+		log.Infof("dbAccessPipe: TableSpec: %v, Key: %v", ts, dbKey)
+	}
+
+	for k := range c.Db.txTsEntryMap[ts.Name] {
+		if patternMatch(k, 0, pr.pattern, 0) {
+			if keyMap[k] {
+				if len(c.Db.txTsEntryMap[ts.Name][k].Field) == 0 {
+					keyMap[k] = false
+				}
+			} else if len(c.Db.txTsEntryMap[ts.Name][k].Field) > 0 {
+				keyMap[k] = true
+			}
+		}
+	}
 
 	for k, v := range keyMap {
 		if v {
@@ -372,25 +357,24 @@ func (p *dbAccessPipe) HMGet(key string, fields ...string) ctypes.SliceResult {
 		log.Infof("dbAccessPipe: HMGet for the given key: %v, and the fields: %v", key, fields)
 	}
 
-	//TODO: INTG_CHANGES: uncomment the below commented line
-	//ts, dbKey := p.dbAccess.Db.redis2ts_key(key)
-	//if log.V(5) {
-	//	log.Infof("dbAccessPipe: HMGet: TableSpec: %v, Key: %v", ts, dbKey)
-	//}
-	//
+	ts, dbKey := p.dbAccess.Db.redis2ts_key(key)
+	if log.V(5) {
+		log.Infof("dbAccessPipe: HMGet: TableSpec: %v, Key: %v", ts, dbKey)
+	}
+
 	pr := &pipeHMGetResult{key: key, fields: fields}
-	//
-	//if txEntry, ok := p.dbAccess.Db.txTsEntryMap[ts.Name][key]; ok {
-	//	for _, fn := range fields {
-	//		if fv, ok := txEntry.Field[fn]; ok {
-	//			pr.vals = append(pr.vals, fv)
-	//		} else {
-	//			pr.vals = append(pr.vals, nil)
-	//		}
-	//	}
-	//} else {
-	//	pr.rsRes = p.rp.HMGet(key, fields...)
-	//}
+
+	if txEntry, ok := p.dbAccess.Db.txTsEntryMap[ts.Name][key]; ok {
+		for _, fn := range fields {
+			if fv, ok := txEntry.Field[fn]; ok {
+				pr.vals = append(pr.vals, fv)
+			} else {
+				pr.vals = append(pr.vals, nil)
+			}
+		}
+	} else {
+		pr.rsRes = p.rp.HMGet(key, fields...)
+	}
 
 	p.qryResList = append(p.qryResList, pr)
 	return &pr.sRes
@@ -426,17 +410,16 @@ func (p *dbAccessPipe) HGet(key, field string) ctypes.StrResult {
 
 	pr := &pipeHGetResult{key: key, field: field}
 
-	//TODO: INTG_CHANGES: uncomment the below commented lines
-	//ts, dbKey := p.dbAccess.Db.redis2ts_key(key)
-	//if log.V(5) {
-	//	log.Infof("dbAccessPipe: HGet: TableSpec: %v, Key: %v", ts, dbKey)
-	//}
+	ts, dbKey := p.dbAccess.Db.redis2ts_key(key)
+	if log.V(5) {
+		log.Infof("dbAccessPipe: HGet: TableSpec: %v, Key: %v", ts, dbKey)
+	}
 
-	//if txEntry, ok := p.dbAccess.Db.txTsEntryMap[ts.Name][key]; ok {
-	//	pr.val, pr.fldExist = txEntry.Field[field]
-	//} else {
-	//	pr.rsRes = p.rp.HGet(key, field)
-	//}
+	if txEntry, ok := p.dbAccess.Db.txTsEntryMap[ts.Name][key]; ok {
+		pr.val, pr.fldExist = txEntry.Field[field]
+	} else {
+		pr.rsRes = p.rp.HGet(key, field)
+	}
 
 	p.qryResList = append(p.qryResList, pr)
 	return &pr.sRes
@@ -471,19 +454,18 @@ func (p *dbAccessPipe) HGetAll(key string) ctypes.StrMapResult {
 
 	pr := &pipeHGetAllResult{key: key, fnvMap: make(map[string]string)}
 
-	//TODO: INTG_CHANGES: uncomment the below commented lines
-	//ts, dbKey := p.dbAccess.Db.redis2ts_key(key)
-	//if log.V(5) {
-	//	log.Infof("dbAccessPipe: HGetAll: TableSpec: %v, Key: %v", ts, dbKey)
-	//}
+	ts, dbKey := p.dbAccess.Db.redis2ts_key(key)
+	if log.V(5) {
+		log.Infof("dbAccessPipe: HGetAll: TableSpec: %v, Key: %v", ts, dbKey)
+	}
 
-	//if txEntry, ok := p.dbAccess.Db.txTsEntryMap[ts.Name][key]; ok {
-	//	for k, v := range txEntry.Field {
-	//		pr.fnvMap[k] = v
-	//	}
-	//} else {
-	//	pr.rsRes = p.rp.HGetAll(key)
-	//}
+	if txEntry, ok := p.dbAccess.Db.txTsEntryMap[ts.Name][key]; ok {
+		for k, v := range txEntry.Field {
+			pr.fnvMap[k] = v
+		}
+	} else {
+		pr.rsRes = p.rp.HGetAll(key)
+	}
 
 	p.qryResList = append(p.qryResList, pr)
 	return &pr.sRes

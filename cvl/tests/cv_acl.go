@@ -21,11 +21,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/Azure/sonic-mgmt-common/cvl"
-	"github.com/go-redis/redis"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/Azure/sonic-mgmt-common/cvl"
+	"github.com/go-redis/redis/v7"
+	"github.com/pkg/profile"
 )
 
 func getConfigDbClient() *redis.Client {
@@ -73,6 +75,9 @@ func main() {
 	start := time.Now()
 	count := 0
 
+	prof := profile.Start()
+	defer prof.Stop()
+
 	cvl.Initialize()
 
 	if (len(os.Args) > 1) && (os.Args[1] == "debug") {
@@ -101,20 +106,21 @@ func main() {
 						"type":  "L3",
 						//"ports@": "Ethernet0",
 					},
+					false,
 				},
 			}
 
 			_, ret := cvSess.ValidateEditConfig(cfgDataAclRule)
 
 			if ret != cvl.CVL_SUCCESS {
-				fmt.Printf("Validation failure\n")
+				fmt.Printf("ACL_TABLE Create: Validation failure\n")
 				return
 			}
 
 			cfgDataAclRule[0].VType = cvl.VALIDATE_NONE
 
 			//Create 7 ACL rules
-			for i := 0; i < 7; i++ {
+			for i := 0; i < 5; i++ {
 				cfgDataAclRule = append(cfgDataAclRule, cvl.CVLEditConfigData{
 					cvl.VALIDATE_ALL,
 					cvl.OP_CREATE,
@@ -128,11 +134,13 @@ func main() {
 						"DST_IP":        "20.2.2.2/32",
 						"L4_DST_PORT":   fmt.Sprintf("%d", 701+i),
 					},
+					false,
 				})
+				//"DST_IPV6": "2001:db8:3c4d::/48",
 
 				_, ret1 := cvSess.ValidateEditConfig(cfgDataAclRule)
 				if ret1 != cvl.CVL_SUCCESS {
-					fmt.Printf("Validation failure\n")
+					fmt.Printf("ACL_RULE Create: Validation failure\n")
 					return
 				}
 
@@ -160,17 +168,18 @@ func main() {
 			cfgDataAclRule := []cvl.CVLEditConfigData{}
 
 			//Create 7 ACL rules
-			for i := 0; i < 7; i++ {
+			for i := 0; i < 5; i++ {
 				cfgDataAclRule = append(cfgDataAclRule, cvl.CVLEditConfigData{
 					cvl.VALIDATE_ALL,
 					cvl.OP_DELETE,
 					fmt.Sprintf("ACL_RULE|TestACL%s|Rule%d", aclNo, i+1),
 					map[string]string{},
+					false,
 				})
 
 				_, ret := cvSess.ValidateEditConfig(cfgDataAclRule)
 				if ret != cvl.CVL_SUCCESS {
-					fmt.Printf("Validation failure\n")
+					fmt.Printf("ACL_RULE Delete: Validation failure\n")
 					return
 				}
 
@@ -182,11 +191,12 @@ func main() {
 				cvl.OP_DELETE,
 				fmt.Sprintf("ACL_TABLE|TestACL%s", aclNo),
 				map[string]string{},
+				false,
 			})
 
 			_, ret := cvSess.ValidateEditConfig(cfgDataAclRule)
 			if ret != cvl.CVL_SUCCESS {
-				fmt.Printf("Validation failure\n")
+				fmt.Printf("ACL_TABLE Delete: Validation failure\n")
 				return
 			}
 

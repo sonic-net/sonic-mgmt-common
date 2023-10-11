@@ -17,20 +17,19 @@
 #                                                                              #
 ################################################################################
 
-SRC_FILES=$(wildcard *.go)
-OUT=$(patsubst %.go, %, $(SRC_FILES)) 
-TOPDIR := $(abspath ../..)
-GO=/usr/local/go/bin/go
+TOPDIR?=$(abspath ../../../)
 
-all:tests
+all: schema
 
-tests: $(OUT)
+.PHONY: schema
+schema:
+	$(MAKE) -C ../.. test-schema
 
-%:%.go
-	make -C ../testdata/schema
-	@echo "Building $@ ..."
-	$(GO) build -mod=vendor -gcflags="all=-N -l" $<
+.PHONY: tree
+tree:
+	$(TOPDIR)/tools/pyang/tree \
+		--text=allyangs.tree \
+		-p $(TOPDIR)/models/yang/sonic/common *.yang
 
 clean:
-	@echo "Removing files ..."
-	rm -rf $(OUT)
+	$(RM) -r allyangs.tree $(TOPDIR)/build/tests/cvl/testdata/schema

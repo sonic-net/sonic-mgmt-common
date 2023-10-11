@@ -20,13 +20,13 @@
 package custom_validation
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/Azure/sonic-mgmt-common/cvl/common"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 	"github.com/antchfx/xmlquery"
-	"github.com/go-redis/redis/v7"
 )
 
 type CustomValidation struct{}
@@ -81,10 +81,11 @@ const (
 
 // CVLEditConfigData Strcture for key and data in API
 type CVLEditConfigData struct {
-	VType CVLValidateType   //Validation type
-	VOp   CVLOperation      //Operation type
-	Key   string            //Key format : "PORT|Ethernet4"
-	Data  map[string]string //Value :  {"alias": "40GE0/28", "mtu" : 9100,  "admin_status":  down}
+	VType     CVLValidateType   //Validation type
+	VOp       CVLOperation      //Operation type
+	Key       string            //Key format : "PORT|Ethernet4"
+	Data      map[string]string //Value :  {"alias": "40GE0/28", "mtu" : 9100,  "admin_status":  down}
+	ReplaceOp bool
 }
 
 // CVLErrorInfo CVL Error Structure
@@ -101,7 +102,8 @@ type CVLErrorInfo struct {
 }
 
 type CustValidationCache struct {
-	Data interface{}
+	Data map[string]interface{}
+	Hint map[string]interface{}
 }
 
 // CustValidationCtxt Custom validation context passed to custom validation function
@@ -112,7 +114,7 @@ type CustValidationCtxt struct {
 	YNodeVal  string               //YANG node value, leaf-list will have "," separated value
 	YCur      *xmlquery.Node       //YANG data tree
 	SessCache *CustValidationCache //Session cache, can be used for storing data, persistent in session
-	RClient   *redis.Client        //Redis client
+	RClient   common.DBAccess      //Db access interface
 }
 
 // Search criteria for advanced lookup through DBAccess APIs
@@ -136,4 +138,24 @@ func InvokeCustomValidation(cv *CustomValidation, name string, args ...interface
 	}
 
 	return CVLErrorInfo{ErrCode: CVL_SUCCESS}
+}
+
+func (err CVLErrorInfo) String() string {
+	var s string
+	if CVL_SUCCESS == err.ErrCode {
+		s = "Success"
+	} else {
+		s = fmt.Sprintf("ErrCode[%v]: ErrDetails[%s], Msg[%s], ConstraintErrMsg[%s], Table[%s:%v], Field[%s:%s]", err.ErrCode, err.CVLErrDetails, err.Msg, err.ConstraintErrMsg, err.TableName, err.Keys, err.Field, err.Value)
+	}
+
+	return s
+}
+
+func (vc *CustValidationCtxt) ContainsAnyFields(fields ...string) bool {
+	for _, f := range fields {
+		if _, ok := vc.CurCfg.Data[f]; ok {
+			return true
+		}
+	}
+	return false
 }
