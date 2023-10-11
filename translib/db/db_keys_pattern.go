@@ -118,8 +118,6 @@ func (d *DB) ExistKeysPattern(ts *TableSpec, pat Key) (bool, error) {
 	// Run Lua script [Found = SUCCESS return]
 	if d.Opts.IsWriteDisabled && !exists {
 
-		//glog.Info("ExistKeysPattern: B4= ", luaScriptExistsKeysPatterns.Hash())
-
 		var luaExists interface{}
 		if luaExists, err = luaScriptExistsKeysPatterns.Run(d.client,
 			[]string{d.key2redis(ts, pat)}).Result(); err == nil {
@@ -133,8 +131,6 @@ func (d *DB) ExistKeysPattern(ts *TableSpec, pat Key) (bool, error) {
 				err = tlerr.TranslibDBScriptFail{Description: existsString}
 			}
 		}
-
-		//glog.Info("ExistKeysPattern: AF= ", luaScriptExistsKeysPatterns.Hash())
 	}
 
 	// Time End, Time, Peak
