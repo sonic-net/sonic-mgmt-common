@@ -29,8 +29,8 @@ import (
 // can be one of "count_entries" or "filter_entries".
 // TODO move the script definitions to DBAL and remove this API
 func RunLua(name string, args ...interface{}) (interface{}, error) {
-	script := luaScripts[name]
-	if script == nil {
+	script, ok := luaScripts[name]
+	if !ok || script == nil {
 		return nil, errors.New("unknown script: " + name)
 	}
 	return script.Run(redisClient, []string{}, args...).Result()

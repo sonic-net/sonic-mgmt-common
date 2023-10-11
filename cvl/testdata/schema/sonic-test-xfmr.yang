@@ -1,0 +1,282 @@
+module sonic-test-xfmr {
+	namespace "http://github.com/Azure/sonic-test-xfmr";
+	prefix sonic-test-xfmr;
+	yang-version 1;
+
+	import sonic-extension { prefix sonic-ext; }
+
+	organization
+		"SONiC";
+
+	contact
+		"SONiC";
+
+	description
+		"SONIC transformer test yang";
+
+	revision 2023-04-30 {
+		description
+			"Initial revision of Sonic transformer test yang.";
+	}
+
+	container sonic-test-xfmr {
+
+		container TEST_SENSOR_GROUP {
+
+			list TEST_SENSOR_GROUP_LIST {
+				key "id";
+
+				leaf id {
+			            type string;
+				}
+
+				leaf-list colors {
+					type string;
+				}
+
+        			leaf color-hold-time {
+			            type uint32;
+			            default 10;
+			            description "Hold time";
+			        }
+			}
+		}
+
+                container TEST_SENSOR_GROUP_COUNTERS {
+			config false;
+
+                        list TEST_SENSOR_GROUP_COUNTERS_LIST {
+                                key "id";
+                                
+                                leaf id {
+					type leafref {
+						path "../../../TEST_SENSOR_GROUP/TEST_SENSOR_GROUP_LIST/id";
+					}
+                                }
+                                
+                                leaf frame-in {
+                                    type uint32;
+                                }
+
+                                leaf frame-out {
+                                    type uint32;
+                                }
+                        }
+                }
+
+		container TEST_SENSOR_A_TABLE {
+
+			list TEST_SENSOR_A_TABLE_LIST { 
+				key "id type";
+
+				leaf id {
+					type leafref {
+						path "../../../TEST_SENSOR_GROUP/TEST_SENSOR_GROUP_LIST/id";
+					}
+				} 
+
+				leaf type {
+					type string {
+			                        pattern "sensor_type_a_[a-zA-Z0-9]*";
+                        		}
+				}
+
+				leaf exclude_filter {
+					type string;
+				}
+
+				leaf description_a {
+					type string; 
+				}
+			}
+		}
+
+		container TEST_SENSOR_A_LIGHT_SENSOR_TABLE {
+
+			list TEST_SENSOR_A_LIGHT_SENSOR_TABLE_LIST {
+				key "id type tag";
+
+				leaf id {
+					type leafref {
+						path "../../../TEST_SENSOR_A_TABLE/TEST_SENSOR_A_TABLE_LIST/id";
+					}
+				}
+
+				leaf type {
+					type leafref {
+						path "../../../TEST_SENSOR_A_TABLE/TEST_SENSOR_A_TABLE_LIST/type";
+					}
+				}
+
+				leaf tag {
+					type string {
+			                        pattern "light_sensor_[0-9]*";
+                                        }
+				}
+
+				leaf light-intensity-measure {
+					type uint32;
+                                       default 5;
+				}
+
+			}
+		}
+
+                container TEST_SENSOR_B_TABLE {
+
+                        list TEST_SENSOR_B_TABLE_LIST {
+                                key "id type";
+
+                                leaf id {
+                                        type leafref {
+                                                path "../../../TEST_SENSOR_GROUP/TEST_SENSOR_GROUP_LIST/id";
+                                        }
+                                }
+
+                               leaf type {
+                                        type string {
+                                                pattern "sensor_type_b_[a-zA-Z0-9]*";
+                                        }
+                                }
+
+                                leaf exclude_filter {
+                                        type string;
+                                }
+
+                                leaf description_b {
+                                        type string;
+                                }
+                        }
+                }
+
+                container TEST_SENSOR_COMPONENT_TABLE {
+
+                        list TEST_SENSOR_COMPONENT_TABLE_LIST {
+                                key "name type version";
+
+                                leaf name {
+                                    type string;
+                                }
+
+                               leaf type {
+                                    type string;
+                                }
+
+                                leaf version {
+                                    type string;
+                                }
+
+                                leaf description {
+                                    type string;
+                                }
+                        }
+                }
+
+                container TEST_SENSOR_ZONE_TABLE {
+                        list TEST_SENSOR_ZONE_TABLE_LIST {
+                                key "id zone";
+
+                                leaf id {
+                                    type string;
+                                }
+
+                               leaf zone {
+                                    type string;
+                                }
+
+                                leaf description {
+                                    type string;
+                                }
+                        }
+                }
+
+                container TEST_SET_TABLE {
+
+                        list TEST_SET_TABLE_LIST {
+                                key "name";
+                                
+                                leaf name {
+                                        type string;
+                                }
+
+				leaf type {
+                                        type enumeration {
+                                                enum IPV4; 
+                                                enum IPV6;
+                                        }
+                                }
+
+				leaf-list ports {
+					type string;
+				}       
+                                
+                                leaf description {
+                                        type string;
+                                }
+
+                        }
+                }
+
+                container TEST_SENSOR_MODE_TABLE {
+			config false;
+			sonic-ext:db-name "COUNTERS_DB";
+                        list TEST_SENSOR_MODE_TABLE_LIST {
+                                key "mode id";
+
+                                leaf mode {
+					type string;
+                                }
+
+                                leaf id {
+                                        type uint32;
+                                }
+
+                                leaf description {
+                                        type string;
+                                }
+                        }
+                }
+
+                container TEST_SENSOR_GLOBAL {
+                        container global_sensor {
+                                 leaf mode {
+                                        type string;
+                                 }
+                                 leaf description {
+                                        type string;
+                                 }
+                                 leaf reset-time {
+                                       type uint32;
+                                       default 5;
+                                 }
+                        }
+                }
+
+                container TEST_INTERFACE_MODE_TABLE {
+                        list TEST_INTERFACE_MODE_TABLE_LIST {
+                                key "name";
+
+                                leaf name {
+                                        type string;
+                                }
+                                leaf description {
+                                        type string;
+                                }
+                        }
+                        list TEST_INTERFACE_MODE_TABLE_IPADDR_LIST {
+                                key "name mode";
+
+                                leaf name {
+                                        type string;
+                                }
+                                leaf mode {
+                                        type string;
+                                }
+                                leaf description {
+                                        type string;
+                                }
+                        }
+                }
+
+	}
+}

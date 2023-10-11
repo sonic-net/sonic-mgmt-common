@@ -69,7 +69,7 @@ $(CVL_SCHEMA): $(SONIC_YANG_FILES) | $$(@D)/.
 
 $(CVL_TEST_BIN): $(TEST_FILES) $(SRC_FILES) | $$(@D)/testdata/.
 	cp -r testdata/*.json $(@D)/testdata
-	$(GO) test -mod=vendor -cover -coverpkg=../cvl,../cvl/internal/util,../cvl/internal/yparser -c ../cvl -o $@
+	$(GO) test -mod=vendor -tags=test -cover -coverpkg=../cvl,../cvl/internal/util,../cvl/internal/yparser -c ../cvl -o $@
 
 .PHONY: test-schema
 test-schema: $(CVL_TEST_SCHEMA)

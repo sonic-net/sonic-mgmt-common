@@ -423,7 +423,7 @@ func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErr
 					}
 
 					//Check mandatory node deletion
-					if len(field) != 0 && isMandatoryTrueNode(tbl, field) {
+					if len(field) != 0 && isMandatoryTrueNode(getRedisTblToYangList(tbl, key), field) {
 						cvlErrObj.ErrCode = CVL_SEMANTIC_ERROR
 						cvlErrObj.Msg = "Mandatory field getting deleted"
 						cvlErrObj.TableName = tbl
@@ -638,11 +638,21 @@ func (c *CVL) ValidateFields(key string, field string, value string) CVLRetCode 
 	return CVL_NOT_IMPLEMENTED
 }
 
+//getListNameFromLeafRef - Extracts the yang list name from the leafRefInfo.
+//Returns empty string otherwise.
+func getListNameFromLeafRef(leafRef *leafRefInfo) string {
+	if len(leafRef.yangListNames) == 0 {
+		//No-leafref case return empty string
+		return ""
+	}
+	return leafRef.yangListNames[0]
+}
+
 func (c *CVL) addDepEdges(graph *toposort.Graph, tableList []string) {
 	//Add all the depedency edges for graph nodes
 	for ti := 0; ti < len(tableList); ti++ {
 
-		redisTblTo := getYangListToRedisTbl(tableList[ti])
+		redisTblTo := tableList[ti]
 
 		for tj := 0; tj < len(tableList); tj++ {
 
@@ -651,14 +661,16 @@ func (c *CVL) addDepEdges(graph *toposort.Graph, tableList []string) {
 				continue
 			}
 
-			redisTblFrom := getYangListToRedisTbl(tableList[tj])
+			redisTblFrom := tableList[tj]
 
 			//map for checking duplicate edge
 			dupEdgeCheck := map[string]string{}
 
 			for _, leafRefs := range modelInfo.tableInfo[tableList[tj]].leafRef {
 				for _, leafRef := range leafRefs {
-					if !(strings.Contains(leafRef.path, tableList[ti]+"_LIST")) {
+					listName := getListNameFromLeafRef(leafRef)
+					listName = strings.TrimSuffix(listName, "_LIST")
+					if listName != redisTblTo {
 						continue
 					}
 
@@ -668,23 +680,13 @@ func (c *CVL) addDepEdges(graph *toposort.Graph, tableList []string) {
 						continue
 					}
 
-					//Add and store the edge in map
-					// Yang tables like VLAN_SUB_INTERFACE and VLAN_SUB_INTERFACE_IPADDR both are
-					// represented as VLAN_SUB_INTERFACE in redis. So redisTblFrom and redisTblTo
-					// will be same and dependency added to itself causes issues in Toposort
-					if redisTblFrom == redisTblTo && tableList[tj] != tableList[ti] {
-						graph.AddEdge(tableList[tj], redisTblTo)
-						dupEdgeCheck[tableList[tj]] = redisTblTo
-						CVL_LOG(INFO_DEBUG, "addDepEdges(): Adding edge %s -> %s", tableList[tj], redisTblTo)
-					} else {
-						graph.AddEdge(redisTblFrom, redisTblTo)
-						dupEdgeCheck[redisTblFrom] = redisTblTo
-						CVL_LOG(INFO_DEBUG, "addDepEdges(): Adding edge %s -> %s", redisTblFrom, redisTblTo)
-					}
+					graph.AddEdge(redisTblFrom, redisTblTo)
+					dupEdgeCheck[redisTblFrom] = redisTblTo
+					CVL_LOG(INFO_DEBUG, "addDepEdges(): Adding edge %s -> %s", redisTblFrom, redisTblTo)
 				}
 			}
 
-			for _, depTblName := range modelInfo.tableInfo[tableList[ti]].dependentTables {
+			for _, depTblName := range modelInfo.tableInfo[redisTblTo].dependentTables {
 				if tableList[tj] == depTblName {
 					graph.AddEdge(depTblName, redisTblTo)
 					dupEdgeCheck[depTblName] = redisTblTo
@@ -695,8 +697,8 @@ func (c *CVL) addDepEdges(graph *toposort.Graph, tableList []string) {
 	}
 }
 
-// SortDepTables Sort list of given tables as per their dependency
-func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
+// sortDepTables Sort list of given tables as per their dependency - Returns list names
+func (c *CVL) sortDepTables(inTableList []string) ([]string, CVLRetCode) {
 
 	tableListMap := make(map[string]bool)
 
@@ -720,7 +722,7 @@ func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
 		tableList = append(tableList, tbl)
 	}
 
-	//Add all dependency egdes
+	//Add all dependency edges
 	c.addDepEdges(graph, tableList)
 
 	//Now perform topological sort
@@ -731,6 +733,22 @@ func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
 	}
 
 	return result, CVL_SUCCESS
+}
+
+// SortDepTables Sort list of given tables as per their dependency
+func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
+
+	list := make([]string, 0, len(inTableList))
+	for _, inTbl := range inTableList {
+		tblLists, _ := modelInfo.redisTableToYangList[inTbl]
+		list = append(list, tblLists...)
+	}
+	result, status := c.sortDepTables(list)
+	if status != CVL_SUCCESS {
+		return nil, CVL_ERROR
+	}
+
+	return processTopoSortResult(result)
 }
 
 // GetOrderedTables Get the order list(parent then child) of tables in a given YANG module
@@ -745,14 +763,23 @@ func (c *CVL) GetOrderedTables(yangModule string) ([]string, CVLRetCode) {
 		}
 	}
 
-	return c.SortDepTables(tableList)
+	result, status := c.sortDepTables(tableList)
+	if status != CVL_SUCCESS {
+		return nil, CVL_ERROR
+	}
+
+	return processTopoSortResult(result)
 }
 
 func (c *CVL) GetOrderedDepTables(yangModule, tableName string) ([]string, CVLRetCode) {
-	tableList := []string{}
+	var tblLists []string                                    // stores lists related to tableName */
+	tableList := make([]string, 0, len(modelInfo.tableInfo)) // stores all tables in the module
 
-	if _, exists := modelInfo.tableInfo[tableName]; !exists {
+	if lists, exists := modelInfo.redisTableToYangList[tableName]; !exists {
+		CVL_LOG(INFO_DEBUG, "GetOrderedDepTables(): Unknown table %s\n", tableName)
 		return nil, CVL_ERROR
+	} else {
+		tblLists = lists
 	}
 
 	//Get all the table names under this yang module
@@ -763,33 +790,40 @@ func (c *CVL) GetOrderedDepTables(yangModule, tableName string) ([]string, CVLRe
 	}
 
 	graph := toposort.NewGraph(len(tableList))
-	redisTblTo := getYangListToRedisTbl(tableName)
+	redisTblTo := tableName
 	graph.AddNodes(redisTblTo)
 
 	for _, tbl := range tableList {
-		if tableName == tbl {
+		if tableName == modelInfo.tableInfo[tbl].redisTableName {
 			//same table, continue
 			continue
 		}
-		redisTblFrom := getYangListToRedisTbl(tbl)
+		redisTblFrom := tbl
 
 		//map for checking duplicate edge
 		dupEdgeCheck := map[string]string{}
 
 		for _, leafRefs := range modelInfo.tableInfo[tbl].leafRef {
 			for _, leafRef := range leafRefs {
-				// If no relation through leaf-ref, then skip
-				if !(strings.Contains(leafRef.path, tableName+"_LIST")) {
+				var isSameTbl bool
+				var isLeafrefTargetIsKey bool
+				listName := getListNameFromLeafRef(leafRef)
+				listName = strings.TrimSuffix(listName, "_LIST")
+				for _, v := range tblLists {
+					if v == listName {
+						isSameTbl = true
+					}
+					for _, key := range modelInfo.tableInfo[v].keys {
+						if key == leafRef.targetNodeName {
+							isLeafrefTargetIsKey = true
+						}
+					}
+				}
+				if !isSameTbl {
 					continue
 				}
 
 				// if target node of leaf-ref is not key, then skip
-				var isLeafrefTargetIsKey bool
-				for _, key := range modelInfo.tableInfo[tableName].keys {
-					if key == leafRef.targetNodeName {
-						isLeafrefTargetIsKey = true
-					}
-				}
 				if !(isLeafrefTargetIsKey) {
 					continue
 				}
@@ -800,27 +834,19 @@ func (c *CVL) GetOrderedDepTables(yangModule, tableName string) ([]string, CVLRe
 					continue
 				}
 
-				//Add and store the edge in map
-				// Yang tables like VLAN_SUB_INTERFACE and VLAN_SUB_INTERFACE_IPADDR both are
-				// represented as VLAN_SUB_INTERFACE in redis. So redisTblFrom and redisTblTo
-				// will be same and dependency added to itself causes issues in Toposort
-				if redisTblFrom == redisTblTo && tbl != tableName {
-					graph.AddNodes(tbl)
-					graph.AddEdge(tbl, redisTblTo)
-					dupEdgeCheck[tbl] = redisTblTo
-				} else {
-					graph.AddNodes(redisTblFrom)
-					graph.AddEdge(redisTblFrom, redisTblTo)
-					dupEdgeCheck[redisTblFrom] = redisTblTo
-				}
+				graph.AddNodes(redisTblFrom)
+				graph.AddEdge(redisTblFrom, redisTblTo)
+				dupEdgeCheck[redisTblFrom] = redisTblTo
 			}
 		}
-
-		for _, depTblName := range modelInfo.tableInfo[tableName].dependentTables {
-			if tbl == depTblName {
-				graph.AddNodes(depTblName)
-				graph.AddEdge(depTblName, redisTblTo)
-				dupEdgeCheck[depTblName] = redisTblTo
+		/* handle dependent-on */
+		for _, tn := range tblLists {
+			for _, depTblName := range modelInfo.tableInfo[tn].dependentTables {
+				if tbl == depTblName {
+					graph.AddNodes(depTblName)
+					graph.AddEdge(depTblName, redisTblTo)
+					dupEdgeCheck[depTblName] = redisTblTo
+				}
 			}
 		}
 	}
@@ -831,27 +857,36 @@ func (c *CVL) GetOrderedDepTables(yangModule, tableName string) ([]string, CVLRe
 		return nil, CVL_ERROR
 	}
 
-	return result, CVL_SUCCESS
+	return processTopoSortResult(result)
 }
 
-func (c *CVL) addDepTables(tableMap map[string]bool, tableName string) {
-
-	//Mark it is added in list
-	tableMap[tableName] = true
-
-	//Now find all tables referred in leafref from this table
-	for _, leafRefs := range modelInfo.tableInfo[tableName].leafRef {
+func (c *CVL) addDepTables(tableMap map[string]bool, listEntry string) {
+	tableMap[listEntry] = true
+	for _, leafRefs := range modelInfo.tableInfo[listEntry].leafRef {
 		for _, leafRef := range leafRefs {
 			for _, refTbl := range leafRef.yangListNames {
-				c.addDepTables(tableMap, getYangListToRedisTbl(refTbl)) //call recursively
+				c.addDepTables(tableMap, refTbl) //call recursively
 			}
 		}
 	}
-
-	//Now add table on which this table is dependent through 'dependent-on' extenstion
-	if len(modelInfo.tableInfo[tableName].dependentOnTable) > 0 {
-		c.addDepTables(tableMap, getYangListToRedisTbl(modelInfo.tableInfo[tableName].dependentOnTable))
+	//Now add table on which this table is dependent through 'dependent-on' extension
+	if len(modelInfo.tableInfo[listEntry].dependentOnTable) > 0 {
+		depTbl := modelInfo.tableInfo[listEntry].dependentOnTable
+		depTbl = strings.TrimSuffix(depTbl, "_LIST")
+		c.addDepTables(tableMap, depTbl)
 	}
+}
+
+//processTopoSortResult - Converts List to Table name and placeholder for all future processing
+func processTopoSortResult(result []string) ([]string, CVLRetCode) {
+	// Replace list to table name
+	for i, tblList := range result {
+		if tblEntry, exists := modelInfo.tableInfo[tblList]; exists {
+			result[i] = tblEntry.redisTableName
+		}
+	}
+
+	return result, CVL_SUCCESS
 }
 
 // GetDepTables Get the list of dependent tables for a given table in a YANG module
@@ -859,12 +894,14 @@ func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRe
 	tableList := []string{}
 	tblMap := make(map[string]bool)
 
-	if _, exists := modelInfo.tableInfo[tableName]; !exists {
+	if _, exists := modelInfo.redisTableToYangList[tableName]; !exists {
 		CVL_LOG(INFO_DEBUG, "GetDepTables(): Unknown table %s\n", tableName)
 		return []string{}, CVL_ERROR
 	}
 
-	c.addDepTables(tblMap, tableName)
+	for _, listEntry := range modelInfo.redisTableToYangList[tableName] {
+		c.addDepTables(tblMap, listEntry)
+	}
 
 	for tblName := range tblMap {
 		tableList = append(tableList, tblName)
@@ -877,7 +914,7 @@ func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRe
 		graph.AddNodes(tableList[ti])
 	}
 
-	//Add all dependency egdes
+	//Add all dependency edges
 	c.addDepEdges(graph, tableList)
 
 	//Now perform topological sort
@@ -886,7 +923,7 @@ func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRe
 		return nil, CVL_ERROR
 	}
 
-	return result, CVL_SUCCESS
+	return processTopoSortResult(result)
 }
 
 // Parses the JSON string buffer and returns
@@ -905,7 +942,8 @@ func (c *CVL) getDepDeleteField(refKey, hField, hValue, jsonBuf string) []CVLDep
 
 	for tbl, keys := range dataMap {
 		for key, fields := range keys.(map[string]interface{}) {
-			tblKey := tbl + modelInfo.tableInfo[getRedisTblToYangList(tbl, key)].redisKeyDelim + key
+			yangList := getRedisTblToYangList(tbl, key)
+			tblKey := tbl + modelInfo.tableInfo[yangList].redisKeyDelim + key
 			entryMap := make(map[string]map[string]string)
 			entryMap[tblKey] = make(map[string]string)
 
@@ -923,7 +961,7 @@ func (c *CVL) getDepDeleteField(refKey, hField, hValue, jsonBuf string) []CVLDep
 					// So need to delete dependent entries also when this entire
 					// entry is deleted. Find all dependent entries and mark
 					// for deletion
-					if isMandatoryTrueNode(tbl, field) {
+					if isMandatoryTrueNode(yangList, field) {
 						retDepEntries := c.GetDepDataForDelete(tblKey)
 						depEntries = append(depEntries, retDepEntries...)
 					} else {
