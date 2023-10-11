@@ -348,6 +348,7 @@ func clearAclDataFromDb() error {
 		err = errors.New("Failed to connect to config Db")
 		return err
 	}
+	defer d.DeleteDB()
 	if err = d.DeleteTable(&ruleTable); err != nil {
 		err = errors.New("Failed to delete Rules Table")
 		return err

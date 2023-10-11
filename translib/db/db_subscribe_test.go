@@ -156,7 +156,7 @@ func TestSubscribeHFunc(t *testing.T) {
 
 	subD, e := SubscribeDB(Options{
 		DBNo:               ConfigDB,
-		InitIndicator:      "CONFIG_DB_INITIALIZED",
+		InitIndicator:      "",
 		TableNameSeparator: "|",
 		KeySeparator:       "|",
 	}, sKeys, subHdlr)
@@ -315,7 +315,7 @@ func TestSubscribeHFuncSA(t *testing.T) {
 
 	subD, e := SubscribeDBSA(Options{
 		DBNo:               ConfigDB,
-		InitIndicator:      "CONFIG_DB_INITIALIZED",
+		InitIndicator:      "",
 		TableNameSeparator: "|",
 		KeySeparator:       "|",
 	}, sKeys, subHdlrSA)
@@ -440,7 +440,7 @@ func TestSubscribeNoCCNotif2HFuncSA(t *testing.T) {
 
 	subD, e := SubscribeDBSA(Options{
 		DBNo:               ConfigDB,
-		InitIndicator:      "CONFIG_DB_INITIALIZED",
+		InitIndicator:      "",
 		TableNameSeparator: "|",
 		KeySeparator:       "|",
 	}, sKeys, subHdlrSA)
