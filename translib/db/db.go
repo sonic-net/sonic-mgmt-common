@@ -111,6 +111,7 @@ import (
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/cvl"
+	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
@@ -291,8 +292,8 @@ type DB struct {
 	txTsEntryHGetAll map[string]map[string]Value //map[TableSpec.Name]map[Entry]Value
 
 	cv                *cvl.CVL
-	cvlEditConfigData []cvl.CVLEditConfigData
 	cvlHintsB4Open    map[string]interface{} // Hints set before CVLSess Opened
+	cvlEditConfigData []cmn.CVLEditConfigData
 
 	// If there is an error while Rollback (or similar), set this flag.
 	// In this state, all writes are disabled, and this error is returned.
@@ -401,7 +402,7 @@ func NewDB(opt Options) (*DB, error) {
 		Opts:              &opt,
 		txState:           txStateNone,
 		txCmds:            make([]_txCmd, 0, InitialTxPipelineSize),
-		cvlEditConfigData: make([]cvl.CVLEditConfigData, 0, InitialTxPipelineSize),
+		cvlEditConfigData: make([]cmn.CVLEditConfigData, 0, InitialTxPipelineSize),
 		dbStatsConfig:     getDBStatsConfig(),
 		stats:             DBStats{Tables: make(map[string]Stats, InitialTablesCount), Maps: make(map[string]Stats, InitialMapsCount)},
 		dbCacheConfig:     getDBCacheConfig(),
@@ -973,7 +974,7 @@ func (d *DB) DeleteKeys(ts *TableSpec, key Key) error {
 	return e
 }
 
-func (d *DB) doCVL(ts *TableSpec, cvlOps []cvl.CVLOperation, key Key, vals []Value, isReplaceOp bool) error {
+func (d *DB) doCVL(ts *TableSpec, cvlOps []cmn.CVLOperation, key Key, vals []Value) error {
 	var e error = nil
 
 	var cvlRetCode cvl.CVLRetCode
@@ -1003,19 +1004,19 @@ func (d *DB) doCVL(ts *TableSpec, cvlOps []cvl.CVLOperation, key Key, vals []Val
 	}
 	for i := 0; i < len(cvlOps); i++ {
 
-		cvlEditConfigData := cvl.CVLEditConfigData{
-			VType: cvl.VALIDATE_ALL,
+		cvlEditConfigData := cmn.CVLEditConfigData{
+			VType: cmn.VALIDATE_ALL,
 			VOp:   cvlOps[i],
 			Key:   d.key2redis(ts, key),
 			// Await CVL PR ReplaceOp: isReplaceOp,
 		}
 
 		switch cvlOps[i] {
-		case cvl.OP_CREATE, cvl.OP_UPDATE:
+		case cmn.OP_CREATE, cmn.OP_UPDATE:
 			cvlEditConfigData.Data = vals[i].Copy().Field
 			d.cvlEditConfigData = append(d.cvlEditConfigData, cvlEditConfigData)
 
-		case cvl.OP_DELETE:
+		case cmn.OP_DELETE:
 			if len(vals[i].Field) == 0 {
 				cvlEditConfigData.Data = map[string]string{}
 			} else {
@@ -1049,7 +1050,7 @@ func (d *DB) doCVL(ts *TableSpec, cvlOps []cvl.CVLOperation, key Key, vals []Val
 		d.cvlEditConfigData = d.cvlEditConfigData[:len(d.cvlEditConfigData)-len(cvlOps)]
 	} else {
 		for i := 0; i < len(cvlOps); i++ {
-			d.cvlEditConfigData[len(d.cvlEditConfigData)-1-i].VType = cvl.VALIDATE_NONE
+			d.cvlEditConfigData[len(d.cvlEditConfigData)-1-i].VType = cmn.VALIDATE_NONE
 		}
 	}
 
@@ -1301,19 +1302,17 @@ func (d *DB) setEntry(ts *TableSpec, key Key, value Value, isCreate bool) error 
 			glog.Info("setEntry: DoCVL for UPDATE")
 		}
 		if len(valueComplement.Field) == 0 {
-			e = d.doCVL(ts, []cvl.CVLOperation{cvl.OP_UPDATE},
-				key, []Value{value}, false)
+			e = d.doCVL(ts, []cmn.CVLOperation{cmn.OP_UPDATE},
+				key, []Value{value})
 		} else {
-			// For Replace(SET) op, both UPDATE and DELETE operations to be sent to CVL
-			// For CVL to identify Replace Op, setting the flag as true
-			e = d.doCVL(ts, []cvl.CVLOperation{cvl.OP_UPDATE, cvl.OP_DELETE},
-				key, []Value{value, valueComplement}, true)
+			e = d.doCVL(ts, []cmn.CVLOperation{cmn.OP_UPDATE, cmn.OP_DELETE},
+				key, []Value{value, valueComplement})
 		}
 	} else {
 		if glog.V(3) {
 			glog.Info("setEntry: DoCVL for CREATE")
 		}
-		e = d.doCVL(ts, []cvl.CVLOperation{cvl.OP_CREATE}, key, []Value{value}, false)
+		e = d.doCVL(ts, []cmn.CVLOperation{cmn.OP_CREATE}, key, []Value{value})
 	}
 
 	if e != nil {
@@ -1389,7 +1388,7 @@ func (d *DB) DeleteEntry(ts *TableSpec, key Key) error {
 	if glog.V(3) {
 		glog.Info("DeleteEntry: DoCVL for DELETE")
 	}
-	e = d.doCVL(ts, []cvl.CVLOperation{cvl.OP_DELETE}, key, []Value{Value{}}, false)
+	e = d.doCVL(ts, []cmn.CVLOperation{cmn.OP_DELETE}, key, []Value{Value{}})
 
 	if e == nil {
 		e = d.doWrite(ts, txOpDel, key, nil)
@@ -1429,7 +1428,7 @@ func (d *DB) ModEntry(ts *TableSpec, key Key, value Value) error {
 	if glog.V(3) {
 		glog.Info("ModEntry: DoCVL for UPDATE")
 	}
-	e = d.doCVL(ts, []cvl.CVLOperation{cvl.OP_UPDATE}, key, []Value{value}, false)
+	e = d.doCVL(ts, []cmn.CVLOperation{cmn.OP_UPDATE}, key, []Value{value})
 
 	if e == nil {
 		e = d.doWrite(ts, txOpHMSet, key, value)
@@ -1460,7 +1459,7 @@ func (d *DB) DeleteEntryFields(ts *TableSpec, key Key, value Value) error {
 		glog.Info("DeleteEntryFields: DoCVL for HDEL")
 	}
 
-	e := d.doCVL(ts, []cvl.CVLOperation{cvl.OP_DELETE}, key, []Value{value}, false)
+	e := d.doCVL(ts, []cmn.CVLOperation{cmn.OP_DELETE}, key, []Value{value})
 
 	if e == nil {
 		e = d.doWrite(ts, txOpHDel, key, value)

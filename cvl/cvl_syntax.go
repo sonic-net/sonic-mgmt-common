@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -20,25 +20,27 @@
 package cvl
 
 import (
+	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
 	"github.com/antchfx/jsonquery"
+
 	//lint:ignore ST1001 This is safe to dot import for util package
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 )
 
-//This function should be called before adding any new entry
-//Checks max-elements defined with (current number of entries
-//getting added + entries already added and present in request
-//cache + entries present in Redis DB)
-func (c *CVL) checkMaxElemConstraint(op CVLOperation, tableName string) CVLRetCode {
-	var nokey []string
+// This function should be called before adding any new entry
+// Checks max-elements defined with (current number of entries
+// getting added + entries already added and present in request
+// cache + entries present in Redis DB)
+func (c *CVL) checkMaxElemConstraint(op cmn.CVLOperation, tableName string, key string) CVLRetCode {
 
-	if (op != OP_CREATE) && (op != OP_DELETE) {
+	if (op != cmn.OP_CREATE) && (op != cmn.OP_DELETE) {
 		//Nothing to do, just return
 		return CVL_SUCCESS
 	}
+	tblListName := getRedisTblToYangList(tableName, key)
 
-	if modelInfo.tableInfo[tableName].redisTableSize == -1 {
+	if modelInfo.tableInfo[tblListName].redisTableSize == -1 {
 		//No limit for table size
 		return CVL_SUCCESS
 	}
@@ -46,20 +48,22 @@ func (c *CVL) checkMaxElemConstraint(op CVLOperation, tableName string) CVLRetCo
 	curSize, exists := c.maxTableElem[tableName]
 
 	if !exists { //fetch from Redis first time in the session
-		redisEntries, err := luaScripts["count_entries"].Run(redisClient, nokey, tableName+"|*").Result()
+		s := cmn.Search{Pattern: tableName + "|*"}
+		redisEntries, err := c.dbAccess.Count(s).Result()
+
 		if err != nil {
 			CVL_LOG(WARNING, "Unable to fetch current size of table %s from Redis, err= %v",
 				tableName, err)
 			return CVL_FAILURE
 		}
 
-		curSize = int(redisEntries.(int64))
+		curSize = int(redisEntries)
 
 		//Store the current table size
 		c.maxTableElem[tableName] = curSize
 	}
 
-	if op == OP_DELETE {
+	if op == cmn.OP_DELETE {
 		//For delete operation we need to reduce the count.
 		//Because same table can be deleted and added back
 		//in same session.
@@ -71,19 +75,19 @@ func (c *CVL) checkMaxElemConstraint(op CVLOperation, tableName string) CVLRetCo
 	}
 
 	//Otherwise CREATE case
-	if curSize >= modelInfo.tableInfo[tableName].redisTableSize {
+	if curSize >= modelInfo.tableInfo[tblListName].redisTableSize {
 		CVL_LOG(WARNING, "%s table size has already reached to max-elements %d",
-			tableName, modelInfo.tableInfo[tableName].redisTableSize)
+			tableName, modelInfo.tableInfo[tblListName].redisTableSize)
 
 		return CVL_SYNTAX_ERROR
 	}
 
 	curSize = curSize + 1
-	if curSize > modelInfo.tableInfo[tableName].redisTableSize {
+	if curSize > modelInfo.tableInfo[tblListName].redisTableSize {
 		//Does not meet the constraint
 		CVL_LOG(WARNING, "Max-elements check failed for table '%s',"+
 			" current size = %v, size in schema = %v",
-			tableName, curSize, modelInfo.tableInfo[tableName].redisTableSize)
+			tableName, curSize, modelInfo.tableInfo[tblListName].redisTableSize)
 
 		return CVL_SYNTAX_ERROR
 	}
@@ -94,7 +98,7 @@ func (c *CVL) checkMaxElemConstraint(op CVLOperation, tableName string) CVLRetCo
 	return CVL_SUCCESS
 }
 
-//Add child node to a parent node
+// Add child node to a parent node
 func (c *CVL) addChildNode(tableName string, parent *yparser.YParserNode, name string) *yparser.YParserNode {
 
 	//return C.lyd_new(parent, modelInfo.tableInfo[tableName].module, C.CString(name))
@@ -176,6 +180,8 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node) (*yparser
 	var cvlErrObj CVLErrorInfo
 
 	tableName := jsonNode.Data
+	origTableName := jsonNode.Data
+	topNodesAdded := false
 	c.batchLeaf = nil
 	c.batchLeaf = make([]*yparser.YParserLeafValue, 0)
 
@@ -183,22 +189,7 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node) (*yparser
 	//E.g. ACL_RULE is mapped as
 	// container ACL_RULE { list ACL_RULE_LIST {} }
 	var topNode *yparser.YParserNode
-
-	// Add top most conatiner e.g. 'container sonic-acl {...}'
-	if _, exists := modelInfo.tableInfo[tableName]; !exists {
-		CVL_LOG(WARNING, "Schema details not found for %s", tableName)
-		cvlErrObj.ErrCode = CVL_SYNTAX_ERROR
-		cvlErrObj.TableName = tableName
-		cvlErrObj.Msg = "Schema details not found"
-		return nil, cvlErrObj
-	}
-	topNode = c.yp.AddChildNode(modelInfo.tableInfo[tableName].module,
-		nil, modelInfo.tableInfo[tableName].modelName)
-
-	//Add the container node for each list
-	//e.g. 'container ACL_TABLE { list ACL_TABLE_LIST ...}
-	listConatinerNode := c.yp.AddChildNode(modelInfo.tableInfo[tableName].module,
-		topNode, tableName)
+	var listConatinerNode *yparser.YParserNode
 
 	//Traverse each key instance
 	for jsonNode = jsonNode.FirstChild; jsonNode != nil; jsonNode = jsonNode.NextSibling {
@@ -206,8 +197,26 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node) (*yparser
 		//For each field check if is key
 		//If it is key, create list as child of top container
 		// Get all key name/value pairs
-		if yangListName := getRedisTblToYangList(tableName, jsonNode.Data); yangListName != "" {
+		if yangListName := getRedisTblToYangList(origTableName, jsonNode.Data); yangListName != "" {
 			tableName = yangListName
+		}
+		if _, exists := modelInfo.tableInfo[tableName]; !exists {
+			CVL_LOG(WARNING, "Schema details not found for %s", tableName)
+			cvlErrObj.ErrCode = CVL_SYNTAX_ERROR
+			cvlErrObj.TableName = origTableName
+			cvlErrObj.Msg = "Schema details not found"
+			return nil, cvlErrObj
+		}
+		if !topNodesAdded {
+			// Add top most conatiner e.g. 'container sonic-acl {...}'
+			topNode = c.yp.AddChildNode(modelInfo.tableInfo[tableName].module,
+				nil, modelInfo.tableInfo[tableName].modelName)
+
+			//Add the container node for each list
+			//e.g. 'container ACL_TABLE { list ACL_TABLE_LIST ...}
+			listConatinerNode = c.yp.AddChildNode(modelInfo.tableInfo[tableName].module,
+				topNode, origTableName)
+			topNodesAdded = true
 		}
 		keyValuePair := getRedisToYangKeys(tableName, jsonNode.Data)
 		keyCompCount := len(keyValuePair)

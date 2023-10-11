@@ -24,7 +24,7 @@ Below steps need to be done to enable CVL logging.
 	{
 		"TRACE_CACHE": "true",
 		"TRACE_LIBYANG": "true",
-		"TRACE_YPARSER": "true",
+		"TRACE_YPARSER": "true", 
 		"TRACE_CREATE": "true",
 		"TRACE_UPDATE": "true",
 		"TRACE_DELETE": "true",

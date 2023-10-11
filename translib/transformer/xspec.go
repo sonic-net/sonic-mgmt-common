@@ -761,8 +761,8 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 				log.Warningf("Memory allocation failure for storing Tbl order and dependency info for sonic module %v", moduleNm)
 				break
 			}
-			cvlSess, cvlRetSess := cvl.ValidationSessOpen()
-			if cvlRetSess != cvl.CVL_SUCCESS {
+			cvlSess, cvlRetSess := db.NewValidationSession()
+			if cvlRetSess != nil {
 				log.Warningf("Failure in creating CVL validation session object required to use CVl API to get Tbl info for module %v - %v", moduleNm, cvlRetSess)
 				break
 			}

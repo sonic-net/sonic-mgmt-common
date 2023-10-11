@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2022 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -17,54 +17,46 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-package cvl_test
+package cvl
 
-var json_edit_config_create_acl_table_dependent_data = []string{`{
-							"stage": "INGRESS",
-							"type": "L3"
-						}`}
+import (
+	//lint:ignore ST1001 This is safe to dot import for util package
+	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
+)
 
-var json_edit_config_create_acl_rule_config_data = []string{
-	`{
-        						"PACKET_ACTION": "FORWARD",
-							"IP_TYPE":	"IPV4",
-               						 "SRC_IP": "10.1.1.1/32",
-                					"L4_SRC_PORT": "1909",
-               						 "IP_PROTOCOL": "103",
-              						  "DST_IP": "20.2.2.2/32",
-               						 "L4_DST_PORT_RANGE": "9000-12000"
+// StoreHint saves hints which are passed to  the Custom Validation Callbacks
+// Caller guarantees that no other CRUD ops are in progress
+// key == nil: Clear all Hints
+func (c *CVL) StoreHint(key string, value interface{}) CVLRetCode {
 
+	CVL_LOG(INFO_DEBUG, "StoreHint() %v: %v", key, value)
 
-						}`}
+	if c == nil {
+		return CVL_SUCCESS
+	}
 
-var json_validate_config_data = []string{`{
-					"INTERFACE": {
-					"Ethernet8|10.0.0.0/31": {},
-					"Ethernet12|10.0.0.2/31": {},
-					"Ethernet16|10.0.0.4/31": {}
-					}
-				}`,
-	`{
-					"DEVICE_METADATA": {
-						"localhost": {
-						"hwsku": "Force10-S6100",
-						"default_bgp_status": "up",
-						"docker_routing_config_mode": "unified",
-						"hostname": "sonic-s6100-01",
-						"platform": "x86_64-dell_s6100_c2538-r0",
-						"mac": "4c:76:25:f4:70:82",
-						"default_pfcwd_status": "disable",
-						"deployment_id": "1",
-						"type": "ToRRouter"
-						}
-					}
-				}`,
-	`{
-					"CABLE_LENGTH": {
-					    "AZURE": {
-						"Ethernet8": "5m",
-						"Ethernet12": "5m",
-						"Ethernet16": "5m"
-					    }
-					  }
-					}`}
+	if len(key) == 0 {
+		for k := range c.custvCache.Hint {
+			delete(c.custvCache.Hint, k)
+		}
+	} else if value == nil {
+		delete(c.custvCache.Hint, key)
+	} else {
+		c.custvCache.Hint[key] = value
+	}
+
+	return CVL_SUCCESS
+}
+
+// LoadHint is used only for Go UT
+func (c *CVL) LoadHint(key string) (interface{}, bool) {
+	if c == nil {
+		return nil, false
+	}
+
+	value, ok := c.custvCache.Hint[key]
+
+	CVL_LOG(INFO_DEBUG, "LoadHint() %v: %v", key, value)
+
+	return value, ok
+}

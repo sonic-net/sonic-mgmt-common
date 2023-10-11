@@ -27,9 +27,7 @@ package db
 
 import (
 	"github.com/Azure/sonic-mgmt-common/cvl"
-	// TBD Wait for CVL PR
-	// cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
-	cmn "github.com/Azure/sonic-mgmt-common/cvl"
+	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 
 	"github.com/golang/glog"

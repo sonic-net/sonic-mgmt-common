@@ -20,28 +20,26 @@
 package cvl_test
 
 import (
-	"github.com/Azure/sonic-mgmt-common/cvl"
 	"testing"
+
+	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 )
 
 func TestValidateEditConfig_When_Exp_In_Choice_Negative(t *testing.T) {
 
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"ACL_TABLE": map[string]interface{}{
 			"TestACL1": map[string]interface{}{
 				"stage": "INGRESS",
 				"type":  "MIRROR",
 			},
 		},
-	}
+	})
 
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
-
-	cfgDataRule := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgDataRule := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"ACL_RULE|TestACL1|Rule1",
 			map[string]string{
 				"PACKET_ACTION":     "FORWARD",
@@ -51,6 +49,7 @@ func TestValidateEditConfig_When_Exp_In_Choice_Negative(t *testing.T) {
 				"IP_PROTOCOL":       "103",
 				"L4_DST_PORT_RANGE": "9000-12000",
 			},
+			false,
 		},
 	}
 
@@ -66,27 +65,25 @@ func TestValidateEditConfig_When_Exp_In_Choice_Negative(t *testing.T) {
 
 func TestValidateEditConfig_When_Exp_In_Leaf_Positive(t *testing.T) {
 
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"STP": map[string]interface{}{
 			"GLOBAL": map[string]interface{}{
 				"mode": "rpvst",
 			},
 		},
-	}
+	})
 
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
-
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
-			"STP_PORT|Ethernet4",
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
+			"STP_PORT|Ethernet100",
 			map[string]string{
 				"enabled":   "true",
 				"edge_port": "true",
 				"link_type": "shared",
 			},
+			false,
 		},
 	}
 
@@ -95,26 +92,24 @@ func TestValidateEditConfig_When_Exp_In_Leaf_Positive(t *testing.T) {
 
 func TestValidateEditConfig_When_Exp_In_Leaf_Negative(t *testing.T) {
 
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"STP": map[string]interface{}{
 			"GLOBAL": map[string]interface{}{
 				"mode": "mstp",
 			},
 		},
-	}
+	})
 
-	loadConfigDB(rclient, depDataMap)
-	defer unloadConfigDB(rclient, depDataMap)
-
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"STP_PORT|Ethernet4",
 			map[string]string{
 				"enabled":   "true",
 				"link_type": "shared",
 			},
+			false,
 		},
 	}
 

@@ -6,6 +6,9 @@ module sonic-port {
         prefix scommon;
     }
 
+    import sonic-extension {
+	prefix sonic-ext;
+    }
     organization
         "SONiC";
 
@@ -27,6 +30,7 @@ module sonic-port {
 
             list PORT_LIST {
                 key "ifname";
+                sonic-ext:custom-validation ValidateIfListLevelValidationCalled;
 
                 leaf ifname {
                     type string {
@@ -72,6 +76,10 @@ module sonic-port {
 
                 leaf admin_status {
                     type scommon:admin-status;
+                }
+		leaf diag_mode {
+                    type string;
+                    sonic-ext:custom-validation ValidateIfExtraFieldValidationCalled;
                 }
             }
         }

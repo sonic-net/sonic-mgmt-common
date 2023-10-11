@@ -56,8 +56,8 @@ func handleCascadeDelete(d *db.DB, dbDataMap map[Operation]map[db.DBNum]map[stri
 	xfmrLogInfo("handleCascadeDelete : %v, cascadeDelTbl : %v.", dbDataMap, cascadeDelTbl)
 
 	var err error
-	cvlSess, cvlRetSess := cvl.ValidationSessOpen()
-	if cvlRetSess != cvl.CVL_SUCCESS {
+	cvlSess, cvlRetSess := d.NewValidationSession()
+	if cvlRetSess != nil {
 		xfmrLogInfo("handleCascadeDelete : cvl.ValidationSessOpen failed.")
 		err = fmt.Errorf("%v", "cvl.ValidationSessOpen failed")
 		return err

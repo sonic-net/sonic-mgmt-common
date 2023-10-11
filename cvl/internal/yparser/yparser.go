@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -41,15 +41,6 @@ import (
 #include <string.h>
 
 extern int lyd_check_mandatory_tree(struct lyd_node *root, struct ly_ctx *ctx, const struct lys_module **modules, int mod_count, int options);
-
-struct lyd_node* lyd_parse_data_path(struct ly_ctx *ctx,  const char *path, LYD_FORMAT format, int options) {
-	return lyd_parse_path(ctx, path, format, options);
-}
-
-struct lyd_node *lyd_parse_data_mem(struct ly_ctx *ctx, const char *data, LYD_FORMAT format, int options)
-{
-	return lyd_parse_mem(ctx, data, format, options);
-}
 
 int lyd_data_validate(struct lyd_node **node, int options, struct ly_ctx *ctx)
 {
@@ -258,7 +249,7 @@ type WhenExpression struct {
 	NodeNames []string //node names under when condition
 }
 
-//YParserListInfo Important schema information to be loaded at bootup time
+// YParserListInfo Important schema information to be loaded at bootup time
 type YParserListInfo struct {
 	ListName        string
 	Module          *YParserModule
@@ -272,11 +263,13 @@ type YParserListInfo struct {
 	MapLeaf         []string            //for 'mapping  list'
 	LeafRef         map[string][]string //for storing all leafrefs for a leaf in a table,
 	//multiple leafref possible for union
-	DfltLeafVal    map[string]string //Default value for leaf/leaf-list
-	XpathExpr      map[string][]*XpathExpression
-	CustValidation map[string]string
-	WhenExpr       map[string][]*WhenExpression //multiple when expression for choice/case etc
-	MandatoryNodes map[string]bool
+	DfltLeafVal      map[string]string //Default value for leaf/leaf-list
+	XpathExpr        map[string][]*XpathExpression
+	CustValidation   map[string][]string
+	WhenExpr         map[string][]*WhenExpression //multiple when expression for choice/case etc
+	MandatoryNodes   map[string]bool
+	DependentOnTable string //for table on which it is dependent
+	Key              string //Static key, value comes from sonic-extension:tbl-key
 }
 
 type YParserLeafValue struct {
@@ -285,11 +278,12 @@ type YParserLeafValue struct {
 }
 
 type YParser struct {
+	//ctx *YParserCtx    //Parser context
 	root      *YParserNode //Top evel root for validation
 	operation string       //Edit operation
 }
 
-//YParserError YParser Error Structure
+// YParserError YParser Error Structure
 type YParserError struct {
 	ErrCode   YParserRetCode /* Error Code describing type of error. */
 	Msg       string         /* Detailed error message. */
@@ -347,7 +341,7 @@ func CVL_LOG(level CVLLogLevel, fmtStr string, args ...interface{}) {
 	CVL_LEVEL_LOG(level, fmtStr, args...)
 }
 
-//package init function
+// package init function
 func init() {
 	if os.Getenv("CVL_DEBUG") != "" {
 		Debug(true)
@@ -377,7 +371,7 @@ func Finish() {
 	}
 }
 
-//ParseSchemaFile Parse YIN schema file
+// ParseSchemaFile Parse YIN schema file
 func ParseSchemaFile(modelFile string) (*YParserModule, YParserError) {
 	module := C.lys_parse_path((*C.struct_ly_ctx)(ypCtx), C.CString(modelFile), C.LYS_IN_YIN)
 	if module == nil {
@@ -393,7 +387,7 @@ func ParseSchemaFile(modelFile string) (*YParserModule, YParserError) {
 	return (*YParserModule)(module), YParserError{ErrCode: YP_SUCCESS}
 }
 
-//AddChildNode Add child node to a parent node
+// AddChildNode Add child node to a parent node
 func (yp *YParser) AddChildNode(module *YParserModule, parent *YParserNode, name string) *YParserNode {
 	nameCStr := C.CString(name)
 	defer C.free(unsafe.Pointer(nameCStr))
@@ -405,7 +399,7 @@ func (yp *YParser) AddChildNode(module *YParserModule, parent *YParserNode, name
 	return ret
 }
 
-//IsLeafrefMatchedInUnion Check if value matches with leafref node in union
+// IsLeafrefMatchedInUnion Check if value matches with leafref node in union
 func (yp *YParser) IsLeafrefMatchedInUnion(module *YParserModule, xpath, value string) bool {
 	xpathCStr := C.CString(xpath)
 	valCStr := C.CString(value)
@@ -416,7 +410,7 @@ func (yp *YParser) IsLeafrefMatchedInUnion(module *YParserModule, xpath, value s
 	return C.lyd_node_leafref_match_in_union((*C.struct_lys_module)(module), (*C.char)(xpathCStr), (*C.char)(valCStr)) == 0
 }
 
-//AddMultiLeafNodes dd child node to a parent node
+// AddMultiLeafNodes dd child node to a parent node
 func (yp *YParser) AddMultiLeafNodes(module *YParserModule, parent *YParserNode, multiLeaf []*YParserLeafValue) YParserError {
 
 	leafValArr := make([]C.struct_leaf_value, len(multiLeaf))
@@ -446,7 +440,7 @@ func (yp *YParser) AddMultiLeafNodes(module *YParserModule, parent *YParserNode,
 	}()
 
 	if C.lyd_multi_new_leaf((*C.struct_lyd_node)(parent), (*C.struct_lys_module)(module), (*C.struct_leaf_value)(unsafe.Pointer(&leafValArr[0])), size) != 0 {
-		if Tracing {
+		if IsTraceAllowed(TRACE_ONERROR) {
 			TRACE_LOG(TRACE_ONERROR, "Failed to create Multi Leaf Data = %v", multiLeaf)
 		}
 		return getErrorDetails()
@@ -456,7 +450,7 @@ func (yp *YParser) AddMultiLeafNodes(module *YParserModule, parent *YParserNode,
 
 }
 
-//NodeDump Return entire subtree in XML format in string
+// NodeDump Return entire subtree in XML format in string
 func (yp *YParser) NodeDump(root *YParserNode) string {
 	if root == nil {
 		return ""
@@ -467,7 +461,7 @@ func (yp *YParser) NodeDump(root *YParserNode) string {
 	}
 }
 
-//MergeSubtree Merge source with destination
+// MergeSubtree Merge source with destination
 func (yp *YParser) MergeSubtree(root, node *YParserNode) (*YParserNode, YParserError) {
 	rootTmp := (*C.struct_lyd_node)(root)
 
@@ -475,7 +469,7 @@ func (yp *YParser) MergeSubtree(root, node *YParserNode) (*YParserNode, YParserE
 		return root, YParserError{ErrCode: YP_SUCCESS}
 	}
 
-	if Tracing {
+	if IsTraceAllowed(TRACE_YPARSER) {
 		rootdumpStr := yp.NodeDump((*YParserNode)(rootTmp))
 		TRACE_LOG(TRACE_YPARSER, "Root subtree = %v\n", rootdumpStr)
 	}
@@ -484,7 +478,7 @@ func (yp *YParser) MergeSubtree(root, node *YParserNode) (*YParserNode, YParserE
 		return (*YParserNode)(rootTmp), getErrorDetails()
 	}
 
-	if Tracing {
+	if IsTraceAllowed(TRACE_YPARSER) {
 		dumpStr := yp.NodeDump((*YParserNode)(rootTmp))
 		TRACE_LOG(TRACE_YPARSER, "Merged subtree = %v\n", dumpStr)
 	}
@@ -502,7 +496,7 @@ func (yp *YParser) DestroyCache() YParserError {
 	return YParserError{ErrCode: YP_SUCCESS}
 }
 
-//SetOperation Set operation
+// SetOperation Set operation
 func (yp *YParser) SetOperation(op string) YParserError {
 	if ypOpNode == nil {
 		return YParserError{ErrCode: YP_INTERNAL_UNKNOWN}
@@ -516,21 +510,31 @@ func (yp *YParser) SetOperation(op string) YParserError {
 	return YParserError{ErrCode: YP_SUCCESS}
 }
 
-//ValidateSyntax Perform syntax checks
+// createTempDepData merge depdata and data to create temp data. used in syntax, semantic and custom validation
+func (yp *YParser) createTempDepData(dataTmp *(*C.struct_lyd_node), depData *YParserNode) YParserError {
+
+	if C.lyd_merge_to_ctx(dataTmp, (*C.struct_lyd_node)(depData), C.LYD_OPT_DESTRUCT, (*C.struct_ly_ctx)(ypCtx)) != 0 {
+		TRACE_LOG((TRACE_SYNTAX | TRACE_LIBYANG), "Unable to merge dependent data\n")
+		return getErrorDetails()
+	}
+	return YParserError{ErrCode: YP_SUCCESS}
+}
+
+// ValidateSyntax Perform syntax checks
 func (yp *YParser) ValidateSyntax(data, depData *YParserNode) YParserError {
 	dataTmp := (*C.struct_lyd_node)(data)
 
 	if data != nil && depData != nil {
 		//merge ependent data for synatx validation - Update/Delete case
-		if C.lyd_merge_to_ctx(&dataTmp, (*C.struct_lyd_node)(depData), C.LYD_OPT_DESTRUCT, (*C.struct_ly_ctx)(ypCtx)) != 0 {
-			TRACE_LOG((TRACE_SYNTAX | TRACE_LIBYANG), "Unable to merge dependent data\n")
-			return getErrorDetails()
+		err := yp.createTempDepData(&dataTmp, depData)
+		if err.ErrCode != YP_SUCCESS {
+			return err
 		}
 	}
 
 	//Just validate syntax
 	if C.lyd_data_validate(&dataTmp, C.LYD_OPT_EDIT|C.LYD_OPT_NOEXTDEPS, (*C.struct_ly_ctx)(ypCtx)) != 0 {
-		if Tracing {
+		if IsTraceAllowed(TRACE_ONERROR) {
 			strData := yp.NodeDump((*YParserNode)(dataTmp))
 			TRACE_LOG(TRACE_ONERROR, "Failed to validate Syntax, data = %v", strData)
 		}
@@ -637,6 +641,9 @@ func getErrorDetails() YParserError {
 			ElemName = parseLyMessage(errMsg, lyElemPrefix, lyElemSuffix)
 		}
 	} else {
+		/* Custom contraint error message like in must statement.
+		This can be used by App to display to user.
+		*/
 		errText = errMsg[len(customErrorPrefix):]
 	}
 
@@ -652,6 +659,7 @@ func getErrorDetails() YParserError {
 		} else {
 			errMessage = "Data validation failed"
 		}
+
 	case C.LY_EINVAL:
 		// invalid node. With our usage it will be the field name.
 		ypErrCode = YP_SYNTAX_ERROR
@@ -661,8 +669,10 @@ func getErrorDetails() YParserError {
 		} else {
 			errMessage = "Invalid value"
 		}
+
 	case C.LY_EMEM:
 		errMessage = "Resources exhausted"
+
 	default:
 		errMessage = "Internal error"
 	}
@@ -692,12 +702,19 @@ func GetModelNs(module *YParserModule) (ns, prefix string) {
 		C.GoString(((*C.struct_lys_module)(module)).prefix)
 }
 
-//Get model details for child under list/choice/case
+// Get model details for child under list/choice/case
 func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 	underWhen bool, whenExpr *WhenExpression) {
 
 	for sChild := node.child; sChild != nil; sChild = sChild.next {
 		switch sChild.nodetype {
+		case C.LYS_LIST:
+			nodeInnerList := (*C.struct_lys_node_list)(unsafe.Pointer(sChild))
+			innerListkeys := (*[10]*C.struct_lys_node_leaf)(unsafe.Pointer(nodeInnerList.keys))
+			for idx := 0; idx < int(nodeInnerList.keys_size); idx++ {
+				keyName := C.GoString(innerListkeys[idx].name)
+				l.MapLeaf = append(l.MapLeaf, keyName)
+			}
 		case C.LYS_USES:
 			nodeUses := (*C.struct_lys_node_uses)(unsafe.Pointer(sChild))
 			if nodeUses.when != nil {
@@ -772,6 +789,14 @@ func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 					//Remove last ','
 					l.DfltLeafVal[leafName] = tmpValStr
 				}
+
+				// leaf-list with min-elements > 0 should be treated as a mandatory node.
+				// Reusing MandatoryNodes map itself to store this info.. Different error codes
+				// are needed for min-elements and mandatory true violations. Cvl will have to
+				// rely on the "@" field name suffix in db dataMap to differentiate.
+				if sLeafList.min > 0 {
+					l.MandatoryNodes[leafName] = true
+				}
 			}
 
 			//If parent has when expression,
@@ -792,7 +817,7 @@ func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 
 			//Check for must expression; one must expession only per leaf
 			if sleaf.must_size > 0 {
-				must := (*[10]C.struct_lys_restr)(unsafe.Pointer(sleaf.must))
+				must := (*[20]C.struct_lys_restr)(unsafe.Pointer(sleaf.must))
 				for idx := 0; idx < int(sleaf.must_size); idx++ {
 					exp := XpathExpression{Expr: C.GoString(must[idx].expr)}
 
@@ -824,7 +849,7 @@ func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 					if C.GoString(exts[idx].def.name) == "custom-validation" {
 						argVal := C.GoString(exts[idx].arg_value)
 						if argVal != "" {
-							l.CustValidation[leafName] = argVal
+							l.CustValidation[leafName] = append(l.CustValidation[leafName], argVal)
 						}
 					}
 				}
@@ -840,7 +865,7 @@ func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 	}
 }
 
-//GetModelListInfo Get model info for YANG list and its subtree
+// GetModelListInfo Get model info for YANG list and its subtree
 func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 	var list []*YParserListInfo
 
@@ -883,7 +908,7 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 
 			l.LeafRef = make(map[string][]string)
 			l.XpathExpr = make(map[string][]*XpathExpression)
-			l.CustValidation = make(map[string]string)
+			l.CustValidation = make(map[string][]string)
 			l.WhenExpr = make(map[string][]*WhenExpression)
 			l.DfltLeafVal = make(map[string]string)
 			l.MandatoryNodes = make(map[string]bool)
@@ -923,7 +948,7 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 					switch extName {
 					case "custom-validation":
 						if argVal != "" {
-							l.CustValidation[listName] = argVal
+							l.CustValidation[listName] = append(l.CustValidation[listName], argVal)
 						}
 					case "db-name":
 						l.DbName = argVal
@@ -931,8 +956,10 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 						l.RedisKeyDelim = argVal
 					case "key-pattern":
 						l.RedisKeyPattern = argVal
-					case "map-leaf":
-						l.MapLeaf = strings.Split(argVal, " ")
+					case "dependent-on":
+						l.DependentOnTable = argVal
+					case "tbl-key":
+						l.Key = argVal
 					}
 				}
 

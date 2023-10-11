@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2020 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -22,37 +22,24 @@ package cvl
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
-	"github.com/go-redis/redis/v7"
-	toposort "github.com/philopon/go-toposort"
 	"reflect"
-	//lint:ignore ST1001 This is safe to dot import for util package
-	custv "github.com/Azure/sonic-mgmt-common/cvl/custom_validation"
-	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
-	"github.com/antchfx/xmlquery"
+
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 	"unsafe"
-)
 
-type CVLValidateType uint
+	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
+	custv "github.com/Azure/sonic-mgmt-common/cvl/custom_validation"
+	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
+	"github.com/go-redis/redis/v7"
+	"github.com/google/go-cmp/cmp"
+	toposort "github.com/philopon/go-toposort"
 
-const (
-	VALIDATE_NONE      CVLValidateType = iota //Data is used as dependent data
-	VALIDATE_SYNTAX                           //Syntax is checked and data is used as dependent data
-	VALIDATE_SEMANTICS                        //Semantics is checked
-	VALIDATE_ALL                              //Syntax and Semantics are checked
-)
-
-type CVLOperation uint
-
-const (
-	OP_NONE   CVLOperation = 0      //Used to just validate the config without any operation
-	OP_CREATE              = 1 << 0 //For Create operation
-	OP_UPDATE              = 1 << 1 //For Update operation
-	OP_DELETE              = 1 << 2 //For Delete operation
+	//lint:ignore ST1001 This is safe to dot import for util package
+	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
+	"github.com/antchfx/xmlquery"
 )
 
 var cvlErrorMap = map[CVLRetCode]string{
@@ -112,32 +99,24 @@ const (
 	CVL_SEMANTIC_KEY_INVALID            = CVLRetCode(yparser.YP_SEMANTIC_KEY_INVALID)
 )
 
-// CVLEditConfigData Strcture for key and data in API
-type CVLEditConfigData struct {
-	VType CVLValidateType   //Validation type
-	VOp   CVLOperation      //Operation type
-	Key   string            //Key format : "PORT|Ethernet4"
-	Data  map[string]string //Value :  {"alias": "40GE0/28", "mtu" : 9100,  "admin_status":  down}
-}
-
 // ValidationTimeStats CVL validations stats
-//Maintain time stats for call to ValidateEditConfig().
-//Hits : Total number of times ValidateEditConfig() called
-//Time : Total time spent in ValidateEditConfig()
-//Peak : Highest time spent in ValidateEditConfig()
+// Maintain time stats for call to ValidateEditConfig().
+// Hits : Total number of times ValidateEditConfig() called
+// Time : Total time spent in ValidateEditConfig()
+// Peak : Highest time spent in ValidateEditConfig()
 type ValidationTimeStats struct {
 	Hits uint
 	Time time.Duration
 	Peak time.Duration
 }
 
-//CVLDepDataForDelete Structure for dependent entry to be deleted
+// CVLDepDataForDelete Structure for dependent entry to be deleted
 type CVLDepDataForDelete struct {
 	RefKey string                       //Ref Key which is getting deleted
 	Entry  map[string]map[string]string //Entry or field which should be deleted as a result
 }
 
-//Global data structure for maintaining validation stats
+// Global data structure for maintaining validation stats
 var cfgValidationStats ValidationTimeStats
 var statsMutex *sync.Mutex
 
@@ -161,10 +140,11 @@ func Initialize() CVLRetCode {
 
 	yparser.Initialize()
 
-	modelInfo.modelNs = make(map[string]*modelNamespace)       //redis table to model name
-	modelInfo.tableInfo = make(map[string]*modelTableInfo)     //model namespace
-	modelInfo.allKeyDelims = make(map[string]bool)             //all key delimiter
-	modelInfo.redisTableToYangList = make(map[string][]string) //Redis table to Yang list map
+	modelInfo.modelNs = make(map[string]*modelNamespace)                //redis table to model name
+	modelInfo.tableInfo = make(map[string]*modelTableInfo)              //model namespace
+	modelInfo.allKeyDelims = make(map[string]bool)                      //all key delimiter
+	modelInfo.redisTableToYangList = make(map[string][]string)          //Redis table to Yang list map
+	modelInfo.redisTableToListKeys = make(map[string]map[string]string) //Redis table to Yang List key map
 	dbNameToDbNum = map[string]uint8{"APPL_DB": APPL_DB, "CONFIG_DB": CONFIG_DB}
 
 	// Load all YIN schema files
@@ -187,6 +167,9 @@ func Initialize() CVLRetCode {
 	//Build reverse leafref info i.e. which table/field uses one table through leafref
 	buildRefTableInfo()
 
+	//Build table dependencies based on 'dependent-on' extension
+	buildTableDependencies()
+
 	cvlInitialized = true
 
 	return CVL_SUCCESS
@@ -196,14 +179,18 @@ func Finish() {
 	yparser.Finish()
 }
 
-func ValidationSessOpen() (*CVL, CVLRetCode) {
+func ValidationSessOpen(dbAccess cmn.DBAccess) (*CVL, CVLRetCode) {
 	cvl := &CVL{}
 	cvl.tmpDbCache = make(map[string]interface{})
-	cvl.requestCache = make(map[string]map[string][]*requestCacheType)
+	cvl.requestCache = make(map[string]map[string][]*cmn.RequestCacheType)
+	cvl.depDataCache = make(map[string]interface{})
 	cvl.maxTableElem = make(map[string]int)
 	cvl.yp = &yparser.YParser{}
 	cvl.yv = &YValidator{}
 	cvl.yv.root = &xmlquery.Node{Type: xmlquery.DocumentNode}
+	cvl.custvCache.Data = make(map[string]interface{})
+	cvl.custvCache.Hint = make(map[string]interface{})
+	cvl.dbAccess = dbAccess
 
 	if cvl == nil || cvl.yp == nil {
 		return nil, CVL_FAILURE
@@ -225,7 +212,8 @@ func (c *CVL) ValidateStartupConfig(jsonData string) CVLRetCode {
 	return CVL_NOT_IMPLEMENTED
 }
 
-//ValidateIncrementalConfig Steps:
+// ValidateIncrementalConfig Steps:
+//
 //	Check config data syntax
 //	Fetch the depedent data
 //	Merge config and dependent data
@@ -241,7 +229,7 @@ func (c *CVL) ValidateIncrementalConfig(jsonData string) CVLRetCode {
 
 	var dataMap map[string]interface{} = v.(map[string]interface{})
 
-	root, _ := c.translateToYang(&dataMap)
+	root, _ := c.translateToYang(&dataMap, true)
 	defer c.yp.FreeNode(root)
 	if root == nil {
 		return CVL_SYNTAX_ERROR
@@ -280,7 +268,7 @@ func (c *CVL) ValidateIncrementalConfig(jsonData string) CVLRetCode {
 	return CVL_SUCCESS
 }
 
-//ValidateConfig Validate data for operation
+// ValidateConfig Validate data for operation
 func (c *CVL) ValidateConfig(jsonData string) CVLRetCode {
 	c.clearTmpDbCache()
 	var v interface{}
@@ -288,7 +276,7 @@ func (c *CVL) ValidateConfig(jsonData string) CVLRetCode {
 	b := []byte(jsonData)
 	if err := json.Unmarshal(b, &v); err == nil {
 		var value map[string]interface{} = v.(map[string]interface{})
-		root, _ := c.translateToYang(&value)
+		root, _ := c.translateToYang(&value, true)
 		defer c.yp.FreeNode(root)
 
 		if root == nil {
@@ -305,20 +293,31 @@ func (c *CVL) ValidateConfig(jsonData string) CVLRetCode {
 	return CVL_SUCCESS
 }
 
-//ValidateEditConfig Validate config data based on edit operation
-func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorInfo, ret CVLRetCode) {
+// ValidateEditConfig Validate config data based on edit operation
+func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErrorInfo, ret CVLRetCode) {
+	if c.dbAccess == nil {
+		CVL_LOG(FATAL, "ValidateEditConfig: DB Access object is Nil")
+		panic(c.dbAccess)
+	}
 
 	ts := time.Now()
 
 	defer func() {
 		if cvlErr.ErrCode != CVL_SUCCESS {
 			CVL_LOG(WARNING, "ValidateEditConfig() failed: %+v", cvlErr)
+			// On CVL failure, log config data
+			CVL_LOG(WARNING, "Config Data: %v", cfgData)
 		}
 		//Update validation time stats
 		updateValidationTimeStats(time.Since(ts))
+		c.clearTmpDbCache()
+		c.yv.root = &xmlquery.Node{Type: xmlquery.DocumentNode}
+		c.depDataCache = make(DepDataCacheType)
+		c.yp.DestroyCache()
 	}()
 
 	var cvlErrObj CVLErrorInfo
+	checkSyntax := true
 
 	caller := ""
 	if IsTraceSet() {
@@ -349,7 +348,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 
 	cfgDataLen := len(cfgData)
 	for i := 0; i < cfgDataLen; i++ {
-		if VALIDATE_ALL != cfgData[i].VType {
+		if cmn.VALIDATE_ALL != cfgData[i].VType {
 			continue
 		}
 
@@ -360,10 +359,10 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 		reqTbl, exists := c.requestCache[tbl]
 		if !exists {
 			//Create new table key data
-			reqTbl = make(map[string][]*requestCacheType)
+			reqTbl = make(map[string][]*cmn.RequestCacheType)
 		}
 		cfgDataItemArr := reqTbl[key]
-		cfgDataItemArr = append(cfgDataItemArr, &requestCacheType{cfgData[i], nil})
+		cfgDataItemArr = append(cfgDataItemArr, &cmn.RequestCacheType{cfgData[i], nil})
 		reqTbl[key] = cfgDataItemArr
 		c.requestCache[tbl] = reqTbl
 
@@ -376,9 +375,9 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 		}
 
 		switch cfgData[i].VOp {
-		case OP_CREATE:
+		case cmn.OP_CREATE:
 			//Check max-element constraint
-			if ret := c.checkMaxElemConstraint(OP_CREATE, tbl); ret != CVL_SUCCESS {
+			if ret := c.checkMaxElemConstraint(cmn.OP_CREATE, tbl, key); ret != CVL_SUCCESS {
 				cvlErrObj.ErrCode = CVL_SYNTAX_ERROR
 				cvlErrObj.TableName = tbl
 				cvlErrObj.Keys = splitKeyComponents(tbl, key)
@@ -391,16 +390,16 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 				return cvlErrObj, CVL_SYNTAX_ERROR
 			}
 
-		case OP_UPDATE:
+		case cmn.OP_UPDATE:
 			//Get the existing data from Redis to cache, so that final
 			//validation can be done after merging this dependent data
 			c.addTableEntryToCache(tbl, key)
 
-		case OP_DELETE:
+		case cmn.OP_DELETE:
 			if len(cfgData[i].Data) > 0 {
 				//Check constraints for deleting field(s)
 				for field := range cfgData[i].Data {
-					if c.checkDeleteConstraint(cfgData, tbl, key, field) != CVL_SUCCESS {
+					if c.checkDeleteConstraint(cfgData, cfgData[i], tbl, key, field) != CVL_SUCCESS {
 						cvlErrObj.ErrCode = CVL_SEMANTIC_ERROR
 						cvlErrObj.TableName = tbl
 						cvlErrObj.Keys = splitKeyComponents(tbl, key)
@@ -410,6 +409,17 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 						cvlErrObj.ErrAppTag = "instance-in-use"
 						cvlErrObj.ConstraintErrMsg = cvlErrObj.Msg
 						return cvlErrObj, CVL_SEMANTIC_ERROR
+					}
+
+					// Cannot delete leaf-list field having min-elements > 0
+					if isLeaflistHasMinElems(tbl, field) {
+						cvlErrObj.ErrCode = CVL_SYNTAX_MINIMUM_INVALID
+						cvlErrObj.Msg = "Mandatory field getting deleted"
+						cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
+						cvlErrObj.TableName = tbl
+						cvlErrObj.Keys = splitKeyComponents(tbl, key)
+						cvlErrObj.Field = strings.TrimSuffix(field, "@") // To match libyang error
+						return cvlErrObj, cvlErrObj.ErrCode
 					}
 
 					//Check mandatory node deletion
@@ -429,10 +439,10 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 				//Entire entry to be deleted
 
 				//Update max-elements count
-				c.checkMaxElemConstraint(OP_DELETE, tbl)
+				c.checkMaxElemConstraint(cmn.OP_DELETE, tbl, key)
 
 				//Now check delete constraints
-				if c.checkDeleteConstraint(cfgData, tbl, key, "") != CVL_SUCCESS {
+				if c.checkDeleteConstraint(cfgData, cfgData[i], tbl, key, "") != CVL_SUCCESS {
 					cvlErrObj.ErrCode = CVL_SEMANTIC_ERROR
 					cvlErrObj.TableName = tbl
 					cvlErrObj.Keys = splitKeyComponents(tbl, key)
@@ -442,6 +452,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 					cvlErrObj.ConstraintErrMsg = cvlErrObj.Msg
 					return cvlErrObj, CVL_SEMANTIC_ERROR
 				}
+				checkSyntax = false
 			}
 
 			c.addTableEntryToCache(tbl, key)
@@ -465,12 +476,16 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 	}
 
 	//Step 2 : Perform syntax validation only
-	yang, errN := c.translateToYang(&requestedData)
+	yang, errN := c.translateToYang(&requestedData, checkSyntax)
 	defer c.yp.FreeNode(yang)
 
 	if errN.ErrCode == CVL_SUCCESS {
-		if cvlErrObj, cvlRetCode := c.validateSyntax(yang); cvlRetCode != CVL_SUCCESS {
-			return cvlErrObj, cvlRetCode
+		//Get dependent data from Redis
+		depData := c.fetchDataToTmpCache() //fetch data to temp cache for temporary validation
+		if checkSyntax {
+			if cvlErrObj, cvlRetCode := c.validateSyntax(yang, depData); cvlRetCode != CVL_SUCCESS {
+				return cvlErrObj, cvlRetCode
+			}
 		}
 	} else {
 		return errN, errN.ErrCode
@@ -479,7 +494,7 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 	//Step 3 : Check keys and perform semantics validation
 	for i := 0; i < cfgDataLen; i++ {
 
-		if cfgData[i].VType != VALIDATE_ALL && cfgData[i].VType != VALIDATE_SEMANTICS {
+		if cfgData[i].VType != cmn.VALIDATE_ALL && cfgData[i].VType != cmn.VALIDATE_SEMANTICS {
 			continue
 		}
 
@@ -487,42 +502,28 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 
 		//Step 3.1 : Check keys
 		switch cfgData[i].VOp {
-		case OP_CREATE:
+		case cmn.OP_CREATE:
 			//Check key should not already exist
-			n, err1 := redisClient.Exists(cfgData[i].Key).Result()
+			n, err1 := c.dbAccess.Exists(cfgData[i].Key).Result()
 			if err1 == nil && n > 0 {
-				//Check if key deleted and CREATE done in same session,
-				//allow to create the entry
-				deletedInSameSession := false
-				if tbl != "" && key != "" {
-					for _, cachedCfgData := range c.requestCache[tbl][key] {
-						if cachedCfgData.reqData.VOp == OP_DELETE {
-							deletedInSameSession = true
-							break
-						}
-					}
-				}
-
-				if !deletedInSameSession {
-					CVL_LOG(WARNING, "\nValidateEditConfig(): Key = %s already exists", cfgData[i].Key)
-					cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_ALREADY_EXIST
-					cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
-					cvlErrObj.TableName = tbl
-					cvlErrObj.Keys = splitKeyComponents(tbl, key)
-					return cvlErrObj, CVL_SEMANTIC_KEY_ALREADY_EXIST
-
-				} else {
-					TRACE_LOG(TRACE_CREATE, "\nKey %s is deleted in same session, "+
-						"skipping key existence check for OP_CREATE operation", cfgData[i].Key)
-				}
+				CVL_LOG(WARNING, "\nValidateEditConfig(): Key = %s already exists", cfgData[i].Key)
+				cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_ALREADY_EXIST
+				cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
+				cvlErrObj.TableName = tbl
+				cvlErrObj.Keys = splitKeyComponents(tbl, key)
+				return cvlErrObj, CVL_SEMANTIC_KEY_ALREADY_EXIST
+			} else if err1 != nil {
+				CVL_LOG(WARNING, "\nValidateEditConfig(): OP_CREATE - Key = %s ", cfgData[i].Key)
+				CVL_LOG(WARNING, "\nValidateEditConfig(): OP_CREATE - Err = %v ", err1)
 			}
 
 			c.yp.SetOperation("CREATE")
 
-		case OP_UPDATE:
-			n, err1 := redisClient.Exists(cfgData[i].Key).Result()
+		case cmn.OP_UPDATE:
+			n, err1 := c.dbAccess.Exists(cfgData[i].Key).Result()
 			if err1 != nil || n == 0 { //key must exists
-				CVL_LOG(WARNING, "\nValidateEditConfig(): Key = %s does not exist", cfgData[i].Key)
+				CVL_LOG(WARNING, "\nValidateEditConfig(): OP_UPDATE - Key = %s does not exist", cfgData[i].Key)
+				CVL_LOG(WARNING, "\nValidateEditConfig(): OP_UPDATE - Err = %v ", err1)
 				cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_NOT_EXIST
 				cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
 				cvlErrObj.TableName = tbl
@@ -532,15 +533,17 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 
 			// Skip validation if UPDATE is received with only NULL field
 			if _, exists := cfgData[i].Data["NULL"]; exists && len(cfgData[i].Data) == 1 {
+				c.markCfgDataValidated(&cfgData[i], tbl, key)
 				continue
 			}
 
 			c.yp.SetOperation("UPDATE")
 
-		case OP_DELETE:
-			n, err1 := redisClient.Exists(cfgData[i].Key).Result()
+		case cmn.OP_DELETE:
+			n, err1 := c.dbAccess.Exists(cfgData[i].Key).Result()
 			if err1 != nil || n == 0 { //key must exists
-				CVL_LOG(WARNING, "\nValidateEditConfig(): Key = %s does not exist", cfgData[i].Key)
+				CVL_LOG(WARNING, "\nValidateEditConfig(): OP_DELETE - Key = %s does not exist", cfgData[i].Key)
+				CVL_LOG(WARNING, "\nValidateEditConfig(): OP_DELETE - Err = %v ", err1)
 				cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_NOT_EXIST
 				cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
 				cvlErrObj.TableName = tbl
@@ -555,8 +558,8 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 
 		//Get the YANG validator node
 		var node *xmlquery.Node = nil
-		if c.requestCache[tbl][key][0].yangData != nil { //get the node for CREATE/UPDATE or DELETE operation
-			node = c.requestCache[tbl][key][0].yangData
+		if c.requestCache[tbl][key][0].YangData != nil { //get the node for CREATE/UPDATE or DELETE operation
+			node = c.requestCache[tbl][key][0].YangData
 		} else {
 			//Find the node from YANG tree
 			node = c.moveToYangList(yangListName, key)
@@ -575,34 +578,62 @@ func (c *CVL) ValidateEditConfig(cfgData []CVLEditConfigData) (cvlErr CVLErrorIn
 			return cvlErrObj, cvlErrObj.ErrCode
 		}
 
+		if cfgData[i].ReplaceOp {
+			// Fields requested with OP_DELETE are already removed from
+			// OP_UPDATE request and validated. Skip further semantic validation.
+			if cmn.OP_DELETE == cfgData[i].VOp {
+				c.markCfgDataValidated(&cfgData[i], tbl, key)
+				continue
+			}
+			c.updateYangTreeForReplaceOp(node, cfgData)
+			if IsTraceAllowed(TRACE_UPDATE) {
+				TRACE_LOG(TRACE_UPDATE, "After Replace, YANG data tree: %s", c.yv.root.OutputXML(false))
+			}
+		}
+
 		//Step 3.3 : Perform semantic validation
 		if cvlErrObj = c.validateSemantics(node, yangListName, key, &cfgData[i]); cvlErrObj.ErrCode != CVL_SUCCESS {
 			return cvlErrObj, cvlErrObj.ErrCode
 		}
+
+		// Setting VType to VALIDATE_NONE for already validated cfgData
+		// This can be useful in look-back and look-ahead in case of bulk requests.
+		c.markCfgDataValidated(&cfgData[i], tbl, key)
 	}
 
-	c.yp.DestroyCache()
 	return cvlErrObj, CVL_SUCCESS
 }
 
-//GetErrorString Fetch the Error Message from CVL Return Code.
+func (c *CVL) markCfgDataValidated(cfgData *cmn.CVLEditConfigData, tbl, key string) {
+	if cfgData.VType != cmn.VALIDATE_NONE {
+		for k := range c.requestCache[tbl][key] {
+			reqcachedCfgData := c.requestCache[tbl][key][k].ReqData
+			if cfgData.Key == reqcachedCfgData.Key && cmp.Equal(*cfgData, reqcachedCfgData) {
+				c.requestCache[tbl][key][k].ReqData.VType = cmn.VALIDATE_NONE
+			}
+		}
+		cfgData.VType = cmn.VALIDATE_NONE
+	}
+}
+
+// GetErrorString Fetch the Error Message from CVL Return Code.
 func GetErrorString(retCode CVLRetCode) string {
 
 	return cvlErrorMap[retCode]
 
 }
 
-//ValidateKeys Validate key only
+// ValidateKeys Validate key only
 func (c *CVL) ValidateKeys(key []string) CVLRetCode {
 	return CVL_NOT_IMPLEMENTED
 }
 
-//ValidateKeyData Validate key and data
+// ValidateKeyData Validate key and data
 func (c *CVL) ValidateKeyData(key string, data string) CVLRetCode {
 	return CVL_NOT_IMPLEMENTED
 }
 
-//ValidateFields Validate key, field and value
+// ValidateFields Validate key, field and value
 func (c *CVL) ValidateFields(key string, field string, value string) CVLRetCode {
 	return CVL_NOT_IMPLEMENTED
 }
@@ -638,18 +669,33 @@ func (c *CVL) addDepEdges(graph *toposort.Graph, tableList []string) {
 					}
 
 					//Add and store the edge in map
-					graph.AddEdge(redisTblFrom, redisTblTo)
-					dupEdgeCheck[redisTblFrom] = redisTblTo
+					// Yang tables like VLAN_SUB_INTERFACE and VLAN_SUB_INTERFACE_IPADDR both are
+					// represented as VLAN_SUB_INTERFACE in redis. So redisTblFrom and redisTblTo
+					// will be same and dependency added to itself causes issues in Toposort
+					if redisTblFrom == redisTblTo && tableList[tj] != tableList[ti] {
+						graph.AddEdge(tableList[tj], redisTblTo)
+						dupEdgeCheck[tableList[tj]] = redisTblTo
+						CVL_LOG(INFO_DEBUG, "addDepEdges(): Adding edge %s -> %s", tableList[tj], redisTblTo)
+					} else {
+						graph.AddEdge(redisTblFrom, redisTblTo)
+						dupEdgeCheck[redisTblFrom] = redisTblTo
+						CVL_LOG(INFO_DEBUG, "addDepEdges(): Adding edge %s -> %s", redisTblFrom, redisTblTo)
+					}
+				}
+			}
 
-					CVL_LOG(INFO_DEBUG,
-						"addDepEdges(): Adding edge %s -> %s", redisTblFrom, redisTblTo)
+			for _, depTblName := range modelInfo.tableInfo[tableList[ti]].dependentTables {
+				if tableList[tj] == depTblName {
+					graph.AddEdge(depTblName, redisTblTo)
+					dupEdgeCheck[depTblName] = redisTblTo
+					CVL_LOG(INFO_DEBUG, "addDepEdges() with sonic-ext: Adding edge %s -> %s", tableList[tj], redisTblTo)
 				}
 			}
 		}
 	}
 }
 
-//SortDepTables Sort list of given tables as per their dependency
+// SortDepTables Sort list of given tables as per their dependency
 func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
 
 	tableListMap := make(map[string]bool)
@@ -680,14 +726,15 @@ func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
 	//Now perform topological sort
 	result, ret := graph.Toposort()
 	if !ret {
+		CVL_LOG(ERROR, "SortDepTables: Toposort failed: %v", result)
 		return nil, CVL_ERROR
 	}
 
 	return result, CVL_SUCCESS
 }
 
-//GetOrderedTables Get the order list(parent then child) of tables in a given YANG module
-//within a single model this is obtained using leafref relation
+// GetOrderedTables Get the order list(parent then child) of tables in a given YANG module
+// within a single model this is obtained using leafref relation
 func (c *CVL) GetOrderedTables(yangModule string) ([]string, CVLRetCode) {
 	tableList := []string{}
 
@@ -738,7 +785,7 @@ func (c *CVL) GetOrderedDepTables(yangModule, tableName string) ([]string, CVLRe
 
 				// if target node of leaf-ref is not key, then skip
 				var isLeafrefTargetIsKey bool
-				for _, key := range modelInfo.tableInfo[tbl].keys {
+				for _, key := range modelInfo.tableInfo[tableName].keys {
 					if key == leafRef.targetNodeName {
 						isLeafrefTargetIsKey = true
 					}
@@ -754,9 +801,26 @@ func (c *CVL) GetOrderedDepTables(yangModule, tableName string) ([]string, CVLRe
 				}
 
 				//Add and store the edge in map
-				graph.AddNodes(redisTblFrom)
-				graph.AddEdge(redisTblFrom, redisTblTo)
-				dupEdgeCheck[redisTblFrom] = redisTblTo
+				// Yang tables like VLAN_SUB_INTERFACE and VLAN_SUB_INTERFACE_IPADDR both are
+				// represented as VLAN_SUB_INTERFACE in redis. So redisTblFrom and redisTblTo
+				// will be same and dependency added to itself causes issues in Toposort
+				if redisTblFrom == redisTblTo && tbl != tableName {
+					graph.AddNodes(tbl)
+					graph.AddEdge(tbl, redisTblTo)
+					dupEdgeCheck[tbl] = redisTblTo
+				} else {
+					graph.AddNodes(redisTblFrom)
+					graph.AddEdge(redisTblFrom, redisTblTo)
+					dupEdgeCheck[redisTblFrom] = redisTblTo
+				}
+			}
+		}
+
+		for _, depTblName := range modelInfo.tableInfo[tableName].dependentTables {
+			if tbl == depTblName {
+				graph.AddNodes(depTblName)
+				graph.AddEdge(depTblName, redisTblTo)
+				dupEdgeCheck[depTblName] = redisTblTo
 			}
 		}
 	}
@@ -783,9 +847,14 @@ func (c *CVL) addDepTables(tableMap map[string]bool, tableName string) {
 			}
 		}
 	}
+
+	//Now add table on which this table is dependent through 'dependent-on' extenstion
+	if len(modelInfo.tableInfo[tableName].dependentOnTable) > 0 {
+		c.addDepTables(tableMap, getYangListToRedisTbl(modelInfo.tableInfo[tableName].dependentOnTable))
+	}
 }
 
-//GetDepTables Get the list of dependent tables for a given table in a YANG module
+// GetDepTables Get the list of dependent tables for a given table in a YANG module
 func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRetCode) {
 	tableList := []string{}
 	tblMap := make(map[string]bool)
@@ -820,9 +889,9 @@ func (c *CVL) GetDepTables(yangModule string, tableName string) ([]string, CVLRe
 	return result, CVL_SUCCESS
 }
 
-//Parses the JSON string buffer and returns
-//array of dependent fields to be deleted
-func getDepDeleteField(refKey, hField, hValue, jsonBuf string) []CVLDepDataForDelete {
+// Parses the JSON string buffer and returns
+// array of dependent fields to be deleted
+func (c *CVL) getDepDeleteField(refKey, hField, hValue, jsonBuf string) []CVLDepDataForDelete {
 	//Parse the JSON map received from lua script
 	var v interface{}
 	b := []byte(jsonBuf)
@@ -849,8 +918,18 @@ func getDepDeleteField(refKey, hField, hValue, jsonBuf string) []CVLDepDataForDe
 					//leaf-list - specific value to be deleted
 					entryMap[tblKey][field] = hValue
 				} else {
-					//leaf - specific field to be deleted
-					entryMap[tblKey][field] = ""
+					// If mandatory field is getting deleted, then instead of
+					// specific field deletion, entire entry to be deleted.
+					// So need to delete dependent entries also when this entire
+					// entry is deleted. Find all dependent entries and mark
+					// for deletion
+					if isMandatoryTrueNode(tbl, field) {
+						retDepEntries := c.GetDepDataForDelete(tblKey)
+						depEntries = append(depEntries, retDepEntries...)
+					} else {
+						//leaf - specific field to be deleted
+						entryMap[tblKey][field] = ""
+					}
 				}
 			}
 			depEntries = append(depEntries, CVLDepDataForDelete{
@@ -863,8 +942,8 @@ func getDepDeleteField(refKey, hField, hValue, jsonBuf string) []CVLDepDataForDe
 	return depEntries
 }
 
-//GetDepDataForDelete Get the dependent (Redis keys) to be deleted or modified
-//for a given entry getting deleted
+// GetDepDataForDelete Get the dependent (Redis keys) to be deleted or modified
+// for a given entry getting deleted
 func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 
 	type filterScript struct {
@@ -894,9 +973,9 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 
 	// There can be multiple leaf in Reference table with leaf-ref to same target field
 	// Hence using array of filterScript and redis.StringSliceCmd
-	mCmd := map[string][]*redis.StringSliceCmd{}
+	mCmd := map[string][]cmn.StrSliceResult{}
 	mFilterScripts := map[string][]filterScript{}
-	pipe := redisClient.Pipeline()
+	pipe := c.dbAccess.Pipeline()
 
 	for _, refTbl := range modelInfo.tableInfo[tableName].refFromTables {
 
@@ -939,7 +1018,7 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 		}
 
 		if _, exists := mCmd[refTbl.tableName]; !exists {
-			mCmd[refTbl.tableName] = make([]*redis.StringSliceCmd, 0)
+			mCmd[refTbl.tableName] = make([]cmn.StrSliceResult, 0)
 		}
 		mCmdArr := mCmd[refTbl.tableName]
 
@@ -980,7 +1059,7 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 		}
 	}
 
-	_, err := pipe.Exec()
+	err := pipe.Exec()
 	if err != nil {
 		CVL_LOG(WARNING, "Failed to fetch dependent key details for table %s", tableName)
 	}
@@ -991,24 +1070,16 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 	//Add dependent keys which should be modified
 	for tableName, mFilterScriptArr := range mFilterScripts {
 		for _, mFilterScript := range mFilterScriptArr {
-			refEntries, err := luaScripts["filter_entries"].Run(redisClient, []string{},
-				tableName+"|*", strings.Join(modelInfo.tableInfo[tableName].keys, "|"),
-				mFilterScript.script, mFilterScript.field).Result()
+			s := cmn.Search{Pattern: tableName + "|*", Predicate: mFilterScript.script, KeyNames: modelInfo.tableInfo[tableName].keys, WithField: mFilterScript.field}
+			refEntriesJson, err := c.dbAccess.Lookup(s).Result()
 
 			if err != nil {
-				CVL_LOG(WARNING, "Lua script status: (%v)", err)
+				CVL_LOG(INFO_DEBUG, "Lua script status: (%v)", err)
 			}
-			if refEntries == nil {
-				//No reference field found
-				continue
-			}
-
-			refEntriesJson := string(refEntries.(string))
 
 			if refEntriesJson != "" {
 				//Add all keys whose fields to be deleted
-				depEntries = append(depEntries, getDepDeleteField(redisKey,
-					mFilterScript.field, mFilterScript.value, refEntriesJson)...)
+				depEntries = append(depEntries, c.getDepDeleteField(redisKey, mFilterScript.field, mFilterScript.value, refEntriesJson)...)
 			}
 		}
 	}
@@ -1049,7 +1120,7 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 	return depEntries
 }
 
-//Update global stats for all sessions
+// Update global stats for all sessions
 func updateValidationTimeStats(td time.Duration) {
 	statsMutex.Lock()
 
@@ -1063,12 +1134,12 @@ func updateValidationTimeStats(td time.Duration) {
 	statsMutex.Unlock()
 }
 
-//GetValidationTimeStats Retrieve global stats
+// GetValidationTimeStats Retrieve global stats
 func GetValidationTimeStats() ValidationTimeStats {
 	return cfgValidationStats
 }
 
-//ClearValidationTimeStats Clear global stats
+// ClearValidationTimeStats Clear global stats
 func ClearValidationTimeStats() {
 	statsMutex.Lock()
 
@@ -1079,7 +1150,7 @@ func ClearValidationTimeStats() {
 	statsMutex.Unlock()
 }
 
-//CreateFindKeyExpression Create expression for searching DB entries based on given key fields and values.
+// CreateFindKeyExpression Create expression for searching DB entries based on given key fields and values.
 // Expressions created will be like CFG_L2MC_STATIC_MEMBER_TABLE|*|*|Ethernet0
 func CreateFindKeyExpression(tableName string, keyFldValPair map[string]string) string {
 	var expr string
@@ -1117,4 +1188,17 @@ func (c *CVL) GetAllReferringTables(tableName string) map[string][]string {
 	}
 
 	return refTbls
+}
+
+func ReconfigureRedisOptions(opt redis.Options) {
+	UpdateRedisOptions(&opt)
+
+	newRedisClient := NewDbClient("CONFIG_DB")
+	if newRedisClient != nil && redisClient != nil {
+		redisClient.Close()
+		redisClient = newRedisClient
+		CVL_LEVEL_LOG(INFO, "ReconfigureRedisOptions -- Updated redisClient. Options [%v]", redisClient.Options())
+	} else if newRedisClient == nil {
+		CVL_LEVEL_LOG(INFO, "ReconfigureRedisOptions -- Failed to update redisClient")
+	}
 }
