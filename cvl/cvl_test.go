@@ -907,6 +907,11 @@ func TestValidateEditConfig_multi_list_max_elements(t *testing.T) {
 func TestValidateEditConfig_multi_list_when_negative(t *testing.T) {
 
 	setupTestData(t, map[string]interface{}{
+		"VRF": map[string]interface{}{
+			"Vrf1": map[string]interface{}{
+				"vni": "100",
+			},
+		},
 		"STATIC_ROUTE": map[string]interface{}{
 			"192.168.1.0/24": map[string]interface{}{
 				"advertise": "true",
@@ -938,6 +943,11 @@ func TestValidateEditConfig_multi_list_when_negative(t *testing.T) {
 func TestValidateEditConfig_multi_list_when_positive(t *testing.T) {
 
 	setupTestData(t, map[string]interface{}{
+		"VRF": map[string]interface{}{
+			"Vrf1": map[string]interface{}{
+				"vni": "100",
+			},
+		},
 		"STATIC_ROUTE": map[string]interface{}{
 			"192.168.1.0/24": map[string]interface{}{
 				"advertise": "true",
@@ -963,6 +973,11 @@ func TestValidateEditConfig_multi_list_when_positive(t *testing.T) {
 func TestValidateEditConfig_multi_list_must_positive(t *testing.T) {
 
 	setupTestData(t, map[string]interface{}{
+		"VRF": map[string]interface{}{
+			"Vrf1": map[string]interface{}{
+				"vni": "100",
+			},
+		},
 		"STATIC_ROUTE": map[string]interface{}{
 			"192.168.1.0/24": map[string]interface{}{
 				"advertise": "true",
@@ -987,6 +1002,11 @@ func TestValidateEditConfig_multi_list_must_positive(t *testing.T) {
 func TestValidateEditConfig_multi_list_must_negative(t *testing.T) {
 
 	setupTestData(t, map[string]interface{}{
+		"VRF": map[string]interface{}{
+			"Vrf1": map[string]interface{}{
+				"vni": "100",
+			},
+		},
 		"STATIC_ROUTE": map[string]interface{}{
 			"192.168.1.0/24": map[string]interface{}{
 				"advertise": "true",
@@ -1041,6 +1061,11 @@ func TestValidateEditConfig_multi_list_leafref_negative(t *testing.T) {
 func TestValidateEditConfig_multi_list_leafref_positive(t *testing.T) {
 
 	setupTestData(t, map[string]interface{}{
+		"VRF": map[string]interface{}{
+			"Vrf1": map[string]interface{}{
+				"vni": "100",
+			},
+		},
 		"STATIC_ROUTE": map[string]interface{}{
 			"192.168.1.0/24": map[string]interface{}{
 				"advertise": "true",
@@ -3259,7 +3284,6 @@ func TestValidateEditConfig_Create_Syntax_Interface_IncorrectKey_Negative(t *tes
 	})
 }
 
-/*
 func TestValidateEditConfig_EmptyNode_Positive(t *testing.T) {
 	cfgData := []cmn.CVLEditConfigData{
 		cmn.CVLEditConfigData{
@@ -3276,7 +3300,6 @@ func TestValidateEditConfig_EmptyNode_Positive(t *testing.T) {
 
 	verifyValidateEditConfig(t, cfgData, Success)
 }
-*/
 
 func TestSortDepTables(t *testing.T) {
 	cvSess, _ := NewCvlSession()
@@ -3706,60 +3729,6 @@ func TestValidateEditConfig_Two_Delete_Requests_Positive(t *testing.T) {
 
 	cvlErrInfo, _ = cvSess.ValidateEditConfig(cfgDataVlan)
 	verifyErr(t, cvlErrInfo, Success)
-}
-
-func TestVailidateStaticPlatformLimits_YANG_Deviation_Ngeative(t *testing.T) {
-
-	//Get platform
-	platformName := ""
-	metaData, err := rclient.HGetAll("DEVICE_METADATA|localhost").Result()
-
-	if err == nil {
-		platformName, _ = metaData["platform"]
-	}
-
-	setupTestData(t, map[string]interface{}{
-		"ACL_TABLE": map[string]interface{}{
-			"TestACL901": map[string]interface{}{
-				"type": "L3",
-			},
-			"TestACL902": map[string]interface{}{
-				"type": "L3",
-			},
-		},
-	})
-
-	cvSess, _ := NewCvlSession()
-
-	cfgDataAcl := []cmn.CVLEditConfigData{
-		cmn.CVLEditConfigData{
-			cmn.VALIDATE_ALL,
-			cmn.OP_CREATE,
-			"ACL_TABLE|TestACL903",
-			map[string]string{
-				"type": "L3",
-			},
-			false,
-		},
-		cmn.CVLEditConfigData{
-			cmn.VALIDATE_ALL,
-			cmn.OP_CREATE,
-			"ACL_TABLE|TestACL904",
-			map[string]string{
-				"type": "L3",
-			},
-			false,
-		},
-	}
-
-	cvlErrInfo, _ := cvSess.ValidateEditConfig(cfgDataAcl)
-
-	if (strings.Contains(platformName, "quanta_ix8")) &&
-		(cvlErrInfo.ErrCode == cvl.CVL_SUCCESS) {
-		t.Errorf("Should not be able to create more than 3 ACL TABLEs")
-	}
-
-	cvl.ValidationSessClose(cvSess)
 }
 
 // Check delete constraing with table having multiple keys

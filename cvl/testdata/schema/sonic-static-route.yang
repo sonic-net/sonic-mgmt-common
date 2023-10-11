@@ -70,6 +70,9 @@ module sonic-static-route {
             type string {
               pattern "Vrf[a-zA-Z0-9_-]+";
             }
+            type leafref {
+              path "/vrf:sonic-vrf/vrf:VRF/vrf:VRF_LIST/vrf:vrf_name";
+            }
           }
           description
             "Virtual Routing Instance name as key";

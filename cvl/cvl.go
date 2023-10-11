@@ -235,18 +235,11 @@ func init() {
 	}
 
 	//regular expression for leafref and hashref finding
-	//reLeafRef = regexp.MustCompile(`.*[/]([-_a-zA-Z]*:)?(.*)[/]([-_a-zA-Z]*:)?(.*)`)
 	reHashRef = regexp.MustCompile(`\[(.*)\|(.*)\]`)
-	//Regular expression to select key value
-	//reSelKeyVal = regexp.MustCompile("=[ ]*['\"]?([0-9_a-zA-Z]+)['\"]?|(current[(][)])")
-	//Regular expression to find leafref in xpath
-	//reLeafInXpath = regexp.MustCompile("(.*[:/]{1})([a-zA-Z0-9_-]+)([^a-zA-Z0-9_-]*)")
 
 	if Initialize() != CVL_SUCCESS {
 		CVL_LOG(FATAL, "CVL initialization failed")
 	}
-
-	//cvg.db = make(map[string]dbCachedData)
 
 	//Global session keeps the global cache
 	cvg.cv, _ = ValidationSessOpen(nil)
@@ -274,17 +267,6 @@ func init() {
 func Debug(on bool) {
 	yparser.Debug(on)
 }
-
-//Get attribute value of xml node
-/*func getXmlNodeAttr(node *xmlquery.Node, attrName string) string {
-	for _, attr := range node.Attr {
-		if (attrName == attr.Name.Local) {
-			return attr.Value
-		}
-	}
-
-	return ""
-}*/
 
 // isLeafListNode checks if the xml node represents a leaf-list field
 func isLeafListNode(node *xmlquery.Node) bool {
@@ -450,7 +432,9 @@ func getLeafRefTargetInfo(path string) ([]string, string) {
 	} else if idx = strings.LastIndex(path, "/"); idx > 0 { //no prefix there
 		target = path[idx+1:]
 	}
-
+	if len(tbl) != 1 {
+		panic("some error")
+	}
 	return tbl, target
 }
 
@@ -600,7 +584,7 @@ func buildRefTableInfo() {
 			depTableList = append(depTableList, tblInfo.refFromTables[i].tableName)
 		}
 
-		sortedTableList, _ := cvg.cv.SortDepTables(depTableList)
+		sortedTableList, _ := cvg.cv.sortDepTables(depTableList)
 		if len(sortedTableList) == 0 {
 			continue
 		}
@@ -632,6 +616,12 @@ func buildTableDependencies() {
 		if len(tblInfo.dependentOnTable) == 0 {
 			continue
 		}
+		//if pTblInfo, ok := modelInfo.tableInfo[tblInfo.dependentOnTable]; ok {
+		//	pTblInfo.dependentTables = append(pTblInfo.dependentTables, tblName)
+		//} else {
+		//	CVL_LOG(ERROR, "Dependent-on Table: %s does not exists", tblInfo.dependentOnTable)
+		//	continue
+		//}
 
 		idx := strings.LastIndex(tblInfo.dependentOnTable, "_LIST")
 		if idx > 0 {
@@ -1108,21 +1098,18 @@ func (c *CVL) doCustomValidation(node *xmlquery.Node,
 		}
 
 		//Call custom validation functions
+		pCustv := &custv.CustValidationCtxt{
+			ReqData:   custvCfg,
+			CurCfg:    curCustvCfg,
+			YNodeName: nodeName,
+			YNodeVal:  nodeVal,
+			YCur:      node,
+			SessCache: &(c.custvCache),
+			RClient:   c.dbAccess}
 		for _, custFunction := range custFuncs {
 			CVL_LOG(INFO_TRACE, "Calling custom validation function %s", custFunction)
-			pCustv := &custv.CustValidationCtxt{
-				ReqData:   custvCfg,
-				CurCfg:    curCustvCfg,
-				YNodeName: nodeName,
-				YNodeVal:  nodeVal,
-				YCur:      node,
-				SessCache: &(c.custvCache),
-				RClient:   c.dbAccess}
-
 			errObj := custv.InvokeCustomValidation(&custv.CustomValidation{}, custFunction, pCustv)
-
 			cvlErrObj = *(*CVLErrorInfo)(unsafe.Pointer(&errObj))
-
 			if cvlErrObj.ErrCode != CVL_SUCCESS {
 				CVL_LOG(WARNING, "Custom validation function %s - failed, Error = %v", custFunction, cvlErrObj)
 				return cvlErrObj
