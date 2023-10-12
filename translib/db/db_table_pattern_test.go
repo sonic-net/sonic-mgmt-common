@@ -20,7 +20,6 @@
 package db
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 )
@@ -97,9 +96,9 @@ func TestGetTablePatternCompOrig(t *testing.T) {
 	delete(tOrig.patterns, db.key2redis(&ts, Key{Comp: []string{"*"}}))
 
 	if !reflect.DeepEqual(tPat, tOrig) {
-		fmt.Println("\ntPat: \n", tPat)
-		fmt.Println("\ntOrig: \n", tOrig)
-		t.Errorf("GetTable() != GetTablePattern")
+		t.Log("\ntPat: \n", tPat)
+		t.Log("\ntOrig: \n", tOrig)
+		t.Error("GetTable() != GetTablePattern")
 	}
 }
 
@@ -116,9 +115,9 @@ func TestGetTablePatternCompOrigEmpty(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(tPat, tOrig) {
-		fmt.Println("\ntPat: \n", tPat)
-		fmt.Println("\ntOrig: \n", tOrig)
-		t.Errorf("Empty GetTable() != GetTablePattern")
+		t.Log("\ntPat: \n", tPat)
+		t.Log("\ntOrig: \n", tOrig)
+		t.Error("Empty GetTable() != GetTablePattern")
 	}
 }
 
