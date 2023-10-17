@@ -141,14 +141,12 @@ func (d *DB) GetTablePattern(ts *TableSpec, pat Key) (Table, error) {
 
 	keys = make([]Key, 0, len(tkNv)/2)
 	for i, v := range tkNv {
-		// glog.Info("GetTablePattern: i: ", i, " v: ", v)
 		if i%2 == 0 {
 			if redisKey, ok = v.(string); !ok {
 				err = tlerr.TranslibDBScriptFail{Description: "Unexpected key"}
 				return table, err
 			}
 		} else {
-			// glog.Info("GetTablePattern: i: ", i, " v: ", v)
 			if redisValue, ok = v.([]interface{}); !ok {
 				err = tlerr.TranslibDBScriptFail{Description: "Unexpected hash"}
 				return table, err

@@ -21,7 +21,6 @@ package transformer
 import (
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	log "github.com/golang/glog"
-	"github.com/openconfig/ygot/ygot"
 )
 
 func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string) error {
@@ -33,6 +32,7 @@ func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string) error {
 		}
 	}
 
+	inParams.pruneDone = new(bool)
 	xfmrLogDebug("Before calling dbToYang subtree xfmr %v, inParams %v", xfmrFuncNm, inParams)
 	ret, err := XlateFuncCall(dbToYangXfmrFunc(xfmrFuncNm), inParams)
 	xfmrLogDebug("After calling dbToYang subtree xfmr %v, inParams %v", xfmrFuncNm, inParams)
@@ -49,7 +49,7 @@ func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string) error {
 			}
 		}
 	}
-	if (err == nil) && inParams.queryParams.isEnabled() {
+	if (err == nil) && inParams.queryParams.isEnabled() && !(*inParams.pruneDone) {
 		log.Infof("xfmrPruneQP: func %v URI %v, requestUri %v",
 			xfmrFuncNm, inParams.uri, inParams.requestUri)
 		err = xfmrPruneQP(inParams.ygRoot, inParams.queryParams,
@@ -61,13 +61,6 @@ func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string) error {
 		}
 	}
 	return err
-}
-
-/*Place holder for xfmrPruneQP API */
-func xfmrPruneQP(ygRoot *ygot.GoStruct, queryParams QueryParams, uri string,
-	requestUri string) error {
-	// TODO
-	return nil
 }
 
 func leafXfmrHandlerFunc(inParams XfmrParams, xfmrFieldFuncNm string) (map[string]interface{}, error) {
