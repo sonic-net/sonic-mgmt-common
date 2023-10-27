@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/transformer"
 	"github.com/Azure/sonic-mgmt-common/translib/utils"
 	log "github.com/golang/glog"
+	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/ygot/util"
 	"github.com/openconfig/ygot/ygot"
 	"github.com/openconfig/ygot/ytypes"
@@ -45,6 +46,7 @@ type CommonApp struct {
 	body                []byte
 	ygotRoot            *ygot.GoStruct
 	ygotTarget          *interface{}
+	ygSchema            *yang.Entry
 	skipOrdTableChk     bool
 	cmnAppTableMap      map[int]map[db.DBNum]map[string]map[string]db.Value
 	cmnAppYangDefValMap map[string]map[string]db.Value
@@ -84,7 +86,7 @@ func init() {
 func (app *CommonApp) initialize(data appData) {
 	log.Info("initialize:path =", data.path)
 	pathInfo := NewPathInfo(data.path)
-	*app = CommonApp{pathInfo: pathInfo, body: data.payload, ygotRoot: data.ygotRoot, ygotTarget: data.ygotTarget, skipOrdTableChk: false}
+	*app = CommonApp{pathInfo: pathInfo, body: data.payload, ygotRoot: data.ygotRoot, ygotTarget: data.ygotTarget, skipOrdTableChk: false, ygSchema: data.ygSchema}
 	app.appOptions = data.appOptions
 
 }
@@ -426,7 +428,7 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 			resPayload = []byte("{}")
 			break
 		}
-		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams)
+		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams, app.ctxt, app.ygSchema)
 		if err != nil {
 			// target URI for list GET request with QP content!=all and node's content-type mismatches the requested content-type, return empty payload
 			if isEmptyPayload && qParams.IsContentEnabled() && transformer.IsListNode(app.pathInfo.Path) {
@@ -512,7 +514,7 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 				}
 			}
 			if resYgot != nil {
-				return generateGetResponse(app.pathInfo.Path, &resYgot, fmtType)
+				return generateGetResponse(app.pathInfo.Path, &resYgot, app.ygotTarget, fmtType)
 			} else {
 				resPayload = payload
 			}

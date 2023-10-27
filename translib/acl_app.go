@@ -205,7 +205,7 @@ func (app *AclApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (Ge
 		return GetResponse{Payload: payload, ErrSrc: AppErr}, err
 	}
 
-	return generateGetResponse(app.pathInfo.Path, app.ygotRoot, fmtType)
+	return generateGetResponse(app.pathInfo.Path, app.ygotRoot, app.ygotTarget, fmtType)
 }
 
 func (app *AclApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

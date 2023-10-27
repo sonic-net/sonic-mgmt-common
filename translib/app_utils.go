@@ -68,7 +68,7 @@ func getYangPathFromYgotStruct(s ygot.GoStruct, yangPathPrefix string, appModule
 	return ""
 }
 
-func generateGetResponse(targetUri string, root *ygot.GoStruct, fmtType TranslibFmtType) (GetResponse, error) {
+func generateGetResponse(targetUri string, root *ygot.GoStruct, ygotTarget *interface{}, fmtType TranslibFmtType) (GetResponse, error) {
 	var err error
 	var resp GetResponse
 

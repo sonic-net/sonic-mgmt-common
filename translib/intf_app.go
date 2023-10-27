@@ -518,7 +518,7 @@ func (app *IntfApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (G
 			}
 		}
 
-		return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
+		return generateGetResponse(pathInfo.Path, app.ygotRoot, app.ygotTarget, fmtType)
 	}
 
 	/* Get all Interfaces */
@@ -556,7 +556,7 @@ func (app *IntfApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (G
 		}
 	}
 
-	return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
+	return generateGetResponse(pathInfo.Path, app.ygotRoot, app.ygotTarget, fmtType)
 }
 
 func (app *IntfApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

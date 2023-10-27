@@ -48,6 +48,11 @@ type InternalError errordata
 // AuthorizationError indicates the user is not authorized for an operation.
 type AuthorizationError errordata
 
+type RequestContextCancelledError struct {
+	msg      string
+	CtxError error
+}
+
 /////////////
 
 func (e InvalidArgsError) Error() string {
@@ -98,3 +103,11 @@ func (e AuthorizationError) Error() string {
     return p.Sprintf(e.Format, e.Args...)
 }
 
+func (e RequestContextCancelledError) Error() string {
+	return e.msg + "; context error: " + e.CtxError.Error()
+}
+
+// RequestContextCancelled creates a RequestContextCancelledError
+func RequestContextCancelled(msg string, ctxErr error) RequestContextCancelledError {
+	return RequestContextCancelledError{msg, ctxErr}
+}

@@ -199,7 +199,7 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
     }
 
     if err == nil {
-        return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
+        return generateGetResponse(pathInfo.Path, app.ygotRoot, app.ygotTarget, fmtType)
     }
     return GetResponse{Payload: payload}, err
 }
