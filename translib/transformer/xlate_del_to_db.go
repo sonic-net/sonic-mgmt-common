@@ -118,7 +118,8 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 	separator := dbOpts.KeySeparator
 
 	if !isFirstCall {
-		xpathKeyExtRet, err := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache)
+		var dbs [db.MaxDB]*db.DB
+		xpathKeyExtRet, err := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache, dbs)
 		if err != nil {
 			xfmrLogDebug("Received error from xpathKeyExtract for URI : %v, error: %v", xlateParams.uri, err)
 			switch e := err.(type) {
@@ -145,7 +146,7 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 
 	xfmrLogDebug("tblList(%v), tbl(%v), key(%v)  for URI (\"%v\")", tblList, xlateParams.tableName, xlateParams.keyName, xlateParams.uri)
 	for _, tbl := range tblList {
-		curDbDataMap, ferr := fillDbDataMapForTbl(xlateParams.uri, xlateParams.xpath, tbl, keyName, cdb, dbs, xlateParams.dbTblKeyGetCache)
+		curDbDataMap, ferr := fillDbDataMapForTbl(xlateParams.uri, xlateParams.xpath, tbl, keyName, cdb, dbs, xlateParams.dbTblKeyGetCache, nil)
 		if (ferr == nil) && len(curDbDataMap) > 0 {
 			mapCopy((*dbDataMap)[cdb], curDbDataMap[cdb])
 		}
@@ -155,7 +156,8 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 	// We only need to traverse nested subtrees here
 	if isFirstCall && len(spec.xfmrFunc) == 0 {
 		parentUri := parentUriGet(xlateParams.uri)
-		xpathKeyExtRet, xerr := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, parentUri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache)
+		var dbs [db.MaxDB]*db.DB
+		xpathKeyExtRet, xerr := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, parentUri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache, dbs)
 		parentTbl = xpathKeyExtRet.tableName
 		parentKey = xpathKeyExtRet.dbKey
 		perr = xerr
@@ -174,7 +176,7 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 		if ok {
 			for dbKey := range tblData {
 				xfmrLogDebug("Process Tbl - %v with dbKey - %v", tbl, dbKey)
-				_, curUri, kerr := dbKeyToYangDataConvert(xlateParams.uri, xlateParams.requestUri, xlateParams.xpath, tbl, dbDataMap, dbKey, separator, xlateParams.txCache)
+				_, curUri, _, kerr := dbKeyToYangDataConvert(xlateParams.uri, xlateParams.requestUri, xlateParams.xpath, tbl, xlateParams.d, dbs, dbDataMap, dbKey, separator, xlateParams.txCache, xlateParams.oper)
 				if kerr != nil {
 					continue
 				}
@@ -185,8 +187,8 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 				// Not required to check for table inheritence case here as we have a subtree and subtree is already processed before we get here
 				// We only need to traverse nested subtrees here
 				if len(spec.xfmrFunc) == 0 {
-
-					xpathKeyExtRet, xerr := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache)
+					var dbs [db.MaxDB]*db.DB
+					xpathKeyExtRet, xerr := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache, dbs)
 					curKey = xpathKeyExtRet.dbKey
 					curTbl = xpathKeyExtRet.tableName
 					cerr = xerr
@@ -376,7 +378,8 @@ func yangContainerDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map
 	// Not required to process parent and current table as subtree is already invoked before we get here
 	// We only need to traverse nested subtrees here
 	if len(spec.xfmrFunc) == 0 {
-		xpathKeyExtRet, cerr := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache)
+		var dbs [db.MaxDB]*db.DB
+		xpathKeyExtRet, cerr := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache, dbs)
 		curKey = xpathKeyExtRet.dbKey
 		curTbl = xpathKeyExtRet.tableName
 		if cerr != nil {
@@ -393,7 +396,8 @@ func yangContainerDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map
 
 		if isFirstCall {
 			parentUri := parentUriGet(xlateParams.uri)
-			parentXpathKeyExtRet, perr := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, parentUri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache)
+			var dbs [db.MaxDB]*db.DB
+			parentXpathKeyExtRet, perr := xpathKeyExtract(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, parentUri, xlateParams.requestUri, nil, xlateParams.subOpDataMap, xlateParams.txCache, xlateParams.xfmrDbTblKeyCache, dbs)
 			parentTbl := parentXpathKeyExtRet.tableName
 			parentKey := parentXpathKeyExtRet.dbKey
 			if perr == nil && cerr == nil && len(curTbl) > 0 {
@@ -584,7 +588,7 @@ func dbMapDelete(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 	var exists bool
 	var dbs [db.MaxDB]*db.DB
 	subOpMapDiscard := make(map[Operation]*RedisDbMap)
-	exists, err = verifyParentTable(d, dbs, ygRoot, oper, uri, nil, txCache, subOpMapDiscard)
+	exists, err = verifyParentTable(d, dbs, ygRoot, oper, uri, nil, txCache, subOpMapDiscard, nil)
 	xfmrLogDebug("verifyParentTable() returned - exists - %v, err - %v", exists, err)
 	if err != nil {
 		if exists {
@@ -613,7 +617,8 @@ func dbMapDelete(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 			return err
 		}
 	} else {
-		xpathKeyExtRet, err := xpathKeyExtract(d, ygRoot, oper, uri, requestUri, nil, subOpDataMap, txCache, nil)
+		var dbs [db.MaxDB]*db.DB
+		xpathKeyExtRet, err := xpathKeyExtract(d, ygRoot, oper, uri, requestUri, nil, subOpDataMap, txCache, nil, dbs)
 		if err != nil {
 			return err
 		}

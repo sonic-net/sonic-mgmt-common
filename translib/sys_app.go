@@ -340,7 +340,7 @@ func (app *SysApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (Ge
 		return GetResponse{Payload: payload}, errors.New("Not implemented processGet, path: ")
 	}
 
-	return generateGetResponse(app.path.Path, app.ygotRoot, fmtType)
+	return generateGetResponse(app.path.Path, app.ygotRoot, app.ygotTarget, fmtType)
 }
 
 func (app *SysApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

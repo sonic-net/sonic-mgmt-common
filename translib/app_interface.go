@@ -30,12 +30,14 @@ to the tranlib infra when it asks for the same.
 package translib
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	log "github.com/golang/glog"
+	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -53,6 +55,7 @@ type appData struct {
 	payload    []byte
 	ygotRoot   *ygot.GoStruct
 	ygotTarget *interface{}
+	ygSchema   *yang.Entry
 	appOptions
 }
 
@@ -60,24 +63,27 @@ type appData struct {
 // These include RESTCONF query parameters like - depth, fields etc.
 type appOptions struct {
 
-        // depth limits subtree levels in the response data.
-        // 0 indicates unlimited depth.
-        // Valid for GET API only.
-        depth uint
+	// depth limits subtree levels in the response data.
+	// 0 indicates unlimited depth.
+	// Valid for GET API only.
+	depth uint
 
-        // content query parameter value receved from the URI
-        // possible value is one of 'config', 'nonconfig','all','state' or 'operational'
-        // Valid for GET API only.
-        content string
+	// content query parameter value receved from the URI
+	// possible value is one of 'config', 'nonconfig','all','state' or 'operational'
+	// Valid for GET API only.
+	content string
 
-        //fields query parameters
-        // paths of the fields that needs to be filtered in GET payload response
-        // Valid for GET API only.
-        fields []string
+	//fields query parameters
+	// paths of the fields that needs to be filtered in GET payload response
+	// Valid for GET API only.
+	fields []string
 
 	// deleteEmptyEntry indicates if the db entry should be deleted upon
 	// deletion of last field. This is a non standard option.
 	deleteEmptyEntry bool
+
+	// ctxt request context
+	ctxt context.Context
 }
 
 // map containing the base path to app module info

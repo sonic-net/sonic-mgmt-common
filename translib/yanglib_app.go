@@ -162,7 +162,7 @@ func (app *yanglibApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType)
 
 	if err == nil {
 		var root ygot.GoStruct = app.ygotRoot
-		resp, err = generateGetResponse(app.pathInfo.Path, &root, fmtType)
+		resp, err = generateGetResponse(app.pathInfo.Path, &root, app.ygotTarget, fmtType)
 	}
 
 	return resp, err

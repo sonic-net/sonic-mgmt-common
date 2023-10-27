@@ -226,7 +226,7 @@ func (app *lldpApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (G
         }
    }
 
-   return generateGetResponse(app.path.Path, app.ygotRoot, fmtType)
+   return generateGetResponse(app.path.Path, app.ygotRoot, app.ygotTarget, fmtType)
 }
 
 func (app *lldpApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

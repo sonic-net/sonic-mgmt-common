@@ -19,6 +19,7 @@
 package transformer
 
 import (
+	"context"
 	"sync"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -54,6 +55,7 @@ type XfmrParams struct {
 	queryParams          QueryParams
 	pruneDone            *bool
 	invokeCRUSubtreeOnce *bool
+	ctxt                 context.Context
 }
 
 // SubscProcType represents subcription process type identifying the type of subscription request made from translib.

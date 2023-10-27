@@ -23,12 +23,13 @@ import (
 	log "github.com/golang/glog"
 )
 
-func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string) error {
+func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string, ygotCtx *ygotUnMarshalCtx) error {
 	const DBTY_SBT_XFMR_RET_ERR_INDX = 0
 	if inParams.uri != inParams.requestUri {
-		_, yerr := xlateUnMarshallUri(inParams.ygRoot, inParams.uri)
+		yerr := ygotXlator{ygotCtx}.translate()
 		if yerr != nil {
 			xfmrLogDebug("Failed to generate the ygot Node for uri(\"%v\") err(%v).", inParams.uri, yerr)
+			return yerr
 		}
 	}
 
@@ -53,8 +54,8 @@ func xfmrHandlerFunc(inParams XfmrParams, xfmrFuncNm string) error {
 		log.Infof("xfmrPruneQP: func %v URI %v, requestUri %v",
 			xfmrFuncNm, inParams.uri, inParams.requestUri)
 		err = xfmrPruneQP(inParams.ygRoot, inParams.queryParams,
-			inParams.uri, inParams.requestUri)
-		if err != nil {
+			inParams.uri, inParams.requestUri, inParams.ctxt)
+		if err != nil && !isReqContextCancelledError(err) {
 			xfmrLogInfo("xfmrPruneQP: returned error %v", err)
 			// following will allow xfmr to distinguish subtree vs pruning API err to abort GET request
 			err = &qpSubtreePruningErr{subtreePath: inParams.uri}
