@@ -1,0 +1,76 @@
+module openconfig-file-mgmt-private-annot {
+
+    yang-version "1.1";
+
+    namespace "http://openconfig.net/yang/file-mgmt-private-annot";
+    prefix "oc-file-mgmt-private-annot";
+
+    import sonic-extensions {
+        prefix sonic-ext;
+    }
+
+    import openconfig-file-mgmt-private {
+        prefix oc-file-mgmt-private;
+    }
+
+    deviation /oc-file-mgmt-private:dir {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_dir_cb";
+        }
+    }
+
+    deviation /oc-file-mgmt-private:copy {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_copy_cb";
+        }
+    }
+
+    deviation /oc-file-mgmt-private:delete-file {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_delete_cb";
+        }
+    }
+
+    deviation /oc-file-mgmt-private:write-erase {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_write_erase";
+        }
+    }
+
+    deviation /oc-file-mgmt-private:factory-default-profile {
+        deviate add {
+            sonic-ext:rpc-callback "rpc_factory_default_profile";
+        }
+    }
+
+    deviation /oc-file-mgmt-private:config-reload/oc-file-mgmt-private:state {
+        deviate add {
+            sonic-ext:table-name "CFG_RELOAD";
+            sonic-ext:key-transformer "config_reload_key_xfmr";
+            sonic-ext:db-name "STATE_DB";
+        }
+    }
+
+    deviation /oc-file-mgmt-private:config-reload/oc-file-mgmt-private:state/oc-file-mgmt-private:start-time {
+        deviate add {
+            sonic-ext:field-name "cfg_reload_start_time";
+        }
+    }
+
+    deviation /oc-file-mgmt-private:config-reload/oc-file-mgmt-private:state/oc-file-mgmt-private:end-time {
+        deviate add {
+            sonic-ext:field-name "cfg_reload_end_time";
+        }
+    }
+
+    deviation /oc-file-mgmt-private:config-reload/oc-file-mgmt-private:state/oc-file-mgmt-private:state {
+        deviate add {
+            sonic-ext:field-name "cfg_reload_state";
+        }
+    }
+    deviation /oc-file-mgmt-private:config-reload/oc-file-mgmt-private:state/oc-file-mgmt-private:state-detail {
+        deviate add {
+            sonic-ext:field-name "cfg_reload_state_detail";
+        }
+    }
+}
