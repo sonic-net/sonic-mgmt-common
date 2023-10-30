@@ -353,10 +353,7 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) ([]typeMapOfInterfa
 			curMap := make(map[string]interface{})
 			sonicKeyDataAdd(dbIdx, yangKeys, table, xDbSpecMap[xpath].dbEntry.Name, keyStr, curMap, inParamsForGet.oper)
 			if len(curMap) > 0 {
-				linParamsForGet := formXlateFromDbParams(inParamsForGet.dbs[dbIdx], inParamsForGet.dbs, dbIdx,
-					inParamsForGet.ygRoot, inParamsForGet.uri, inParamsForGet.requestUri, xpath,
-					inParamsForGet.oper, table, keyStr, dbDataMap, inParamsForGet.txCache,
-					curMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
+				linParamsForGet := formXlateFromDbParams(inParamsForGet.dbs[dbIdx], inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, inParamsForGet.uri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, keyStr, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 				if err = sonicDbToYangDataFill(linParamsForGet); err != nil {
 					return mapSlice, err
 				}
@@ -417,16 +414,14 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) error {
 						fldName = fldName + "@"
 					}
 					curUri := inParamsForGet.uri + "/" + yangChldName
-					linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot,
-						curUri, inParamsForGet.requestUri, curUri, inParamsForGet.oper, table, key,
-						dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate,
-						inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
+					linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, curUri, inParamsForGet.requestUri, chldXpath, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 					dbEntry := yangNode.dbEntry.Dir[yangChldName]
 					sonicDbToYangTerminalNodeFill(fldName, linParamsForGet, dbEntry)
 					resultMap = linParamsForGet.resultMap
 					inParamsForGet.resultMap = resultMap
 				} else if chldYangType == YANG_CONTAINER {
-					curUri := xpath + "/" + yangChldName
+					curMap := make(map[string]interface{})
+					curUri := uri + "/" + yangChldName
 					if len(inParamsForGet.queryParams.fields) > 0 {
 						if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[chldXpath]; ok {
 							inParamsForGet.queryParams.fieldsFillAll = true
@@ -458,11 +453,7 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) error {
 					}
 					// use table-name as xpath from now on
 					d := inParamsForGet.dbs[xDbSpecMap[curTable].dbIndex]
-					curMap := make(map[string]interface{})
-					linParamsForGet := formXlateFromDbParams(d, inParamsForGet.dbs, xDbSpecMap[curTable].dbIndex,
-						inParamsForGet.ygRoot, curUri, inParamsForGet.requestUri, curTable, inParamsForGet.oper,
-						curTable, curKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate,
-						inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
+					linParamsForGet := formXlateFromDbParams(d, inParamsForGet.dbs, xDbSpecMap[curTable].dbIndex, inParamsForGet.ygRoot, curUri, inParamsForGet.requestUri, chldXpath, inParamsForGet.oper, curTable, curKey, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 					if err = sonicDbToYangDataFill(linParamsForGet); err != nil {
 						return err
 					}
@@ -603,10 +594,7 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 				if yangType == YANG_LEAF_LIST {
 					fieldName = fieldName + "@"
 				}
-				linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, cdb, inParamsForGet.ygRoot,
-					xpath, inParamsForGet.requestUri, uri, inParamsForGet.oper, table, key, dbDataMap,
-					inParamsForGet.txCache, resultMap, inParamsForGet.validate,
-					inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
+				linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, cdb, inParamsForGet.ygRoot, xpath, inParamsForGet.requestUri, uri, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 				sonicDbToYangTerminalNodeFill(fieldName, linParamsForGet, dbEntry)
 				resultMap = linParamsForGet.resultMap
 			} else if yangType == YANG_CONTAINER {
