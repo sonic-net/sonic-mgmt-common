@@ -19,14 +19,15 @@
 package translib
 
 import (
+    "errors"
     "reflect"
     "strconv"
-    "errors"
+
     "github.com/Azure/sonic-mgmt-common/translib/db"
     "github.com/Azure/sonic-mgmt-common/translib/ocbinds"
     "github.com/Azure/sonic-mgmt-common/translib/tlerr"
-    "github.com/openconfig/ygot/ygot"
     log "github.com/golang/glog"
+    "github.com/openconfig/ygot/ygot"
 )
 
 type PlatformApp struct {
@@ -199,7 +200,8 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
     }
 
     if err == nil {
-        return generateGetResponse(pathInfo.Path, app.ygotRoot, app.ygotTarget, fmtType)
+        resPayload, valueTree, respErr := generateGetResponsePayload(pathInfo.Path, (*app.ygotRoot).(*ocbinds.Device), app.ygotTarget, fmtType)
+        return GetResponse{Payload: resPayload, ValueTree: valueTree}, respErr
     }
     return GetResponse{Payload: payload}, err
 }

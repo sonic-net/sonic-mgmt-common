@@ -36,7 +36,6 @@ import (
 	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/ygot/util"
 	"github.com/openconfig/ygot/ygot"
-	"github.com/openconfig/ygot/ytypes"
 )
 
 var ()
@@ -413,6 +412,7 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 	var err error
 	var payload []byte
 	var resPayload []byte
+	var valueTree ygot.ValidatedGoStruct
 	log.Info("processGet:path =", app.pathInfo.Path)
 	txCache := new(sync.Map)
 	isSonicUri := strings.HasPrefix(app.pathInfo.Path, "/sonic")
@@ -479,12 +479,13 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 			}
 		}
 		if targetObj != nil {
-			updateListEntriesOpt := ytypes.AllowUpdateInListMap{}
-			err = ocbinds.Unmarshal(payload, targetObj, &updateListEntriesOpt)
-			if err != nil {
-				log.Warning("ocbinds.Unmarshal()  returned : ", err)
-				resPayload = payload
-				break
+			if isSonicUri {
+				err = ocbinds.Unmarshal(payload, targetObj)
+				if err != nil {
+					log.Warning("ocbinds.Unmarshal()  returned : ", err)
+					resPayload = payload
+					break
+				}
 			}
 
 			resYgot := (*app.ygotRoot)
@@ -514,7 +515,11 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 				}
 			}
 			if resYgot != nil {
-				return generateGetResponse(app.pathInfo.Path, &resYgot, app.ygotTarget, fmtType)
+				resPayload, valueTree, err = generateGetResponsePayload(app.pathInfo.Path, resYgot.(*ocbinds.Device), app.ygotTarget, fmtType)
+				if err != nil {
+					log.Warning("generateGetResponsePayload() couldn't generate payload.")
+					resPayload = payload
+				}
 			} else {
 				resPayload = payload
 			}
@@ -526,7 +531,7 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 		}
 	}
 
-	return GetResponse{Payload: resPayload}, err
+	return GetResponse{Payload: resPayload, ValueTree: valueTree}, err
 }
 
 func (app *CommonApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

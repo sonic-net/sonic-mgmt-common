@@ -160,12 +160,13 @@ func (app *yanglibApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType)
 		app.ygotRoot.ModulesState = ylib
 	}
 
-	if err == nil {
-		var root ygot.GoStruct = app.ygotRoot
-		resp, err = generateGetResponse(app.pathInfo.Path, &root, app.ygotTarget, fmtType)
+	if err != nil {
+		return resp, err
 	}
 
-	return resp, err
+	var root ygot.GoStruct = app.ygotRoot
+	resPayload, valueTree, err := generateGetResponsePayload(app.pathInfo.Path, (root).(*ocbinds.Device), app.ygotTarget, fmtType)
+	return GetResponse{Payload: resPayload, ValueTree: valueTree}, err
 }
 
 // copyOneModuleInfo fills one module from given ygot IETFYangLibrary_ModulesState
