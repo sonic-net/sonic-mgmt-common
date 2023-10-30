@@ -964,14 +964,14 @@ func Test_WholeList_PartialKey(t *testing.T) {
 }
 
 func Test_Validate_Handler_Get(t *testing.T) {
-	prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"color-hold-time": "10"}}, "TEST_SENSOR_A_TABLE": map[string]interface{}{"test_group_1|sensor_type_a_testA": map[string]interface{}{"exclude_filter": "filter_filterA1"}}, "TEST_SENSOR_B_TABLE": map[string]interface{}{"test_group_1|sensor_type_b_testB": map[string]interface{}{"exclude_filter": "filter_filterB"}},"TEST_SENSOR_A_LIGHT_SENSOR_TABLE": map[string]interface{}{"test_group_1|sensor_type_a_testA|light_sensor_1": map[string]interface{}{"light-intensity-measure": 6}}}
+	prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"color-hold-time": "10"}}, "TEST_SENSOR_A_TABLE": map[string]interface{}{"test_group_1|sensor_type_a_testA": map[string]interface{}{"exclude_filter": "filter_filterA1"}}, "TEST_SENSOR_B_TABLE": map[string]interface{}{"test_group_1|sensor_type_b_testB": map[string]interface{}{"exclude_filter": "filter_filterB"}}, "TEST_SENSOR_A_LIGHT_SENSOR_TABLE": map[string]interface{}{"test_group_1|sensor_type_a_testA|light_sensor_1": map[string]interface{}{"light-intensity-measure": 6}}}
 	// Setup - Prerequisite
-        loadDB(db.ConfigDB, prereq)
+	loadDB(db.ConfigDB, prereq)
 	t.Log("++++++++++++++  Test_Validate_Handler_Get +++++++++++++")
-        url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/test-sensor-types/test-sensor-type"
-        get_expected := "{\"openconfig-test-xfmr:test-sensor-type\":[{\"config\":{\"exclude-filter\":\"filterA1\",\"type\":\"sensora_testA\"},\"sensor-a-light-sensors\":{\"sensor-a-light-sensor\":[{\"config\":{\"light-intensity-measure\":6,\"tag\":\"lightsensor_1\"},\"state\":{\"light-intensity-measure\":6,\"tag\":\"lightsensor_1\"},\"tag\":\"lightsensor_1\"}]},\"state\":{\"exclude-filter\":\"filterA1\",\"type\":\"sensora_testA\"},\"type\":\"sensora_testA\"},{\"config\":{\"exclude-filter\":\"filterB\",\"type\":\"sensorb_testB\"},\"state\":{\"exclude-filter\":\"filterB\",\"type\":\"sensorb_testB\"},\"type\":\"sensorb_testB\"}]}"
+	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/test-sensor-types/test-sensor-type"
+	get_expected := "{\"openconfig-test-xfmr:test-sensor-type\":[{\"config\":{\"exclude-filter\":\"filterA1\",\"type\":\"sensora_testA\"},\"sensor-a-light-sensors\":{\"sensor-a-light-sensor\":[{\"config\":{\"light-intensity-measure\":6,\"tag\":\"lightsensor_1\"},\"state\":{\"light-intensity-measure\":6,\"tag\":\"lightsensor_1\"},\"tag\":\"lightsensor_1\"}]},\"state\":{\"exclude-filter\":\"filterA1\",\"type\":\"sensora_testA\"},\"type\":\"sensora_testA\"},{\"config\":{\"exclude-filter\":\"filterB\",\"type\":\"sensorb_testB\"},\"state\":{\"exclude-filter\":\"filterB\",\"type\":\"sensorb_testB\"},\"type\":\"sensorb_testB\"}]}"
 	//light sensor child nodes are valid/filled only for sensora type of parent
 	t.Run("Test Get on list with children having validate handler", processGetRequest(url, nil, get_expected, false))
 	// Teardown
-        unloadDB(db.ConfigDB, prereq)
+	unloadDB(db.ConfigDB, prereq)
 }

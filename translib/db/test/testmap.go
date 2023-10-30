@@ -23,12 +23,11 @@ import (
 	"fmt"
 	// "errors"
 	"flag"
-	"github.com/golang/glog"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/golang/glog"
 	// "time"
 	// "github.com/Azure/sonic-mgmt-common/translib/tlerr"
 )
-
 
 func handler(d *db.DB, skey *db.SKey, key *db.Key, event db.SEvent) error {
 	fmt.Println("***handler: d: ", d, " skey: ", *skey, " key: ", *key,
@@ -36,21 +35,20 @@ func handler(d *db.DB, skey *db.SKey, key *db.Key, event db.SEvent) error {
 	return nil
 }
 
-
 func main() {
 	defer glog.Flush()
 
 	flag.Parse()
 
-	tsc := db.TableSpec { Name: "COUNTERS_PORT_NAME_MAP" }
+	tsc := db.TableSpec{Name: "COUNTERS_PORT_NAME_MAP"}
 
 	fmt.Println("Creating the SubscribeDB ==============")
-	d,e := db.NewDB(db.Options {
-	                DBNo              : db.CountersDB,
-	                InitIndicator     : "",
-	                TableNameSeparator: ":",
-	                KeySeparator      : ":",
-                      })
+	d, e := db.NewDB(db.Options{
+		DBNo:               db.CountersDB,
+		InitIndicator:      "",
+		TableNameSeparator: ":",
+		KeySeparator:       ":",
+	})
 
 	if e != nil {
 		fmt.Println("NewDB() returns error e: ", e)
@@ -84,14 +82,13 @@ func main() {
 
 	fmt.Println("r2, r5, r3", r2, r5, r3)
 
-
 	fmt.Println("GetMap NotExist mapKey ==============")
 	rN, e := d.GetMap(&tsc, "EthernetN")
 	if e == nil {
 		fmt.Println("GetMap() NotExist mapKey returns nil !!! ", rN)
 	}
 
-	vN, e := d.GetMapAll(& db.TableSpec { Name: "NOTEXITMAP" } )
+	vN, e := d.GetMapAll(&db.TableSpec{Name: "NOTEXITMAP"})
 	if e == nil {
 		fmt.Println("GetMapAll() NotExist returns nil !!! ", vN)
 	}

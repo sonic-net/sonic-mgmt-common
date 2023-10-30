@@ -258,8 +258,8 @@ func (app *IntfApp) translateGet(dbs [db.MaxDB]*db.DB) error {
 }
 
 func (app *IntfApp) translateAction(dbs [db.MaxDB]*db.DB) error {
-    err := errors.New("Not supported")
-    return err
+	err := errors.New("Not supported")
+	return err
 }
 
 func (app *IntfApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
@@ -560,10 +560,10 @@ func (app *IntfApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (G
 }
 
 func (app *IntfApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
-    var resp ActionResponse
-    err := errors.New("Not implemented")
+	var resp ActionResponse
+	err := errors.New("Not implemented")
 
-    return resp, err
+	return resp, err
 }
 
 /* Checking IP adderss is v4 */

@@ -22,10 +22,10 @@ package translib
 import (
 	"encoding/xml"
 	"fmt"
-	"os"
-	"path/filepath"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/golang/glog"
+	"os"
+	"path/filepath"
 )
 
 // theYangBundleVersion indicates the current yang bundle version.
