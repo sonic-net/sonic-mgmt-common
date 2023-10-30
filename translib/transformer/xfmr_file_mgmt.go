@@ -47,7 +47,6 @@ func copy_action(body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
 	var result []byte
 	var options []string
 	var query_result HostResult
-	var source, destination, option string
 
 	var operand struct {
 		Input struct {
@@ -72,30 +71,25 @@ func copy_action(body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
 		glog.Error("Copy input not provided.")
 		err = errors.New("Input parameters missing.")
 	} else {
-		source = operand.Input.Source
-		destination = operand.Input.Destination
-		option = operand.Input.Copy_option
 
-		if source != "running-configuration" || destination != "startup-configuration" || option == "REPLACE" {
+		if operand.Input.Source != "running-configuration" || operand.Input.Destination != "startup-configuration" {
 			return nil, errors.New("rpc_copy_cb: Only supports running-configuration -> startup-configuration")
 		}
 
-		options = append(options, source)
-		options = append(options, destination)
-		glog.Infof("Invoke cfg_mgmt.save ")
+		glog.Infof("Invoke cfg_mgmt.save %v", options)
 		query_result = HostQuery("cfg_mgmt.save", options)
 	}
 
 	sum.Output.Status = 1
 	if err != nil {
 		sum.Output.Status_detail = err.Error()
-		glog.Infof("Error: File management host Query error : err=%v", err.Error())
-	} else if query_result.Body[0].(int32) != 0 {
-		glog.Infof("Error: File management host Query error")
-		sum.Output.Status_detail = query_result.Body[1].(string)
+		glog.Errorf("Error: File management host Query error : err=%v", err.Error())
 	} else if query_result.Err != nil {
-		glog.Infof("Error: File management host Query failed for copy: err=%v", query_result.Err)
+		glog.Errorf("Error: File management host Query failed for copy: err=%v", query_result.Err)
 		sum.Output.Status_detail = query_result.Err.Error()
+	} else if query_result.Body[0].(int32) != 0 {
+		glog.Error("Error: File management host Query error")
+		sum.Output.Status_detail = query_result.Body[1].(string)
 	} else {
 		sum.Output.Status = 0
 		sum.Output.Status_detail = "SUCCESS."
