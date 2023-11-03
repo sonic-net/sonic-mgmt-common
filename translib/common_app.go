@@ -529,7 +529,6 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 			break
 		}
 	}
-
 	return resp, err
 }
 
