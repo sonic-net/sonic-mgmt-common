@@ -518,8 +518,7 @@ func (app *IntfApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (G
 			}
 		}
 
-		resPayload, valueTree, err := generateGetResponsePayload(pathInfo.Path, (*app.ygotRoot).(*ocbinds.Device), app.ygotTarget, fmtType)
-		return GetResponse{Payload: resPayload, ValueTree: valueTree}, err
+		return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
 	}
 
 	/* Get all Interfaces */
@@ -557,8 +556,7 @@ func (app *IntfApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (G
 		}
 	}
 
-	resPayload, valueTree, err := generateGetResponsePayload(pathInfo.Path, (*app.ygotRoot).(*ocbinds.Device), app.ygotTarget, fmtType)
-	return GetResponse{Payload: resPayload, ValueTree: valueTree}, err
+	return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
 }
 
 func (app *IntfApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

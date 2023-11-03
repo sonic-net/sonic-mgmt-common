@@ -410,9 +410,8 @@ func (app *CommonApp) processDelete(d *db.DB) (SetResponse, error) {
 
 func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
 	var err error
+	var resp GetResponse
 	var payload []byte
-	var resPayload []byte
-	var valueTree ygot.ValidatedGoStruct
 	log.Info("processGet:path =", app.pathInfo.Path)
 	txCache := new(sync.Map)
 	isSonicUri := strings.HasPrefix(app.pathInfo.Path, "/sonic")
@@ -425,7 +424,7 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 		qParams, err = transformer.NewQueryParams(app.depth, app.content, app.fields)
 		if err != nil {
 			log.Warning("transformer.NewQueryParams() returned : ", err)
-			resPayload = []byte("{}")
+			resp.Payload = []byte("{}")
 			break
 		}
 		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams, app.ctxt, app.ygSchema)
@@ -439,17 +438,17 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 			if err != nil {
 				log.Warning("transformer.GetAndXlateFromDB() returned : ", err)
 			}
-			resPayload = payload
+			resp.Payload = payload
 			break
 		}
 		if isSonicUri && isEmptyPayload {
 			log.Info("transformer.GetAndXlateFromDB() returned EmptyPayload")
-			resPayload = payload
+			resp.Payload = payload
 			break
 		}
 		if isEmptyPayload && (app.depth == 1) && !transformer.IsLeafNode(app.pathInfo.Path) && !transformer.IsLeafListNode(app.pathInfo.Path) {
 			// target URI for Container or list GET request with depth = 1, returns empty payload
-			resPayload = payload
+			resp.Payload = payload
 			break
 		}
 
@@ -462,19 +461,19 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 			parentTargetObj, _, getParentNodeErr := getParentNode(&targetUri, (*app.ygotRoot).(*ocbinds.Device))
 			if getParentNodeErr != nil {
 				log.Warningf("getParentNode() failure for URI %v", app.pathInfo.Path)
-				resPayload = payload
+				resp.Payload = payload
 				break
 			}
 			if parentTargetObj != nil {
 				targetObj, tgtObjCastOk = (*parentTargetObj).(ygot.GoStruct)
 				if !tgtObjCastOk {
 					log.Warningf("Casting of parent object returned from getParentNode() to GoStruct failed(uri - %v)", app.pathInfo.Path)
-					resPayload = payload
+					resp.Payload = payload
 					break
 				}
 			} else {
 				log.Warningf("getParentNode() returned a nil Object for URI %v", app.pathInfo.Path)
-				resPayload = payload
+				resp.Payload = payload
 				break
 			}
 		}
@@ -483,7 +482,7 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 				err = ocbinds.Unmarshal(payload, targetObj)
 				if err != nil {
 					log.Warning("ocbinds.Unmarshal()  returned : ", err)
-					resPayload = payload
+					resp.Payload = payload
 					break
 				}
 			}
@@ -496,13 +495,13 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 						// No data available in appYgotStruct.
 						if transformer.IsLeafNode(app.pathInfo.Path) {
 							//if leaf not exist in DB subtree won't fill ygotRoot, as per RFC return err
-							resPayload = payload
+							resp.Payload = payload
 							log.Info("No data found for leaf.")
 							err = tlerr.NotFound("Resource not found")
 							break
 						}
 						if !qParams.IsEnabled() {
-							resPayload = payload
+							resp.Payload = payload
 							log.Info("No data available")
 							//TODO: Return not found error
 							//err = tlerr.NotFound("Resource not found")
@@ -515,23 +514,23 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 				}
 			}
 			if resYgot != nil {
-				resPayload, valueTree, err = generateGetResponsePayload(app.pathInfo.Path, resYgot.(*ocbinds.Device), app.ygotTarget, fmtType)
+				resp, err = generateGetResponse(app.pathInfo.Path, &resYgot, fmtType)
 				if err != nil {
-					log.Warning("generateGetResponsePayload() couldn't generate payload.")
-					resPayload = payload
+					log.Warning("generateGetResponse() couldn't generate payload.")
+					resp.Payload = payload
 				}
 			} else {
-				resPayload = payload
+				resp.Payload = payload
 			}
 			break
 		} else {
 			log.Warning("processGet. targetObj is null. Unable to Unmarshal payload")
-			resPayload = payload
+			resp.Payload = payload
 			break
 		}
 	}
 
-	return GetResponse{Payload: resPayload, ValueTree: valueTree}, err
+	return resp, err
 }
 
 func (app *CommonApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

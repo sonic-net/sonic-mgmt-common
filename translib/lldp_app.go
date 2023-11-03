@@ -226,8 +226,7 @@ func (app *lldpApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (G
         }
    }
 
-    resPayload, valueTree, respErr := generateGetResponsePayload(app.path.Path, (*app.ygotRoot).(*ocbinds.Device), app.ygotTarget, fmtType)
-    return GetResponse{Payload: resPayload, ValueTree: valueTree}, respErr
+    return generateGetResponse(app.path.Path, app.ygotRoot, fmtType)
 }
 
 func (app *lldpApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
