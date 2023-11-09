@@ -1282,8 +1282,6 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 		log.Warningf(err.Error())
 		return err
 	}
-	validate := inParamsForGet.validate
-	isValid := validate
 	dbs := inParamsForGet.dbs
 	ygRoot := inParamsForGet.ygRoot
 	uri := inParamsForGet.uri
