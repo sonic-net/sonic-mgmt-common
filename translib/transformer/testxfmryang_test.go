@@ -818,8 +818,11 @@ func Test_OC_Sonic_OneOnOne_Composite_KeyMapping(t *testing.T) {
 	unloadDB(db.ConfigDB, parent_prereq)
 }
 
-/*Test OC List having config container with leaves, that are referenced by list key-leafs and have no annotation.
-  Also covers the list's state container that have leaves same as list keys */
+/*
+Test OC List having config container with leaves, that are referenced by list key-leafs and have no annotation.
+
+	Also covers the list's state container that have leaves same as list keys
+*/
 func Test_NodeWithListHavingConfigLeafRefByKey_OC_Yang(t *testing.T) {
 
 	t.Log("++++++++++++++  Test_set_on_OC_yang_node_with_list_having_config_leaf_referenced_by_list_key  +++++++++++++")

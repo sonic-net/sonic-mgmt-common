@@ -137,8 +137,8 @@ func (app *apiTests) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (
 	resp["message"] = app.echoMsg
 	resp["path"] = app.path
 	resp["depth"] = app.depth
-        resp["content"] = app.content
-        resp["fields"] = app.fields
+	resp["content"] = app.content
+	resp["fields"] = app.fields
 
 	gr.Payload, err = json.Marshal(&resp)
 	return gr, err

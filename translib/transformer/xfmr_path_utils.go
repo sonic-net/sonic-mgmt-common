@@ -22,8 +22,8 @@ type PathInfo struct {
 
 // HasVar checks if the PathInfo contains given variable.
 func (p *PathInfo) HasVar(name string) bool {
-   _, exists := p.Vars[name]
-   return exists
+	_, exists := p.Vars[name]
+	return exists
 }
 
 // Var returns the string value for a path variable. Returns
@@ -51,14 +51,14 @@ func NewPathInfo(path string) *PathInfo {
 
 		name := readUntil(r, '=')
 		value := readUntil(r, ']')
-               // Handle duplicate parameter names by suffixing "#N" to it.
-               // N is the number of occurance of that parameter name.
-               if info.HasVar(name) {
-                   namePrefix := name
-                   for k := 2; info.HasVar(name); k++ {
-                       name = fmt.Sprintf("%s#%d", namePrefix, k)
-                   }
-               }
+		// Handle duplicate parameter names by suffixing "#N" to it.
+		// N is the number of occurance of that parameter name.
+		if info.HasVar(name) {
+			namePrefix := name
+			for k := 2; info.HasVar(name); k++ {
+				name = fmt.Sprintf("%s#%d", namePrefix, k)
+			}
+		}
 
 		if len(name) != 0 {
 			fmt.Fprintf(&template, "{}")
@@ -72,22 +72,22 @@ func NewPathInfo(path string) *PathInfo {
 }
 
 func readUntil(r *strings.Reader, delim byte) string {
-        var buff strings.Builder
-        var escaped bool
+	var buff strings.Builder
+	var escaped bool
 
-        for {
-                c, err := r.ReadByte()
-                if err != nil || (c == delim && !escaped) {
-                        break
-                } else if c == '\\' && !escaped {
-                        escaped = true
-                } else {
-                        escaped = false
-                        buff.WriteByte(c)
-                }
-        }
+	for {
+		c, err := r.ReadByte()
+		if err != nil || (c == delim && !escaped) {
+			break
+		} else if c == '\\' && !escaped {
+			escaped = true
+		} else {
+			escaped = false
+			buff.WriteByte(c)
+		}
+	}
 
-        return buff.String()
+	return buff.String()
 }
 
 // SplitPath splits the ygot path into parts.

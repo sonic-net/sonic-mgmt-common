@@ -1141,8 +1141,11 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 	}
 }
 
-/* This function checks the existence of Parent tables in DB for the given URI request
-   and returns a boolean indicating if the operation is permitted based on the operation type*/
+/*
+This function checks the existence of Parent tables in DB for the given URI request
+
+	and returns a boolean indicating if the operation is permitted based on the operation type
+*/
 func verifyParentTable(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, dbData RedisDbMap, txCache interface{}, subOpDataMap map[Operation]*RedisDbMap) (bool, error) {
 	xfmrLogDebug("Checking for Parent table existence for uri: %v", uri)
 	if isSonicYang(uri) {
