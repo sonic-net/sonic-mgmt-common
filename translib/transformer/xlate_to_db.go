@@ -277,7 +277,7 @@ func sonicYangReqToDbMapCreate(xlateParams xlateToParams) error {
 		for _, key := range data.MapKeys() {
 			_, ok := xDbSpecMap[key.String()]
 			if ok {
-				directDbMapData("", key.String(), data.MapIndex(key).Interface(), xlateParams.result)
+				directDbMapData("", key.String(), data.MapIndex(key).Interface(), xlateParams.result, xlateParams.yangDefValMap)
 			} else {
 				curXlateParams := xlateParams
 				curXlateParams.jsonData = data.MapIndex(key).Interface()
@@ -330,7 +330,7 @@ func dbMapDataFill(uri string, tableName string, keyName string, d map[string]in
 	}
 }
 
-func dbMapTableChildListDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
+func dbMapTableChildListDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value, yangDefValMap map[string]map[string]db.Value) {
 	data := reflect.ValueOf(jsonData)
 	tblKeyName := strings.Split(dbEntry.Key, " ")
 	for idx := 0; idx < data.Len(); idx++ {
@@ -350,19 +350,50 @@ func dbMapTableChildListDataFill(uri string, tableName string, dbEntry *yang.Ent
 			delete(d, k)
 		}
 		dbMapDataFill(uri, tableName, keyName, d, result)
+		sonicDefaultFieldValFill(dbEntry, tableName, keyName, result, yangDefValMap)
+		if len(result[tableName][keyName].Field) == 0 {
+			dataToDBMapAdd(tableName, keyName, result, "NULL", "NULL") // redis needs atleast one field:val to create an instance
+		}
 	}
 }
 
-func dbMapTableChildContainerDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
+func dbMapTableChildContainerDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value, yangDefValMap map[string]map[string]db.Value) {
 	data := reflect.ValueOf(jsonData).Interface().(map[string]interface{})
 	keyName := dbEntry.Name
 	xfmrLogDebug("Container name %v will become table key.", keyName)
 	dbMapDataFill(uri, tableName, keyName, data, result)
+	sonicDefaultFieldValFill(dbEntry, tableName, keyName, result, yangDefValMap)
+	if len(result[tableName][keyName].Field) == 0 {
+		dataToDBMapAdd(tableName, keyName, result, "NULL", "NULL") // redis needs atleast one field:val to create an instance
+	}
 }
 
-func directDbMapData(uri string, tableName string, jsonData interface{}, result map[string]map[string]db.Value) bool {
-	_, ok := xDbSpecMap[tableName]
-	if ok && xDbSpecMap[tableName].dbEntry != nil {
+func sonicDefaultFieldValFill(parentDbEntry *yang.Entry, tableName string, tableKey string,
+	result map[string]map[string]db.Value, yangDefValMap map[string]map[string]db.Value) {
+	if parentDbEntry == nil {
+		xfmrLogDebug("dbEntry whose children with default values are to be found is nil")
+		return
+	}
+	for field := range parentDbEntry.Dir {
+		fieldXpath := tableName + "/" + field
+		dbEntry := parentDbEntry.Dir[field]
+		if _, fieldOk := xDbSpecMap[fieldXpath]; fieldOk && (len(dbEntry.Default) > 0) {
+			if _, ok := result[tableName][tableKey].Field[field]; !ok {
+				fVal, err := unmarshalJsonToDbData(dbEntry, fieldXpath, field, dbEntry.Default)
+				if err != nil {
+					xfmrLogDebug("Couldn't unmarshal Json to DbData: path(\"%v\") error (\"%v\").", fieldXpath, err)
+				} else {
+					dataToDBMapAdd(tableName, tableKey, yangDefValMap, field, fVal)
+				}
+			}
+		}
+	}
+
+}
+
+func directDbMapData(uri string, tableName string, jsonData interface{}, result map[string]map[string]db.Value, yangDefValMap map[string]map[string]db.Value) bool {
+	dbSpecData, ok := xDbSpecMap[tableName]
+	if ok && dbSpecData.dbEntry != nil {
 		data := reflect.ValueOf(jsonData).Interface().(map[string]interface{})
 		key := ""
 		dbSpecData := xDbSpecMap[tableName]
@@ -372,6 +403,7 @@ func directDbMapData(uri string, tableName string, jsonData interface{}, result 
 			key = *dbSpecData.keyName
 			xfmrLogDebug("Fill data for container uri(%v), key(%v)", uri, key)
 			dbMapDataFill(uri, tableName, key, data, result)
+			sonicDefaultFieldValFill(dbSpecData.dbEntry, tableName, key, result, yangDefValMap)
 			return true
 		}
 
@@ -383,10 +415,10 @@ func directDbMapData(uri string, tableName string, jsonData interface{}, result 
 				switch eType {
 				case YANG_LIST:
 					xfmrLogDebug("Fill data for list %v child of table level node %v", k, tableName)
-					dbMapTableChildListDataFill(uri, tableName, curDbSpecData.dbEntry, v, result)
+					dbMapTableChildListDataFill(uri, tableName, curDbSpecData.dbEntry, v, result, yangDefValMap)
 				case YANG_CONTAINER:
 					xfmrLogDebug("Fill data for container %v child of table level node %v", k, tableName)
-					dbMapTableChildContainerDataFill(uri, tableName, curDbSpecData.dbEntry, v, result)
+					dbMapTableChildContainerDataFill(uri, tableName, curDbSpecData.dbEntry, v, result, yangDefValMap)
 				default:
 					xfmrLogDebug("Invalid node type for uri(%v)", uri)
 				}
@@ -535,7 +567,7 @@ func dbMapDefaultFieldValFill(xlateParams xlateToParams, tblUriList []string) er
 									_, ok = xlateParams.result[tblName][dbKey].Field[childNode.fieldName]
 									if !ok {
 										if len(childNode.defVal) > 0 {
-											curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, childXpath, dbKey, xlateParams.jsonData, xlateParams.resultMap, xlateParams.yangDefValMap, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, &xfmrErr, childName, childNode.defVal, tblName, xlateParams.invokeCRUSubtreeOnceMap)
+											curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, childXpath, dbKey, xlateParams.jsonData, xlateParams.resultMap, xlateParams.yangDefValMap, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, &xfmrErr, childName, childNode.defVal, tblName, xlateParams.invokeCRUSubtreeOnceMap, nil, nil)
 											err := mapFillDataUtil(curXlateParams)
 											if err != nil {
 												log.Warningf("Default/AuxMap Value filling. Received error %v from %v", err, childNode.fieldName)
@@ -619,12 +651,11 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 		return tlerr.NotFoundError{Format: errStr}
 	}
 
-	xlateToData := formXlateToDbParam(d, ygRoot, oper, root, uri, "", "", jsonData, resultMap, result, txCache, tblXpathMap, subOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", "", invokeSubtreeOnceMap)
-
 	moduleNm := "/" + strings.Split(uri, "/")[1]
 	xfmrLogInfo("Module name for URI %s is %s", uri, moduleNm)
 
 	if isSonicYang(uri) {
+		xlateToData := formXlateToDbParam(d, ygRoot, oper, root, uri, "", "", jsonData, resultMap, result, txCache, tblXpathMap, subOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", "", nil, yangDefValMap, nil)
 		err = sonicYangReqToDbMapCreate(xlateToData)
 		xpathPrefix, keyName, tableName := sonicXpathKeyExtract(uri)
 		xfmrLogDebug("xpath - %v, keyName - %v, tableName - %v , for URI - %v", xpathPrefix, keyName, tableName, uri)
@@ -659,6 +690,7 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 			resultMap[oper][db.ConfigDB] = result
 		}
 	} else {
+		xlateToData := formXlateToDbParam(d, ygRoot, oper, root, uri, "", "", jsonData, resultMap, result, txCache, tblXpathMap, subOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", "", invokeSubtreeOnceMap, nil, nil)
 		/* Invoke pre-xfmr is present for the YANG module */
 		if xYangModSpecMap != nil {
 			if modSpecInfo, specOk := xYangModSpecMap[moduleNm]; specOk && (len(modSpecInfo.xfmrPre) > 0) {
@@ -688,9 +720,7 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 			defSubOpDataMap := make(map[Operation]*RedisDbMap)
 			if ok {
 				xfmrLogInfo("Fill default value for %v, oper(%v)\r\n", uri, oper)
-				curXlateToParams := formXlateToDbParam(d, ygRoot, oper, uri, requestUri, xpath, "", jsonData, resultMap, result, txCache, tblXpathMap, defSubOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", "", invokeSubtreeOnceMap)
-				curXlateToParams.yangDefValMap = yangDefValMap
-				curXlateToParams.yangAuxValMap = yangAuxValMap
+				curXlateToParams := formXlateToDbParam(d, ygRoot, oper, uri, requestUri, xpath, "", jsonData, resultMap, result, txCache, tblXpathMap, defSubOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", "", invokeSubtreeOnceMap, yangDefValMap, yangAuxValMap)
 				err = dbMapDefaultValFill(curXlateToParams)
 				if err != nil {
 					return err
@@ -876,7 +906,7 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 			} else {
 				curKey = keyCreate(xlateParams, curUri, data)
 			}
-			curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, xlateParams.xpath, curKey, data, xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, "", "", "", xlateParams.invokeCRUSubtreeOnceMap)
+			curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, xlateParams.xpath, curKey, data, xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, "", "", "", xlateParams.invokeCRUSubtreeOnceMap, nil, nil)
 			retErr = yangReqToDbMapCreate(curXlateParams)
 		}
 	} else {
@@ -981,7 +1011,7 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 							}
 						}
 					}
-					curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, xpath, curKey, jData.MapIndex(key).Interface(), xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, "", "", "", xlateParams.invokeCRUSubtreeOnceMap)
+					curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, xpath, curKey, jData.MapIndex(key).Interface(), xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, "", "", "", xlateParams.invokeCRUSubtreeOnceMap, nil, nil)
 					retErr = yangReqToDbMapCreate(curXlateParams)
 				} else {
 					pathAttr := key.String()
@@ -1001,7 +1031,7 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 							if len(xYangSpecMap[xpath].xfmrFunc) == 0 {
 								value := jData.MapIndex(key).Interface()
 								xfmrLogDebug("data field: key(\"%v\"), value(\"%v\").", key, value)
-								curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, xlateParams.xpath, curKey, xlateParams.jsonData, xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, pathAttr, value, "", xlateParams.invokeCRUSubtreeOnceMap)
+								curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, xlateParams.xpath, curKey, xlateParams.jsonData, xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, pathAttr, value, "", xlateParams.invokeCRUSubtreeOnceMap, nil, nil)
 								retErr = mapFillData(curXlateParams)
 								if retErr != nil {
 									log.Warningf("Failed constructing data for db write: key(\"%v\"), value(\"%v\"), path(\"%v\").",
@@ -1364,7 +1394,9 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 		if xpathKeyExtRet.isVirtualTbl {
 			return true, nil
 		}
-		if len(xpathKeyExtRet.tableName) > 0 && len(xpathKeyExtRet.dbKey) > 0 {
+		if !((strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/"))) { //uri points to entire list
+			return true, nil
+		} else if len(xpathKeyExtRet.tableName) > 0 && len(xpathKeyExtRet.dbKey) > 0 {
 			// Read the table entry from DB
 			exists := false
 			var derr error
@@ -1398,8 +1430,6 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 			} else {
 				return true, nil
 			}
-		} else if !((strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/"))) { //uri points to entire list
-			return true, nil
 		} else {
 			log.Warningf("Parent table check: Unable to get valid table and key err: %v, table %v, key %v. Please verify table and key mapping", xerr, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey)
 			return false, xerr

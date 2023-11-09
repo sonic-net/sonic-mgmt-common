@@ -41,7 +41,6 @@ import (
 func initRegex() {
 	rgpIpv6 = regexp.MustCompile(`(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?`)
 	rgpMac = regexp.MustCompile(`([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$`)
-	rgpIsMac = regexp.MustCompile(`^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$`)
 
 }
 
@@ -203,8 +202,14 @@ func dbKeyToYangDataConvert(uri string, requestUri string, xpath string, tableNa
 		}
 	}
 
+	oneOnOnemapping := hasSameOcSonicKeys(uri, xpath, tableName)
 	keyNameList := yangKeyFromEntryGet(xYangSpecMap[xpath].yangEntry)
-	keyDataList := strings.SplitN(dbKey, dbKeySep, -1)
+	var keyDataList []string
+	if len(keyNameList) == 1 && oneOnOnemapping {
+		keyDataList = append(keyDataList, dbKey)
+	} else {
+		keyDataList = strings.SplitN(dbKey, dbKeySep, -1)
+	}
 	uriWithKey := fmt.Sprintf("%v", xpath)
 	uriWithKeyCreate := true
 	if len(keyDataList) == 0 {
@@ -247,7 +252,7 @@ func dbKeyToYangDataConvert(uri string, requestUri string, xpath string, tableNa
 
 	rmap := make(map[string]interface{})
 	keyNameValSame := len(keyNameList) == len(keyDataList)
-	if len(keyNameList) > 1 && !keyNameValSame && !hasSameOcSonicKeys(uri, xpath, tableName) {
+	if len(keyNameList) > 1 && !keyNameValSame && !oneOnOnemapping {
 		log.Warningf("No key transformer found for multi element yang key mapping to a single redis key string, for uri %v", uri)
 		errStr := fmt.Sprintf("Error processing key for list %v", uri)
 		err = fmt.Errorf("%v", errStr)
@@ -336,10 +341,6 @@ func hasMacAddString(val string) bool {
 	return rgpMac.MatchString(val)
 }
 
-func isMacAddString(val string) bool {
-	return rgpIsMac.MatchString(val)
-}
-
 func getYangTerminalNodeTypeName(xpathPrefix string, keyName string) string {
 	keyXpath := xpathPrefix + "/" + keyName
 	dbEntry := getYangEntryForXPath(keyXpath)
@@ -353,7 +354,7 @@ func getYangTerminalNodeTypeName(xpathPrefix string, keyName string) string {
 	return ""
 }
 
-func sonicKeyDataAdd(dbIndex db.DBNum, keyNameList []string, xpathPrefix string, listNm string, keyStr string, resultMap map[string]interface{}) {
+func sonicKeyDataAdd(dbIndex db.DBNum, keyNameList []string, xpathPrefix string, listNm string, keyStr string, resultMap map[string]interface{}, isPartialKeyForOc bool) {
 	var dbOpts db.Options
 	var keyValList []string
 	xfmrLogDebug("sonicKeyDataAdd keyNameList:%v, keyStr:%v", keyNameList, keyStr)
@@ -382,15 +383,19 @@ func sonicKeyDataAdd(dbIndex db.DBNum, keyNameList []string, xpathPrefix string,
 	dbOpts = getDBOptions(dbIndex)
 	keySeparator := dbOpts.KeySeparator
 	/* num of key separators will be less than number of keys */
-	if len(keyNameList) == 1 && keySeparator == ":" {
-		yngTerminalNdTyName := getYangTerminalNodeTypeName(xpathPrefix, keyNameList[0])
-		if yngTerminalNdTyName == "mac-address" && isMacAddString(keyStr) {
-			keyValList = strings.SplitN(keyStr, keySeparator, len(keyNameList))
-		} else if (yngTerminalNdTyName == "ip-address" || yngTerminalNdTyName == "ip-prefix" || yngTerminalNdTyName == "ipv6-prefix" || yngTerminalNdTyName == "ipv6-address") && hasIpv6AddString(keyStr) {
-			keyValList = strings.SplitN(keyStr, keySeparator, len(keyNameList))
-		} else {
-			keyValList = strings.SplitN(keyStr, keySeparator, -1)
-			xfmrLogDebug("Single key non ipv6/mac address for : separator")
+	if len(keyNameList) == 1 {
+		if tblSpecInfo, ok := xDbSpecMap[xpathPrefix]; ok && tblSpecInfo != nil {
+			if len(tblSpecInfo.listName) > 1 {
+				/* Multi list table case.keyStr may be of list having more than 1 key-element
+				   So as not to incorrectly map such keyStr to list with single key-element
+				   split the keyStr.If the keyStr is that of list having single key-element
+				   no split will happen and mapping will be correct.Note if key-value in keyStr
+				   contains separator then app will need key-xfmr.
+				*/
+				keyValList = strings.SplitN(keyStr, keySeparator, -1)
+			} else {
+				keyValList = append(keyValList, keyStr)
+			}
 		}
 	} else if strings.Count(keyStr, keySeparator) == len(keyNameList)-1 {
 		/* number of keys will match number of key values */
@@ -427,17 +432,26 @@ func sonicKeyDataAdd(dbIndex db.DBNum, keyNameList []string, xpathPrefix string,
 	xfmrLogDebug("yang keys list - %v, xpathprefix - %v, DB-key string - %v, DB-key list after db key separator split - %v, dbIndex - %v", keyNameList, xpathPrefix, keyStr, keyValList, dbIndex)
 
 	if len(keyNameList) != len(keyValList) {
-		return
+		// In case of partial key available in keyStr for Open Config cases try to return data for partial key only.
+		// Other cases it is always expected to have same number of keys in keyStr as defined in sonic yang
+		if !isPartialKeyForOc {
+			return
+		}
 	}
 
+	nDbKeyComp := len(keyValList)
 	for i, keyName := range keyNameList {
 		keyXpath := xpathPrefix + "/" + keyName
 		dbEntry := getYangEntryForXPath(keyXpath)
 		var resVal interface{}
-		resVal = keyValList[i]
+		if isPartialKeyForOc && (i >= nDbKeyComp) {
+			resVal = ""
+		} else {
+			resVal = keyValList[i]
+		}
 		if dbEntry == nil {
 			log.Warningf("xDbSpecMap entry not found or is nil for xpath %v, hence data-type conversion cannot happen", keyXpath)
-		} else {
+		} else if resVal != "" {
 			yngTerminalNdDtType := dbEntry.Type.Kind
 			var err error
 			resVal, _, err = DbToYangType(yngTerminalNdDtType, keyXpath, keyValList[i])
@@ -1111,7 +1125,7 @@ func hasKeyValueXfmr(tblName string) bool {
 	return false
 }
 
-func dbKeyValueXfmrHandler(oper Operation, dbNum db.DBNum, tblName string, dbKey string) (string, error) {
+func dbKeyValueXfmrHandler(oper Operation, dbNum db.DBNum, tblName string, dbKey string, isPartialKeyForOc bool) (string, error) {
 	var err error
 	var keyValList []string
 
@@ -1123,13 +1137,13 @@ func dbKeyValueXfmrHandler(oper Operation, dbNum db.DBNum, tblName string, dbKey
 			keyMap := make(map[string]interface{})
 
 			if specListInfo, ok := xDbSpecMap[listXpath]; ok && len(specListInfo.keyList) > 0 {
-				sonicKeyDataAdd(dbNum, specListInfo.keyList, tblName, lname, dbKey, keyMap)
+				sonicKeyDataAdd(dbNum, specListInfo.keyList, tblName, lname, dbKey, keyMap, isPartialKeyForOc)
 
 				if len(keyMap) == len(specListInfo.keyList) {
 					for _, kname := range specListInfo.keyList {
 						keyXpath := tblName + "/" + kname
 						curKeyVal := fmt.Sprintf("%v", keyMap[kname])
-						if kInfo, ok := xDbSpecMap[keyXpath]; ok && xDbSpecMap[keyXpath].xfmrValue != nil {
+						if kInfo, ok := xDbSpecMap[keyXpath]; ok && xDbSpecMap[keyXpath].xfmrValue != nil && curKeyVal != "" {
 							inParams := formXfmrDbInputRequest(oper, dbNum, tblName, dbKey, kname, curKeyVal)
 							curKeyVal, err = valueXfmrHandler(inParams, *kInfo.xfmrValue)
 							if err != nil {
@@ -1147,6 +1161,10 @@ func dbKeyValueXfmrHandler(oper Operation, dbNum db.DBNum, tblName string, dbKey
 
 	dbOpts := getDBOptions(dbNum)
 	retKey := strings.Join(keyValList, dbOpts.KeySeparator)
+	// Make sure to remove the extra separators included for empty strings in keyValList in case of Partial key
+	if isPartialKeyForOc {
+		retKey = strings.TrimRight(retKey, dbOpts.KeySeparator)
+	}
 	xfmrLogDebug("dbKeyValueXfmrHandler: tbl(%v), dbKey(%v), retKey(%v), keyValList(%v)",
 		tblName, dbKey, retKey, keyValList)
 
@@ -1183,7 +1201,7 @@ func dbDataXfmrHandler(resultMap map[Operation]map[db.DBNum]map[string]map[strin
 
 							/* split tblkey and invoke value-xfmr if present */
 							if hasKeyValueXfmr(tblName) {
-								retKey, err := dbKeyValueXfmrHandler(oper, dbNum, tblName, dbKey)
+								retKey, err := dbKeyValueXfmrHandler(oper, dbNum, tblName, dbKey, false)
 								if err != nil {
 									return err
 								}
@@ -1226,7 +1244,7 @@ func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot 
 	return inParamsForGet
 }
 
-func formXlateToDbParam(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, requestUri string, xpathPrefix string, keyName string, jsonData interface{}, resultMap map[Operation]RedisDbMap, result map[string]map[string]db.Value, txCache interface{}, tblXpathMap map[string]map[string]map[string]bool, subOpDataMap map[Operation]*RedisDbMap, pCascadeDelTbl *[]string, xfmrErr *error, name string, value interface{}, tableName string, invokeSubtreeOnceMap map[string]map[string]bool) xlateToParams {
+func formXlateToDbParam(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, requestUri string, xpathPrefix string, keyName string, jsonData interface{}, resultMap map[Operation]RedisDbMap, result map[string]map[string]db.Value, txCache interface{}, tblXpathMap map[string]map[string]map[string]bool, subOpDataMap map[Operation]*RedisDbMap, pCascadeDelTbl *[]string, xfmrErr *error, name string, value interface{}, tableName string, invokeSubtreeOnceMap map[string]map[string]bool, yangDefValMap map[string]map[string]db.Value, yangAuxValMap map[string]map[string]db.Value) xlateToParams {
 	var inParamsForSet xlateToParams
 	inParamsForSet.d = d
 	inParamsForSet.ygRoot = ygRoot
@@ -1247,6 +1265,8 @@ func formXlateToDbParam(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri str
 	inParamsForSet.value = value
 	inParamsForSet.tableName = tableName
 	inParamsForSet.invokeCRUSubtreeOnceMap = invokeSubtreeOnceMap
+	inParamsForSet.yangDefValMap = yangDefValMap
+	inParamsForSet.yangAuxValMap = yangAuxValMap
 
 	return inParamsForSet
 }
@@ -1437,7 +1457,7 @@ func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bo
 			if oper == GET { //value tranformer callback decides based on oper type
 				oper = CREATE
 			}
-			retKey, err := dbKeyValueXfmrHandler(oper, d.Opts.DBNo, tableName, dbKey)
+			retKey, err := dbKeyValueXfmrHandler(oper, d.Opts.DBNo, tableName, dbKey, false)
 			if err != nil {
 				return false, err
 			}
@@ -2489,4 +2509,43 @@ func extractLeafValFromUriKey(uri string, keyLeafNm string) string {
 	}
 	xfmrLogDebug("Returning value %v for leaf %v", keyLeafVal, keyLeafNm)
 	return keyLeafVal
+}
+
+func verifyPartialKeyForOc(uri string, xpath string, dbKey string) bool {
+
+	/* This function checks if the DB key mapped to the table at oc yang list uri is partial key having only parent key instance. In all other cases its expected to have proper data returned by the key-xfmr */
+	xfmrLogInfo("Verify Partial key for uri %v, key %v", uri, dbKey)
+	isPartialKey := false
+
+	// Partial key is supported for OC yang only. For Sonic yang always expect correct number of keys for the list to avoid ambiguity for multi list case.
+	if isSonicYang(uri) {
+		return isPartialKey
+	}
+
+	// Check the dbKey is valid string
+	if len(dbKey) == 0 {
+		return isPartialKey
+	}
+
+	xpathInfo, ok := xYangSpecMap[xpath]
+	if !ok {
+		xfmrLogDebug("No entry found in xYangSpecMap for URI - %v", uri)
+		return isPartialKey
+	}
+
+	// Check if uri is whole list without instance. For uri with list instance we expect the key xfmr or the 1:1 mapping to give the exact key and not partial key
+	if xpathInfo.yangType == YANG_LIST {
+		if (strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/")) {
+			return isPartialKey
+		}
+		/* For a whole list case, if valid dbKey is available, return isPartislKey as true.
+		   Sonic multiple lists cases we will not be able to evaluate partial key as same table can have possibility of multiple number of keys. key-xfmr is expected for such cases */
+		isPartialKey = true
+	} else {
+		/* non list case we expect the key-xfmr to return correct key */
+		xfmrLogInfo("Verify Partial key: Non partial key - list instance case. Expect correct key from key xfmr")
+		return isPartialKey
+	}
+	xfmrLogInfo("Verify Partial key for uri %v, key %v returns %v", uri, dbKey, isPartialKey)
+	return isPartialKey
 }

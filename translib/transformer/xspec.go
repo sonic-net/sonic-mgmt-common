@@ -324,6 +324,9 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 		}
 
 		parentXpathData, ok := xYangSpecMap[xpathPrefix]
+		if ok && parentXpathData == nil {
+			ok = false
+		}
 		/* init current xpath table data with its parent data, change only if needed. */
 		if ok && xpathData.tableName == nil {
 			if xpathData.tableName == nil && parentXpathData.tableName != nil && xpathData.xfmrTbl == nil {
@@ -474,9 +477,11 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 
 			xpathData.keyXpath = make(map[int]*[]string, (parentKeyLen + 1))
 			k := 0
-			for ; k < parentKeyLen; k++ {
-				/* copy parent key-list to child key-list*/
-				xpathData.keyXpath[k] = parentXpathData.keyXpath[k]
+			if parentXpathData != nil {
+				for ; k < parentKeyLen; k++ {
+					/* copy parent key-list to child key-list*/
+					xpathData.keyXpath[k] = parentXpathData.keyXpath[k]
+				}
 			}
 			xpathData.keyXpath[k] = &keyXpath
 			xpathData.keyLevel = curKeyLevel

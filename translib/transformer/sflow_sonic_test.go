@@ -57,7 +57,7 @@ func Test_node_sonic_sflow(t *testing.T) {
 
 	// Verify global configurations
 	url = "/sonic-sflow:sonic-sflow/SFLOW/global"
-	url_body_json = "{\"sonic-sflow:global\":{\"admin_state\":\"up\",\"agent_id\":\"Ethernet4\",\"polling_interval\":100}}"
+	url_body_json = "{\"sonic-sflow:global\":{\"admin_state\":\"up\",\"agent_id\":\"Ethernet4\",\"polling_interval\":100,\"sample_direction\":\"rx\"}}"
 	t.Run("Verify sFlow global configurations", processGetRequest(url, nil, url_body_json, false))
 
 	//Delete sflow global configurations

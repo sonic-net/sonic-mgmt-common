@@ -125,9 +125,46 @@ module openconfig-test-xfmr {
                    of sensor types as a sensor grouping";
                 uses test-sensor-type-config;
               }
+
+              container sensor-a-light-sensors {
+                description
+                  "Top level container to hold a set of sensor
+                   a type light sensors grouped together";
+
+                list sensor-a-light-sensor {
+                  key "tag";
+                  description
+                    "List of sensor a type light sensors together
+                     comprise a test sensor a grouping.";
+
+                  leaf tag {
+                    type leafref {
+                      path "../config/tag";
+                    }
+                    description
+                      "Reference to the id of interest";
+                  }
+
+                  container config {
+                    description
+                      "Configuration parameters to configure a set
+                       of ligt sensors as a sensor a grouping";
+                    uses sensor-a-light-sensor-config;
+                  }
+
+                  container state {
+                    config false;
+                    description
+                      "Parameters of a set ligt sensors
+                       as a sensor a grouping";
+                    uses sensor-a-light-sensor-config;
+                  }
+                }
+              }
             }
           }
           uses test-sensor-components-top;
+	  uses test-sensor-zones-top;
         }
       }
   }
@@ -347,6 +384,26 @@ module openconfig-test-xfmr {
       }
   }
 
+  grouping sensor-a-light-sensor-config {
+    description
+      "Configuration parameters relating to the
+       grouping of sensor a light sensors";
+      leaf tag {
+        type string {
+          pattern "lightsensor_[0-9]*";
+        }
+        description
+          "light sensor tag-id";
+      }
+
+      leaf light-intensity-measure {
+        type uint32;
+        default 5;
+        description
+          "Light intenity needed for sensing";
+      }
+  }
+
   grouping test-set-config { 
     description 
       "Test set config"; 
@@ -492,6 +549,57 @@ module openconfig-test-xfmr {
         }
       }
   }
+
+  grouping test-sensor-zones-top {
+      container test-sensor-zones {
+          description
+              "Top level container to hold a set of sensor
+               zones grouped together";
+
+          list test-sensor-zone {
+              key "zone";
+              description
+                "List of zones of sensors which together
+                 comprise a test sensor grouping.";
+
+              leaf zone {
+                type leafref {
+                  path "../config/zone";
+                }
+                description
+                  "Reference to the sensor zone";
+              }
+
+              container config {
+                description
+                  "Configuration parameters to configure zone of a sensor grouping";
+		  leaf zone {
+                    type string;
+                    description
+                      "Reference to the sensor zone";
+                  }
+                 leaf description {
+                   type string;
+                   description
+                    "global sensor description";
+                 }
+              }
+
+              container state {
+                config false;
+                description
+                  "State data of the configured zones of a sensor grouping";
+		leaf zone {
+                  type string;
+                  description
+                    "Reference to the sensor zone";
+                }
+              }
+          }
+      }
+  }
+
+
 
   grouping interfaces-config {
     description
