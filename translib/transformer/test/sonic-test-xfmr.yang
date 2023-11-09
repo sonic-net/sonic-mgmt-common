@@ -36,6 +36,7 @@ module sonic-test-xfmr {
 
         			leaf color-hold-time {
 			            type uint32;
+			            default 10;
 			            description "Hold time";
 			        }
 			}
@@ -90,6 +91,37 @@ module sonic-test-xfmr {
 			}
 		}
 
+		container TEST_SENSOR_A_LIGHT_SENSOR_TABLE {
+
+			list TEST_SENSOR_A_LIGHT_SENSOR_TABLE_LIST {
+				key "id type tag";
+
+				leaf id {
+					type leafref {
+						path "../../../TEST_SENSOR_A_TABLE/TEST_SENSOR_A_TABLE_LIST/id";
+					}
+				}
+
+				leaf type {
+					type leafref {
+						path "../../../TEST_SENSOR_A_TABLE/TEST_SENSOR_A_TABLE_LIST/type";
+					}
+				}
+
+				leaf tag {
+					type string {
+			                        pattern "light_sensor_[0-9]*";
+                                        }
+				}
+
+				leaf light-intensity-measure {
+					type uint32;
+                                       default 5;
+				}
+
+			}
+		}
+
                 container TEST_SENSOR_B_TABLE {
 
                         list TEST_SENSOR_B_TABLE_LIST {
@@ -131,6 +163,24 @@ module sonic-test-xfmr {
                                 }
 
                                 leaf version {
+                                    type string;
+                                }
+
+                                leaf description {
+                                    type string;
+                                }
+                        }
+                }
+
+                container TEST_SENSOR_ZONE_TABLE {
+                        list TEST_SENSOR_ZONE_TABLE_LIST {
+                                key "id zone";
+
+                                leaf id {
+                                    type string;
+                                }
+
+                               leaf zone {
                                     type string;
                                 }
 
@@ -193,6 +243,36 @@ module sonic-test-xfmr {
                                         type string;
                                  }
                                  leaf description {
+                                        type string;
+                                 }
+                                 leaf reset-time {
+                                       type uint32;
+                                       default 5;
+                                 }
+                        }
+                }
+
+                container TEST_INTERFACE_MODE_TABLE {
+                        list TEST_INTERFACE_MODE_TABLE_LIST {
+                                key "name";
+
+                                leaf name {
+                                        type string;
+                                }
+                                leaf description {
+                                        type string;
+                                }
+                        }
+                        list TEST_INTERFACE_MODE_TABLE_IPADDR_LIST {
+                                key "name mode";
+
+                                leaf name {
+                                        type string;
+                                }
+                                leaf mode {
+                                        type string;
+                                }
+                                leaf description {
                                         type string;
                                 }
                         }

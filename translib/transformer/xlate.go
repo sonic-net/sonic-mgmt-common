@@ -125,7 +125,7 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]
 
 	separator := dbOpts.KeySeparator
 
-	if spec.Key.Len() > 0 {
+	if spec.Key.Len() > 0 && !spec.IsPartialKey {
 		// get an entry with a specific key
 		if spec.Ts.Name != XFMR_NONE_STRING { // Do not traverse for NONE table
 			data, err := dbs[spec.DbNum].GetEntry(&spec.Ts, spec.Key)
@@ -148,6 +148,7 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]
 			}
 		}
 	} else {
+		spec.Key.Comp = append(spec.Key.Comp, "*")
 		// TODO - GetEntry support with regex patten, 'abc*' for optimization
 		if spec.Ts.Name != XFMR_NONE_STRING { //Do not traverse for NONE table
 			tblObj, err := dbs[spec.DbNum].GetTablePattern(&spec.Ts, *db.NewKey("*"))
@@ -231,7 +232,7 @@ func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *
 		xpath, keyStr, tableName := sonicXpathKeyExtract(uri)
 		if tblSpecInfo, ok := xDbSpecMap[tableName]; ok && keyStr != "" && hasKeyValueXfmr(tableName) {
 			/* key from URI should be converted into redis-db key, to read data */
-			keyStr, err = dbKeyValueXfmrHandler(CREATE, tblSpecInfo.dbIndex, tableName, keyStr)
+			keyStr, err = dbKeyValueXfmrHandler(CREATE, tblSpecInfo.dbIndex, tableName, keyStr, false)
 			if err != nil {
 				log.Warningf("Value-xfmr for table(%v) & key(%v) didn't do conversion.", tableName, keyStr)
 				return &retdbFormat, err
@@ -253,14 +254,14 @@ func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *
 		} else {
 			reqUriXpath, _, _ = XfmrRemoveXPATHPredicates(requestUri)
 		}
-		retdbFormat = fillKeySpecs(reqUriXpath, &qParams, retData.xpath, retData.tableName, retData.dbKey, &retdbFormat, "")
+		retdbFormat = fillKeySpecs(uri, reqUriXpath, &qParams, retData.xpath, retData.tableName, retData.dbKey, &retdbFormat, "")
 		log.V(5).Infof("filled keyspec: %v; retData: %v; reqUriXpath: %v", retdbFormat, retData, reqUriXpath)
 	}
 
 	return &retdbFormat, err
 }
 
-func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, tableName string, keyStr string, retdbFormat *[]KeySpec, parentKey string) []KeySpec {
+func fillKeySpecs(uri string, reqUriXpath string, qParams *QueryParams, yangXpath string, tableName string, keyStr string, retdbFormat *[]KeySpec, parentKey string) []KeySpec {
 	var err error
 	if xYangSpecMap == nil {
 		return *retdbFormat
@@ -280,7 +281,8 @@ func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, ta
 			if keyStr != "" {
 				if tblSpecInfo, ok := xDbSpecMap[dbFormat.Ts.Name]; ok && tblSpecInfo.hasXfmrFn {
 					/* key from URI should be converted into redis-db key, to read data */
-					keyStr, err = dbKeyValueXfmrHandler(CREATE, dbFormat.DbNum, dbFormat.Ts.Name, keyStr)
+					isPartialKey := verifyPartialKeyForOc(uri, reqUriXpath, keyStr)
+					keyStr, err = dbKeyValueXfmrHandler(CREATE, dbFormat.DbNum, dbFormat.Ts.Name, keyStr, isPartialKey)
 					if err != nil {
 						log.Warningf("Value-xfmr for table(%v) & key(%v) didn't do conversion.", dbFormat.Ts.Name, keyStr)
 					}
@@ -309,7 +311,7 @@ func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, ta
 										if xYangSpecMap[childXpath].tableName != nil {
 											tableNm = *xYangSpecMap[childXpath].tableName
 										}
-										children = fillKeySpecs(reqUriXpath, qParams, childXpath, tableNm, "", &children, keyStr)
+										children = fillKeySpecs(childXpath, reqUriXpath, qParams, childXpath, tableNm, "", &children, keyStr)
 										dbFormat.Child = append(dbFormat.Child, children...)
 									}
 								}
@@ -338,7 +340,7 @@ func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, ta
 										if xYangSpecMap[childXpath].tableName != nil {
 											tableNm = *xYangSpecMap[childXpath].tableName
 										}
-										*retdbFormat = fillKeySpecs(reqUriXpath, qParams, childXpath, tableNm, "", retdbFormat, keyStr)
+										*retdbFormat = fillKeySpecs(childXpath, reqUriXpath, qParams, childXpath, tableNm, "", retdbFormat, keyStr)
 									}
 								}
 							}

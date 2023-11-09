@@ -351,7 +351,7 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) ([]typeMapOfInterfa
 		if ok && dbSpecData.keyName == nil && xDbSpecMap[xpath].dbEntry != nil {
 			yangKeys := yangKeyFromEntryGet(xDbSpecMap[xpath].dbEntry)
 			curMap := make(map[string]interface{})
-			sonicKeyDataAdd(dbIdx, yangKeys, table, xDbSpecMap[xpath].dbEntry.Name, keyStr, curMap, inParamsForGet.oper)
+			sonicKeyDataAdd(dbIdx, yangKeys, table, xDbSpecMap[xpath].dbEntry.Name, keyStr, curMap, inParamsForGet.oper, false)
 			if len(curMap) > 0 {
 				linParamsForGet := formXlateFromDbParams(inParamsForGet.dbs[dbIdx], inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, inParamsForGet.uri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, keyStr, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 				if err = sonicDbToYangDataFill(linParamsForGet); err != nil {
@@ -652,9 +652,13 @@ func fillDbDataMapForTbl(uri string, xpath string, tblName string, tblKey string
 	dbFormat.Ts.Name = tblName
 	dbFormat.DbNum = cdb
 	if tblKey != "" {
+		if !isSonicYang(uri) {
+			// Identify if the dbKey is a partial key
+			dbFormat.IsPartialKey = verifyPartialKeyForOc(uri, xpath, tblKey)
+		}
 		if tblSpecInfo, ok := xDbSpecMap[tblName]; ok && tblSpecInfo.hasXfmrFn {
 			/* key from URI should be converted into redis-db key, to read data */
-			tblKey, err = dbKeyValueXfmrHandler(CREATE, cdb, tblName, tblKey)
+			tblKey, err = dbKeyValueXfmrHandler(CREATE, cdb, tblName, tblKey, dbFormat.IsPartialKey)
 			if err != nil {
 				log.Warningf("Value-xfmr for table(%v) & key(%v) didn't do conversion.", tblName, tblKey)
 				return nil, err
@@ -1024,6 +1028,19 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 		var listKeyMap map[string]interface{}
 		if dbKey == keyFromCurUri || keyFromCurUri == "" {
 			curMap = make(map[string]interface{})
+			isValid := inParamsForGet.validate
+			if len(xYangSpecMap[xpath].validateFunc) > 0 && !inParamsForGet.validate {
+				inParams := formXfmrInputRequest(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, GET, xpathKeyExtRet.dbKey, dbDataMap, nil, nil, txCache)
+				res := validateHandlerFunc(inParams, xYangSpecMap[xpath].validateFunc)
+				if !res {
+					xfmrLogDebug("Further traversal not needed. Validate xfmr returns false for URI %v", curUri)
+					return nil, nil
+				} else {
+					isValid = res
+				}
+
+			}
+
 			if dbKey == keyFromCurUri {
 				listKeyMap = make(map[string]interface{})
 				for k, kv := range curKeyMap {
@@ -1031,9 +1048,7 @@ func yangListInstanceDataFill(inParamsForGet xlateFromDbParams, isFirstCall bool
 					listKeyMap[k] = kv
 				}
 			}
-			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpathKeyExtRet.xpath,
-				inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap,
-				inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, listKeyMap)
+			linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, curUri, requestUri, xpathKeyExtRet.xpath, inParamsForGet.oper, tbl, dbKey, dbDataMap, inParamsForGet.txCache, curMap, isValid, inParamsForGet.queryParams, inParamsForGet.reqCtx, listKeyMap)
 			linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 			linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
 			linParamsForGet.ygParentObj = inParamsForGet.ygParentObj
@@ -1321,6 +1336,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 			inParamsForGet.xpath = chldXpath
 			inParamsForGet.uri = chldUri
 			inParamsForGet.relUri = ""
+			isValid := inParamsForGet.validate
 			if xYangSpecMap[chldXpath] != nil && yangNode.yangEntry.Dir[yangChldName] != nil {
 				chldYangType := xYangSpecMap[chldXpath].yangType
 				if chldYangType == YANG_CONTAINER || chldYangType == YANG_LIST {
@@ -1353,7 +1369,8 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 
 				cdb := xYangSpecMap[chldXpath].dbIndex
 				inParamsForGet.curDb = cdb
-				if len(xYangSpecMap[chldXpath].validateFunc) > 0 && !validate {
+        /* For list validate handler is evaluated at each instance */
+				if len(xYangSpecMap[chldXpath].validateFunc) > 0 && !inParamsForGet.validate && chldYangType != YANG_LIST {
 					xpathKeyExtRet, _ := xpathKeyExtractForGet(dbs[cdb], ygRoot, GET, chldUri, requestUri, dbDataMap, nil, txCache, inParamsForGet.xfmrDbTblKeyCache, dbs)
 					inParamsForGet.ygRoot = ygRoot
 					// TODO - handle non CONFIG-DB
@@ -1366,7 +1383,6 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 					} else {
 						isValid = res
 					}
-					inParamsForGet.validate = isValid
 					inParamsForGet.dbDataMap = dbDataMap
 					inParamsForGet.ygRoot = ygRoot
 				}
@@ -1507,9 +1523,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 						}
 					}
 					cmap2 := make(map[string]interface{})
-					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper,
-						chtbl, tblKey, dbDataMap, inParamsForGet.txCache, cmap2, inParamsForGet.validate,
-						inParamsForGet.queryParams, inParamsForGet.reqCtxt, inParamsForGet.listKeysMap)
+					linParamsForGet := formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, chldUri, requestUri, chldXpath, inParamsForGet.oper, chtbl, tblKey, dbDataMap, inParamsForGet.txCache, cmap2, isValid, inParamsForGet.queryParams, inParamsForGet.reqCtxt, inParamsForGet.listKeysMap)
 					linParamsForGet.xfmrDbTblKeyCache = inParamsForGet.xfmrDbTblKeyCache
 					linParamsForGet.dbTblKeyGetCache = inParamsForGet.dbTblKeyGetCache
 					linParamsForGet.ygParentObj = ygTrgtParentObj
