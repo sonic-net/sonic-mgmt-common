@@ -115,7 +115,7 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]
 
 	separator := dbOpts.KeySeparator
 
-	if spec.Key.Len() > 0 {
+	if spec.Key.Len() > 0 && !spec.IsPartialKey {
 		// get an entry with a specific key
 		if spec.Ts.Name != XFMR_NONE_STRING { // Do not traverse for NONE table
 			data, err := dbs[spec.DbNum].GetEntry(&spec.Ts, spec.Key)
@@ -135,19 +135,27 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]
 			}
 		}
 	} else {
+		spec.Key.Comp = append(spec.Key.Comp, "*")
 		// TODO - GetEntry support with regex patten, 'abc*' for optimization
 		if spec.Ts.Name != XFMR_NONE_STRING { //Do not traverse for NONE table
-			keys, err := dbs[spec.DbNum].GetKeys(&spec.Ts)
+			//			keys, err := dbs[spec.DbNum].GetKeys(&spec.Ts)
+			tblObj, err := dbs[spec.DbNum].GetTablePattern(&spec.Ts, spec.Key)
 			if err != nil {
-				log.Warningf("Didn't get keys for tbl(%v) in traverseDbHelper", spec.Ts.Name)
+				log.Warningf("GetTablePattern returned error %v for tbl(%v) in traverseDbHelper", err, spec.Ts.Name)
+				//				log.Warningf("Didn't get keys for tbl(%v) in traverseDbHelper", spec.Ts.Name)
 				return err
 			}
-			xfmrLogDebug("keys for table %v in DB %v are %v", spec.Ts.Name, spec.DbNum, keys)
+			dbKeys, err := tblObj.GetKeys()
+			if err != nil {
+				log.Warningf("Table.GetKeys returned error %v for tbl(%v) in traverseDbHelper", err, spec.Ts.Name)
+				return err
+			}
+			xfmrLogDebug("keys for table %v in DB %v are %v", spec.Ts.Name, spec.DbNum, dbKeys)
 			parentDbKeyStr := ""
 			if parentKey != nil && !spec.IgnoreParentKey {
 				parentDbKeyStr = strings.Join((*parentKey).Comp, separator)
 			}
-			for _, dbKey := range keys {
+			for _, dbKey := range dbKeys {
 				dbKeyStr := strings.Join(dbKey.Comp, separator)
 				if len(parentDbKeyStr) > 0 {
 					// TODO - multi-depth with a custom delimiter
@@ -155,7 +163,8 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]
 						continue
 					}
 				}
-				data, err := dbs[spec.DbNum].GetEntry(&spec.Ts, dbKey)
+				//				data, err := dbs[spec.DbNum].GetEntry(&spec.Ts, dbKey)
+				data, err := tblObj.GetEntry(dbKey)
 				if err != nil {
 					log.Warningf("Table.GetEntry returned error %v for tbl(%v), and the key %v in traverseDbHelper", err, spec.Ts.Name, dbKey)
 					updateDbDataMapAndKeyCache(dbKeyStr, &data, spec, result, dbTblKeyGetCache, false)
@@ -207,7 +216,7 @@ func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *
 		xpath, keyStr, tableName := sonicXpathKeyExtract(uri)
 		if tblSpecInfo, ok := xDbSpecMap[tableName]; ok && keyStr != "" && hasKeyValueXfmr(tableName) {
 			/* key from URI should be converted into redis-db key, to read data */
-			keyStr, err = dbKeyValueXfmrHandler(CREATE, tblSpecInfo.dbIndex, tableName, keyStr)
+			keyStr, err = dbKeyValueXfmrHandler(CREATE, tblSpecInfo.dbIndex, tableName, keyStr, false)
 			if err != nil {
 				log.Warningf("Value-xfmr for table(%v) & key(%v) didn't do conversion.", tableName, keyStr)
 				return &retdbFormat, err
@@ -224,13 +233,13 @@ func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *
 		} else {
 			reqUriXpath, _, _ = XfmrRemoveXPATHPredicates(requestUri)
 		}
-		retdbFormat = fillKeySpecs(reqUriXpath, &qParams, retData.xpath, retData.dbKey, &retdbFormat)
+		retdbFormat = fillKeySpecs(uri, reqUriXpath, &qParams, retData.xpath, retData.dbKey, &retdbFormat)
 	}
 
 	return &retdbFormat, err
 }
 
-func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, keyStr string, retdbFormat *[]KeySpec) []KeySpec {
+func fillKeySpecs(uri string, reqUriXpath string, qParams *QueryParams, yangXpath string, keyStr string, retdbFormat *[]KeySpec) []KeySpec {
 	var err error
 	if xYangSpecMap == nil {
 		return *retdbFormat
@@ -250,7 +259,8 @@ func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, ke
 			if keyStr != "" {
 				if tblSpecInfo, ok := xDbSpecMap[dbFormat.Ts.Name]; ok && tblSpecInfo.hasXfmrFn {
 					/* key from URI should be converted into redis-db key, to read data */
-					keyStr, err = dbKeyValueXfmrHandler(CREATE, dbFormat.DbNum, dbFormat.Ts.Name, keyStr)
+					isPartialKey := verifyPartialKeyForOc(uri, reqUriXpath, keyStr)
+					keyStr, err = dbKeyValueXfmrHandler(CREATE, dbFormat.DbNum, dbFormat.Ts.Name, keyStr, isPartialKey)
 					if err != nil {
 						log.Warningf("Value-xfmr for table(%v) & key(%v) didn't do conversion.", dbFormat.Ts.Name, keyStr)
 					}
@@ -268,7 +278,7 @@ func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, ke
 							children := make([]KeySpec, 0)
 							for _, childXpath := range xDbSpecMap[child].yangXpath {
 								if isChildTraversalRequired(reqUriXpath, qParams, childXpath) {
-									children = fillKeySpecs(reqUriXpath, qParams, childXpath, "", &children)
+									children = fillKeySpecs(childXpath, reqUriXpath, qParams, childXpath, "", &children)
 									dbFormat.Child = append(dbFormat.Child, children...)
 								}
 							}
@@ -285,7 +295,7 @@ func fillKeySpecs(reqUriXpath string, qParams *QueryParams, yangXpath string, ke
 						if chlen > 0 {
 							for _, childXpath := range xDbSpecMap[child].yangXpath {
 								if isChildTraversalRequired(reqUriXpath, qParams, childXpath) {
-									*retdbFormat = fillKeySpecs(reqUriXpath, qParams, childXpath, "", retdbFormat)
+									*retdbFormat = fillKeySpecs(childXpath, reqUriXpath, qParams, childXpath, "", retdbFormat)
 								}
 							}
 						}

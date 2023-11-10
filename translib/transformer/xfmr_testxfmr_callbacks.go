@@ -45,8 +45,12 @@ func init() {
 	// Key transformer functions
 	XlateFuncBind("YangToDb_test_sensor_type_key_xfmr", YangToDb_test_sensor_type_key_xfmr)
 	XlateFuncBind("DbToYang_test_sensor_type_key_xfmr", DbToYang_test_sensor_type_key_xfmr)
+	XlateFuncBind("YangToDb_test_sensor_zone_key_xfmr", YangToDb_test_sensor_zone_key_xfmr)
+	XlateFuncBind("DbToYang_test_sensor_zone_key_xfmr", DbToYang_test_sensor_zone_key_xfmr)
 	XlateFuncBind("YangToDb_test_set_key_xfmr", YangToDb_test_set_key_xfmr)
 	XlateFuncBind("DbToYang_test_set_key_xfmr", DbToYang_test_set_key_xfmr)
+	XlateFuncBind("YangToDb_sensor_a_light_sensor_key_xfmr", YangToDb_sensor_a_light_sensor_key_xfmr)
+	XlateFuncBind("DbToYang_sensor_a_light_sensor_key_xfmr", DbToYang_sensor_a_light_sensor_key_xfmr)
 
 	// Key leafrefed Field transformer functions
 	XlateFuncBind("DbToYang_test_sensor_type_field_xfmr", DbToYang_test_sensor_type_field_xfmr)
@@ -64,6 +68,9 @@ func init() {
 	XlateFuncBind("YangToDb_test_port_bindings_xfmr", YangToDb_test_port_bindings_xfmr)
 	XlateFuncBind("DbToYang_test_port_bindings_xfmr", DbToYang_test_port_bindings_xfmr)
 	XlateFuncBind("Subscribe_test_port_bindings_xfmr", Subscribe_test_port_bindings_xfmr)
+
+	//validate transformer
+	XlateFuncBind("light_sensor_validate", light_sensor_validate)
 
 	// Sonic yang Key transformer functions
 	XlateFuncBind("DbToYang_test_sensor_mode_key_xfmr", DbToYang_test_sensor_mode_key_xfmr)
@@ -210,6 +217,48 @@ var DbToYang_test_sensor_type_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParam
 	rmap["type"] = sensorType
 
 	log.Info("DbToYang_test_sensor_type_key_xfmr rmap ", rmap)
+	return rmap, err
+}
+
+var YangToDb_test_sensor_zone_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var sensor_zone_key string
+	var err error
+
+	log.Info("YangToDb_test_sensor_zone_key_xfmr - inParams.uri ", inParams.uri)
+
+	pathInfo := NewPathInfo(inParams.uri)
+	groupId := pathInfo.Var("id")
+	sensorZone := pathInfo.Var("zone")
+	if groupId == "" {
+		return sensor_zone_key, err
+	}
+	if sensorZone == "" && (inParams.oper == DELETE || inParams.oper == GET) {
+		return groupId, err
+	}
+	if len(groupId) > 0 {
+		sensor_zone_key = groupId + "|" + sensorZone
+	}
+	log.Info("YangToDb_test_sensor_zone_key_xfmr returns", sensor_zone_key)
+	return sensor_zone_key, err
+}
+
+var DbToYang_test_sensor_zone_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+
+	rmap := make(map[string]interface{})
+	var err error
+	if log.V(3) {
+		log.Info("Entering DbToYang_test_sensor_zone_key_xfmr inParams.uri ", inParams.uri)
+	}
+	var sensorZone string
+
+	if strings.Contains(inParams.key, "|") {
+		key_split := strings.Split(inParams.key, "|")
+		sensorZone = key_split[1]
+	}
+
+	rmap["zone"] = sensorZone
+
+	log.Info("DbToYang_test_sensor_zone_key_xfmr rmap ", rmap)
 	return rmap, err
 }
 
@@ -696,4 +745,71 @@ var DbToYang_test_sensor_mode_key_xfmr SonicKeyXfmrDbToYang = func(inParams Soni
 	}
 	log.Info("DbToYang_test_sensor_mode_key_xfmr: res_map - ", res_map)
 	return res_map, nil
+}
+
+var YangToDb_sensor_a_light_sensor_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var light_sensor_key string
+	var err error
+
+	log.Info("YangToDb_sensor_a_light_sensor_key_xfmr - inParams.uri ", inParams.uri)
+
+	pathInfo := NewPathInfo(inParams.uri)
+	groupId := pathInfo.Var("id")
+	sensorType := pathInfo.Var("type")
+	lightSensorTag := pathInfo.Var("tag")
+	if groupId == "" || sensorType == "" {
+		return light_sensor_key, err
+	}
+	sensor_type := ""
+	if strings.HasPrefix(sensorType, "sensora_") {
+		sensor_type = strings.Replace(sensorType, "sensora_", "sensor_type_a_", 1)
+		light_sensor_key = groupId + "|" + sensor_type
+	} else if strings.HasPrefix(sensorType, "sensorb_") {
+		err_str := "light sensor not supported for sensor type b."
+		err = tlerr.NotSupported(err_str)
+	} else {
+		err_str := "Invalid key. Key not supported."
+		err = tlerr.NotSupported(err_str)
+	}
+	if err == nil {
+		sensor_tag := strings.Replace(lightSensorTag, "lightsensor_", "light_sensor_", 1)
+		light_sensor_key += "|" + sensor_tag
+	}
+
+	log.Info("YangToDb_sensor_a_light_sensor_key_xfmr returns", light_sensor_key)
+	return light_sensor_key, err
+}
+
+var DbToYang_sensor_a_light_sensor_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+
+	rmap := make(map[string]interface{})
+	var err error
+	if log.V(3) {
+		log.Info("Entering DbToYang_sensor_a_light_sensor_key_xfmr inParams.uri ", inParams.uri)
+	}
+	var lightSensor string
+
+	if strings.Contains(inParams.key, "|") {
+		key_split := strings.Split(inParams.key, "|")
+		if len(key_split) == 3 {
+			lightSensor = key_split[2]
+		}
+		lightSensor = strings.Replace(lightSensor, "light_sensor_", "lightsensor_", 1)
+	}
+
+	rmap["tag"] = lightSensor
+
+	log.Info("DbToYang_sensor_a_light_sensor_key_xfmr rmap ", rmap)
+	return rmap, err
+}
+
+func light_sensor_validate(inParams XfmrParams) bool {
+	var traversal_valid bool
+	pathInfo := NewPathInfo(inParams.uri)
+	sensorType := pathInfo.Var("type")
+	if strings.HasPrefix(sensorType, "sensora_") {
+		traversal_valid = true
+	}
+	log.Info("light_sensor_validate returning ", traversal_valid)
+	return traversal_valid
 }
