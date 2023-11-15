@@ -1367,7 +1367,7 @@ func yangDataFill(inParamsForGet xlateFromDbParams, isOcMdl bool) error {
 
 				cdb := xYangSpecMap[chldXpath].dbIndex
 				inParamsForGet.curDb = cdb
-        /* For list validate handler is evaluated at each instance */
+				/* For list validate handler is evaluated at each instance */
 				if len(xYangSpecMap[chldXpath].validateFunc) > 0 && !inParamsForGet.validate && chldYangType != YANG_LIST {
 					xpathKeyExtRet, _ := xpathKeyExtractForGet(dbs[cdb], ygRoot, GET, chldUri, requestUri, dbDataMap, nil, txCache, inParamsForGet.xfmrDbTblKeyCache, dbs)
 					inParamsForGet.ygRoot = ygRoot

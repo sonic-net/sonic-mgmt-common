@@ -100,11 +100,11 @@ type xlateFromDbParams struct {
 	xfmrDbTblKeyCache map[string]tblKeyCache
 	queryParams       QueryParams
 	dbTblKeyGetCache  map[db.DBNum]map[string]map[string]bool
-	reqCtxt           context.Context 
+	reqCtxt           context.Context
 	listKeysMap       map[string]interface{}
 	ygParentObj       *ygot.GoStruct
 	relUri            string
-	ygSchema          *yang.Entry	
+	ygSchema          *yang.Entry
 }
 
 type xlateToParams struct {
