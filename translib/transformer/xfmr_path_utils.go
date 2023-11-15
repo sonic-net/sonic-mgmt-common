@@ -8,7 +8,6 @@
 package transformer
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 )
@@ -18,18 +17,39 @@ type PathInfo struct {
 	Path     string
 	Template string
 	Vars     map[string]string
+	YangPath string
 }
 
 // HasVar checks if the PathInfo contains given variable.
 func (p *PathInfo) HasVar(name string) bool {
-   _, exists := p.Vars[name]
-   return exists
+	_, exists := p.Vars[name]
+	return exists
 }
 
 // Var returns the string value for a path variable. Returns
 // empty string if no such variable exists.
 func (p *PathInfo) Var(name string) string {
 	return p.Vars[name]
+}
+
+// StringVar returns the string value for a path variable if
+// it exists; otherwise returns the specified default value.
+func (p *PathInfo) StringVar(name, defaultValue string) string {
+	if v, ok := p.Vars[name]; ok {
+		return v
+	} else {
+		return defaultValue
+	}
+}
+
+// HasWildcard checks if the path contains wildcard variable "*".
+func (p *PathInfo) HasWildcard() bool {
+	for _, v := range p.Vars {
+		if v == "*" {
+			return true
+		}
+	}
+	return false
 }
 
 // NewPathInfo parses given path string into a PathInfo structure.
@@ -51,14 +71,14 @@ func NewPathInfo(path string) *PathInfo {
 
 		name := readUntil(r, '=')
 		value := readUntil(r, ']')
-               // Handle duplicate parameter names by suffixing "#N" to it.
-               // N is the number of occurance of that parameter name.
-               if info.HasVar(name) {
-                   namePrefix := name
-                   for k := 2; info.HasVar(name); k++ {
-                       name = fmt.Sprintf("%s#%d", namePrefix, k)
-                   }
-               }
+		// Handle duplicate parameter names by suffixing "#N" to it.
+		// N is the number of occurance of that parameter name.
+		if info.HasVar(name) {
+			namePrefix := name
+			for k := 2; info.HasVar(name); k++ {
+				name = fmt.Sprintf("%s#%d", namePrefix, k)
+			}
+		}
 
 		if len(name) != 0 {
 			fmt.Fprintf(&template, "{}")
@@ -67,27 +87,28 @@ func NewPathInfo(path string) *PathInfo {
 	}
 
 	info.Template = template.String()
+	info.YangPath = strings.ReplaceAll(info.Template, "{}", "")
 
 	return &info
 }
 
 func readUntil(r *strings.Reader, delim byte) string {
-        var buff strings.Builder
-        var escaped bool
+	var buff strings.Builder
+	var escaped bool
 
-        for {
-                c, err := r.ReadByte()
-                if err != nil || (c == delim && !escaped) {
-                        break
-                } else if c == '\\' && !escaped {
-                        escaped = true
-                } else {
-                        escaped = false
-                        buff.WriteByte(c)
-                }
-        }
+	for {
+		c, err := r.ReadByte()
+		if err != nil || (c == delim && !escaped) {
+			break
+		} else if c == '\\' && !escaped {
+			escaped = true
+		} else {
+			escaped = false
+			buff.WriteByte(c)
+		}
+	}
 
-        return buff.String()
+	return buff.String()
 }
 
 // SplitPath splits the ygot path into parts.
@@ -102,7 +123,7 @@ func SplitPath(path string) []string {
 		switch {
 		case inEscape:
 			inEscape = false
-		case c == '\'':
+		case c == '\\':
 			inEscape = true
 		case c == '[':
 			inKey = true
@@ -116,32 +137,4 @@ func SplitPath(path string) []string {
 
 	parts = append(parts, path[start:])
 	return parts
-}
-
-func RemoveXPATHPredicates(s string) (string, error) {
-	var b bytes.Buffer
-	for i := 0; i < len(s); {
-		ss := s[i:]
-		si, ei := strings.Index(ss, "["), strings.Index(ss, "]")
-		switch {
-		case si == -1 && ei == -1:
-			// This substring didn't contain a [] pair, therefore write it
-			// to the buffer.
-			b.WriteString(ss)
-			// Move to the last character of the substring.
-			i += len(ss)
-		case si == -1 || ei == -1:
-			// This substring contained a mismatched pair of []s.
-			return "", fmt.Errorf("Mismatched brackets within substring %s of %s, [ pos: %d, ] pos: %d", ss, s, si, ei)
-		case si > ei:
-			// This substring contained a ] before a [.
-			return "", fmt.Errorf("Incorrect ordering of [] within substring %s of %s, [ pos: %d, ] pos: %d", ss, s, si, ei)
-		default:
-			// This substring contained a matched set of []s.
-			b.WriteString(ss[0:si])
-			i += ei + 1
-		}
-	}
-
-	return b.String(), nil
 }
