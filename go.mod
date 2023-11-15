@@ -11,6 +11,7 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/kylelemons/godebug v1.1.0
+	github.com/maruel/natural v1.1.1
 	github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802
 	github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc
 	github.com/openconfig/ygot v0.7.1

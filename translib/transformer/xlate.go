@@ -401,22 +401,15 @@ func fillSonicKeySpec(xpath string, tableName string, keyStr string, content Con
 
 func XlateToDb(path string, oper int, d *db.DB, yg *ygot.GoStruct, yt *interface{}, jsonPayload []byte, txCache interface{}, skipOrdTbl *bool) (map[Operation]RedisDbMap, map[string]map[string]db.Value, map[string]map[string]db.Value, error) {
 
-	var err error
 	requestUri := path
 	jsonData := make(map[string]interface{})
 	opcode := Operation(oper)
 
 	device := (*yg).(*ocbinds.Device)
-	jsonStr, _ := ygot.EmitJSON(device, &ygot.EmitJSONConfig{
-		Format:         ygot.RFC7951,
-		Indent:         "  ",
-		SkipValidation: true,
-		RFC7951Config: &ygot.RFC7951JSONConfig{
-			AppendModuleName: true,
-		},
-	})
-
-	err = json.Unmarshal([]byte(jsonStr), &jsonData)
+	jsonBytes, err := ocbinds.EmitJSON(device, nil)
+	if err == nil {
+		err = json.Unmarshal(jsonBytes, &jsonData)
+	}
 	if err != nil {
 		errStr := "Error: failed to unmarshal json."
 		err = tlerr.InternalError{Format: errStr}
