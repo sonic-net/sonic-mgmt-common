@@ -3,8 +3,8 @@ package translib
 import (
 	"errors"
 	"fmt"
-	"testing"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"testing"
 )
 
 // TLV EEPROM Data Types

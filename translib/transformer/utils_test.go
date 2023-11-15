@@ -107,7 +107,7 @@ func processGetRequestWithFile(url string, expectedJsonFile string, errorCase bo
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
-			return 
+			return
 		}
 
 		respJson := response.Payload

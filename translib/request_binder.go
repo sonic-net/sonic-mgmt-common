@@ -29,9 +29,9 @@ import (
 	"github.com/openconfig/ygot/ygot"
 	"github.com/openconfig/ygot/ytypes"
 
-	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"github.com/openconfig/goyang/pkg/yang"
 )
 
 const (
@@ -94,22 +94,22 @@ func (binder *requestBinder) unMarshallPayload(workObj *interface{}) error {
 	return nil
 }
 
-func (binder *requestBinder) validateObjectType (errObj error) error {
-	
+func (binder *requestBinder) validateObjectType(errObj error) error {
+
 	if errObj == nil {
 		return nil
 	}
-	
+
 	errStr := errObj.Error()
 
 	if binder.opcode == GET || binder.isSonicModel {
 		tmpStr := strings.Replace(errStr, "ERROR_READONLY_OBJECT_FOUND", "", -1)
-		if len (tmpStr) > 0 {
+		if len(tmpStr) > 0 {
 			log.Info("validateObjectType ==> GET == return err string ==> ", tmpStr)
 			return errors.New(tmpStr)
 		} else {
 			return nil
-		}	
+		}
 	} else {
 		if strings.Contains(errStr, "ERROR_READONLY_OBJECT_FOUND") {
 			log.Info("validateObjectType ==> WRITE == return err string")
@@ -125,14 +125,14 @@ func (binder *requestBinder) validateRequest(deviceObj *ocbinds.Device) error {
 
 	// Skipping the validation for the sonic yang model
 	if binder.isSonicModel {
-	  log.Warning("Translib: RequestBinder: Skipping the vaidatiion of the given sonic yang model request..")
+		log.Warning("Translib: RequestBinder: Skipping the vaidatiion of the given sonic yang model request..")
 		return nil
 	}
-	
+
 	if binder.pathTmp == nil || len(binder.pathTmp.Elem) == 0 {
 		if binder.opcode == UPDATE || binder.opcode == REPLACE {
 			err := deviceObj.Validate(&ytypes.LeafrefOptions{IgnoreMissingData: true})
-			err = binder.validateObjectType (err)
+			err = binder.validateObjectType(err)
 			if err != nil {
 				return err
 			}
@@ -155,7 +155,7 @@ func (binder *requestBinder) validateRequest(deviceObj *ocbinds.Device) error {
 			basePathObj, ok := (baseTreeNode[0].Data).(ygot.ValidatedGoStruct)
 			if ok {
 				err := basePathObj.Validate(&ytypes.LeafrefOptions{IgnoreMissingData: true})
-				err = binder.validateObjectType (err)
+				err = binder.validateObjectType(err)
 				if err != nil {
 					return err
 				}
@@ -253,7 +253,7 @@ func (binder *requestBinder) unMarshall() (*ygot.GoStruct, *interface{}, error) 
 		if ok {
 			if !binder.isSonicModel {
 				err := targetObj.Validate(&ytypes.LeafrefOptions{IgnoreMissingData: true})
-				err = binder.validateObjectType (err)
+				err = binder.validateObjectType(err)
 				if err != nil {
 					return nil, nil, tlerr.TranslibSyntaxValidationError{StatusCode: 400, ErrorStr: err}
 				}
@@ -303,7 +303,7 @@ func (binder *requestBinder) unMarshallUri(deviceObj *ocbinds.Device) (*interfac
 	} else {
 		binder.pathTmp = path
 	}
-	
+
 	for idx, p := range path.Elem {
 		pathSlice := strings.Split(p.Name, ":")
 		if idx == 0 && len(pathSlice) > 0 && strings.HasPrefix(pathSlice[0], "sonic-") {

@@ -95,6 +95,5 @@ func New(msg string, args ...interface{}) InternalError {
 }
 
 func (e AuthorizationError) Error() string {
-    return p.Sprintf(e.Format, e.Args...)
+	return p.Sprintf(e.Format, e.Args...)
 }
-

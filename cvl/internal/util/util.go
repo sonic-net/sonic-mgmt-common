@@ -41,37 +41,39 @@ static void ly_set_log_callback(int enable) {
 */
 import "C"
 import (
-	"os"
-	"fmt"
-	"io"
-	"runtime"
 	"encoding/json"
-    "io/ioutil"
-    "os/signal"
-    "syscall"
-	"strings"
-	"strconv"
+	"fmt"
+	set "github.com/Workiva/go-datastructures/set"
 	"github.com/go-redis/redis/v7"
 	log "github.com/golang/glog"
-	set "github.com/Workiva/go-datastructures/set"
+	"io"
+	"io/ioutil"
 	fileLog "log"
+	"os"
+	"os/signal"
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
+	"syscall"
 )
 
 var CVL_SCHEMA string = "schema/"
 var CVL_CFG_FILE string = "/usr/sbin/cvl_cfg.json"
+
 const CVL_LOG_FILE = "/tmp/cvl.log"
 const SONIC_DB_CONFIG_FILE string = "/var/run/redis/sonic-db/database_config.json"
 const ENV_VAR_SONIC_DB_CONFIG_FILE = "DB_CONFIG_PATH"
+
 var sonic_db_config = make(map[string]interface{})
 
-//package init function 
+//package init function
 func init() {
-	if (os.Getenv("CVL_SCHEMA_PATH") != "") {
+	if os.Getenv("CVL_SCHEMA_PATH") != "" {
 		CVL_SCHEMA = os.Getenv("CVL_SCHEMA_PATH") + "/"
 	}
 
-	if (os.Getenv("CVL_CFG_FILE") != "") {
+	if os.Getenv("CVL_CFG_FILE") != "" {
 		CVL_CFG_FILE = os.Getenv("CVL_CFG_FILE")
 	}
 
@@ -90,8 +92,9 @@ var logFileMutex *sync.Mutex
 
 //CVLLogLevel Logging Level for CVL global logging
 type CVLLogLevel uint8
+
 const (
-	INFO  = 0 + iota
+	INFO = 0 + iota
 	WARNING
 	ERROR
 	FATAL
@@ -106,41 +109,41 @@ const (
 var cvlTraceFlags uint32
 
 //CVLTraceLevel Logging levels for CVL Tracing
-type CVLTraceLevel uint32 
+type CVLTraceLevel uint32
+
 const (
-	TRACE_MIN = 0
-	TRACE_MAX = 8 
-	TRACE_CACHE  = 1 << TRACE_MIN 
-	TRACE_LIBYANG = 1 << 1
-	TRACE_YPARSER = 1 << 2
-	TRACE_CREATE = 1 << 3
-	TRACE_UPDATE = 1 << 4
-	TRACE_DELETE = 1 << 5
+	TRACE_MIN      = 0
+	TRACE_MAX      = 8
+	TRACE_CACHE    = 1 << TRACE_MIN
+	TRACE_LIBYANG  = 1 << 1
+	TRACE_YPARSER  = 1 << 2
+	TRACE_CREATE   = 1 << 3
+	TRACE_UPDATE   = 1 << 4
+	TRACE_DELETE   = 1 << 5
 	TRACE_SEMANTIC = 1 << 6
-	TRACE_ONERROR = 1 << 7 
-	TRACE_SYNTAX = 1 << TRACE_MAX 
+	TRACE_ONERROR  = 1 << 7
+	TRACE_SYNTAX   = 1 << TRACE_MAX
 )
 
-
-var traceLevelMap = map[int]string {
+var traceLevelMap = map[int]string{
 	/* Caching operation traces */
-	TRACE_CACHE : "TRACE_CACHE",
+	TRACE_CACHE: "TRACE_CACHE",
 	/* Libyang library traces. */
 	TRACE_LIBYANG: "TRACE_LIBYANG",
 	/* Yang Parser traces. */
-	TRACE_YPARSER : "TRACE_YPARSER", 
+	TRACE_YPARSER: "TRACE_YPARSER",
 	/* Create operation traces. */
-	TRACE_CREATE : "TRACE_CREATE", 
+	TRACE_CREATE: "TRACE_CREATE",
 	/* Update operation traces. */
-	TRACE_UPDATE : "TRACE_UPDATE", 
+	TRACE_UPDATE: "TRACE_UPDATE",
 	/* Delete operation traces. */
-	TRACE_DELETE : "TRACE_DELETE", 
+	TRACE_DELETE: "TRACE_DELETE",
 	/* Semantic Validation traces. */
-	TRACE_SEMANTIC : "TRACE_SEMANTIC",
+	TRACE_SEMANTIC: "TRACE_SEMANTIC",
 	/* Syntax Validation traces. */
-	TRACE_SYNTAX : "TRACE_SYNTAX", 
+	TRACE_SYNTAX: "TRACE_SYNTAX",
 	/* Trace on Error. */
-	TRACE_ONERROR : "TRACE_ONERROR",
+	TRACE_ONERROR: "TRACE_ONERROR",
 }
 
 var Tracing bool = false
@@ -152,13 +155,13 @@ func SetTrace(on bool) {
 		Tracing = true
 		traceFlags = 1
 	} else {
-		Tracing = false 
+		Tracing = false
 		traceFlags = 0
 	}
 }
 
 func IsTraceSet() bool {
-	if (traceFlags == 0) {
+	if traceFlags == 0 {
 		return false
 	} else {
 		return true
@@ -169,7 +172,7 @@ func IsTraceSet() bool {
 changing libyang's global log setting */
 
 //export customLogCallback
-func customLogCallback(level C.LY_LOG_LEVEL, msg *C.char, path *C.char)  {
+func customLogCallback(level C.LY_LOG_LEVEL, msg *C.char, path *C.char) {
 	if level == C.LY_LLERR {
 		CVL_LEVEL_LOG(WARNING, "[libyang Error] %s (path: %s)", C.GoString(msg), C.GoString(path))
 	} else {
@@ -184,15 +187,15 @@ func IsTraceLevelSet(tracelevel CVLTraceLevel) bool {
 func TRACE_LEVEL_LOG(tracelevel CVLTraceLevel, fmtStr string, args ...interface{}) {
 
 	/*
-	if (IsTraceSet() == false) {
-		return
-	}
+		if (IsTraceSet() == false) {
+			return
+		}
 
-	level = (level - INFO_API) + 1;
+		level = (level - INFO_API) + 1;
 	*/
 
 	traceEnabled := false
-	if ((cvlTraceFlags & (uint32)(tracelevel)) != 0) {
+	if (cvlTraceFlags & (uint32)(tracelevel)) != 0 {
 		traceEnabled = true
 	}
 	if traceEnabled && isLogToFile {
@@ -219,12 +222,12 @@ func TRACE_LEVEL_LOG(tracelevel CVLTraceLevel, fmtStr string, args ...interface{
 
 //Logs to /tmp/cvl.log file
 func logToCvlFile(format string, args ...interface{}) {
-	if (pLogFile == nil) {
+	if pLogFile == nil {
 		return
 	}
 
 	logFileMutex.Lock()
-	if (logFileSize == 0) {
+	if logFileSize == 0 {
 		fileLog.Printf(format, args...)
 		logFileMutex.Unlock()
 		return
@@ -238,7 +241,7 @@ func logToCvlFile(format string, args ...interface{}) {
 	}
 
 	// Roll over the file contents if size execeeds max defined limit
-	if (curSize >= int64(logFileSize)) {
+	if curSize >= int64(logFileSize) {
 		//Write 70% contents from bottom and write to top
 		//Truncate 30% of bottom
 
@@ -246,38 +249,36 @@ func logToCvlFile(format string, args ...interface{}) {
 		pLogFile.Close()
 
 		pFile, err := os.OpenFile(CVL_LOG_FILE,
-		os.O_RDONLY, 0666)
-		pFileOut, errOut := os.OpenFile(CVL_LOG_FILE + ".tmp",
-		os.O_WRONLY | os.O_CREATE, 0666)
-
+			os.O_RDONLY, 0666)
+		pFileOut, errOut := os.OpenFile(CVL_LOG_FILE+".tmp",
+			os.O_WRONLY|os.O_CREATE, 0666)
 
 		if (err != nil) && (errOut != nil) {
 			fileLog.Printf("Failed to roll over the file, current size %v", curSize)
 		} else {
-			pFile.Seek(int64(logFileSize * 30/100), io.SeekStart)
+			pFile.Seek(int64(logFileSize*30/100), io.SeekStart)
 			_, err := io.Copy(pFileOut, pFile)
 			if err == nil {
-				os.Rename(CVL_LOG_FILE + ".tmp", CVL_LOG_FILE)
+				os.Rename(CVL_LOG_FILE+".tmp", CVL_LOG_FILE)
 			}
 		}
 
-		if (pFile != nil) {
+		if pFile != nil {
 			pFile.Close()
 		}
-		if (pFileOut != nil) {
+		if pFileOut != nil {
 			pFileOut.Close()
 		}
 
-		// Reopen the file 
+		// Reopen the file
 		pLogFile, err := os.OpenFile(CVL_LOG_FILE,
-		os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+			os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			fmt.Printf("Error in opening log file %s, %v", CVL_LOG_FILE, err)
 		} else {
 			fileLog.SetOutput(pLogFile)
 		}
 	}
-
 
 	fileLog.Printf(format, args...)
 
@@ -289,7 +290,7 @@ func CVL_LEVEL_LOG(level CVLLogLevel, format string, args ...interface{}) {
 	if isLogToFile {
 		logToCvlFile(format, args...)
 		if level == FATAL {
-			log.Fatalf("[CVL] : " + format, args...)
+			log.Fatalf("[CVL] : "+format, args...)
 		}
 		return
 	}
@@ -297,26 +298,26 @@ func CVL_LEVEL_LOG(level CVLLogLevel, format string, args ...interface{}) {
 	format = "[CVL] : " + format
 
 	switch level {
-		case INFO:
-		       log.Infof(format, args...)
-		case  WARNING:
-		       log.Warningf(format, args...)
-		case  ERROR:
-		       log.Errorf(format, args...)
-		case  FATAL:
-		       log.Fatalf(format, args...)
-		case INFO_API:
-			log.V(1).Infof(format, args...)
-		case INFO_TRACE:
-			log.V(2).Infof(format, args...)
-		case INFO_DEBUG:
-			log.V(3).Infof(format, args...)
-		case INFO_DATA:
-			log.V(4).Infof(format, args...)
-		case INFO_DETAIL:
-			log.V(5).Infof(format, args...)
-		case INFO_ALL:
-			log.V(6).Infof(format, args...)
+	case INFO:
+		log.Infof(format, args...)
+	case WARNING:
+		log.Warningf(format, args...)
+	case ERROR:
+		log.Errorf(format, args...)
+	case FATAL:
+		log.Fatalf(format, args...)
+	case INFO_API:
+		log.V(1).Infof(format, args...)
+	case INFO_TRACE:
+		log.V(2).Infof(format, args...)
+	case INFO_DEBUG:
+		log.V(3).Infof(format, args...)
+	case INFO_DATA:
+		log.V(4).Infof(format, args...)
+	case INFO_DETAIL:
+		log.V(5).Infof(format, args...)
+	case INFO_ALL:
+		log.V(6).Infof(format, args...)
 	}
 
 }
@@ -324,7 +325,7 @@ func CVL_LEVEL_LOG(level CVLLogLevel, format string, args ...interface{}) {
 // Function to check CVL log file related settings
 func applyCvlLogFileConfig() {
 
-	if (pLogFile != nil) {
+	if pLogFile != nil {
 		pLogFile.Close()
 		pLogFile = nil
 	}
@@ -343,9 +344,9 @@ func applyCvlLogFileConfig() {
 		logFileSize, _ = strconv.Atoi(fileSize)
 	}
 
-	if (enabled == "true") {
+	if enabled == "true" {
 		pFile, err := os.OpenFile(CVL_LOG_FILE,
-		os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+			os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 
 		if err != nil {
 			fmt.Printf("Error in opening log file %s, %v", CVL_LOG_FILE, err)
@@ -372,9 +373,9 @@ func ConfigFileSyncHandler() {
 				return
 			}
 
-			CVL_LEVEL_LOG(INFO ,"Received SIGUSR2. Changed configuration values are %v", cvlCfgMap)
+			CVL_LEVEL_LOG(INFO, "Received SIGUSR2. Changed configuration values are %v", cvlCfgMap)
 
-			if (strings.Compare(cvlCfgMap["LOGTOSTDERR"], "true") == 0) {
+			if strings.Compare(cvlCfgMap["LOGTOSTDERR"], "true") == 0 {
 				SetTrace(true)
 			}
 		}
@@ -382,7 +383,7 @@ func ConfigFileSyncHandler() {
 
 }
 
-func ReadConfFile()  map[string]string{
+func ReadConfFile() map[string]string {
 
 	/* Return if CVL configuration file is not present. */
 	if _, err := os.Stat(CVL_CFG_FILE); os.IsNotExist(err) {
@@ -391,22 +392,22 @@ func ReadConfFile()  map[string]string{
 
 	data, err := ioutil.ReadFile(CVL_CFG_FILE)
 	if err != nil {
-		CVL_LEVEL_LOG(INFO ,"Error in reading cvl configuration file %v", err)
+		CVL_LEVEL_LOG(INFO, "Error in reading cvl configuration file %v", err)
 		return nil
 	}
 
 	err = json.Unmarshal(data, &cvlCfgMap)
 	if err != nil {
-		CVL_LEVEL_LOG(INFO ,"Error in reading cvl configuration file %v", err)
+		CVL_LEVEL_LOG(INFO, "Error in reading cvl configuration file %v", err)
 		return nil
 	}
 
-	CVL_LEVEL_LOG(INFO ,"Current Values of CVL Configuration File %v", cvlCfgMap)
+	CVL_LEVEL_LOG(INFO, "Current Values of CVL Configuration File %v", cvlCfgMap)
 	var index uint32
 
-	for  index = TRACE_MIN ; index <= TRACE_MAX ; index++  {
-		if (strings.Compare(cvlCfgMap[traceLevelMap[1 << index]], "true") == 0) {
-			cvlTraceFlags = cvlTraceFlags |  (1 << index) 
+	for index = TRACE_MIN; index <= TRACE_MAX; index++ {
+		if strings.Compare(cvlCfgMap[traceLevelMap[1<<index]], "true") == 0 {
+			cvlTraceFlags = cvlTraceFlags | (1 << index)
 		}
 	}
 
@@ -495,64 +496,64 @@ func dbCfgInit() {
 }
 
 //Get list of DB
-func getDbList()(map[string]interface{}) {
+func getDbList() map[string]interface{} {
 	db_list, ok := sonic_db_config["DATABASES"].(map[string]interface{})
 	if !ok {
 		panic(fmt.Errorf("DATABASES' is not valid key in %s!",
-		SONIC_DB_CONFIG_FILE))
+			SONIC_DB_CONFIG_FILE))
 	}
 	return db_list
 }
 
 //Get DB instance based on given DB name
-func getDbInst(dbName string)(map[string]interface{}) {
+func getDbInst(dbName string) map[string]interface{} {
 	db, ok := sonic_db_config["DATABASES"].(map[string]interface{})[dbName]
 	if !ok {
 		panic(fmt.Errorf("database name '%v' is not valid in %s !",
-		dbName, SONIC_DB_CONFIG_FILE))
+			dbName, SONIC_DB_CONFIG_FILE))
 	}
 	inst_name, ok := db.(map[string]interface{})["instance"]
 	if !ok {
 		panic(fmt.Errorf("'instance' is not a valid field in %s !",
-		SONIC_DB_CONFIG_FILE))
+			SONIC_DB_CONFIG_FILE))
 	}
 	inst, ok := sonic_db_config["INSTANCES"].(map[string]interface{})[inst_name.(string)]
 	if !ok {
 		panic(fmt.Errorf("instance name '%v' is not valid in %s !",
-		inst_name, SONIC_DB_CONFIG_FILE))
+			inst_name, SONIC_DB_CONFIG_FILE))
 	}
 	return inst.(map[string]interface{})
 }
 
 //GetDbSeparator Get DB separator based on given DB name
-func GetDbSeparator(dbName string)(string) {
+func GetDbSeparator(dbName string) string {
 	db_list := getDbList()
 	separator, ok := db_list[dbName].(map[string]interface{})["separator"]
 	if !ok {
 		panic(fmt.Errorf("'separator' is not a valid field in %s !",
-		SONIC_DB_CONFIG_FILE))
+			SONIC_DB_CONFIG_FILE))
 	}
 	return separator.(string)
 }
 
 //GetDbId Get DB id on given db name
-func GetDbId(dbName string)(int) {
+func GetDbId(dbName string) int {
 	db_list := getDbList()
 	id, ok := db_list[dbName].(map[string]interface{})["id"]
 	if !ok {
 		panic(fmt.Errorf("'id' is not a valid field in %s !",
-		SONIC_DB_CONFIG_FILE))
+			SONIC_DB_CONFIG_FILE))
 	}
 	return int(id.(float64))
 }
 
 //GetDbSock Get DB socket path
-func GetDbSock(dbName string)(string) {
+func GetDbSock(dbName string) string {
 	inst := getDbInst(dbName)
 	unix_socket_path, ok := inst["unix_socket_path"]
 	if !ok {
-		CVL_LEVEL_LOG(INFO, "'unix_socket_path' is not " +
-		"a valid field in %s !", SONIC_DB_CONFIG_FILE)
+		CVL_LEVEL_LOG(INFO, "'unix_socket_path' is not "+
+			"a valid field in %s !", SONIC_DB_CONFIG_FILE)
 
 		return ""
 	}
@@ -561,24 +562,24 @@ func GetDbSock(dbName string)(string) {
 }
 
 //GetDbTcpAddr Get DB TCP endpoint
-func GetDbTcpAddr(dbName string)(string) {
+func GetDbTcpAddr(dbName string) string {
 	inst := getDbInst(dbName)
 	hostname, ok := inst["hostname"]
 	if !ok {
 		panic(fmt.Errorf("'hostname' is not a valid field in %s !",
-		SONIC_DB_CONFIG_FILE))
+			SONIC_DB_CONFIG_FILE))
 	}
 
 	port, ok1 := inst["port"]
 	if !ok1 {
 		panic(fmt.Errorf("'port' is not a valid field in %s !",
-		SONIC_DB_CONFIG_FILE))
+			SONIC_DB_CONFIG_FILE))
 	}
 
 	return fmt.Sprintf("%v:%v", hostname, port)
 }
 
-//NewDbClient Get new redis client 
+//NewDbClient Get new redis client
 func NewDbClient(dbName string) *redis.Client {
 	var redisClient *redis.Client = nil
 
@@ -591,7 +592,7 @@ func NewDbClient(dbName string) *redis.Client {
 			DB:       GetDbId(dbName),
 		})
 	} else {
-	//Otherwise, use TCP socket
+		//Otherwise, use TCP socket
 		redisClient = redis.NewClient(&redis.Options{
 			Network:  "tcp",
 			Addr:     GetDbTcpAddr(dbName),
@@ -600,7 +601,7 @@ func NewDbClient(dbName string) *redis.Client {
 		})
 	}
 
-	if (redisClient == nil) {
+	if redisClient == nil {
 		return nil
 	}
 

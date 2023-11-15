@@ -18,34 +18,35 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 package cvl
+
 import (
 	"encoding/json"
 	"github.com/go-redis/redis/v7"
 	//lint:ignore ST1001 This is safe to dot import for util package
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
-	"time"
-	"runtime"
 	"github.com/antchfx/jsonquery"
 	"github.com/antchfx/xmlquery"
+	"runtime"
+	"time"
 )
 
 func (c *CVL) addTableEntryToCache(tableName string, redisKey string) {
-	if (tableName == "" || redisKey == "") {
+	if tableName == "" || redisKey == "" {
 		return
 	}
 
-	if (c.tmpDbCache[tableName] == nil) {
+	if c.tmpDbCache[tableName] == nil {
 		c.tmpDbCache[tableName] = map[string]interface{}{redisKey: nil}
 	} else {
 		tblMap := c.tmpDbCache[tableName]
-		tblMap.(map[string]interface{})[redisKey] =nil
+		tblMap.(map[string]interface{})[redisKey] = nil
 		c.tmpDbCache[tableName] = tblMap
 	}
 }
 
 // Fetch dependent data from validated data cache,
-// Returns the data and flag to indicate that if requested data 
+// Returns the data and flag to indicate that if requested data
 // is found in update request, the data should be merged with Redis data
 func (c *CVL) fetchDataFromRequestCache(tableName string, key string) (d map[string]string, m bool) {
 	defer func() {
@@ -53,16 +54,16 @@ func (c *CVL) fetchDataFromRequestCache(tableName string, key string) (d map[str
 		pm := &m
 
 		TRACE_LOG(TRACE_CACHE,
-		"Returning data from request cache, data = %v, merge needed = %v",
-		*pd, *pm)
+			"Returning data from request cache, data = %v, merge needed = %v",
+			*pd, *pm)
 	}()
 
 	cfgDataArr := c.requestCache[tableName][key]
 	for _, cfgReqData := range cfgDataArr {
 		//Delete request doesn't have depedent data
-		if (cfgReqData.reqData.VOp == OP_CREATE) {
+		if cfgReqData.reqData.VOp == OP_CREATE {
 			return cfgReqData.reqData.Data, false
-		} else	if (cfgReqData.reqData.VOp == OP_UPDATE) {
+		} else if cfgReqData.reqData.VOp == OP_UPDATE {
 			return cfgReqData.reqData.Data, true
 		}
 	}
@@ -76,7 +77,7 @@ func (c *CVL) fetchTableDataToTmpCache(tableName string, dbKeys map[string]inter
 	TRACE_LOG(TRACE_CACHE, "\n%v, Entered fetchTableDataToTmpCache", time.Now())
 
 	totalCount := len(dbKeys)
-	if (totalCount == 0) {
+	if totalCount == 0 {
 		//No entry to be fetched
 		return 0
 	}
@@ -86,25 +87,25 @@ func (c *CVL) fetchTableDataToTmpCache(tableName string, dbKeys map[string]inter
 	bulkKeys := []string{}
 	for dbKey, val := range dbKeys { //for all keys
 
-		 if (val != nil) { //skip entry already fetched
-                        mapTable := c.tmpDbCache[tableName]
-                        delete(mapTable.(map[string]interface{}), dbKey) //delete entry already fetched
-                        totalCount = totalCount - 1
-                        if(bulkCount != totalCount) {
-                                //If some entries are remaining go back to 'for' loop
-                                continue
-                        }
-                } else {
-                        //Accumulate entries to be fetched
-                        bulkKeys = append(bulkKeys, dbKey)
-                        bulkCount = bulkCount + 1
-                }
+		if val != nil { //skip entry already fetched
+			mapTable := c.tmpDbCache[tableName]
+			delete(mapTable.(map[string]interface{}), dbKey) //delete entry already fetched
+			totalCount = totalCount - 1
+			if bulkCount != totalCount {
+				//If some entries are remaining go back to 'for' loop
+				continue
+			}
+		} else {
+			//Accumulate entries to be fetched
+			bulkKeys = append(bulkKeys, dbKey)
+			bulkCount = bulkCount + 1
+		}
 
-                if(bulkCount != totalCount) && ((bulkCount % MAX_BULK_ENTRIES_IN_PIPELINE) != 0) {
-                        //If some entries are remaining and bulk bucket is not filled,
-                        //go back to 'for' loop
-                        continue
-                }
+		if (bulkCount != totalCount) && ((bulkCount % MAX_BULK_ENTRIES_IN_PIPELINE) != 0) {
+			//If some entries are remaining and bulk bucket is not filled,
+			//go back to 'for' loop
+			continue
+		}
 
 		mCmd := map[string]*redis.StringStringMapCmd{}
 
@@ -114,7 +115,7 @@ func (c *CVL) fetchTableDataToTmpCache(tableName string, dbKeys map[string]inter
 
 			redisKey := tableName + modelInfo.tableInfo[tableName].redisKeyDelim + dbKey
 			//Check in validated cache first and add as dependent data
-			if entry, mergeNeeded := c.fetchDataFromRequestCache(tableName, dbKey); (entry != nil) {
+			if entry, mergeNeeded := c.fetchDataFromRequestCache(tableName, dbKey); entry != nil {
 				entryFetched = entryFetched + 1
 				//Entry found in validated cache, so skip fetching from Redis
 				//if merging is not required with Redis DB
@@ -147,11 +148,11 @@ func (c *CVL) fetchTableDataToTmpCache(tableName string, dbKeys map[string]inter
 		for key, val := range mCmd {
 			res, err := val.Result()
 
-			if (mapTable == nil) {
+			if mapTable == nil {
 				break
 			}
 
-			if (err != nil || len(res) == 0) {
+			if err != nil || len(res) == 0 {
 				//no data found, don't keep blank entry
 				delete(mapTable.(map[string]interface{}), key)
 				continue
@@ -176,7 +177,7 @@ func (c *CVL) fetchTableDataToTmpCache(tableName string, dbKeys map[string]inter
 		runtime.Gosched()
 	}
 
-	TRACE_LOG(TRACE_CACHE,"\n%v, Exiting fetchTableDataToTmpCache", time.Now())
+	TRACE_LOG(TRACE_CACHE, "\n%v, Exiting fetchTableDataToTmpCache", time.Now())
 
 	return entryFetched
 }
@@ -190,7 +191,7 @@ func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
 	var errObj yparser.YParserError
 
 	for entryToFetch = 1; entryToFetch > 0; { //Force to enter the loop for first time
-		//Repeat until all entries are fetched 
+		//Repeat until all entries are fetched
 		entryToFetch = 0
 		for tableName, dbKeys := range c.tmpDbCache { //for each table
 			entryToFetch = entryToFetch + c.fetchTableDataToTmpCache(tableName, dbKeys.(map[string]interface{}))
@@ -198,13 +199,13 @@ func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
 
 		//If no table entry delete the table  itself
 		for tableName, dbKeys := range c.tmpDbCache { //for each table
-			if (len(dbKeys.(map[string]interface{}))  == 0) {
-				 delete(c.tmpDbCache, tableName)
-				 continue
+			if len(dbKeys.(map[string]interface{})) == 0 {
+				delete(c.tmpDbCache, tableName)
+				continue
 			}
 		}
 
-		if (entryToFetch == 0) {
+		if entryToFetch == 0 {
 			//No more entry to fetch
 			break
 		}
@@ -217,16 +218,16 @@ func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
 
 		data, err := jsonquery.ParseJsonMap(&c.tmpDbCache)
 
-		if (err != nil) {
+		if err != nil {
 			return nil
 		}
 
 		//Build yang tree for each table and cache it
-		for jsonNode := data.FirstChild; jsonNode != nil; jsonNode=jsonNode.NextSibling {
+		for jsonNode := data.FirstChild; jsonNode != nil; jsonNode = jsonNode.NextSibling {
 			TRACE_LOG(TRACE_CACHE, "Top Node=%v\n", jsonNode.Data)
 			//Visit each top level list in a loop for creating table data
 			topNode, _ := c.generateTableData(true, jsonNode)
-			if (root == nil) {
+			if root == nil {
 				root = topNode
 			} else {
 				if root, errObj = c.yp.MergeSubtree(root, topNode); errObj.ErrCode != yparser.YP_SUCCESS {
@@ -236,7 +237,7 @@ func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
 
 			//Generate YANG data for Yang Validator
 			topYangNode, cvlYErrObj := c.generateYangListData(jsonNode, true)
-			if  topYangNode == nil {
+			if topYangNode == nil {
 				cvlYErrObj.ErrCode = CVL_SYNTAX_ERROR
 				CVL_LOG(WARNING, "Unable to translate cache data to YANG format")
 				return nil
@@ -248,21 +249,21 @@ func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
 			doc.LastChild = topYangNode
 			topYangNode.Parent = doc
 
-			if (IsTraceLevelSet(TRACE_CACHE)) {
+			if IsTraceLevelSet(TRACE_CACHE) {
 				TRACE_LOG(TRACE_CACHE, "Before cache merge = %s, source = %s",
-				c.yv.root.OutputXML(false),
-				doc.OutputXML(false))
+					c.yv.root.OutputXML(false),
+					doc.OutputXML(false))
 			}
 
 			if c.mergeYangData(c.yv.root, doc) != CVL_SUCCESS {
-				CVL_LOG(WARNING, "Unable to merge translated YANG data while " +
-				"translating from cache data to YANG format")
+				CVL_LOG(WARNING, "Unable to merge translated YANG data while "+
+					"translating from cache data to YANG format")
 				cvlYErrObj.ErrCode = CVL_SYNTAX_ERROR
 				return nil
 			}
-			if (IsTraceLevelSet(TRACE_CACHE)) {
+			if IsTraceLevelSet(TRACE_CACHE) {
 				TRACE_LOG(TRACE_CACHE, "After cache merge = %s",
-				c.yv.root.OutputXML(false))
+					c.yv.root.OutputXML(false))
 			}
 		}
 	} // until all dependent data is fetched
@@ -275,7 +276,6 @@ func (c *CVL) fetchDataToTmpCache() *yparser.YParserNode {
 	TRACE_LOG(TRACE_CACHE, "\n%v, Exiting fetchToTmpCache", time.Now())
 	return root
 }
-
 
 func (c *CVL) clearTmpDbCache() {
 	for key := range c.tmpDbCache {
