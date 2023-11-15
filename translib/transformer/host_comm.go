@@ -4,20 +4,20 @@ import (
 	"strings"
 
 	"github.com/godbus/dbus/v5"
-    log "github.com/golang/glog"
+	log "github.com/golang/glog"
 )
 
-// HostResult contains the body of the response and the error if any, when the 
+// HostResult contains the body of the response and the error if any, when the
 // endpoint finishes servicing the D-Bus request.
 type HostResult struct {
-	Body	[]interface{}
-	Err		error
+	Body []interface{}
+	Err  error
 }
 
 // HostQuery calls the corresponding D-Bus endpoint on the host and returns
 // any error and response body
 func HostQuery(endpoint string, args ...interface{}) (result HostResult) {
-    log.Infof("HostQuery called")
+	log.Infof("HostQuery called")
 	result_ch, err := hostQueryAsync(endpoint, args...)
 
 	if err != nil {
@@ -32,13 +32,13 @@ func HostQuery(endpoint string, args ...interface{}) (result HostResult) {
 // hostQueryAsync calls the corresponding D-Bus endpoint on the host and returns
 // a channel for the result, and any error
 func hostQueryAsync(endpoint string, args ...interface{}) (chan HostResult, error) {
-    log.Infof("HostQueryAsync called")
+	log.Infof("HostQueryAsync called")
 	var result_ch = make(chan HostResult, 1)
 	conn, err := dbus.SystemBus()
 	if err != nil {
 		return result_ch, err
 	}
-    log.Infof("HostQueryAsync conn established")
+	log.Infof("HostQueryAsync conn established")
 
 	service := strings.SplitN(endpoint, ".", 2)
 	const bus_name_base = "org.SONiC.HostService."
@@ -48,8 +48,8 @@ func hostQueryAsync(endpoint string, args ...interface{}) (chan HostResult, erro
 	obj := conn.Object(bus_name, bus_path)
 	dest := bus_name_base + endpoint
 	dbus_ch := make(chan *dbus.Call, 1)
-    //log.Infof("HostQueryAsync dbus called %s "% string(bus_path))
-    //log.Infof("HostQueryAsync dbus called %s  "% string(bus_name))
+	//log.Infof("HostQueryAsync dbus called %s "% string(bus_path))
+	//log.Infof("HostQueryAsync dbus called %s  "% string(bus_name))
 
 	go func() {
 		var result HostResult
@@ -58,10 +58,10 @@ func hostQueryAsync(endpoint string, args ...interface{}) (chan HostResult, erro
 		call := <-dbus_ch
 
 		if call.Err != nil {
-            log.Infof("HostQueryAsync Err is not nill while reading")
+			log.Infof("HostQueryAsync Err is not nill while reading")
 			result.Err = call.Err
 		} else {
-            log.Infof("HostQueryAsync Body is taken")
+			log.Infof("HostQueryAsync Body is taken")
 			result.Body = call.Body
 		}
 
@@ -69,11 +69,11 @@ func hostQueryAsync(endpoint string, args ...interface{}) (chan HostResult, erro
 		result_ch <- result
 	}()
 
-    log.Infof("HostQueryAsync Before objgo")
+	log.Infof("HostQueryAsync Before objgo")
 	call := obj.Go(dest, 0, dbus_ch, args...)
 
 	if call.Err != nil {
-        log.Infof("HostQueryAsync Err is not after obj.Go")
+		log.Infof("HostQueryAsync Err is not after obj.Go")
 		return result_ch, call.Err
 	}
 

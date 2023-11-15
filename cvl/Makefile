@@ -22,6 +22,7 @@ SRC_FILES=$(shell find . -name '*.go' | grep -v '_test.go' | grep -v '/tests/')
 TEST_FILES=$(wildcard *_test.go)
 TOP_DIR := ..
 BUILD_DIR:=$(TOP_DIR)/build/cvl
+FORMAT_CHECK = $(BUILD_DIR)/.formatcheck
 
 CVL_SCHEMA_DIR = $(BUILD_DIR)/schema
 CVL_SCHEMA     = $(CVL_SCHEMA_DIR)/.done
@@ -36,7 +37,7 @@ CVL_TEST_SCHEMA     = $(CVL_TEST_SCHEMA_DIR)/.done
 CVL_TEST_YANGS      = $(wildcard testdata/schema/*.yang)
 CVL_TEST_YANGS     += $(wildcard $(YANG_SRC_DIR)/sonic/common/*.yang)
 
-DEFAULT_TARGETS = $(CVL_SCHEMA)
+DEFAULT_TARGETS = $(CVL_SCHEMA) $(FORMAT_CHECK)
 ifeq ($(NO_TEST_BINS),)
 DEFAULT_TARGETS += $(CVL_TEST_BIN)
 endif
@@ -78,6 +79,12 @@ gotest: $(CVL_TEST_SCHEMA)
 	CVL_CFG_FILE=$(abspath .)/conf/cvl_cfg.json \
 	CVL_SCHEMA_PATH=$(abspath $(CVL_TEST_SCHEMA_DIR)) \
 	tests/run_test.sh
+
+$(FORMAT_CHECK): $(SRC_FILES) $(TEST_FILES) | $$(@D)/.
+	$(TOP_DIR)/tools/test/format-check.sh \
+		--log=$(@D)/formatcheck.log \
+		$?
+	touch $@
 
 clean:
 	$(RM) -r $(CVL_TEST_DIR) $(BUILD_DIR)

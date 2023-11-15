@@ -21,13 +21,12 @@ package translib
 
 import (
 	"fmt"
-	"reflect"
-	"strings"
-	"testing"
-
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/ygot/ygot"
+	"reflect"
+	"strings"
+	"testing"
 )
 
 func TestInitSchema(t *testing.T) {
@@ -226,12 +225,12 @@ func TestUnMarshallUri(t *testing.T) {
 		} else {
 			_, ok := (*workObj).(ygot.GoStruct)
 			if ok == false {
-//				objFieldName, err := getObjectFieldName(&tt.uri, &deviceObj, workObj)
-//				if err != nil {
-//					t.Error("Error in unmarshalling the URI: ", err)
-//				} else if objFieldName != tt.want {
-//					t.Error("Error in unmarshalling the URI: Invalid target node: ", objFieldName)
-//				}
+				//				objFieldName, err := getObjectFieldName(&tt.uri, &deviceObj, workObj)
+				//				if err != nil {
+				//					t.Error("Error in unmarshalling the URI: ", err)
+				//				} else if objFieldName != tt.want {
+				//					t.Error("Error in unmarshalling the URI: Invalid target node: ", objFieldName)
+				//				}
 			} else if tt.tid == 4 {
 				aclSet, ok := (*workObj).(*ocbinds.OpenconfigAcl_Acl_AclSets_AclSet)
 				if ok == true {
@@ -550,12 +549,12 @@ func TestUnMarshall(t *testing.T) {
 			} else {
 				_, ok := (*workObj).(ygot.GoStruct)
 				if ok == false {
-//					objFieldName, err := getObjectFieldName(&tt.uri, (*rootObj).(*ocbinds.Device), workObj)
-//					if err != nil {
-//						t.Error("Error in unmarshalling the URI: ", err)
-//					} else if objFieldName != tt.want {
-//						t.Error("Error in unmarshalling the payload: Invalid target node: ", objFieldName)
-//					}
+					//					objFieldName, err := getObjectFieldName(&tt.uri, (*rootObj).(*ocbinds.Device), workObj)
+					//					if err != nil {
+					//						t.Error("Error in unmarshalling the URI: ", err)
+					//					} else if objFieldName != tt.want {
+					//						t.Error("Error in unmarshalling the payload: Invalid target node: ", objFieldName)
+					//					}
 				} else if reflect.TypeOf(*workObj).Elem().Name() != tt.want {
 					t.Error("Error in unmarshalling the payload: Invalid target node: ", reflect.TypeOf(*workObj).Elem().Name())
 				}

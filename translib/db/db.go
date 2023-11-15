@@ -114,9 +114,9 @@ import (
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/cvl"
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
-	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 )
 
 const (
@@ -215,7 +215,7 @@ type TableSpec struct {
 	// can have TableSeparator as part of the key. Otherwise, we cannot
 	// tell where the key component begins.
 	CompCt int
-	// NoDelete flag (if it is set to true) is to skip the row entry deletion from 
+	// NoDelete flag (if it is set to true) is to skip the row entry deletion from
 	// the table when the "SetEntry" or "ModEntry" method is called with empty Value Field map.
 	NoDelete bool
 }
@@ -261,8 +261,8 @@ type DB struct {
 	onCReg dbOnChangeReg // holds OnChange enabled table names
 	// dbCache is used by both PerConnection cache, and OnChange cache
 	// On a DB handle, the two are mutually exclusive.
-	cache  dbCache
-	stats  DBStats
+	cache dbCache
+	stats DBStats
 
 	dbStatsConfig DBStatsConfig
 	dbCacheConfig DBCacheConfig
@@ -285,7 +285,7 @@ func (dbNo DBNum) Name() string {
 	return (getDBInstName(dbNo))
 }
 
-func getDBInstName (dbNo DBNum) string {
+func getDBInstName(dbNo DBNum) string {
 	switch dbNo {
 	case ApplDB:
 		return "APPL_DB"
@@ -550,13 +550,13 @@ func (d *DB) getEntry(ts *TableSpec, key Key, forceReadDB bool) (Value, error) {
 	var ok bool
 	entry := d.key2redis(ts, key)
 	useCache := ((d.Opts.IsOnChangeEnabled && d.onCReg.isCacheTable(ts.Name)) ||
-				(d.dbCacheConfig.PerConnection &&
-					d.dbCacheConfig.isCacheTable(ts.Name)))
+		(d.dbCacheConfig.PerConnection &&
+			d.dbCacheConfig.isCacheTable(ts.Name)))
 
 	// check in Tx cache first
 	if value, ok = d.txTsEntryMap[ts.Name][entry]; !ok {
 		// If cache GetFromCache (CacheHit?)
-		if (useCache && !forceReadDB) {
+		if useCache && !forceReadDB {
 			if table, ok = d.cache.Tables[ts.Name]; ok {
 				if value, ok = table.entry[entry]; ok {
 					value = value.Copy()
@@ -598,11 +598,11 @@ func (d *DB) getEntry(ts *TableSpec, key Key, forceReadDB bool) (Value, error) {
 				d.cache.Tables = make(map[string]Table, d.onCReg.size())
 			}
 			d.cache.Tables[ts.Name] = Table{
-				ts:    ts,
-				entry: make(map[string]Value),
+				ts:       ts,
+				entry:    make(map[string]Value),
 				complete: false,
 				patterns: make(map[string][]Key),
-				db:    d,
+				db:       d,
 			}
 		}
 		d.cache.Tables[ts.Name].entry[entry] = value.Copy()
@@ -1207,7 +1207,7 @@ func (d *DB) RunScript(script *redis.Script, keys []string, args ...interface{})
 		return nil
 	}
 
-    return script.Run(d.client, keys, args...)
+	return script.Run(d.client, keys, args...)
 }
 
 // DeleteEntry deletes an entry(row) in the table.
@@ -1258,7 +1258,7 @@ func (d *DB) ModEntry(ts *TableSpec, key Key, value Value) error {
 				glog.Info("ModEntry: Mapping to DeleteEntry()")
 			}
 			e = d.DeleteEntry(ts, key)
-		}		
+		}
 		goto ModEntryExit
 	}
 
@@ -1677,7 +1677,7 @@ func (d *DB) AbortTx() error {
 		e = errors.New("Cannot issue UNWATCH in txStateMultiExec")
 	default:
 		glog.Error("AbortTx: Unknown, txState: ", d.txState)
-		 e = errors.New("Unknown State: " + string(rune(d.txState)))
+		e = errors.New("Unknown State: " + string(rune(d.txState)))
 	}
 
 	if e != nil {
