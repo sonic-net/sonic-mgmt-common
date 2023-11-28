@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/openconfig/goyang/pkg/yang"
 )
 
@@ -61,14 +62,15 @@ type requestBinder struct {
 	payload            *[]byte
 	opcode             int
 	appRootNodeType    *reflect.Type
-	pathTmp            *gnmi.Path
+	pathParent         *gnmi.Path
 	targetNodePath     *gnmi.Path
+	targetNodeSchema   *yang.Entry
 	targetNodeListInst bool
 	isSonicModel       bool
 }
 
 func getRequestBinder(uri *string, payload *[]byte, opcode int, appRootNodeType *reflect.Type) *requestBinder {
-	return &requestBinder{uri, payload, opcode, appRootNodeType, nil, nil, false, false}
+	return &requestBinder{uri, payload, opcode, appRootNodeType, nil, nil, nil, false, false}
 }
 
 func (binder *requestBinder) unMarshallPayload(workObj *interface{}) error {
@@ -84,7 +86,10 @@ func (binder *requestBinder) unMarshallPayload(workObj *interface{}) error {
 		log.Error(err)
 		return tlerr.TranslibSyntaxValidationError{StatusCode: 400, ErrorStr: err}
 	}
-
+	if log.V(5) {
+		log.Info("Ygot target object:")
+		pretty.Print(targetObj)
+	}
 	err := ocbinds.Unmarshal(*binder.payload, targetObj)
 	if err != nil {
 		log.Error(err)
@@ -129,7 +134,7 @@ func (binder *requestBinder) validateRequest(deviceObj *ocbinds.Device) error {
 		return nil
 	}
 
-	if binder.pathTmp == nil || len(binder.pathTmp.Elem) == 0 {
+	if binder.pathParent == nil || len(binder.pathParent.Elem) == 0 {
 		if binder.opcode == UPDATE || binder.opcode == REPLACE {
 			err := deviceObj.Validate(&ytypes.LeafrefOptions{IgnoreMissingData: true})
 			err = binder.validateObjectType(err)
@@ -142,7 +147,7 @@ func (binder *requestBinder) validateRequest(deviceObj *ocbinds.Device) error {
 		}
 	}
 
-	path, err := ygot.StringToPath(binder.pathTmp.Elem[0].Name, ygot.StructuredPath, ygot.StringSlicePath)
+	path, err := ygot.StringToPath(binder.pathParent.Elem[0].Name, ygot.StructuredPath, ygot.StringSlicePath)
 	if err != nil {
 		return err
 	} else {
@@ -199,8 +204,8 @@ func (binder *requestBinder) unMarshall() (*ygot.GoStruct, *interface{}, error) 
 	case UPDATE, REPLACE:
 		var tmpTargetNode *interface{}
 		var ygEntry *yang.Entry
-		if binder.pathTmp != nil {
-			treeNodeList, err2 := ytypes.GetNode(ygSchema.RootSchema(), &deviceObj, binder.pathTmp)
+		if binder.pathParent != nil && !binder.targetNodeListInst {
+			treeNodeList, err2 := ytypes.GetNode(ygSchema.RootSchema(), &deviceObj, binder.pathParent)
 			if err2 != nil {
 				return nil, nil, tlerr.TranslibSyntaxValidationError{StatusCode: 400, ErrorStr: err2}
 			}
@@ -213,8 +218,8 @@ func (binder *requestBinder) unMarshall() (*ygot.GoStruct, *interface{}, error) 
 			ygEntry = treeNodeList[0].Schema
 		} else {
 			tmpTargetNode = workObj
+			ygEntry = binder.targetNodeSchema
 		}
-
 		err = binder.unMarshallPayload(tmpTargetNode)
 		if err != nil {
 			return nil, nil, tlerr.TranslibSyntaxValidationError{StatusCode: 400, ErrorStr: err}
@@ -234,10 +239,9 @@ func (binder *requestBinder) unMarshall() (*ygot.GoStruct, *interface{}, error) 
 			} else if ygEntry.IsList() || binder.targetNodeListInst {
 				if treeNodeList, err2 := ytypes.GetNode(ygEntry, *tmpTargetNode, binder.targetNodePath); err2 != nil {
 					return nil, nil, tlerr.TranslibSyntaxValidationError{StatusCode: 400, ErrorStr: err2}
+				} else if len(treeNodeList) == 0 {
+					return nil, nil, tlerr.TranslibSyntaxValidationError{StatusCode: 400, ErrorStr: errors.New("Invalid URI")}
 				} else {
-					if len(treeNodeList) == 0 {
-						return nil, nil, tlerr.TranslibSyntaxValidationError{StatusCode: 400, ErrorStr: errors.New("Invalid URI")}
-					}
 					workObjIntf = treeNodeList[0].Data
 				}
 			}
@@ -274,6 +278,13 @@ func (binder *requestBinder) unMarshall() (*ygot.GoStruct, *interface{}, error) 
 		}
 	}
 
+	if log.V(5) {
+		log.Info("Ygot root object:")
+		pretty.Print(ygotRootObj)
+		log.Info("Ygot work object:")
+		pretty.Print(workObj)
+	}
+
 	return ygotRootObj, workObj, nil
 }
 
@@ -301,7 +312,7 @@ func (binder *requestBinder) unMarshallUri(deviceObj *ocbinds.Device) (*interfac
 	if err != nil {
 		return nil, err
 	} else {
-		binder.pathTmp = path
+		binder.pathParent = path
 	}
 
 	for idx, p := range path.Elem {
@@ -312,32 +323,39 @@ func (binder *requestBinder) unMarshallUri(deviceObj *ocbinds.Device) (*interfac
 		p.Name = pathSlice[len(pathSlice)-1]
 	}
 
-	ygNode, ygEntry, errYg := ytypes.GetOrCreateNode(ygSchema.RootSchema(), deviceObj, path)
-
-	if errYg != nil {
-		log.Error("Error in creating the target object: ", errYg)
-		return nil, errYg
-	}
+	targetPath := path
 
 	switch binder.opcode {
 	case UPDATE, REPLACE:
-		if ygEntry.IsList() && reflect.ValueOf(ygNode).Kind() != reflect.Map {
+		var pathList []*gnmi.PathElem = path.Elem
+		pathLen := len(pathList)
+
+		if len(pathList[pathLen-1].Key) > 0 {
 			binder.targetNodeListInst = true
 		}
-		var pathList []*gnmi.PathElem = path.Elem
 
 		gpath := &gnmi.Path{}
-
-		for i := 0; i < (len(pathList) - 1); i++ {
+		for i := 0; i < (pathLen - 1); i++ {
 			gpath.Elem = append(gpath.Elem, pathList[i])
 		}
 
 		binder.targetNodePath = &gnmi.Path{}
-		binder.targetNodePath.Elem = append(binder.targetNodePath.Elem, pathList[(len(pathList)-1)])
-
+		binder.targetNodePath.Elem = append(binder.targetNodePath.Elem, pathList[(pathLen-1)])
 		log.Info("requestBinder: modified path is: ", gpath)
 
-		binder.pathTmp = gpath
+		binder.pathParent = gpath
+
+		if binder.targetNodeListInst {
+			targetPath = binder.pathParent
+		}
+	}
+
+	ygNode, ygEntry, errYg := ytypes.GetOrCreateNode(ygSchema.RootSchema(), deviceObj, targetPath)
+	if errYg != nil {
+		log.Error("Error in creating the target object: ", errYg)
+		return nil, errYg
+	} else {
+		binder.targetNodeSchema = ygEntry
 	}
 
 	if (binder.opcode == GET || binder.opcode == DELETE) && (!ygEntry.IsLeaf() && !ygEntry.IsLeafList()) {

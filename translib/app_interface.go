@@ -30,12 +30,14 @@ to the tranlib infra when it asks for the same.
 package translib
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	log "github.com/golang/glog"
+	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -53,6 +55,7 @@ type appData struct {
 	payload    []byte
 	ygotRoot   *ygot.GoStruct
 	ygotTarget *interface{}
+	ygSchema   *yang.Entry
 	appOptions
 }
 
@@ -78,6 +81,9 @@ type appOptions struct {
 	// deleteEmptyEntry indicates if the db entry should be deleted upon
 	// deletion of last field. This is a non standard option.
 	deleteEmptyEntry bool
+
+	// ctxt request context
+	ctxt context.Context
 }
 
 // map containing the base path to app module info

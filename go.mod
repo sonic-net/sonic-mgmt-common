@@ -17,6 +17,7 @@ require (
 	github.com/pborman/getopt v0.0.0-20190409184431-ee0cd42419d3 // indirect
 	github.com/philopon/go-toposort v0.0.0-20170620085441-9be86dbd762f
 	golang.org/x/text v0.3.0
+	google.golang.org/grpc v1.28.0
 )
 
 go 1.13
