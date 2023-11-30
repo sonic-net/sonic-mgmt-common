@@ -54,14 +54,13 @@ def build_mods_dict(ctx):
 
     basepath = ctx.opts.basepaths
     if basepath is not None:
-        repo = FileRepository(basepath, use_env=False, no_path_recurse=True)
+        repo = FileRepository(basepath, use_env=False)
         newctx = Context(repo)
         newctx.opts = ctx.opts
         newctx.lax_xpath_checks = ctx.lax_xpath_checks
         newctx.lax_quote_checks = ctx.lax_quote_checks
         for entry in newctx.repository.modules:
             mod_name = entry[0]
-            sys.stderr.write("DEBUG RSL %s\n" % (mod_name))
             mod = entry[2][1]
             try:
                 fd = io.open(mod, "r", encoding="utf-8")
@@ -75,7 +74,7 @@ def build_mods_dict(ctx):
         newctx.validate()
 
     basepath = ctx.opts.path[0]
-    repo = FileRepository(basepath, use_env=False, no_path_recurse=True)
+    repo = FileRepository(basepath, use_env=False)
     newctx = Context(repo)
     newctx.opts = ctx.opts
     newctx.lax_xpath_checks = ctx.lax_xpath_checks
