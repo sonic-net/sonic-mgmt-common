@@ -39,6 +39,32 @@ module openconfig-file-mgmt-private {
             "Pattern for safe access to the file system";
     }
 
+    grouping config-reload-state {
+            description
+               "Config Reload state";
+            leaf state {
+                type string;
+                description "Config Reload State.";
+            }
+     }
+
+    grouping config-reload-top {
+       description "Top level grouping for config-reload containers.";
+       container config-reload {
+          description
+              "Enclosing container for config-reload state data.";
+          container state {
+             config false;
+             description
+              "State information of Config Reload";
+             uses config-reload-state;
+          }
+       }
+    }
+    uses config-reload-top;
+
+    // rpc statements
+
     rpc copy {
         description
             "This procedure is used to copy a file from an external server to the switch, or from the switch to an external server.";
