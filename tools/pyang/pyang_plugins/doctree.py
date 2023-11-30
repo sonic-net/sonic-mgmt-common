@@ -61,6 +61,7 @@ def build_mods_dict(ctx):
         newctx.lax_quote_checks = ctx.lax_quote_checks
         for entry in newctx.repository.modules:
             mod_name = entry[0]
+            sys.stderr.write("DEBUG RSL %s\n" % (mod_name))
             mod = entry[2][1]
             try:
                 fd = io.open(mod, "r", encoding="utf-8")
