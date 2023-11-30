@@ -21,9 +21,10 @@ module openconfig-file-mgmt-private {
     oc-ext:openconfig-version "0.0.1";
 
     revision "2021-10-01" {
-      description
-        "Minimal Copy Rpc.";
-      reference "0.0.1";
+        description
+          "Minimal Copy Rpc.";
+        reference
+          "0.0.1";
     }
 
     typedef filename-uri-type {
@@ -45,6 +46,10 @@ module openconfig-file-mgmt-private {
             leaf state {
                 type string;
                 description "Config Reload State.";
+            }
+            leaf state-detail {
+                type string;
+                description "Config Reload state detail.";
             }
      }
 
