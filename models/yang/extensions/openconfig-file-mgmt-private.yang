@@ -18,42 +18,12 @@ module openconfig-file-mgmt-private {
     description
       "This module describes deviation in file management model.";
 
-    oc-ext:openconfig-version "0.2.0";
-
-    revision "2022-10-14" {
-      description
-        "Add Config Reload State container.";
-      reference "0.2.0";
-    }
-
-    revision "2022-09-29" {
-      description
-        "Modified copy options in copy rpc.";
-      reference "0.1.1";
-    }
+    oc-ext:openconfig-version "0.0.1";
 
     revision "2021-10-01" {
       description
-        "Private definitions in file management model.";
-      reference "0.1.0";
-    }
-
-
-    typedef folder-aliases {
-        type string {
-            pattern '^(config|coredump|home|log|tech-support)' {
-                error-message "Invalid folder name.";
-                error-app-tag file-mgmt-invalid-folder;
-            }
-        }
-
-        description
-            "Support for following aliases:
-            config:        Folder containing configuration files
-            coredump:      Folder containing coredump files
-            home:          Folder containing files in user's home directory
-            log:           Folder containing system log files
-            tech-support: Folder containing tech support files";
+        "Minimal Copy Rpc.";
+      reference "0.0.1";
     }
 
     typedef filename-uri-type {
@@ -67,109 +37,6 @@ module openconfig-file-mgmt-private {
 
        description
             "Pattern for safe access to the file system";
-    }
-
-    typedef erase-command-type {
-        type enumeration {
-            enum CANCEL {
-                description
-                "Cancel configuration erase operation.";
-            }
-            enum CONFIG {
-                description
-                "Erase configuration files excluding the management interface configuration.";
-            }
-            enum FULL_CONFIG {
-                description
-                "Erase configuration files including the management interface configuration.";
-            }
-            enum INSTALL {
-                description
-                "Restore the SONiC switch contents to factory default state.";
-            }
-        }
-        description
-            "Configuration Erase command options";
-    }
-
-    typedef delete-filepath-type {
-      type string {
-        pattern
-          "((coredump|home|tech-support|home|log):.*)" {
-            error-message "Invalid folder name.";
-          }
-      }
-      description
-        "Pattern for safe access to the file system";
-    }
-
-    grouping config-reload-state {
-            description
-               "Config Reload state";
-            leaf state {
-                type string;
-                description "Config Reload State.";
-            }
-            leaf state-detail {
-                type string;
-                description "Config Reload state detail.";
-            }
-            leaf start-time {
-                type oc-types:timeticks64;
-                description "Config reload start time. Timestamp
-                     value is expressed as number of secods elapsed since the
-                     unix epoch (Jan 1, 1970 00:00:00 UTC).";
-            }
-            leaf end-time {
-                type oc-types:timeticks64;
-                description "Config reload end time. Timestamp
-                     value is expressed as number of secods elapsed since the
-                     unix epoch (Jan 1, 1970 00:00:00 UTC).";
-            }
-     }
-
-    grouping config-reload-top {
-       description "Top level grouping for config-reload containers.";
-       container config-reload {
-          description
-              "Enclosing container for config-reload state data.";
-          container state {
-             config false;
-             description
-              "State information of Config Reload";
-             uses config-reload-state;
-          }
-       }
-    }
-    uses config-reload-top;
-
-    // rpc statements
-
-    rpc dir {
-        description "Lists directory contents.";
-        input {
-            leaf folder-name {
-                type folder-aliases;
-                description "Provide the folder name.";
-            }
-        }
-
-        output {
-            leaf status {
-                type int32;
-                description "The status of the operation execution request.";
-            }
-
-            leaf status-detail {
-                type string;
-                description "The detailed status of the operation execution request.";
-            }
-
-            leaf data {
-                type string;
-                description "On success carries content of the folder in JSON string format.";
-            }
-        }
     }
 
     rpc copy {
@@ -215,92 +82,6 @@ module openconfig-file-mgmt-private {
             leaf status-detail {
                 type string;
                 description "The detailed status of the operation execution request.";
-            }
-        }
-    }
-
-    rpc delete-file {
-        description
-           "This procedure is used to delete a local file on the switch.";
-        input {
-            leaf filename {
-                type delete-filepath-type;
-                description
-                  "Provide the filename in URI format for the file to be deleted.";
-            }
-        }
-
-        output {
-            leaf status {
-                type int32;
-                description "The status of the operation execution request.";
-            }
-            leaf status-detail {
-                type string;
-                description "The detailed status of the operation execution request.";
-            }
-        }
-    }
-
-    rpc write-erase {
-        description
-            "Configuration Erase Options:
-               - CONFIG : Erase configuration files excluding the management interface configuration.
-               - FULL_CONFIG : Erase configuration files including the management interface configuration.
-               - INSTALL : Restore the SONiC switch contents to factory default state.
-               - CANCEL : Cancel configuration erase operation.
-
-             The detailed result of the requested command is sent as a string.";
-        input {
-            leaf option {
-                type erase-command-type;
-                default CONFIG;
-                description "Command option to the configuration erase operation.";
-            }
-        }
-
-        output {
-            leaf status {
-                type int32;
-                description "The status code of the operation execution request. A non-zero value
-                    indicates a failure.";
-            }
-            leaf status-detail {
-                type string;
-                description "The detailed status of the operation execution request.";
-            }
-        }
-    }
-
-    rpc factory-default-profile {
-        description
-            "This RPC is used to modify the factory default configuration profile.
-            The user can specify a supported default configuration profile name as input
-            and the RPC takes action to clear the existing switch configuration and creating a
-            default configuration as per the input profile name. This operation can result
-            in the restart of the REST server, thus the return status may not be available. When
-            an error happens, the output parameter status returns a non-zero value and the
-            the output parameter status-detail provides additional information about the
-            error.";
-        input {
-            leaf profile-name {
-                type string;
-                mandatory true;
-                description
-                    "Name of factory default configuration profile name.";
-            }
-        }
-        output {
-            leaf status {
-                type int32;
-                description
-                    "The status code of the operation execution request. A non-zero value
-                    indicates a failure.";
-            }
-            leaf status-detail {
-                type string;
-                description
-                    "The detailed status of the operation execution request.";
             }
         }
     }

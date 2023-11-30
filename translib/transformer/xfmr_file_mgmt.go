@@ -30,10 +30,7 @@ import (
 var copyMutex = &sync.Mutex{}
 
 func init() {
-	XlateFuncBind("rpc_dir_cb", rpc_dir_cb)
 	XlateFuncBind("rpc_copy_cb", rpc_copy_cb)
-	XlateFuncBind("rpc_delete_cb", rpc_delete_cb)
-	XlateFuncBind("YangToDb_config_reload_key_xfmr", YangToDb_config_reload_key_xfmr)
 }
 
 var rpc_copy_cb RpcCallpoint = func(body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
@@ -98,16 +95,4 @@ func copy_action(body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
 	result, err = json.Marshal(&sum)
 
 	return result, err
-}
-
-var rpc_dir_cb RpcCallpoint = func(body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
-	return nil, errors.New("rpc_dir_cb: Not Implemented")
-}
-
-var rpc_delete_cb RpcCallpoint = func(body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
-	return nil, errors.New("rpc_delete_cb: Not Implemented")
-}
-
-var YangToDb_config_reload_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
-	return "state", nil
 }
