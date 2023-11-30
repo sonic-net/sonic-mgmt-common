@@ -18,13 +18,42 @@ module openconfig-file-mgmt-private {
     description
       "This module describes deviation in file management model.";
 
-    oc-ext:openconfig-version "0.0.1";
+    oc-ext:openconfig-version "0.2.0";
+
+    revision "2022-10-14" {
+      description
+        "Add Config Reload State container.";
+      reference "0.2.0";
+    }
+
+    revision "2022-09-29" {
+      description
+        "Modified copy options in copy rpc.";
+      reference "0.1.1";
+    }
 
     revision "2021-10-01" {
+      description
+        "Private definitions in file management model.";
+      reference "0.1.0";
+    }
+
+
+    typedef folder-aliases {
+        type string {
+            pattern '^(config|coredump|home|log|tech-support)' {
+                error-message "Invalid folder name.";
+                error-app-tag file-mgmt-invalid-folder;
+            }
+        }
+
         description
-          "Minimal Copy Rpc.";
-        reference
-          "0.0.1";
+            "Support for following aliases:
+            config:        Folder containing configuration files
+            coredump:      Folder containing coredump files
+            home:          Folder containing files in user's home directory
+            log:           Folder containing system log files
+            tech-support: Folder containing tech support files";
     }
 
     typedef filename-uri-type {
@@ -50,6 +79,18 @@ module openconfig-file-mgmt-private {
             leaf state-detail {
                 type string;
                 description "Config Reload state detail.";
+            }
+            leaf start-time {
+                type oc-types:timeticks64;
+                description "Config reload start time. Timestamp
+                     value is expressed as number of secods elapsed since the
+                     unix epoch (Jan 1, 1970 00:00:00 UTC).";
+            }
+            leaf end-time {
+                type oc-types:timeticks64;
+                description "Config reload end time. Timestamp
+                     value is expressed as number of secods elapsed since the
+                     unix epoch (Jan 1, 1970 00:00:00 UTC).";
             }
      }
 
