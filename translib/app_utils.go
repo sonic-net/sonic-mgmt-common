@@ -149,7 +149,7 @@ func generateGetResponse(targetUri string, root *ygot.GoStruct, fmtType Translib
 		return resp, err
 	}
 
-	resp.Payload, err = dumpIetfJson(parentCloneObj, true)
+	resp.Payload, err = dumpIetfJson(parentCloneObj)
 
 	return resp, err
 }
@@ -186,15 +186,11 @@ func getTargetNodeYangSchema(targetUri string, deviceObj *ocbinds.Device) (*yang
 	return targetNodeSchema, nil
 }
 
-func dumpIetfJson(s ygot.ValidatedGoStruct, skipValidation bool) ([]byte, error) {
-	jsonStr, err := ygot.EmitJSON(s, &ygot.EmitJSONConfig{
-		Format:         ygot.RFC7951,
-		SkipValidation: skipValidation,
-		RFC7951Config: &ygot.RFC7951JSONConfig{
-			AppendModuleName: true,
-		},
-	})
-	return []byte(jsonStr), err
+func dumpIetfJson(s ygot.ValidatedGoStruct) ([]byte, error) {
+	cfg := ocbinds.EmitJSONOptions{
+		SortList: true,
+	}
+	return ocbinds.EmitJSON(s, &cfg)
 }
 
 func contains(sl []string, str string) bool {

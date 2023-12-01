@@ -15,7 +15,7 @@ TRANSLIB_BLD = $(BUILD_DIR)/translib
 FORMAT_CHECK = $(TRANSLIB_BLD)/.formatcheck
 
 SRCS  := $(shell find . -name '*.go' -not -name '*_test.go' -not -path '*/test/*' -not -path '*/ocbinds/*')
-SRCX  := $(shell find ocbinds -name '*.go' -not -name 'ocbinds_*.go')
+SRCX  := $(shell find ocbinds -name '*.go' -not -name 'ocbinds*.go')
 TESTS := $(shell find . -name '*_test.go' -not -path '*/test/*')
 
 TRANSLIB_MAIN_SRCS = $(filter-out ./transformer/%, $(SRCS) $(SRCX))
