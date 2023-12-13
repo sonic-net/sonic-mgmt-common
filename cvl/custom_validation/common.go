@@ -81,10 +81,10 @@ const (
 
 // CVLEditConfigData Strcture for key and data in API
 type CVLEditConfigData struct {
-	VType     CVLValidateType   //Validation type
-	VOp       CVLOperation      //Operation type
-	Key       string            //Key format : "PORT|Ethernet4"
-	Data      map[string]string //Value :  {"alias": "40GE0/28", "mtu" : 9100,  "admin_status":  down}
+	VType CVLValidateType   //Validation type
+	VOp   CVLOperation      //Operation type
+	Key   string            //Key format : "PORT|Ethernet4"
+	Data  map[string]string //Value :  {"alias": "40GE0/28", "mtu" : 9100,  "admin_status":  down}
 }
 
 // CVLErrorInfo CVL Error Structure

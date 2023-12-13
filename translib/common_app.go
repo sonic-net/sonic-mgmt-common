@@ -33,9 +33,9 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/transformer"
 	"github.com/Azure/sonic-mgmt-common/translib/utils"
 	log "github.com/golang/glog"
+	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/ygot/util"
 	"github.com/openconfig/ygot/ygot"
-	"github.com/openconfig/ygot/ytypes"
 )
 
 var ()
@@ -45,6 +45,7 @@ type CommonApp struct {
 	body                []byte
 	ygotRoot            *ygot.GoStruct
 	ygotTarget          *interface{}
+	ygSchema            *yang.Entry
 	skipOrdTableChk     bool
 	cmnAppTableMap      map[int]map[db.DBNum]map[string]map[string]db.Value
 	cmnAppYangDefValMap map[string]map[string]db.Value
@@ -84,7 +85,7 @@ func init() {
 func (app *CommonApp) initialize(data appData) {
 	log.Info("initialize:path =", data.path)
 	pathInfo := NewPathInfo(data.path)
-	*app = CommonApp{pathInfo: pathInfo, body: data.payload, ygotRoot: data.ygotRoot, ygotTarget: data.ygotTarget, skipOrdTableChk: false}
+	*app = CommonApp{pathInfo: pathInfo, body: data.payload, ygotRoot: data.ygotRoot, ygotTarget: data.ygotTarget, skipOrdTableChk: false, ygSchema: data.ygSchema}
 	app.appOptions = data.appOptions
 
 }
@@ -409,8 +410,8 @@ func (app *CommonApp) processDelete(d *db.DB) (SetResponse, error) {
 
 func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
 	var err error
+	var resp GetResponse
 	var payload []byte
-	var resPayload []byte
 	log.Info("processGet:path =", app.pathInfo.Path)
 	txCache := new(sync.Map)
 	isSonicUri := strings.HasPrefix(app.pathInfo.Path, "/sonic")
@@ -423,10 +424,10 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 		qParams, err = transformer.NewQueryParams(app.depth, app.content, app.fields)
 		if err != nil {
 			log.Warning("transformer.NewQueryParams() returned : ", err)
-			resPayload = []byte("{}")
+			resp.Payload = []byte("{}")
 			break
 		}
-		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams)
+		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams, app.ctxt, app.ygSchema)
 		if err != nil {
 			// target URI for list GET request with QP content!=all and node's content-type mismatches the requested content-type, return empty payload
 			if isEmptyPayload && qParams.IsContentEnabled() && transformer.IsListNode(app.pathInfo.Path) {
@@ -437,17 +438,17 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 			if err != nil {
 				log.Warning("transformer.GetAndXlateFromDB() returned : ", err)
 			}
-			resPayload = payload
+			resp.Payload = payload
 			break
 		}
 		if isSonicUri && isEmptyPayload {
 			log.Info("transformer.GetAndXlateFromDB() returned EmptyPayload")
-			resPayload = payload
+			resp.Payload = payload
 			break
 		}
 		if isEmptyPayload && (app.depth == 1) && !transformer.IsLeafNode(app.pathInfo.Path) && !transformer.IsLeafListNode(app.pathInfo.Path) {
 			// target URI for Container or list GET request with depth = 1, returns empty payload
-			resPayload = payload
+			resp.Payload = payload
 			break
 		}
 
@@ -460,29 +461,30 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 			parentTargetObj, _, getParentNodeErr := getParentNode(&targetUri, (*app.ygotRoot).(*ocbinds.Device))
 			if getParentNodeErr != nil {
 				log.Warningf("getParentNode() failure for URI %v", app.pathInfo.Path)
-				resPayload = payload
+				resp.Payload = payload
 				break
 			}
 			if parentTargetObj != nil {
 				targetObj, tgtObjCastOk = (*parentTargetObj).(ygot.GoStruct)
 				if !tgtObjCastOk {
 					log.Warningf("Casting of parent object returned from getParentNode() to GoStruct failed(uri - %v)", app.pathInfo.Path)
-					resPayload = payload
+					resp.Payload = payload
 					break
 				}
 			} else {
 				log.Warningf("getParentNode() returned a nil Object for URI %v", app.pathInfo.Path)
-				resPayload = payload
+				resp.Payload = payload
 				break
 			}
 		}
 		if targetObj != nil {
-			updateListEntriesOpt := ytypes.AllowUpdateInListMap{}
-			err = ocbinds.Unmarshal(payload, targetObj, &updateListEntriesOpt)
-			if err != nil {
-				log.Warning("ocbinds.Unmarshal()  returned : ", err)
-				resPayload = payload
-				break
+			if isSonicUri {
+				err = ocbinds.Unmarshal(payload, targetObj)
+				if err != nil {
+					log.Warning("ocbinds.Unmarshal()  returned : ", err)
+					resp.Payload = payload
+					break
+				}
 			}
 
 			resYgot := (*app.ygotRoot)
@@ -493,13 +495,13 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 						// No data available in appYgotStruct.
 						if transformer.IsLeafNode(app.pathInfo.Path) {
 							//if leaf not exist in DB subtree won't fill ygotRoot, as per RFC return err
-							resPayload = payload
+							resp.Payload = payload
 							log.Info("No data found for leaf.")
 							err = tlerr.NotFound("Resource not found")
 							break
 						}
 						if !qParams.IsEnabled() {
-							resPayload = payload
+							resp.Payload = payload
 							log.Info("No data available")
 							//TODO: Return not found error
 							//err = tlerr.NotFound("Resource not found")
@@ -512,19 +514,22 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 				}
 			}
 			if resYgot != nil {
-				return generateGetResponse(app.pathInfo.Path, &resYgot, fmtType)
+				resp, err = generateGetResponse(app.pathInfo.Path, &resYgot, fmtType)
+				if err != nil {
+					log.Warning("generateGetResponse() couldn't generate payload.")
+					resp.Payload = payload
+				}
 			} else {
-				resPayload = payload
+				resp.Payload = payload
 			}
 			break
 		} else {
 			log.Warning("processGet. targetObj is null. Unable to Unmarshal payload")
-			resPayload = payload
+			resp.Payload = payload
 			break
 		}
 	}
-
-	return GetResponse{Payload: resPayload}, err
+	return resp, err
 }
 
 func (app *CommonApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

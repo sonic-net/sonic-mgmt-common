@@ -34,6 +34,7 @@ This package can also talk to non-DB clients.
 package translib
 
 import (
+	"context"
 	"sync"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -92,6 +93,7 @@ type GetRequest struct {
 	AuthEnabled   bool
 	ClientVersion Version
 	QueryParams   QueryParameters
+	Ctxt          context.Context
 }
 
 type GetResponse struct {
@@ -455,7 +457,7 @@ func Get(req GetRequest) (GetResponse, error) {
 		return resp, err
 	}
 
-	opts := appOptions{depth: req.QueryParams.Depth, content: req.QueryParams.Content, fields: req.QueryParams.Fields}
+	opts := appOptions{depth: req.QueryParams.Depth, content: req.QueryParams.Content, fields: req.QueryParams.Fields, ctxt: req.Ctxt}
 	err = appInitialize(app, appInfo, path, nil, &opts, GET)
 
 	if err != nil {
@@ -880,18 +882,17 @@ func appInitialize(app *appInterface, appInfo *appInfo, path string, payload *[]
 	}
 
 	if appInfo.isNative {
-		log.Info("Native MSFT format")
 		data := appData{path: path, payload: input}
 		data.setOptions(opts)
 		(*app).initialize(data)
 	} else {
-		ygotStruct, ygotTarget, err := getRequestBinder(&path, payload, opCode, &(appInfo.ygotRootType)).unMarshall()
+		reqBinder := getRequestBinder(&path, payload, opCode, &(appInfo.ygotRootType))
+		ygotStruct, ygotTarget, err := reqBinder.unMarshall()
 		if err != nil {
 			log.Info("Error in request binding: ", err)
 			return err
 		}
-
-		data := appData{path: path, payload: input, ygotRoot: ygotStruct, ygotTarget: ygotTarget}
+		data := appData{path: path, payload: input, ygotRoot: ygotStruct, ygotTarget: ygotTarget, ygSchema: reqBinder.targetNodeSchema}
 		data.setOptions(opts)
 		(*app).initialize(data)
 	}

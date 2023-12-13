@@ -310,7 +310,7 @@ type DB struct {
 	stats DBStats
 	cache dbCache
 
-	onCReg dbOnChangeReg
+	onCReg dbOnChangeReg // holds OnChange enabled table names
 
 	// PubSubRpc
 	rPubSub *redis.PubSub
@@ -660,13 +660,13 @@ func (d *DB) getEntry(ts *TableSpec, key Key, forceReadDB bool) (Value, error) {
 	var ok bool
 	entry := d.key2redis(ts, key)
 	useCache := ((d.Opts.IsOnChangeEnabled && d.onCReg.isCacheTable(ts.Name)) ||
-				(d.dbCacheConfig.PerConnection &&
-					d.dbCacheConfig.isCacheTable(ts.Name)))
+		(d.dbCacheConfig.PerConnection &&
+			d.dbCacheConfig.isCacheTable(ts.Name)))
 
 	// check in Tx cache first
 	if value, ok = d.txTsEntryMap[ts.Name][entry]; !ok {
 		// If cache GetFromCache (CacheHit?)
-		if (useCache && !forceReadDB) {
+		if useCache && !forceReadDB {
 			if table, ok = d.cache.Tables[ts.Name]; ok {
 				if value, ok = table.entry[entry]; ok {
 					value = value.Copy()

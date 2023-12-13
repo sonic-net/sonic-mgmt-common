@@ -324,6 +324,9 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 		}
 
 		parentXpathData, ok := xYangSpecMap[xpathPrefix]
+		if ok && parentXpathData == nil {
+			ok = false
+		}
 		/* init current xpath table data with its parent data, change only if needed. */
 		if ok && xpathData.tableName == nil {
 			if xpathData.tableName == nil && parentXpathData.tableName != nil && xpathData.xfmrTbl == nil {
@@ -474,9 +477,11 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 
 			xpathData.keyXpath = make(map[int]*[]string, (parentKeyLen + 1))
 			k := 0
-			for ; k < parentKeyLen; k++ {
-				/* copy parent key-list to child key-list*/
-				xpathData.keyXpath[k] = parentXpathData.keyXpath[k]
+			if parentXpathData != nil {
+				for ; k < parentKeyLen; k++ {
+					/* copy parent key-list to child key-list*/
+					xpathData.keyXpath[k] = parentXpathData.keyXpath[k]
+				}
 			}
 			xpathData.keyXpath[k] = &keyXpath
 			xpathData.keyLevel = curKeyLevel
@@ -924,6 +929,8 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 			case "rpc-callback":
 				xYangRpcSpecMap[xpath] = ext.NName()
 				xpathData.yangType = YANG_RPC
+			case "path-transformer":
+				xpathData.xfmrPath = ext.NName()
 			case "use-self-key":
 				xpathData.keyXpath = nil
 			case "db-name":
@@ -1183,6 +1190,7 @@ func mapPrint(fileName string) {
 		fmt.Fprintf(fp, "    hasNonTerminalNode : %v\r\n", d.hasNonTerminalNode)
 		fmt.Fprintf(fp, "    subscribeOnChg disbale flag: %v\r\n", d.subscriptionFlags.Has(subsOnChangeDisable))
 		fmt.Fprintf(fp, "    subscribeOnChg enable flag: %v\r\n", d.subscriptionFlags.Has(subsOnChangeEnable))
+		fmt.Fprintf(fp, "    subscribeMinIntvl  : %v\r\n", d.subscribeMinIntvl)
 		fmt.Fprintf(fp, "    subscribePref Sample     : %v\r\n", d.subscriptionFlags.Has(subsPrefSample))
 		fmt.Fprintf(fp, "    tableName: ")
 		if d.tableName != nil {
