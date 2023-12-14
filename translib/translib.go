@@ -115,21 +115,30 @@ type ActionResponse struct {
 	ErrSrc  ErrSource
 }
 
-type BulkRequest struct {
-	DeleteRequest  []SetRequest
-	ReplaceRequest []SetRequest
-	UpdateRequest  []SetRequest
-	CreateRequest  []SetRequest
-	User           UserRoles
-	AuthEnabled    bool
-	ClientVersion  Version
+// BulkRequestEntry - Entry for BulkRequest
+type BulkRequestEntry struct {
+	Entry                 SetRequest
+	Operation             int
+	ResourceCheckOnDelete bool
 }
 
+// BulkRequest - Will be used by Northbounds to send Bulk Request.
+type BulkRequest struct {
+	Request       []BulkRequestEntry
+	User          UserRoles
+	AuthEnabled   bool
+	ClientVersion Version
+}
+
+// BulkResponseEntry - Entry for BulkResponse
+type BulkResponseEntry struct {
+	Entry     SetResponse
+	Operation int
+}
+
+// BulkResponse - Will be used by Northbounds to receive Bulk Response.
 type BulkResponse struct {
-	DeleteResponse  []SetResponse
-	ReplaceResponse []SetResponse
-	UpdateResponse  []SetResponse
-	CreateResponse  []SetResponse
+	Response []BulkResponseEntry
 }
 
 type ModelData struct {
@@ -542,20 +551,16 @@ func Action(req ActionRequest) (ActionResponse, error) {
 	return resp, err
 }
 
+// Bulk - BULK Request API for northbounds
+// Processes the request in received order
+// Transaction based
 func Bulk(req BulkRequest) (BulkResponse, error) {
 	var err error
 	var keys []db.WatchKeys
 	var errSrc ErrSource
+	var appResp SetResponse
 
-	delResp := make([]SetResponse, len(req.DeleteRequest))
-	replaceResp := make([]SetResponse, len(req.ReplaceRequest))
-	updateResp := make([]SetResponse, len(req.UpdateRequest))
-	createResp := make([]SetResponse, len(req.CreateRequest))
-
-	resp := BulkResponse{DeleteResponse: delResp,
-		ReplaceResponse: replaceResp,
-		UpdateResponse:  updateResp,
-		CreateResponse:  createResp}
+	resp := BulkResponse{}
 
 	if !isAuthorizedForBulk(req) {
 		return resp, tlerr.AuthorizationError{
@@ -581,205 +586,143 @@ func Bulk(req BulkRequest) (BulkResponse, error) {
 		return resp, err
 	}
 
-	for i := range req.DeleteRequest {
-		path := req.DeleteRequest[i].Path
-		opts := appOptions{deleteEmptyEntry: req.DeleteRequest[i].DeleteEmptyEntry}
+	for i := range req.Request {
+		path := req.Request[i].Entry.Path
+		operation := req.Request[i].Operation
 
-		log.Info("Delete request received with path =", path)
+		log.Infof("Bulk Request operation: %v received with path = %v", req.Request[i].Operation, path)
 
-		app, appInfo, err := getAppModule(path, req.DeleteRequest[i].ClientVersion)
-
+		app, appInfo, err := getAppModule(path, req.Request[i].Entry.ClientVersion)
 		if err != nil {
 			errSrc = ProtoErr
-			goto BulkDeleteError
+			goto BulkError
 		}
-
-		err = appInitialize(app, appInfo, path, nil, &opts, DELETE)
+		if operation == DELETE {
+			opts := appOptions{deleteEmptyEntry: req.Request[i].Entry.DeleteEmptyEntry}
+			err = appInitialize(app, appInfo, path, nil, &opts, operation)
+		} else {
+			payload := req.Request[i].Entry.Payload
+			err = appInitialize(app, appInfo, path, &payload, nil, operation)
+		}
 
 		if err != nil {
 			errSrc = AppErr
-			goto BulkDeleteError
+			goto BulkError
 		}
 
-		keys, err = (*app).translateDelete(d)
+		switch operation {
+		case DELETE:
+			keys, err = (*app).translateDelete(d)
+			if err != nil && isBulkNotFoundError(err) {
+				if !req.Request[i].ResourceCheckOnDelete {
+					//GNMI DELETE and YANG-PATCH REMOVE will come here
+					log.V(2).Infof("Ignoring Delete error: %+v", err)
+					appResp.Err = nil // so that northbounds can ignore
+					resp.Response = append(resp.Response, BulkResponseEntry{Operation: req.Request[i].Operation,
+						Entry: appResp})
+					continue
+				}
+			}
+		case REPLACE:
+			keys, err = (*app).translateReplace(d)
+		case UPDATE:
+			keys, err = (*app).translateUpdate(d)
+			if err != nil && isBulkNotFoundError(err) {
+				//TODO: Right approach is to invoke CREATE, but REPLACE will solve the purpose as
+				//resource does not exists, REPLACE will behave like CREATE.
+				//REPLACE is chosen because PATH format and payload is same as UPDATE
+				log.V(2).Infof("Since UPDATE Failed, Changing operation type to REPLACE")
+				operation = REPLACE
+				payload := req.Request[i].Entry.Payload
+				err = appInitialize(app, appInfo, path, &payload, nil, operation)
+				if err != nil {
+					errSrc = AppErr
+					goto BulkError
+				}
+				keys, err = (*app).translateReplace(d)
+			}
+		case CREATE:
+			keys, err = (*app).translateCreate(d)
+		default:
+			log.Warningf("Unknown operation '%v'", operation)
+			err = tlerr.NotSupported("Unknown operation '%v'", operation)
+		}
 
 		if err != nil {
 			errSrc = AppErr
-			goto BulkDeleteError
+			goto BulkError
 		}
 
 		err = d.AppendWatchTx(keys, appInfo.tablesToWatch)
 
 		if err != nil {
 			errSrc = AppErr
-			goto BulkDeleteError
+			goto BulkError
 		}
 
-		resp.DeleteResponse[i], err = (*app).processDelete(d)
+		switch operation {
+		case DELETE:
+			appResp, err = (*app).processDelete(d)
+			if err != nil && isBulkNotFoundError(err) {
+				if !req.Request[i].ResourceCheckOnDelete {
+					//GNMI DELETE and YANG-PATCH REMOVE will come here
+					log.V(2).Infof("Ignoring Delete error: %+v", err)
+					appResp.Err = nil // so that northbounds can ignore
+					resp.Response = append(resp.Response, BulkResponseEntry{Operation: req.Request[i].Operation,
+						Entry: appResp})
+					continue
+				}
+			}
+		case REPLACE:
+			appResp, err = (*app).processReplace(d)
+		case UPDATE:
+			appResp, err = (*app).processUpdate(d)
+			if err != nil && isBulkNotFoundError(err) {
+				//TODO: Right approach is to invoke CREATE, but REPLACE will solve the purpose as
+				//resource does not exists, REPLACE will behave like CREATE.
+				//REPLACE is chosen because PATH format and payload is same as UPDATE
+				log.V(2).Infof("Since UPDATE Failed, Changing operation type to REPLACE")
+				operation = REPLACE
+				payload := req.Request[i].Entry.Payload
+				err = appInitialize(app, appInfo, path, &payload, nil, operation)
+				if err != nil {
+					errSrc = AppErr
+					goto BulkError
+				}
+				keys, err = (*app).translateReplace(d)
+				if err != nil {
+					errSrc = AppErr
+					goto BulkError
+				}
+				err = d.AppendWatchTx(keys, appInfo.tablesToWatch)
+				if err != nil {
+					errSrc = AppErr
+					goto BulkError
+				}
+				appResp, err = (*app).processReplace(d)
+			}
+		case CREATE:
+			appResp, err = (*app).processCreate(d)
+		default:
+			log.Warningf("Unknown operation '%v'", operation)
+			err = tlerr.NotSupported("Unknown operation '%v'", operation)
+		}
 
 		if err != nil {
 			errSrc = AppErr
+			goto BulkError
 		}
 
-	BulkDeleteError:
+		resp.Response = append(resp.Response, BulkResponseEntry{Operation: req.Request[i].Operation, Entry: appResp})
 
+	BulkError:
 		if err != nil {
+			log.Infof("BulkError: %+v", err)
 			d.AbortTx()
-			resp.DeleteResponse[i].ErrSrc = errSrc
-			resp.DeleteResponse[i].Err = err
-			return resp, err
-		}
-	}
-
-	for i := range req.ReplaceRequest {
-		path := req.ReplaceRequest[i].Path
-		payload := req.ReplaceRequest[i].Payload
-
-		log.Info("Replace request received with path =", path)
-
-		app, appInfo, err := getAppModule(path, req.ReplaceRequest[i].ClientVersion)
-
-		if err != nil {
-			errSrc = ProtoErr
-			goto BulkReplaceError
-		}
-
-		log.Info("Bulk replace request received with path =", path)
-		log.Info("Bulk replace request received with payload =", string(payload))
-
-		err = appInitialize(app, appInfo, path, &payload, nil, REPLACE)
-
-		if err != nil {
-			errSrc = AppErr
-			goto BulkReplaceError
-		}
-
-		keys, err = (*app).translateReplace(d)
-
-		if err != nil {
-			errSrc = AppErr
-			goto BulkReplaceError
-		}
-
-		err = d.AppendWatchTx(keys, appInfo.tablesToWatch)
-
-		if err != nil {
-			errSrc = AppErr
-			goto BulkReplaceError
-		}
-
-		resp.ReplaceResponse[i], err = (*app).processReplace(d)
-
-		if err != nil {
-			errSrc = AppErr
-		}
-
-	BulkReplaceError:
-
-		if err != nil {
-			d.AbortTx()
-			resp.ReplaceResponse[i].ErrSrc = errSrc
-			resp.ReplaceResponse[i].Err = err
-			return resp, err
-		}
-	}
-
-	for i := range req.UpdateRequest {
-		path := req.UpdateRequest[i].Path
-		payload := req.UpdateRequest[i].Payload
-
-		log.Info("Update request received with path =", path)
-
-		app, appInfo, err := getAppModule(path, req.UpdateRequest[i].ClientVersion)
-
-		if err != nil {
-			errSrc = ProtoErr
-			goto BulkUpdateError
-		}
-
-		err = appInitialize(app, appInfo, path, &payload, nil, UPDATE)
-
-		if err != nil {
-			errSrc = AppErr
-			goto BulkUpdateError
-		}
-
-		keys, err = (*app).translateUpdate(d)
-
-		if err != nil {
-			errSrc = AppErr
-			goto BulkUpdateError
-		}
-
-		err = d.AppendWatchTx(keys, appInfo.tablesToWatch)
-
-		if err != nil {
-			errSrc = AppErr
-			goto BulkUpdateError
-		}
-
-		resp.UpdateResponse[i], err = (*app).processUpdate(d)
-
-		if err != nil {
-			errSrc = AppErr
-		}
-
-	BulkUpdateError:
-
-		if err != nil {
-			d.AbortTx()
-			resp.UpdateResponse[i].ErrSrc = errSrc
-			resp.UpdateResponse[i].Err = err
-			return resp, err
-		}
-	}
-
-	for i := range req.CreateRequest {
-		path := req.CreateRequest[i].Path
-		payload := req.CreateRequest[i].Payload
-
-		log.Info("Create request received with path =", path)
-
-		app, appInfo, err := getAppModule(path, req.CreateRequest[i].ClientVersion)
-
-		if err != nil {
-			errSrc = ProtoErr
-			goto BulkCreateError
-		}
-
-		err = appInitialize(app, appInfo, path, &payload, nil, CREATE)
-
-		if err != nil {
-			errSrc = AppErr
-			goto BulkCreateError
-		}
-
-		keys, err = (*app).translateCreate(d)
-
-		if err != nil {
-			errSrc = AppErr
-			goto BulkCreateError
-		}
-
-		err = d.AppendWatchTx(keys, appInfo.tablesToWatch)
-
-		if err != nil {
-			errSrc = AppErr
-			goto BulkCreateError
-		}
-
-		resp.CreateResponse[i], err = (*app).processCreate(d)
-
-		if err != nil {
-			errSrc = AppErr
-		}
-
-	BulkCreateError:
-
-		if err != nil {
-			d.AbortTx()
-			resp.CreateResponse[i].ErrSrc = errSrc
-			resp.CreateResponse[i].Err = err
+			appResp.ErrSrc = errSrc
+			appResp.Err = err
+			resp.Response = append(resp.Response, BulkResponseEntry{Operation: req.Request[i].Operation,
+				Entry: appResp})
 			return resp, err
 		}
 	}
