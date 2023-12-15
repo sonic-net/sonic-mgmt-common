@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/openconfig/goyang/pkg/yang"
@@ -97,7 +98,7 @@ func getPruneObjNode(ygRoot *ygot.GoStruct, uri string, requestUri string,
 // uri: uri path/point where GET subtree callback was called during GET traversal. (I)
 // requestUri: uri with which the North Bound Client side request was made (I)
 func xfmrPruneQP(ygRoot *ygot.GoStruct, queryParams QueryParams, uri string,
-	requestUri string) error {
+	requestUri string, ctxt context.Context) error {
 
 	ts := time.Now()
 
@@ -116,7 +117,7 @@ func xfmrPruneQP(ygRoot *ygot.GoStruct, queryParams QueryParams, uri string,
 				pretty.Sprint(val.Interface()))
 		}
 
-		err = pruneYGObj(val, pruneXpath, &queryParams, 1, depthDiff, nil)
+		err = pruneYGObj(val, pruneXpath, &queryParams, 1, depthDiff, ctxt)
 		if err != nil {
 			break
 		}
@@ -140,10 +141,10 @@ func xfmrPruneQP(ygRoot *ygot.GoStruct, queryParams QueryParams, uri string,
 func pruneYGObj(val reflect.Value, xpath string, queryParams *QueryParams,
 	pruneDepth uint, depthDiff int, ctxt context.Context) error {
 
-	// isReqContextCancelled(ctxt) is in a different PR
-	if ctxt != nil {
-		log.Warningf("pruneYGObj: Replace with isReqContextCancelled()")
-		return nil
+	if isReqContextCancelled(ctxt) {
+		err := tlerr.RequestContextCancelled("Client request's context cancelled.", ctxt.Err())
+		log.Warningf(err.Error())
+		return err
 	}
 
 	if (pruneDepth == 1) || log.V(4) {

@@ -243,7 +243,7 @@ var YangToDb_sflow_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[str
 	}
 
 	if sflowObj.Sflow.Config.Agent != nil {
-	        global_map[SFLOW_GLOBAL_KEY].Field[SFLOW_AGENT_KEY] = *(sflowObj.Sflow.Config.Agent)
+		global_map[SFLOW_GLOBAL_KEY].Field[SFLOW_AGENT_KEY] = *(sflowObj.Sflow.Config.Agent)
 	}
 
 	res_map[SFLOW_GLOBAL_TBL] = global_map
@@ -276,7 +276,6 @@ var YangToDb_sflow_collector_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams
 	log.V(3).Info("sFlow Collector YangToDBSubTreeXfmr: ", inParams.uri)
 	col_map := make(map[string]db.Value)
 	sflowObj := getSflowRootObject(inParams.ygRoot)
-
 
 	key := makeColKey(inParams.uri)
 	if inParams.oper == DELETE {

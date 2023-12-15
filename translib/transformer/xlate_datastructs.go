@@ -19,6 +19,7 @@
 package transformer
 
 import (
+	"context"
 	"regexp"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -31,8 +32,11 @@ var rgpIpv6, rgpMac *regexp.Regexp
 type yangElementType uint8
 
 type tblKeyCache struct {
-	dbKey     string
-	dbTblList []string
+	dbKey                string
+	dbTblList            []string
+	ygXpathInfo          *yangXpathInfo
+	pathIdx              int // path index of the key transformer defined in the path
+	childListNodePathIdx int // child list node path index
 }
 
 type KeySpec struct {
@@ -96,7 +100,11 @@ type xlateFromDbParams struct {
 	xfmrDbTblKeyCache map[string]tblKeyCache
 	queryParams       QueryParams
 	dbTblKeyGetCache  map[db.DBNum]map[string]map[string]bool
+	reqCtxt           context.Context
 	listKeysMap       map[string]interface{}
+	ygParentObj       *ygot.GoStruct
+	relUri            string
+	ygSchema          *yang.Entry
 }
 
 type xlateToParams struct {
@@ -141,7 +149,6 @@ type qpSubtreePruningErr struct {
 
 type Operation int
 
-
 type ContentType uint8
 
 type QueryParams struct {
@@ -166,4 +173,3 @@ type ygotUnMarshalCtx struct {
 type ygotXlator struct {
 	ygotCtx *ygotUnMarshalCtx
 }
-

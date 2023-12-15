@@ -19,6 +19,7 @@
 package transformer
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -29,6 +30,7 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
+	"github.com/openconfig/goyang/pkg/yang"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -78,14 +80,15 @@ func XlateFuncCall(name string, params ...interface{}) (result []reflect.Value, 
 	return result, nil
 }
 
-func TraverseDb(dbs [db.MaxDB]*db.DB, spec KeySpec, result *map[db.DBNum]map[string]map[string]db.Value, parentKey *db.Key, dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool) error {
+func TraverseDb(dbs [db.MaxDB]*db.DB, spec KeySpec, result *map[db.DBNum]map[string]map[string]db.Value,
+	parentKey *db.Key, dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool, reqCtxt context.Context) error {
 	var dataMap = make(RedisDbMap)
 
 	for i := db.ApplDB; i < db.MaxDB; i++ {
 		dataMap[i] = make(map[string]map[string]db.Value)
 	}
 
-	err := traverseDbHelper(dbs, &spec, &dataMap, parentKey, dbTblKeyGetCache)
+	err := traverseDbHelper(dbs, &spec, &dataMap, parentKey, dbTblKeyGetCache, reqCtxt)
 	if err != nil {
 		xfmrLogDebug("Didn't get all data from traverseDbHelper")
 		return err
@@ -109,8 +112,15 @@ func TraverseDb(dbs [db.MaxDB]*db.DB, spec KeySpec, result *map[db.DBNum]map[str
 	return nil
 }
 
-func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]map[string]map[string]db.Value, parentKey *db.Key, dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool) error {
+func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]map[string]map[string]db.Value,
+	parentKey *db.Key, dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool, reqCtxt context.Context) error {
 	var err error
+	if isReqContextCancelled(reqCtxt) {
+		err = tlerr.RequestContextCancelled("Client request's context cancelled.", reqCtxt.Err())
+		log.Warningf(err.Error())
+		return err
+	}
+
 	var dbOpts db.Options = getDBOptions(spec.DbNum)
 
 	separator := dbOpts.KeySeparator
@@ -131,18 +141,19 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]
 		}
 		if len(spec.Child) > 0 {
 			for _, ch := range spec.Child {
-				err = traverseDbHelper(dbs, &ch, result, &spec.Key, dbTblKeyGetCache)
+				if err = traverseDbHelper(dbs, &ch, result, &spec.Key, dbTblKeyGetCache, reqCtxt); err != nil &&
+					isReqContextCancelledError(err) {
+					break
+				}
 			}
 		}
 	} else {
 		spec.Key.Comp = append(spec.Key.Comp, "*")
 		// TODO - GetEntry support with regex patten, 'abc*' for optimization
 		if spec.Ts.Name != XFMR_NONE_STRING { //Do not traverse for NONE table
-			//			keys, err := dbs[spec.DbNum].GetKeys(&spec.Ts)
-			tblObj, err := dbs[spec.DbNum].GetTablePattern(&spec.Ts, spec.Key)
+			tblObj, err := dbs[spec.DbNum].GetTablePattern(&spec.Ts, *db.NewKey("*"))
 			if err != nil {
 				log.Warningf("GetTablePattern returned error %v for tbl(%v) in traverseDbHelper", err, spec.Ts.Name)
-				//				log.Warningf("Didn't get keys for tbl(%v) in traverseDbHelper", spec.Ts.Name)
 				return err
 			}
 			dbKeys, err := tblObj.GetKeys()
@@ -163,7 +174,6 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]
 						continue
 					}
 				}
-				//				data, err := dbs[spec.DbNum].GetEntry(&spec.Ts, dbKey)
 				data, err := tblObj.GetEntry(dbKey)
 				if err != nil {
 					log.Warningf("Table.GetEntry returned error %v for tbl(%v), and the key %v in traverseDbHelper", err, spec.Ts.Name, dbKey)
@@ -173,13 +183,19 @@ func traverseDbHelper(dbs [db.MaxDB]*db.DB, spec *KeySpec, result *map[db.DBNum]
 				}
 				if len(spec.Child) > 0 {
 					for _, ch := range spec.Child {
-						err = traverseDbHelper(dbs, &ch, result, &dbKey, dbTblKeyGetCache)
+						if err = traverseDbHelper(dbs, &ch, result, &dbKey, dbTblKeyGetCache, reqCtxt); err != nil &&
+							isReqContextCancelledError(err) {
+							break
+						}
 					}
 				}
 			}
 		} else if len(spec.Child) > 0 {
 			for _, ch := range spec.Child {
-				err = traverseDbHelper(dbs, &ch, result, &spec.Key, dbTblKeyGetCache)
+				err = traverseDbHelper(dbs, &ch, result, &spec.Key, dbTblKeyGetCache, reqCtxt)
+				if err != nil && isReqContextCancelledError(err) {
+					break
+				}
 			}
 		}
 	}
@@ -205,11 +221,11 @@ func updateDbDataMapAndKeyCache(dbKeyStr string, data *db.Value, spec *KeySpec,
 	dbTblKeyGetCache[spec.DbNum][spec.Ts.Name][dbKeyStr] = readOk
 }
 
-func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *interface{}, txCache interface{}, qParams QueryParams) (*[]KeySpec, error) {
+func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *interface{}, txCache interface{},
+	qParams QueryParams, dbs [db.MaxDB]*db.DB, dbTblKeyCache map[string]tblKeyCache, dbDataMap RedisDbMap) (*[]KeySpec, error) {
 
 	var err error
 	var retdbFormat = make([]KeySpec, 0)
-
 	// In case of SONIC yang, the tablename and key info is available in the xpath
 	if isSonicYang(uri) {
 		/* Extract the xpath and key from input xpath */
@@ -227,19 +243,25 @@ func XlateUriToKeySpec(uri string, requestUri string, ygRoot *ygot.GoStruct, t *
 	} else {
 		var reqUriXpath string
 		/* Extract the xpath and key from input xpath */
-		retData, _ := xpathKeyExtract(nil, ygRoot, GET, uri, requestUri, nil, nil, txCache, nil)
+		xpath, _, _ := XfmrRemoveXPATHPredicates(uri)
+		d := dbs[db.ConfigDB]
+		if xpathInfo, ok := xYangSpecMap[xpath]; ok {
+			d = dbs[xpathInfo.dbIndex]
+		}
+		retData, _ := xpathKeyExtractForGet(d, ygRoot, GET, uri, requestUri, &dbDataMap, nil, txCache, dbTblKeyCache, dbs)
 		if requestUri == uri {
 			reqUriXpath = retData.xpath
 		} else {
 			reqUriXpath, _, _ = XfmrRemoveXPATHPredicates(requestUri)
 		}
-		retdbFormat = fillKeySpecs(uri, reqUriXpath, &qParams, retData.xpath, retData.dbKey, &retdbFormat)
+		retdbFormat = fillKeySpecs(uri, reqUriXpath, &qParams, retData.xpath, retData.tableName, retData.dbKey, &retdbFormat, "")
+		log.V(5).Infof("filled keyspec: %v; retData: %v; reqUriXpath: %v", retdbFormat, retData, reqUriXpath)
 	}
 
 	return &retdbFormat, err
 }
 
-func fillKeySpecs(uri string, reqUriXpath string, qParams *QueryParams, yangXpath string, keyStr string, retdbFormat *[]KeySpec) []KeySpec {
+func fillKeySpecs(uri string, reqUriXpath string, qParams *QueryParams, yangXpath string, tableName string, keyStr string, retdbFormat *[]KeySpec, parentKey string) []KeySpec {
 	var err error
 	if xYangSpecMap == nil {
 		return *retdbFormat
@@ -247,11 +269,11 @@ func fillKeySpecs(uri string, reqUriXpath string, qParams *QueryParams, yangXpat
 	_, ok := xYangSpecMap[yangXpath]
 	if ok {
 		xpathInfo := xYangSpecMap[yangXpath]
-		if xpathInfo.tableName != nil {
+		if len(tableName) > 0 {
 			dbFormat := KeySpec{}
-			dbFormat.Ts.Name = *xpathInfo.tableName
+			dbFormat.Ts.Name = tableName
 			dbFormat.DbNum = xpathInfo.dbIndex
-			if len(xYangSpecMap[yangXpath].xfmrKey) > 0 || xYangSpecMap[yangXpath].keyName != nil {
+			if (len(parentKey) == 0 && len(xYangSpecMap[yangXpath].xfmrKey) > 0) || xYangSpecMap[yangXpath].keyName != nil {
 				dbFormat.IgnoreParentKey = true
 			} else {
 				dbFormat.IgnoreParentKey = false
@@ -276,10 +298,22 @@ func fillKeySpecs(uri string, reqUriXpath string, qParams *QueryParams, yangXpat
 						chlen := len(xDbSpecMap[child].yangXpath)
 						if chlen > 0 {
 							children := make([]KeySpec, 0)
+							ygXpathTbl := make(map[string]bool)
 							for _, childXpath := range xDbSpecMap[child].yangXpath {
+								if _, xOk := ygXpathTbl[childXpath]; !xOk {
+									ygXpathTbl[childXpath] = true
+								} else {
+									continue
+								}
 								if isChildTraversalRequired(reqUriXpath, qParams, childXpath) {
-									children = fillKeySpecs(childXpath, reqUriXpath, qParams, childXpath, "", &children)
-									dbFormat.Child = append(dbFormat.Child, children...)
+									if _, ok := xYangSpecMap[childXpath]; ok {
+										tableNm := ""
+										if xYangSpecMap[childXpath].tableName != nil {
+											tableNm = *xYangSpecMap[childXpath].tableName
+										}
+										children = fillKeySpecs(childXpath, reqUriXpath, qParams, childXpath, tableNm, "", &children, keyStr)
+										dbFormat.Child = append(dbFormat.Child, children...)
+									}
 								}
 							}
 						}
@@ -293,9 +327,21 @@ func fillKeySpecs(uri string, reqUriXpath string, qParams *QueryParams, yangXpat
 					if _, ok := xDbSpecMap[child]; ok {
 						chlen := len(xDbSpecMap[child].yangXpath)
 						if chlen > 0 {
+							ygXpathTbl := make(map[string]bool)
 							for _, childXpath := range xDbSpecMap[child].yangXpath {
+								if _, xOk := ygXpathTbl[childXpath]; !xOk {
+									ygXpathTbl[childXpath] = true
+								} else {
+									continue
+								}
 								if isChildTraversalRequired(reqUriXpath, qParams, childXpath) {
-									*retdbFormat = fillKeySpecs(childXpath, reqUriXpath, qParams, childXpath, "", retdbFormat)
+									if _, ok := xYangSpecMap[childXpath]; ok {
+										tableNm := ""
+										if xYangSpecMap[childXpath].tableName != nil {
+											tableNm = *xYangSpecMap[childXpath].tableName
+										}
+										*retdbFormat = fillKeySpecs(childXpath, reqUriXpath, qParams, childXpath, tableNm, "", retdbFormat, keyStr)
+									}
 								}
 							}
 						}
@@ -355,22 +401,15 @@ func fillSonicKeySpec(xpath string, tableName string, keyStr string, content Con
 
 func XlateToDb(path string, oper int, d *db.DB, yg *ygot.GoStruct, yt *interface{}, jsonPayload []byte, txCache interface{}, skipOrdTbl *bool) (map[Operation]RedisDbMap, map[string]map[string]db.Value, map[string]map[string]db.Value, error) {
 
-	var err error
 	requestUri := path
 	jsonData := make(map[string]interface{})
 	opcode := Operation(oper)
 
 	device := (*yg).(*ocbinds.Device)
-	jsonStr, _ := ygot.EmitJSON(device, &ygot.EmitJSONConfig{
-		Format:         ygot.RFC7951,
-		Indent:         "  ",
-		SkipValidation: true,
-		RFC7951Config: &ygot.RFC7951JSONConfig{
-			AppendModuleName: true,
-		},
-	})
-
-	err = json.Unmarshal([]byte(jsonStr), &jsonData)
+	jsonBytes, err := ocbinds.EmitJSON(device, nil)
+	if err == nil {
+		err = json.Unmarshal(jsonBytes, &jsonData)
+	}
 	if err != nil {
 		errStr := "Error: failed to unmarshal json."
 		err = tlerr.InternalError{Format: errStr}
@@ -413,17 +452,19 @@ func XlateToDb(path string, oper int, d *db.DB, yg *ygot.GoStruct, yt *interface
 	return result, yangDefValMap, yangAuxValMap, err
 }
 
-func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, txCache interface{}, qParams QueryParams) ([]byte, bool, error) {
+func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB,
+	txCache interface{}, qParams QueryParams, reqCtxt context.Context, ygSchema *yang.Entry) ([]byte, bool, error) {
 	var err error
 	var payload []byte
 	var inParamsForGet xlateFromDbParams
 	var processReq bool
 	inParamsForGet.queryParams = qParams
-	xfmrLogInfo("received xpath = ", uri)
+	inParamsForGet.reqCtxt = reqCtxt
+	inParamsForGet.ygSchema = ygSchema
+	xfmrLogInfo("received xpath = %v", uri)
 	requestUri := uri
 
 	if len(qParams.fields) > 0 {
-		xfmrLogDebug("Process fields QP") //todo
 		yngNdType, nd_err := getYangNodeTypeFromUri(uri)
 		if nd_err != nil {
 			return []byte("{}"), false, nd_err
@@ -447,23 +488,26 @@ func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, 
 			return []byte("{}"), true, err
 		}
 	}
-
-	keySpec, _ := XlateUriToKeySpec(uri, requestUri, ygRoot, nil, txCache, qParams)
+	dbTblKeyCache := make(map[string]tblKeyCache)
 	var dbresult = make(RedisDbMap)
 	for i := db.ApplDB; i < db.MaxDB; i++ {
 		dbresult[i] = make(map[string]map[string]db.Value)
 	}
+	keySpec, _ := XlateUriToKeySpec(uri, requestUri, ygRoot, nil, txCache, qParams, dbs, dbTblKeyCache, dbresult)
 
 	inParamsForGet.dbTblKeyGetCache = make(map[db.DBNum]map[string]map[string]bool)
-
 	for _, spec := range *keySpec {
-		err := TraverseDb(dbs, spec, &dbresult, nil, inParamsForGet.dbTblKeyGetCache)
+		err := TraverseDb(dbs, spec, &dbresult, nil, inParamsForGet.dbTblKeyGetCache, inParamsForGet.reqCtxt)
 		if err != nil {
 			xfmrLogDebug("TraverseDb() didn't fetch data.")
+			if isReqContextCancelledError(err) {
+				return payload, true, err
+			}
 		}
 	}
 
 	isEmptyPayload := false
+	inParamsForGet.xfmrDbTblKeyCache = dbTblKeyCache
 	payload, isEmptyPayload, err = XlateFromDb(uri, ygRoot, dbs, dbresult, txCache, inParamsForGet)
 	if err != nil {
 		return payload, true, err
@@ -485,7 +529,7 @@ func XlateFromDb(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, data R
 	/* Check if the parent table exists for RFC compliance */
 	var exists bool
 	subOpMapDiscard := make(map[Operation]*RedisDbMap)
-	exists, err = verifyParentTable(nil, dbs, ygRoot, GET, uri, dbData, txCache, subOpMapDiscard)
+	exists, err = verifyParentTable(nil, dbs, ygRoot, GET, uri, dbData, txCache, subOpMapDiscard, inParamsForGet.xfmrDbTblKeyCache)
 	xfmrLogDebug("verifyParentTable() returned - exists - %v, err - %v", exists, err)
 	if err != nil {
 		log.Warningf("Cannot perform GET Operation on URI %v due to - %v", uri, err)
@@ -564,10 +608,14 @@ func XlateFromDb(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, data R
 		}
 	}
 	dbTblKeyGetCache := inParamsForGet.dbTblKeyGetCache
+	tblXfmrCache := inParamsForGet.xfmrDbTblKeyCache
 	qparams := inParamsForGet.queryParams
-	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "", &dbData, txCache, nil, false, qparams, nil)
-	inParamsForGet.xfmrDbTblKeyCache = make(map[string]tblKeyCache)
+	ygSchema := inParamsForGet.ygSchema
+	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "",
+		&dbData, txCache, nil, false, qparams, inParamsForGet.reqCtxt, nil)
 	inParamsForGet.dbTblKeyGetCache = dbTblKeyGetCache
+	inParamsForGet.xfmrDbTblKeyCache = tblXfmrCache
+	inParamsForGet.ygSchema = ygSchema
 	payload, isEmptyPayload, err := dbDataToYangJsonCreate(inParamsForGet)
 	xfmrLogDebug("Payload generated : ", payload)
 
@@ -579,7 +627,6 @@ func XlateFromDb(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, data R
 
 	result = []byte(payload)
 	return result, isEmptyPayload, err
-
 }
 
 func extractFieldFromDb(tableName string, keyStr string, fieldName string, data map[string]map[string]db.Value) (map[string]map[string]db.Value, error) {

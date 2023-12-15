@@ -511,7 +511,7 @@ func dbMapDefaultFieldValFill(xlateParams xlateToParams, tblUriList []string) er
 									}
 									xfmrLogDebug("Update(\"%v\") default: tbl[\"%v\"]key[\"%v\"]fld[\"%v\"] = val(\"%v\").",
 										childXpath, tblName, dbKey, childNode.fieldName, childNode.defVal)
-									_, defValPtr, err := DbToYangType(childYangDataType, childXpath, childNode.defVal)
+									_, defValPtr, err := DbToYangType(childYangDataType, childXpath, childNode.defVal, xlateParams.oper)
 									if err == nil && defValPtr != nil {
 										param = defValPtr
 									} else {
@@ -640,7 +640,7 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 	var exists bool
 	var dbs [db.MaxDB]*db.DB
 	subOpMapDiscard := make(map[Operation]*RedisDbMap)
-	exists, err = verifyParentTable(d, dbs, ygRoot, oper, uri, nil, txCache, subOpMapDiscard)
+	exists, err = verifyParentTable(d, dbs, ygRoot, oper, uri, nil, txCache, subOpMapDiscard, nil)
 	xfmrLogDebug("verifyParentTable() returned - exists - %v, err - %v", exists, err)
 	if err != nil {
 		log.Warningf("Cannot perform Operation %v on URI %v due to - %v", oper, uri, err)
@@ -1141,14 +1141,20 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 	}
 }
 
-/* This function checks the existence of Parent tables in DB for the given URI request
-   and returns a boolean indicating if the operation is permitted based on the operation type*/
-func verifyParentTable(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, dbData RedisDbMap, txCache interface{}, subOpDataMap map[Operation]*RedisDbMap) (bool, error) {
+/*
+This function checks the existence of Parent tables in DB for the given URI request
+
+	and returns a boolean indicating if the operation is permitted based on the operation type
+*/
+func verifyParentTable(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, dbData RedisDbMap, txCache interface{}, subOpDataMap map[Operation]*RedisDbMap, dbTblKeyCache map[string]tblKeyCache) (bool, error) {
 	xfmrLogDebug("Checking for Parent table existence for uri: %v", uri)
+	if d != nil && dbs[d.Opts.DBNo] == nil {
+		dbs[d.Opts.DBNo] = d
+	}
 	if isSonicYang(uri) {
 		return verifyParentTableSonic(d, dbs, oper, uri, dbData)
 	} else {
-		return verifyParentTableOc(d, dbs, ygRoot, oper, uri, dbData, txCache, subOpDataMap)
+		return verifyParentTableOc(d, dbs, ygRoot, oper, uri, dbData, txCache, subOpDataMap, dbTblKeyCache)
 	}
 }
 
@@ -1224,7 +1230,7 @@ Exit:
 	return parentTblExists, err
 }
 
-func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, dbData RedisDbMap, txCache interface{}, subOpDataMap map[Operation]*RedisDbMap) (bool, error) {
+func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, dbData RedisDbMap, txCache interface{}, subOpDataMap map[Operation]*RedisDbMap, dbTblKeyCache map[string]tblKeyCache) (bool, error) {
 	var err error
 	var cdb db.DBNum
 	uriList := splitUri(uri)
@@ -1295,7 +1301,13 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 
 				xfmrLogDebug("Check parent table for uri: %v", curUri)
 				// Get Table and Key only for YANG list instances
-				xpathKeyExtRet, xerr := xpathKeyExtract(d, ygRoot, oper, curUri, uri, nil, subOpDataMap, txCache, nil)
+				var xpathKeyExtRet xpathTblKeyExtractRet
+				var xerr error
+				if oper == GET {
+					xpathKeyExtRet, xerr = xpathKeyExtractForGet(d, ygRoot, oper, curUri, uri, &dbData, subOpDataMap, txCache, dbTblKeyCache, dbs)
+				} else {
+					xpathKeyExtRet, xerr = xpathKeyExtract(d, ygRoot, oper, curUri, uri, nil, subOpDataMap, txCache, nil, dbs)
+				}
 				if xerr != nil {
 					log.Warningf("Failed to get table and key for uri: %v err: %v", curUri, xerr)
 					err = xerr
@@ -1386,9 +1398,16 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 			return true, nil
 		}
 
-		xpathKeyExtRet, xerr := xpathKeyExtract(d, ygRoot, oper, uri, uri, nil, subOpDataMap, txCache, nil)
+		d = dbs[xpathInfo.dbIndex]
+		var xpathKeyExtRet xpathTblKeyExtractRet
+		var xerr error
+		if oper == GET {
+			xpathKeyExtRet, xerr = xpathKeyExtractForGet(d, ygRoot, oper, uri, uri, nil, subOpDataMap, txCache, dbTblKeyCache, dbs)
+		} else {
+			xpathKeyExtRet, xerr = xpathKeyExtract(d, ygRoot, oper, uri, uri, nil, subOpDataMap, txCache, nil, dbs)
+		}
 		if xerr != nil {
-			log.Warningf("xpathKeyExtract failed err: %v, table %v, key %v", xerr, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey)
+			log.Warningf("key extract failed err: %v, table %v, key %v, operation: %v", xerr, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
 			return false, xerr
 		}
 		if xpathKeyExtRet.isVirtualTbl {
@@ -1444,7 +1463,13 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 		// Get table for parent xpath
 		parentTable, perr := dbTableFromUriGet(d, ygRoot, oper, parentUri, uri, nil, txCache, nil)
 		// Get table for current xpath
-		xpathKeyExtRet, cerr := xpathKeyExtract(d, ygRoot, oper, uri, uri, nil, subOpDataMap, txCache, nil)
+		var xpathKeyExtRet xpathTblKeyExtractRet
+		var cerr error
+		if oper == GET {
+			xpathKeyExtRet, cerr = xpathKeyExtractForGet(d, ygRoot, oper, uri, uri, nil, subOpDataMap, txCache, dbTblKeyCache, dbs)
+		} else {
+			xpathKeyExtRet, cerr = xpathKeyExtract(d, ygRoot, oper, uri, uri, nil, subOpDataMap, txCache, nil, dbs)
+		}
 		curKey := xpathKeyExtRet.dbKey
 		curTable := xpathKeyExtRet.tableName
 		if len(curTable) > 0 {

@@ -97,7 +97,7 @@ func verifyGet(t *testing.T, req GetRequest, expJson string, expError bool) {
 
 	var respJson []byte
 	if req.FmtType == TRANSLIB_FMT_YGOT && response.ValueTree != nil {
-		respJson, err = dumpIetfJson(response.ValueTree, true)
+		respJson, err = dumpIetfJson(response.ValueTree)
 		if err != nil {
 			t.Fatalf("GET %s returned invalid YGOT. error=%v", req.Path, err)
 		}

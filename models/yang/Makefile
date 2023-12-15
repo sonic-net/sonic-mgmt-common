@@ -49,6 +49,9 @@ SYNC_ANNOT_YANGS  := $(YANGDIR)/.sync_annot_yangs
 PREPARE_YANGS     := $(SYNC_STD_YANGS) $(SYNC_EXT_YANGS) $(SYNC_ANNOT_YANGS) $(SYNC_SONIC_YANGS)
 
 YANG_ANNOTS_CHK   := $(YANGDIR)/.annots_checked
+YANG_VALIDATE_CHK := $(YANGDIR)/.oc_lint_done $(YANGDIR)/.ietf_lint_done
+OC_LINTER_DIR     := $(BUILD_DIR)/oc-community-linter
+OC_LINTER_INIT    := $(OC_LINTER_DIR)/.done
 
 ifeq ($(INCLUDE_TEST_MODELS),y)
 TEST_YANGS_DIR    ?= $(TOPDIR)/translib/transformer/test
@@ -61,12 +64,11 @@ TOOLS_DIR         := $(TOPDIR)/tools
 PYANG_PLUGIN_DIR  := $(TOOLS_DIR)/pyang/pyang_plugins
 PYANG             ?= pyang
 
-ALL_TARGETS := allyangs.tree allyangs_tree.html
-ALL_TARGETS += sonic_allyangs.tree sonic_allyangs_tree.html
-ALL_TARGETS += #$(YANG_ANNOTS_CHK)
+ALL_TARGETS := allyangs.tree allyangs_annot.tree allyangs_tree.html yang_tree.md
+ALL_TARGETS += sonic_allyangs.tree sonic_allyangs_tree.html sonic_yang_tree.md
+ALL_TARGETS += $(YANG_VALIDATE_CHK) #$(YANG_ANNOTS_CHK)
 
 all: $(PREPARE_YANGS) $(ALL_TARGETS)
-
 
 #======================================================================
 # Syntax check for annotation files
@@ -81,45 +83,74 @@ $(YANG_ANNOTS_CHK): $(PREPARE_YANGS)
 		$(YANGDIR_ANNOTATIONS)/*.yang > /dev/null
 	touch $@
 
+.PHONY: tree
+tree: allyangs.tree sonic_allyangs.tree | $(SYNC_STD_YANGS) $(SYNC_EXT_YANGS) $(SYNC_SONIC_YANGS)
+
 #======================================================================
 # Yang tree for standard yangs and their extensions
 #======================================================================
 
-allyangs.tree: $(SYNC_STD_YANGS) $(SYNC_EXT_YANGS)
-	$(PYANG) \
-		-f tree \
-		-o $@ \
-		-p $(YANGDIR_COMMON):$(YANGDIR) \
-		$(YANGDIR)/*.yang $$(find $(YANGDIR_EXTENSIONS) -name '*.yang')
+allyangs.tree: $(PREPARE_YANGS)
+	$(TOOLS_DIR)/pyang/tree \
+		--text=allyangs.tree \
+		--html=allyangs_tree.html \
+		--markdown=$(if $(NO_YANG_TREE),,yang_tree.md) \
+		-p $(YANGDIR) \
+		-c $(YANGDIR_COMMON)
 	@echo "+++++ Generation of  YANG tree for Yang modules completed +++++"
 
-allyangs_tree.html: $(SYNC_STD_YANGS) $(SYNC_EXT_YANGS)
-	$(PYANG) \
-		-f jstree \
-		-o $@ \
-		-p $(YANGDIR_COMMON):$(YANGDIR) \
-		$(YANGDIR)/*.yang $$(find $(YANGDIR_EXTENSIONS) -name '*.yang')
-	@echo "+++++ Generation of  HTML tree for Yang modules completed +++++"
+allyangs_annot.tree: allyangs.tree
+
+allyangs_tree.html: allyangs.tree
+
+yang_tree.md: allyangs.tree
 
 #======================================================================
 # Yang tree for SONiC yangs
 #======================================================================
 
-sonic_allyangs.tree: $(SYNC_SONIC_YANGS)
-	$(PYANG) \
-		-f tree \
-		-o $@ \
-		-p $(YANGDIR_SONIC_COMMON):$(YANGDIR_SONIC):$(YANGDIR_COMMON) \
-		$(YANGDIR_SONIC)/*.yang
+sonic_allyangs.tree: $(PREPARE_YANGS)
+	$(TOOLS_DIR)/pyang/tree \
+		--text=sonic_allyangs.tree \
+		--html=sonic_allyangs_tree.html \
+		--markdown=$(if $(NO_YANG_TREE),,sonic_yang_tree.md) \
+		-p $(YANGDIR_SONIC) \
+		-c $(YANGDIR_COMMON)
 	@echo "+++++ Generation of  YANG tree for Sonic Yang modules completed +++++"
 
-sonic_allyangs_tree.html: $(SYNC_SONIC_YANGS)
-	$(PYANG) \
-		-f jstree \
-		-o $@ \
-		-p $(YANGDIR_SONIC_COMMON):$(YANGDIR_SONIC):$(YANGDIR_COMMON) \
-		$(YANGDIR_SONIC)/*.yang
-	@echo "+++++ Generation of  HTML tree for Sonic Yang modules completed +++++"
+sonic_allyangs_tree.html: sonic_allyangs.tree
+
+sonic_yang_tree.md: sonic_allyangs.tree
+
+#======================================================================
+# Linters
+#======================================================================
+
+validate: $(YANG_VALIDATE_CHK)
+
+$(OC_LINTER_INIT):
+	git clone https://github.com/openconfig/oc-pyang.git $(@D)
+	cd $(@D) && git reset --hard 8e096632abf066f092ccfb0fa8d5cfef79ca1eda
+	touch $@
+
+$(YANGDIR)/.oc_lint_done: $(PREPARE_YANGS) $(OC_LINTER_INIT) lint_ignore.ocstyle
+	$(TOOLS_DIR)/pyang/lint \
+		--oc-linter \
+		-p $(YANGDIR) \
+		-o $(YANGDIR)/oc_lint_issues.log \
+		--ignorefile $(TOPDIR)/models/yang/lint_ignore.ocstyle \
+		$(YANGDIR)/openconfig-*.yang \
+		$(YANGDIR)/extensions/openconfig-*.yang
+	touch $@
+
+$(YANGDIR)/.ietf_lint_done: $(PREPARE_YANGS) lint_ignore.ietf
+	$(TOOLS_DIR)/pyang/lint \
+		--ietf-linter \
+		-p $(YANGDIR) \
+		--ignorefile $(TOPDIR)/models/yang/lint_ignore.ietf \
+		$(YANGDIR)/ietf-*.yang \
+		$(YANGDIR)/extensions/ietf-*.yang
+	touch $@
 
 #======================================================================
 # Sync and patch yangs into build/yang directory
