@@ -1186,14 +1186,21 @@ func verifyParentTblSubtree(dbs [db.MaxDB]*db.DB, uri string, xfmrFuncNm string,
 					xfmrLogDebug("processing DB key - %v", dbKey)
 					exists := false
 					if oper != GET {
-						dptr, derr := db.NewDB(getDBOptions(dbNo))
-						if derr != nil {
+						var dptr *db.DB
+						if d := dbs[dbNo]; d != nil {
+							dptr = d
+						} else if dbNo == db.ConfigDB {
+							// Infra MUST always pass ConfigDB handle (for bulk & config session usecase)
+							err = tlerr.New("DB access failure")
+						} else {
+							dptr, err = db.NewDB(getDBOptions(dbNo))
+							defer dptr.DeleteDB()
+						}
+						if err != nil {
 							log.Warningf("Couldn't allocate NewDb/DbOptions for db - %v, while processing URI - %v", dbNo, uri)
-							err = derr
 							parentTblExists = false
 							goto Exit
 						}
-						defer dptr.DeleteDB()
 						exists, err = dbTableExists(dptr, table, dbKey, oper)
 					} else {
 						d := dbs[dbNo]
