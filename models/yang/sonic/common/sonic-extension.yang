@@ -35,22 +35,10 @@ module sonic-extension {
 		argument "value";
 	}
 
-	extension map-list {
-		description
-			"If it is a map list";
-		argument "value";
-	}
-
-	extension map-leaf {
-		description
-			"Map leaf names";
-		argument "value";
-	}
-
 	extension custom-validation {
 		description
-			"Extension for custom validation. 
-			 Platform specific validation can be implemented using custom validation.";
-		argument "handler"; 
+			"Extension for custom validation.
+			Platform specific validation can be implemented using custom validation.";
+		argument "handler";
 	}
 }
