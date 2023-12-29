@@ -16,13 +16,13 @@
 //  limitations under the License.                                            //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
-// +build go1.16
 
 package db
 
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -141,7 +141,8 @@ func generateDbDump(filePath, rawDumpFile string) (string, error) {
 func createFile(template string) (*os.File, error) {
 	dirname, basename := filepath.Split(template)
 	if len(basename) == 0 || strings.IndexByte(basename, '*') >= 0 {
-		return os.CreateTemp(dirname, basename)
+		//TODO change to os.CreateTemp after upgrading to the latest golang
+		return ioutil.TempFile(dirname, basename)
 	}
 	return os.Create(template)
 }
