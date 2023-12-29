@@ -143,7 +143,7 @@ const (
 	ErrorDB                    // 8
 	EventDB                    // 9
 	// All DBs added above this line, please ----
-	MaxDB    //  The Number of DBs
+	MaxDB //  The Number of DBs
 )
 
 func (dbNo DBNum) String() string {
@@ -173,7 +173,7 @@ type Options struct {
 	// notifications of change are received.
 	IsOnChangeEnabled bool // whether OnChange cache enabled
 
-	SDB              *DB  //The subscribeDB handle (Future Use)
+	SDB *DB //The subscribeDB handle (Future Use)
 
 	IsSubscribeDB bool // Opened by SubscribeDB(Sess)?
 
@@ -1004,9 +1004,9 @@ func (d *DB) doCVL(ts *TableSpec, cvlOps []cvl.CVLOperation, key Key, vals []Val
 	for i := 0; i < len(cvlOps); i++ {
 
 		cvlEditConfigData := cvl.CVLEditConfigData{
-			VType:     cvl.VALIDATE_ALL,
-			VOp:       cvlOps[i],
-			Key:       d.key2redis(ts, key),
+			VType: cvl.VALIDATE_ALL,
+			VOp:   cvlOps[i],
+			Key:   d.key2redis(ts, key),
 			// Await CVL PR ReplaceOp: isReplaceOp,
 		}
 
