@@ -1,6 +1,6 @@
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2021 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2022 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -19,46 +19,48 @@
 
 package db
 
-import (
-	"strings"
+// import (
+// "errors"
+// "flag"
+// "reflect"
+// "strconv"
+// "strings"
+// "sync"
+// "time"
 
-	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	"github.com/golang/glog"
-)
+// "github.com/Azure/sonic-mgmt-common/cvl"
+// "github.com/go-redis/redis/v7"
+// "github.com/golang/glog"
+// )
 
 ////////////////////////////////////////////////////////////////////////////////
 //  Exported Types                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-//  Exported Functions                                                        //
-////////////////////////////////////////////////////////////////////////////////
+type DBDatastore interface {
 
-// Get gets the value of the key
-func (d *DB) Get(key string) (string, error) {
-	if glog.V(3) {
-		glog.Info("Get: Begin: key: ", key)
-	}
-
-	if (d == nil) || (d.client == nil) {
-		return "", tlerr.TranslibDBConnectionReset{}
-	}
-
-	// Only meant to retrieve metadata.
-	if !strings.HasPrefix(key, "CONFIG_DB") || strings.Contains(key, "|") {
-		return "", UseGetEntry
-	}
-
-	glog.Info("Get: RedisCmd: ", d.Name(), ": ", "GET ", key)
-	val, e := d.client.Get(key).Result()
-
-	if glog.V(3) {
-		glog.Info("Get: End: key: ", key, " val: ", val, " e: ", e)
-	}
-
-	return val, e
+	// Eg: Commit-ID, Filename(Future), Snapshot-ID(Future), Writable(Future)
+	Attributes() map[string]string
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//  Internal Functions                                                        //
-////////////////////////////////////////////////////////////////////////////////
+// CommitIdDbDs is a Datastore modeled from a saved-to-disk CONFIG_DB of a
+// commit-id  which is stored in the CHECKPOINTS_DIR, with a
+// CHECKPOINT_EXT (cp.json)
+type CommitIdDbDs struct {
+	CommitID string
+}
+
+func (ds *CommitIdDbDs) Attributes() map[string]string {
+	return map[string]string{
+		"commit-id": ds.CommitID,
+	}
+}
+
+// DefaultDbDs is the default Datastore representing the data
+// stored in the CONFIG_DB database(/selection) of the redis-server
+type DefaultDbDs struct {
+}
+
+func (ds *DefaultDbDs) Attributes() map[string]string {
+	return map[string]string{}
+}

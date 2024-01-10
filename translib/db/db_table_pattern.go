@@ -81,8 +81,6 @@ func (d *DB) GetTablePattern(ts *TableSpec, pat Key) (Table, error) {
 		}
 	}()
 
-	// If pseudoDB then do custom. TBD.
-
 	isComplete := false
 	if pat.IsAllKeyPattern() {
 		isComplete = true
