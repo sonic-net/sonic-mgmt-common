@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/path"
@@ -976,17 +977,27 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 					}
 					err = d.DeleteEntry(cmnAppTs, db.Key{Comp: []string{tblKey}})
 					if err != nil {
-						log.Warning("DELETE case - d.DeleteEntry() failure")
-						return err
+						switch e := err.(type) {
+						case tlerr.TranslibCVLFailure:
+							if cvl.CVLRetCode(e.Code) == cvl.CVL_SEMANTIC_KEY_NOT_EXIST {
+								log.Infof("Ignore delete that cannot be processed for table %v key %v that does not exist. err %v", tblNm, tblKey, e.CVLErrorInfo.ConstraintErrMsg)
+								err = nil
+							} else {
+								log.Warning("DELETE case - d.DeleteEntry() failure")
+								return err
+							}
+						default:
+							log.Warning("DELETE case - d.DeleteEntry() failure")
+							return err
+						}
 					}
 					log.Info("Finally deleted the parent table row with key = ", tblKey)
 				} else {
 					log.Info("DELETE case - fields/cols to delete hence delete only those fields.")
 					existingEntry, exstErr := d.GetEntry(cmnAppTs, db.Key{Comp: []string{tblKey}})
 					if exstErr != nil {
-						log.Info("Table Entry from which the fields are to be deleted does not exist")
-						err = exstErr
-						return err
+						log.Info("Table Entry from which the fields are to be deleted does not exist. Ignore error for non existant instance for idempotency")
+						continue
 					}
 					/* handle leaf-list merge if any leaf-list exists */
 					resTblRw := checkAndProcessLeafList(existingEntry, tblRw, DELETE, d, tblNm, tblKey)
