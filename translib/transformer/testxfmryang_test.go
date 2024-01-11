@@ -445,7 +445,7 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
 	// Payload
-	patch_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{\"global_sensor\": {\"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\": 25 }, \"sonic-test-xfmr:global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timermode\" }}}"
+	patch_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{\"global_sensor\": {\"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\": 25 }, \"sonic-test-xfmr:global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\" }}}"
 	patch_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}}}
 	patch_sensor_timer_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 5}}}
 
@@ -467,7 +467,7 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 
 	// Payload
 	put_payload := "{ \"sonic-test-xfmr:mode\": \"test_mode_1\"}"
-	put_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "test_mode_1", "description": "testdescp"}}}
+	put_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "test_mode_1", "description": "test description"}}}
 
 	t.Run("Put on singleton sonic yang node", processSetRequest(url, put_payload, "PUT", false))
 	time.Sleep(1 * time.Second)
@@ -484,7 +484,7 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
 	// Payload
-	put_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{\"global_sensor\": {\"mode\": \"testmode\", \"description\": \"test description for testmode\"}, \"sonic-test-xfmr:global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timermode\" }}}"
+	put_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{\"global_sensor\": {\"mode\": \"testmode\", \"description\": \"test description for testmode\"}, \"sonic-test-xfmr:global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\" }}}"
 	put_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 5}}}
 	put_sensor_timer_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 5}}}
 
@@ -551,8 +551,11 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
 
-	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\":25 },\"global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\", \"reset_time\":30}}"
+	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\":25 },\"global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\", \"reset_time\":30}}}"
 	t.Run("Get on Sonic table with mutiple sonic singleton containers", processGetRequest(url, nil, get_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
 
 }
 
