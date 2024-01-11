@@ -399,17 +399,16 @@ func Test_node_exercising_singleton_container_and_keyname_mapping(t *testing.T) 
 
 func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 
-	cleanuptbl := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": ""}}
+	cleanuptbl := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": ""}}
 	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
 
 	t.Log("++++++++++++++  Test_create_on_sonic_singleton_container_yang_node +++++++++++++")
-
 	// Setup - Prerequisite
 	unloadDB(db.ConfigDB, cleanuptbl)
 
 	// Payload
 	post_payload := "{ \"sonic-test-xfmr:global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescp\" }}"
-	post_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp", "reset-time": 5}}}
+	post_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp", "reset_time": 5}}}
 
 	t.Run("Create on singleton sonic table yang node", processSetRequest(url, post_payload, "POST", false))
 	time.Sleep(1 * time.Second)
@@ -433,6 +432,26 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	t.Run("Patch on singleton sonic container yang node", processSetRequest(url, patch_payload, "PATCH", false))
 	time.Sleep(1 * time.Second)
 	t.Run("Verify patch on singleton sonic container yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_create_and_modify_on_sonic_sibling_singleton_container_yang_node +++++++++++++")
+
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description"}}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	// Payload
+	patch_payload = "{\"sonic-test-xfmr:global_sensor\": {\"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\": 25  }, \"sonic-test-xfmr:global_sensor_timer\": {    \"timer_mode\": \"sample\", \"timer_description\": \"test sample timermode\", \"reset_time\": 30  }}"
+	patch_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}}}
+	patch_sensor_timer_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "description": "test sample timer mode", "reset_time": 30}}}
+
+	t.Run("Create and modify on sibling singleton containers sonic yang node", processSetRequest(url, post_payload, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify Create and modify on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
+	t.Run("Verify Create and modify on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", patch_sensor_timer_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -909,7 +928,7 @@ func Test_sonic_yang_default_value_handling(t *testing.T) {
 	unloadDB(db.ConfigDB, pre_req)
 	url := "/sonic-test-xfmr:sonic-test-xfmr"
 	post_payload := "{ \"sonic-test-xfmr:TEST_SENSOR_GROUP\": { \"TEST_SENSOR_GROUP_LIST\": [ { \"id\": \"test_group_1\" } ] }, \"sonic-test-xfmr:TEST_SENSOR_GLOBAL\": { \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescription\"} }}"
-	sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription", "mode": "testmode", "reset-time": 5}}}
+	sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription", "mode": "testmode", "reset_time": 5}}}
 	sensor_group_expected := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"color-hold-time": 10}}}
 	t.Run("Test set on sonic yang where default value for a node not present in payload.", processSetRequest(url, post_payload, "POST", false, nil))
 	t.Run("Verify set on sonic yang where default value for a node not present in payload for list node", verifyDbResult(rclient, "TEST_SENSOR_GROUP|test_group_1", sensor_group_expected, false))
@@ -918,11 +937,11 @@ func Test_sonic_yang_default_value_handling(t *testing.T) {
 	unloadDB(db.ConfigDB, pre_req)
 
 	t.Log("++++++++++++++  Test_delete_reseting_sonic_yang_leaf_node_to_default  +++++++++++++")
-	pre_req = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset-time": 19}}}
+	pre_req = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset_time": 19}}}
 	//setup
 	loadDB(db.ConfigDB, pre_req)
-	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/reset-time"
-	sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset-time": 5}}}
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/reset_time"
+	sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset_time": 5}}}
 	t.Run("Test delete reseting sonic yang leaf node to default", processDeleteRequest(url, false))
 	t.Run("Verify delete reseting sonic yang leaf node to default", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", sensor_global_expected, false))
 	//Teardown

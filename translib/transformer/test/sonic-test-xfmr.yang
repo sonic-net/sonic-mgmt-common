@@ -245,7 +245,19 @@ module sonic-test-xfmr {
                                  leaf description {
                                         type string;
                                  }
-                                 leaf reset-time {
+                                 leaf reset_time {
+                                       type uint32;
+                                       default 5;
+                                 }
+                        }
+			container global_sensor_timer {
+                                 leaf timer_mode {
+                                        type string;
+                                 }
+                                 leaf timer_description {
+                                        type string;
+                                 }
+                                 leaf reset_time {
                                        type uint32;
                                        default 5;
                                  }
