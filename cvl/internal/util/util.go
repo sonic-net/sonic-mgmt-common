@@ -577,7 +577,7 @@ func GetDbSock(dbName string) string {
 	return unix_socket_path.(string)
 }
 
-//GetDbPassword Get DB password
+// GetDbPassword Get DB password
 func GetDbPassword(dbName string) string {
 	inst := getDbInst(dbName)
 	password := ""

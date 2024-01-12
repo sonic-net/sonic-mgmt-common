@@ -638,8 +638,8 @@ func (c *CVL) ValidateFields(key string, field string, value string) CVLRetCode 
 	return CVL_NOT_IMPLEMENTED
 }
 
-//getListNameFromLeafRef - Extracts the yang list name from the leafRefInfo.
-//Returns empty string otherwise.
+// getListNameFromLeafRef - Extracts the yang list name from the leafRefInfo.
+// Returns empty string otherwise.
 func getListNameFromLeafRef(leafRef *leafRefInfo) string {
 	if len(leafRef.yangListNames) == 0 {
 		//No-leafref case return empty string
@@ -877,7 +877,7 @@ func (c *CVL) addDepTables(tableMap map[string]bool, listEntry string) {
 	}
 }
 
-//processTopoSortResult - Converts List to Table name and placeholder for all future processing
+// processTopoSortResult - Converts List to Table name and placeholder for all future processing
 func processTopoSortResult(result []string) ([]string, CVLRetCode) {
 	// Replace list to table name
 	for i, tblList := range result {
@@ -885,8 +885,40 @@ func processTopoSortResult(result []string) ([]string, CVLRetCode) {
 			result[i] = tblEntry.redisTableName
 		}
 	}
+	if len(result) < 2 {
+		return result, CVL_SUCCESS
+	}
 
-	return result, CVL_SUCCESS
+	seen := make(map[string]bool)
+	list := make([]string, 0, len(result))
+
+	lastSeen := result[0]
+	list = append(list, lastSeen)
+	seen[lastSeen] = true
+
+	for _, entry := range result[1:] {
+		if entry == lastSeen {
+			// This is the case when there is an internal reference, LIKE INTERFACE_IP_ADDR refer to INTERFACE
+			// Skip consecutive duplicates for now. Ideally we should return TABLE_NAME with key data or list name
+			// to be decided based on the requirement of transformer/Apps
+			continue
+		}
+
+		if seen[entry] {
+			// Non-consecutive duplicate found
+			// This is the case when the external table refers to lists, x11, x12, y11, x13
+			// Skip entry for now. Ideally we should return TABLE_NAME with key data or list name
+			// or should we return error here??
+			//since we dont have this case yet, therefore continuing
+			continue
+		}
+
+		list = append(list, entry)
+		seen[entry] = true
+		lastSeen = entry
+	}
+
+	return list, CVL_SUCCESS
 }
 
 // GetDepTables Get the list of dependent tables for a given table in a YANG module
