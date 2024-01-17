@@ -348,7 +348,13 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) ([]typeMapOfInterfa
 	delKeyCnt := 0
 	for keyStr, dbVal := range dbTblData {
 		dbSpecData, ok := xDbSpecMap[table]
-		if ok && dbSpecData.keyName == nil && xDbSpecMap[xpath].dbEntry != nil {
+		if ok && dbSpecData != nil && dbSpecData.dbEntry != nil {
+			if _, isSingletonContainer := dbSpecData.dbEntry.Dir[keyStr]; isSingletonContainer {
+				xfmrLogDebug("DB key %v is a singleton container hence skip processing it during list processing.", keyStr)
+				continue
+			}
+		}
+		if ok && dbSpecData != nil && dbSpecData.keyName == nil && xDbSpecMap[xpath].dbEntry != nil {
 			yangKeys := yangKeyFromEntryGet(xDbSpecMap[xpath].dbEntry)
 			curMap := make(map[string]interface{})
 			sonicKeyDataAdd(dbIdx, yangKeys, table, xDbSpecMap[xpath].dbEntry.Name, keyStr, curMap, inParamsForGet.oper, false)
@@ -461,6 +467,11 @@ func sonicDbToYangDataFill(inParamsForGet xlateFromDbParams) error {
 					dbDataMap = linParamsForGet.dbDataMap
 					if _, ok := (*dbDataMap)[xDbSpecMap[curTable].dbIndex][curTable][curKey]; ok {
 						delete((*dbDataMap)[xDbSpecMap[curTable].dbIndex][curTable], curKey)
+						delete(inParamsForGet.dbTblKeyGetCache[dbIdx][table], curKey)
+					}
+					if curTable == chldXpath { // table-level container processing complete
+						delete((*dbDataMap)[dbIdx], table)
+						delete(inParamsForGet.dbTblKeyGetCache[dbIdx], table)
 					}
 					if len(curMap) > 0 {
 						resultMap[yangChldName] = curMap
