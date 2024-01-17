@@ -212,7 +212,8 @@ func (app *PlatformApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, err
 
 ///////////////////////////
 
-/**
+/*
+*
 Structures to read syseeprom from redis-db
 */
 type EepromDb struct {

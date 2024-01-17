@@ -111,7 +111,7 @@ func ordTblListCreate(ordTblList map[string][]string, tnMap map[string]*gphNode)
 	}
 }
 
-//sort transformer result table list based on dependenciesi(using CVL API) tables to be used for CRUD operations
+// sort transformer result table list based on dependenciesi(using CVL API) tables to be used for CRUD operations
 func sortPerTblDeps(ordTblListMap map[string][]string) error {
 	var err error
 
