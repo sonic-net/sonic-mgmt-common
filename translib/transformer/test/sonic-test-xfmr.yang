@@ -262,6 +262,20 @@ module sonic-test-xfmr {
                                        default 5;
                                  }
                         }
+                        list global_sensor_device {
+                                 key device_name;
+                                 leaf device_name {
+                                        type string;
+                                 }
+                                 leaf device_status {
+                                        type enumeration {
+                                            enum ON;
+                                            enum OFF;
+                                         }
+                                  }
+
+                         }
+
                 }
 
                 container TEST_INTERFACE_MODE_TABLE {
