@@ -882,6 +882,22 @@ func TestValidateEditConfig_multi_static_key(t *testing.T) {
 	verifyValidateEditConfig(t, cfgData, Success)
 }
 
+func TestValidateEditConfig_list_with_singleton(t *testing.T) {
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
+			"TELEMETRY_CLIENT|t1",
+			map[string]string{
+				"report_interval": "4000",
+			},
+			false,
+		},
+	}
+	verifyValidateEditConfig(t, cfgData, Success)
+}
+
 func TestValidateEditConfig_multi_list_max_elements(t *testing.T) {
 
 	cfgData := []cmn.CVLEditConfigData{
