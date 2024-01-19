@@ -399,7 +399,7 @@ func Test_node_exercising_singleton_container_and_keyname_mapping(t *testing.T) 
 
 func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 
-	cleanuptbl := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": ""}}
+	cleanuptbl := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": "", "test_device|32": ""}}
 
 	t.Log("++++++++++++++  Test_create_on_sonic_singleton_container_yang_node +++++++++++++")
 	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
@@ -412,6 +412,22 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	t.Run("Create on singleton sonic table yang node", processSetRequest(url, post_payload, "POST", false))
 	time.Sleep(1 * time.Second)
 	t.Run("Verify Create on singleton sonic table yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", post_sensor_global_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_create_on_sonic_node_having_singleton_container_sibling_list +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+	// Setup - Prerequisite
+	unloadDB(db.ConfigDB, cleanuptbl)
+	// Payload
+	post_payload = "{ \"sonic-test-xfmr:global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescp\" }, \"sonic-test-xfmr:TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\", \"device_id\": 32,\"device_status\": \"ON\"}]}"
+	post_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp", "reset_time": 5}}}
+	post_sensor_device_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"test_device|32": map[string]interface{}{"device_status": "ON"}}}
+
+	t.Run("Create on sonic table yang node having singleton container and sibling list", processSetRequest(url, post_payload, "POST", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify Create on sonic table yang node with singleton container and sibling list", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", post_sensor_device_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -453,6 +469,30 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	t.Run("Verify Create and modify on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
 	t.Run("Verify Create and modify on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", patch_sensor_timer_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_patch_on_sonic_yang_with_singleton_container_sibling_list +++++++++++++")
+
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "test_device|32": map[string]interface{}{"device_status": "ON"}}}
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+	// Payload
+	patch_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescp\" }, \"TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\",\"device_id\": 32, \"device_status\": \"OFF\"}]}}"
+
+	patch_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp", "reset_time": 25}}}
+	patch_sensor_timer_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}}}
+	patch_sensor_device_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"test_device|32": map[string]interface{}{"device_status": "OFF"}}}
+
+	t.Run("Patch on sonic node having singleton container and sibling list yang nodes", processSetRequest(url, patch_payload, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
+	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", patch_sensor_timer_expected, false))
+	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device", patch_sensor_device_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -551,7 +591,7 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
 
-	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\":25 },\"global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\", \"reset_time\":30}, \"global_sensor_device\": [ { \"device_name\": \"global_sensor_device_01\", \"device_status\": \"ON\"} ]}}"
+	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\":25 },\"global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\", \"reset_time\":30}, \"TEST_SENSOR_GLOBAL_LIST\": [ { \"device_name\": \"global_sensor_device_01\", \"device_status\": \"ON\"} ]}}"
 	t.Run("Get on Sonic table with mutiple sonic singleton containers", processGetRequest(url, nil, get_expected, false))
 
 	// Teardown
