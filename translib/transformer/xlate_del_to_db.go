@@ -910,7 +910,7 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 				if specTblChldInfo, ok := xDbSpecMap[tblChldXpath]; ok && specTblChldInfo != nil {
 					if specTblChldInfo.yangType == YANG_LIST && (!strings.HasSuffix(xlateParams.requestUri, "]") || !strings.HasSuffix(xlateParams.requestUri, "]/")) {
 						if tblSpecInfo, ok := xDbSpecMap[xlateParams.tableName]; ok && tblSpecInfo != nil {
-							if len(tblSpecInfo.listName) != len(tblSpecInfo.dbEntry.Dir) { // table level container has singleton container and list as siblings.
+							if len(tblSpecInfo.dbEntry.Dir) > len(tblSpecInfo.listName) { // table level container has singleton container and list as siblings.
 								singletonContainers := make(map[string]bool)
 								for childName, child := range tblSpecInfo.dbEntry.Dir {
 									if child.IsContainer() {
