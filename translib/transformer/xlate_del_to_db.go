@@ -847,11 +847,11 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 	if xlateParams.tableName != "" {
 		// Specific table entry case
 		xlateParams.result[xlateParams.tableName] = make(map[string]db.Value)
+		tokens := strings.Split(xlateParams.xpath, "/")
 		isFieldReq := false
+		var dbVal db.Value
 		if xlateParams.keyName != "" {
 			// Specific key case
-			var dbVal db.Value
-			tokens := strings.Split(xlateParams.xpath, "/")
 			if tokens[SONIC_TABLE_INDEX] == xlateParams.tableName {
 				fieldName := ""
 				if len(tokens) > SONIC_FIELD_INDEX {
@@ -898,6 +898,48 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 				}
 			}
 			xlateParams.result[xlateParams.tableName][xlateParams.keyName] = dbVal
+		} else {
+			/* handle delete request at whole list level which is a sibling list to singleton container.
+			   For such delete request, we need to get make sure we delete only list keys and not the keys that
+			   correspond to singleton container(s).
+			*/
+			if len(tokens) > SONIC_TBL_CHILD_INDEX {
+				tblChldNm := tokens[SONIC_TBL_CHILD_INDEX]
+				xfmrLogDebug("Table Child Name : %v", tblChldNm)
+				tblChldXpath := xlateParams.tableName + "/" + tblChldNm
+				if specTblChldInfo, ok := xDbSpecMap[tblChldXpath]; ok && specTblChldInfo != nil {
+					if specTblChldInfo.yangType == YANG_LIST && (!strings.HasSuffix(xlateParams.requestUri, "]") || !strings.HasSuffix(xlateParams.requestUri, "]/")) {
+						if tblSpecInfo, ok := xDbSpecMap[xlateParams.tableName]; ok && tblSpecInfo != nil {
+							if len(tblSpecInfo.listName) != len(tblSpecInfo.dbEntry.Dir) { // table level container has singleton container and list as siblings.
+								singletonContainers := make(map[string]bool)
+								for childName, child := range tblSpecInfo.dbEntry.Dir {
+									if child.IsContainer() {
+										singletonContainers[childName] = true
+									}
+								}
+								if len(singletonContainers) > 0 {
+									dbTblSpec := &db.TableSpec{Name: xlateParams.tableName}
+									allKeys, err := xlateParams.d.GetKeys(dbTblSpec)
+									if err != nil {
+										xfmrLogInfo("Failed to get keys for table (%v), Error: (%v)", xlateParams.tableName, err)
+										delete(xlateParams.result, xlateParams.tableName)
+									}
+									separator := xlateParams.d.Opts.KeySeparator
+									for _, key := range allKeys {
+										keyStr := strings.Join(key.Comp, separator)
+										if _, ok := singletonContainers[keyStr]; ok {
+											xfmrLogDebug("Skipping %v since it matches singleton container", keyStr)
+											continue
+										}
+										xlateParams.result[xlateParams.tableName][keyStr] = dbVal
+									}
+								}
+							}
+						}
+					}
+				}
+
+			}
 		}
 		if !isFieldReq {
 			if tblSpecInfo, ok := xDbSpecMap[xlateParams.tableName]; ok && (tblSpecInfo.cascadeDel == XFMR_ENABLE) {
