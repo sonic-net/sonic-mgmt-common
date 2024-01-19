@@ -262,10 +262,13 @@ module sonic-test-xfmr {
                                        default 5;
                                  }
                         }
-                        list global_sensor_device {
-                                 key device_name;
+                        list TEST_SENSOR_GLOBAL_LIST {
+                                 key "device_name device_id";
                                  leaf device_name {
                                         type string;
+                                 }
+                                 leaf device_id {
+                                        type uint32;
                                  }
                                  leaf device_status {
                                         type enumeration {
