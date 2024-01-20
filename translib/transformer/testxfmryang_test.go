@@ -582,7 +582,7 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	loadDB(db.ConfigDB, prereq)
 
 	delete_expected = make(map[string]interface{})
-	delete_expected_global_sensor := map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}
+	delete_expected_global_sensor := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}}}
 
 	t.Run("Delete on singleton sonic container", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
