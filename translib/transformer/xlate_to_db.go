@@ -1111,9 +1111,6 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 					return true, nil
 				}
 			}
-			if derr != nil {
-				return false, derr
-			}
 		}
 		if len(pathList) == SONIC_TBL_CHILD_INDEX && (oper == UPDATE || oper == CREATE || oper == DELETE || oper == GET) && !tableExists {
 			// Uri is at /sonic-module:sonic-module/container-table/list
@@ -1136,7 +1133,7 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 		}
 	} else {
 		// Request is at module level. No need to check for parent table. Hence return true always or
-		// Request at /sonic-module:sonic-module/container-table level
+		// Request at /sonic-module:sonic-module/container-table or container-table/whole list level
 		return true, err
 	}
 }

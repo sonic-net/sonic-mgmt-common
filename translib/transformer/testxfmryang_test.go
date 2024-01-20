@@ -492,12 +492,12 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
 	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", patch_sensor_timer_expected, false))
-	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device", patch_sensor_device_expected, false))
+	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", patch_sensor_device_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
-	t.Log("++++++++++++++  Test_replace_on_sonic_singleton_container +++++++++++++")
+	t.Log("++++++++++++++  Test_replace_on_sonic_singleton_container_leaf +++++++++++++")
 
 	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/mode"
 
@@ -509,29 +509,50 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	put_payload := "{ \"sonic-test-xfmr:mode\": \"test_mode_1\"}"
 	put_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "test_mode_1", "description": "test description"}}}
 
-	t.Run("Put on singleton sonic yang node", processSetRequest(url, put_payload, "PUT", false))
+	t.Run("Put on singleton sonic yang leaf node", processSetRequest(url, put_payload, "PUT", false))
 	time.Sleep(1 * time.Second)
-	t.Run("Verify put on singleton sonic yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", put_sensor_global_expected, false))
+	t.Run("Verify put on singleton sonic yang leaf node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", put_sensor_global_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
 	t.Log("++++++++++++++  Test_replace_on_sonic_sibling_singleton_container_yang_node +++++++++++++")
 
-	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description", "reset_time": 40}}}
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description", "reset_time": 40}, "test_device|32": map[string]interface{}{"device_status": "ON"}}}
 
 	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
 	// Payload
-	put_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{\"global_sensor\": {\"mode\": \"testmode\", \"description\": \"test description for testmode\"}, \"sonic-test-xfmr:global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\" }}}"
+	put_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{\"global_sensor\": {\"mode\": \"testmode\", \"description\": \"test description for testmode\"}, \"sonic-test-xfmr:global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\" },\"TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\",\"device_id\": 32, \"device_status\": \"OFF\"}]}}"
 	put_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 5}}}
 	put_sensor_timer_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 5}}}
+	put_sensor_device_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"test_device|32": map[string]interface{}{"device_status": "OFF"}}}
 
 	t.Run("Create and replace on sibling singleton containers sonic yang node", processSetRequest(url, put_payload, "PUT", false))
 	time.Sleep(1 * time.Second)
 	t.Run("Verify Create and replace on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", put_sensor_global_expected, false))
 	t.Run("Verify Create and replace on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", put_sensor_timer_expected, false))
+	t.Run("Verify replace on sibling singleton containers to list in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", put_sensor_device_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_replace_on_sonic_list_instance_sibling_to_singleton_container +++++++++++++")
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/TEST_SENSOR_GLOBAL_LIST[device_name=test_device][device_id=32]"
+
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description"}}}
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	// Payload
+	put_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\",\"device_id\": 32, \"device_status\": \"OFF\"}]}"
+	put_sensor_device_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"test_device|32": map[string]interface{}{"device_status": "OFF"}}}
+
+	t.Run("Put on sonic yang node list, sibling to singleton container", processSetRequest(url, put_payload, "PUT", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify put/create on  sonic yang node list, sibling to singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", put_sensor_device_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
