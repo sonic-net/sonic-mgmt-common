@@ -573,11 +573,31 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
+	t.Log("++++++++++++++  Test_delete_on_whole_sibling_list_to_singleton_sonic_container  +++++++++++++")
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/TEST_SENSOR_GLOBAL_LIST"
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "test_device|32": map[string]interface{}{"device_status": "OFF"}, "test_device|54": map[string]interface{}{"device_status": "ON"}}}
+	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "test_device|32": "", "test_device|54": ""}}
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	delete_expected = make(map[string]interface{})
+	delete_expected_global_sensor := map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}
+
+	t.Run("Delete on singleton sonic container", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify delete on whole sibling list to singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", delete_expected, false))
+	t.Run("Verify delete on whole sibling list to singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|54", delete_expected, false))
+	t.Run("Verify delete on whole sibling list to singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", delete_expected_global_sensor, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
 	t.Log("++++++++++++++  Test_delete_on_table_with_mutiple_sibling_singleton_sonic_containers_and_sibling_list  +++++++++++++")
 
 	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
-	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "global_sensor_device_01": map[string]interface{}{"device_status": "ON"}}}
-	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": "", "global_sensor_device_01": ""}}
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "test_device|32": map[string]interface{}{"device_status": "OFF"}}}
+	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": "", "test_device|32": ""}}
 
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
@@ -588,7 +608,7 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	t.Run("Verify delete on table with mutiple sonic singleton container and sibling list(global_sensor)", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", delete_expected, false))
 	t.Run("Verify delete on table with mutiple sonic singleton container and sbling list(global_sensor_timer)", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", delete_expected, false))
-	t.Run("Verify delete on table with mutiple sonic singleton containerand sibling list(global_sensor_device_01)", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_device_01", delete_expected, false))
+	t.Run("Verify delete on table with mutiple sonic singleton containerand sibling list(test_device|32)", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", delete_expected, false))
 
 	t.Log("++++++++++++++  Test_get_on_sonic_singleton_container  +++++++++++++")
 
@@ -607,13 +627,13 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	t.Log("++++++++++++++  Test_get_on_table_with_mutiple_sibling_singleton_sonic_containers_and_sibling_list  +++++++++++++")
 
 	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
-	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "global_sensor_device_01": map[string]interface{}{"device_status": "ON"}}}
-	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": "", "global_sensor_device_01": ""}}
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "test_device|32": map[string]interface{}{"device_status": "OFF"}}}
+	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": "", "test_device|32": ""}}
 
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
 
-	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\":25 },\"global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\", \"reset_time\":30}, \"global_sensor_device\": [ { \"device_name\": \"global_sensor_device_01\", \"device_status\": \"ON\"} ]}}"
+	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\":25 },\"global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\", \"reset_time\":30}, \"TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\",\"device_id\": 32, \"device_status\": \"OFF\"}]}}"
 	t.Run("Get on Sonic table with mutiple sonic singleton containers and sibling list", processGetRequest(url, nil, get_expected, false))
 
 	// Teardown
