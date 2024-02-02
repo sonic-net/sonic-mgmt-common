@@ -24,7 +24,83 @@ module openconfig-if-ethernet {
     "Model for managing Ethernet interfaces -- augments the OpenConfig
     model for interface configuration and state.";
 
-  oc-ext:openconfig-version "2.6.2";
+  oc-ext:openconfig-version "2.13.0";
+
+  revision "2023-03-10" {
+    description
+      "Allow Ethernet configuration parameters to be
+      used for aggregate (LAG) interfaces.";
+    reference "2.13.0";
+  }
+
+  revision "2022-04-20" {
+    description
+      "Remove unused import";
+    reference "2.12.2";
+  }
+
+  revision "2021-07-20" {
+    description
+      "Fix typo in hardware MAC address description.";
+    reference "2.12.1";
+  }
+
+  revision "2021-07-07" {
+    description
+      "Add support for configuring fec-mode per interface.";
+    reference "2.12.0";
+  }
+
+  revision "2021-06-16" {
+    description
+      "Remove trailing whitespace.";
+    reference "2.11.1";
+  }
+
+  revision "2021-06-09" {
+    description
+      "Add support for standalone link training.";
+    reference "2.11.0";
+  }
+
+  revision "2021-05-17" {
+    description
+      "Add ethernet counters: in-carrier-errors,
+      in-interrupted-tx, in-late-collision, in-mac-errors-rx,
+      in-single-collision, in-symbol-error and out-mac-errors-tx";
+    reference "2.10.0";
+  }
+
+  revision "2021-03-30" {
+    description
+      "Add counter for drops due to oversized frames.";
+    reference "2.9.0";
+  }
+
+  revision "2020-05-06" {
+    description
+      "Minor formatting fix.";
+    reference "2.8.1";
+  }
+
+  revision "2020-05-06" {
+    description
+      "Add 200G, 400G, 600G and 800G Ethernet speeds.";
+    reference "2.8.0";
+  }
+
+  revision "2020-05-05" {
+    description
+      "Fix when statement checks to use rw paths when
+      from a rw context.";
+    reference "2.7.3";
+  }
+
+  revision "2019-04-16" {
+    description
+      "Update import prefix for iana-if-type module";
+    reference "2.7.2";
+  }
 
   revision "2018-11-21" {
     description
@@ -144,6 +220,26 @@ module openconfig-if-ethernet {
   identity SPEED_100GB {
     base ETHERNET_SPEED;
     description "100 Gbps Ethernet";
+  }
+
+  identity SPEED_200GB {
+    base ETHERNET_SPEED;
+    description "200 Gbps Ethernet";
+  }
+
+  identity SPEED_400GB {
+    base ETHERNET_SPEED;
+    description "400 Gbps Ethernet";
+  }
+
+  identity SPEED_600GB {
+    base ETHERNET_SPEED;
+    description "600 Gbps Ethernet";
+  }
+
+  identity SPEED_800GB {
+    base ETHERNET_SPEED;
+    description "800 Gbps Ethernet";
   }
 
   identity SPEED_UNKNOWN {
@@ -349,7 +445,7 @@ module openconfig-if-ethernet {
     leaf hw-mac-address {
       type oc-yang:mac-address;
       description
-        "Represenets the 'burned-in',  or system-assigned, MAC
+        "Represents the 'burned-in', or system-assigned, MAC
         address for the Ethernet interface.";
     }
 
@@ -382,9 +478,7 @@ module openconfig-if-ethernet {
       description "Ethernet interface counters";
 
       uses ethernet-interface-state-counters;
-
     }
-
   }
 
   // data definition statements

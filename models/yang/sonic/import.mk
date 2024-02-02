@@ -6,3 +6,5 @@
 # Other sonic yangs referred by these will also be copied.
 #
 SONICYANG_IMPORTS += sonic-sflow.yang
+SONICYANG_IMPORTS += sonic-interface.yang
+SONICYANG_IMPORTS += sonic-port.yang
