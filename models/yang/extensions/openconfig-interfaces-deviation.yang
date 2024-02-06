@@ -1,0 +1,135 @@
+module openconfig-interfaces-deviation {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/interfaces/deviation/extension";
+
+  prefix "oc-intf-dev";
+
+  // import some basic types
+  import openconfig-interfaces { prefix oc-intf; }
+  import openconfig-extensions { prefix oc-ext; }
+  import openconfig-if-ip {prefix oc-ip; }
+  import openconfig-vlan { prefix oc-vlan; }
+
+  organization
+    "SONiC";
+
+  contact
+    "SONiC";
+
+  description
+    "This module describes a YANG model for openconfig-interfaces deviations.";
+
+  oc-ext:openconfig-version "0.2.7";
+
+  revision "2024-01-19" {
+    description
+      "Add Yang deviations for unsupported subinterfaces.";
+    reference "0.2.7";
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:ifindex {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:admin-status {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:oper-status {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:last-change {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:logical {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:counters {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-vlan:vlan {
+    deviate not-supported;
+  }
+  
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:state/oc-ip:origin {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:proxy-arp {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:neighbors {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:unnumbered {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:config {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:state {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:state/oc-ip:origin {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:state/oc-ip:status {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:router-advertisement {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:neighbors {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:unnumbered {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:enabled {
+    deviate replace {
+      default false;
+    }
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:mtu {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:dup-addr-detect-transmits {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:dhcp-client {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state {
+    deviate not-supported;
+  }
+ 
+}

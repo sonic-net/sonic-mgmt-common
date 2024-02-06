@@ -65,3 +65,9 @@ func RemoveElement(sl []string, str string) []string {
 	}
 	return sl
 }
+func GetSubInterfaceDBKeyfromParentInterfaceAndSubInterfaceID(parentIf *string, subId *string) *string {
+	uiName := *parentIf + "." + *subId
+	key := *(&uiName)
+	log.V(3).Infof("GetSubInterfaceDBKeyfromParentInterfaceAndSubInterfaceID %s + %s => %s", *parentIf, *subId, key)
+	return &key
+}
