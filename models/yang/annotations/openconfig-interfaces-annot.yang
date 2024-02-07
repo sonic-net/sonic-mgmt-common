@@ -16,16 +16,42 @@ module openconfig-interfaces-annot {
         }
     }
 
-    deviation /oc-intf:interfaces {
-      deviate add {
-        sonic-ext:pre-transformer "intf_pre_xfmr";
-        sonic-ext:post-transformer "intf_post_xfmr";
-      }
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:config {
+        deviate add {
+            sonic-ext:subtree-transformer "intf_eth_port_config_xfmr";
+            sonic-ext:path-transformer "intf_eth_port_config_path_xfmr";
+        }
     }
-    
+
     deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state {
         deviate add {
             sonic-ext:db-name "APPL_DB";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:auto-negotiate {
+        deviate add {
+            sonic-ext:field-transformer "intf_eth_auto_neg_xfmr";
+            sonic-ext:field-name "autoneg";
+        }
+    }
+    
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:port-speed {
+        deviate add {
+            sonic-ext:field-transformer "intf_eth_port_speed_xfmr";
+            sonic-ext:field-name "speed";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state {
+        deviate add {
+            sonic-ext:db-name "APPL_DB";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:mtu {
+        deviate add {
+            sonic-ext:field-transformer "intf_mtu_xfmr";
         }
     }
 
@@ -49,6 +75,13 @@ module openconfig-interfaces-annot {
             sonic-ext:field-transformer "intf_enabled_xfmr";
             sonic-ext:field-name "admin_status";
         }
+    }
+    
+    deviation /oc-intf:interfaces {
+      deviate add {
+        sonic-ext:pre-transformer "intf_pre_xfmr";
+        sonic-ext:post-transformer "intf_post_xfmr";
+      }
     }
     
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces {
@@ -77,12 +110,14 @@ module openconfig-interfaces-annot {
             sonic-ext:field-transformer "subif_index_xfmr";
         }
     }
+    
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses {
         deviate add {
             sonic-ext:table-name "NONE";
             sonic-ext:subtree-transformer "intf_ip_addr_xfmr";
         }
     }
+    
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses {
         deviate add {
             sonic-ext:table-name "NONE";
@@ -113,19 +148,7 @@ module openconfig-interfaces-annot {
             sonic-ext:table-transformer "intf_table_xfmr";
         }
     }
-    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:config/oc-ip:enabled {
-        deviate add {
-            sonic-ext:field-transformer "ipv6_enabled_xfmr";
-            sonic-ext:field-name "ipv6_use_link_local_only";
-        }
-    }
-
-    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:state/oc-ip:enabled {
-        deviate add {
-            sonic-ext:field-transformer "ipv6_enabled_xfmr";
-            sonic-ext:field-name "ipv6_use_link_local_only";
-        }
-    }
+    
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:enabled {
         deviate add {
             sonic-ext:field-transformer "ipv6_enabled_xfmr";
