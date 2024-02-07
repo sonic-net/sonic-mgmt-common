@@ -121,6 +121,7 @@ type modelTableInfo struct {
 	mandatoryNodes   map[string]bool     //map of leaf names and mandatory flag & leaf-list with min-elements > 0
 	dependentOnTable string              // Name of table on which it is dependent
 	dependentTables  []string            // list of dependent tables
+	has_static_key   bool                // True, if LIST has sonic-extension:tbl-key
 }
 
 // CVLErrorInfo Struct for CVL Error Info
@@ -525,6 +526,7 @@ func storeModelInfo(modelFile string, module *yparser.YParserModule) {
 				modelInfo.redisTableToListKeys[tInfo.redisTableName] = make(map[string]string)
 			}
 			modelInfo.redisTableToListKeys[tInfo.redisTableName][lInfo.Key] = lInfo.ListName
+			tInfo.has_static_key = true
 		}
 
 		modelInfo.tableInfo[lInfo.ListName] = &tInfo
@@ -781,6 +783,9 @@ func getRedisTblToYangList(tableName, key string) (yangList string) {
 	//Check which list has number of keys as 'numOfKeys'
 	for i := 0; i < len(mapArr); i++ {
 		tblInfo, exists := modelInfo.tableInfo[mapArr[i]]
+		if tblInfo.has_static_key {
+			continue // skip the singleton list
+		}
 		if exists {
 			if len(tblInfo.keys) == numOfKeys {
 				//Found the YANG list matching the number of keys
