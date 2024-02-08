@@ -302,55 +302,6 @@ func validateIntfExists(d *db.DB, intfTs string, ifName string) error {
 	return nil
 }
 
-func getMemTableNameByDBId(intftbl IntfTblData, curDb db.DBNum) (string, error) {
-
-	var tblName string
-
-	switch curDb {
-	case db.ConfigDB:
-		tblName = intftbl.cfgDb.memberTN
-	case db.ApplDB:
-		tblName = intftbl.appDb.memberTN
-	case db.StateDB:
-		tblName = intftbl.stateDb.memberTN
-	default:
-		tblName = intftbl.cfgDb.memberTN
-	}
-
-	return tblName, nil
-}
-
-func retrievePortChannelAssociatedWithIntf(inParams *XfmrParams, ifName *string) (*string, error) {
-	var err error
-
-	if strings.HasPrefix(*ifName, ETHERNET) {
-		intTbl := IntfTypeTblMap[IntfTypePortChannel]
-		tblName, _ := getMemTableNameByDBId(intTbl, inParams.curDb)
-		var lagStr string
-
-		lagKeys, err := inParams.d.GetKeysByPattern(&db.TableSpec{Name: tblName}, "*"+*ifName)
-		/* Find the port-channel the given ifname is part of */
-		if err != nil {
-			return nil, err
-		}
-		var flag bool = false
-		for i := range lagKeys {
-			if *ifName == lagKeys[i].Get(1) {
-				flag = true
-				lagStr = lagKeys[i].Get(0)
-				log.Info("Given interface part of PortChannel: ", lagStr)
-				break
-			}
-		}
-		if !flag {
-			log.Info("Given Interface not part of any PortChannel")
-			return nil, err
-		}
-		return &lagStr, err
-	}
-	return nil, err
-}
-
 func updateDefaultMtu(inParams *XfmrParams, ifName *string, ifType E_InterfaceType, resMap map[string]string) error {
 	var err error
 	subOpMap := make(map[db.DBNum]map[string]map[string]db.Value)
