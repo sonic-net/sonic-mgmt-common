@@ -78,23 +78,15 @@ func init() {
 
 const (
 	PORT_ADMIN_STATUS = "admin_status"
-	PORTCHANNEL_TN    = "PORTCHANNEL"
 	PORT_SPEED        = "speed"
 	PORT_AUTONEG      = "autoneg"
 	DEFAULT_MTU       = "9100"
 )
 
 const (
-	PIPE  = "|"
-	COLON = ":"
-
-	ETHERNET    = "Eth"
-	MGMT        = "eth"
-	VLAN        = "Vlan"
-	PORTCHANNEL = "PortChannel"
-	LOOPBACK    = "Loopback"
-	VXLAN       = "vtep"
-	MANAGEMENT  = "Management"
+	PIPE     = "|"
+	COLON    = ":"
+	ETHERNET = "Eth"
 )
 
 type TblData struct {
@@ -116,24 +108,6 @@ var IntfTypeTblMap = map[E_InterfaceType]IntfTblData{
 		appDb:   TblData{portTN: "PORT_TABLE", intfTN: "INTF_TABLE", keySep: COLON},
 		stateDb: TblData{portTN: "PORT_TABLE", intfTN: "INTERFACE_TABLE", keySep: PIPE},
 	},
-	IntfTypeMgmt: IntfTblData{
-		cfgDb:   TblData{portTN: "MGMT_PORT", intfTN: "MGMT_INTERFACE", keySep: PIPE},
-		appDb:   TblData{portTN: "MGMT_PORT_TABLE", intfTN: "MGMT_INTF_TABLE", keySep: COLON},
-		stateDb: TblData{portTN: "MGMT_PORT_TABLE", intfTN: "MGMT_INTERFACE_TABLE", keySep: PIPE},
-	},
-	IntfTypePortChannel: IntfTblData{
-		cfgDb:   TblData{portTN: "PORTCHANNEL", intfTN: "PORTCHANNEL_INTERFACE", memberTN: "PORTCHANNEL_MEMBER", keySep: PIPE},
-		appDb:   TblData{portTN: "LAG_TABLE", intfTN: "INTF_TABLE", keySep: COLON, memberTN: "LAG_MEMBER_TABLE"},
-		stateDb: TblData{portTN: "LAG_TABLE", intfTN: "INTERFACE_TABLE", keySep: PIPE},
-	},
-	IntfTypeVlan: IntfTblData{
-		cfgDb: TblData{portTN: "VLAN", memberTN: "VLAN_MEMBER", intfTN: "VLAN_INTERFACE", keySep: PIPE},
-		appDb: TblData{portTN: "VLAN_TABLE", memberTN: "VLAN_MEMBER_TABLE", intfTN: "INTF_TABLE", keySep: COLON},
-	},
-	IntfTypeLoopback: IntfTblData{
-		cfgDb: TblData{portTN: "LOOPBACK", intfTN: "LOOPBACK_INTERFACE", keySep: PIPE},
-		appDb: TblData{portTN: "LOOPBACK_TABLE", intfTN: "INTF_TABLE", keySep: COLON},
-	},
 	IntfTypeSubIntf: IntfTblData{
 		cfgDb:   TblData{portTN: "VLAN_SUB_INTERFACE", intfTN: "VLAN_SUB_INTERFACE", keySep: PIPE},
 		appDb:   TblData{portTN: "PORT_TABLE", intfTN: "INTF_TABLE", keySep: COLON},
@@ -142,9 +116,9 @@ var IntfTypeTblMap = map[E_InterfaceType]IntfTblData{
 }
 
 var dbIdToTblMap = map[db.DBNum][]string{
-	db.ConfigDB: {"PORT", "MGMT_PORT", "VLAN", "PORTCHANNEL", "LOOPBACK", "VXLAN_TUNNEL", "VLAN_SUB_INTERFACE"},
-	db.ApplDB:   {"PORT_TABLE", "MGMT_PORT_TABLE", "VLAN_TABLE", "LAG_TABLE"},
-	db.StateDB:  {"PORT_TABLE", "MGMT_PORT_TABLE", "LAG_TABLE"},
+	db.ConfigDB: {"PORT", "VLAN_SUB_INTERFACE"},
+	db.ApplDB:   {"PORT_TABLE"},
+	db.StateDB:  {"PORT_TABLE"},
 }
 
 var intfOCToSpeedMap = map[ocbinds.E_OpenconfigIfEthernet_ETHERNET_SPEED]string{
@@ -165,22 +139,15 @@ var intfOCToSpeedMap = map[ocbinds.E_OpenconfigIfEthernet_ETHERNET_SPEED]string{
 type E_InterfaceType int64
 
 const (
-	IntfTypeUnset       E_InterfaceType = 0
-	IntfTypeEthernet    E_InterfaceType = 1
-	IntfTypeMgmt        E_InterfaceType = 2
-	IntfTypeVlan        E_InterfaceType = 3
-	IntfTypePortChannel E_InterfaceType = 4
-	IntfTypeLoopback    E_InterfaceType = 5
-	IntfTypeVxlan       E_InterfaceType = 6
-	IntfTypeSubIntf     E_InterfaceType = 7
+	IntfTypeUnset    E_InterfaceType = 0
+	IntfTypeEthernet E_InterfaceType = 1
+	IntfTypeSubIntf  E_InterfaceType = 2
 )
 
 type E_InterfaceSubType int64
 
 const (
-	IntfSubTypeUnset       E_InterfaceSubType = 0
-	IntfSubTypeVlanL2      E_InterfaceSubType = 1
-	InterfaceSubTypeVlanL3 E_InterfaceSubType = 2
+	IntfSubTypeUnset E_InterfaceSubType = 0
 )
 
 func getIntfTypeByName(name string) (E_InterfaceType, E_InterfaceSubType, error) {
@@ -268,16 +235,11 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 			}
 			if inParams.oper == REPLACE {
 				if strings.Contains(*requestUriPath, "/openconfig-interfaces:interfaces/interface") {
-					if strings.Contains(*requestUriPath, "openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan") ||
-						strings.Contains(*requestUriPath, "mapped-vlans") {
-						log.Infof("allow replace operation for switched-vlan")
-					} else {
-						// OC interfaces yang does not have attributes to set Physical interface critical attributes like speed, alias, lanes, index.
-						// Replace/PUT request without the critical attributes would end up in deletion of the same in PORT table, which cannot be allowed.
-						// Hence block the Replace/PUT request for Physical interfaces alone.
-						err_str := "Replace/PUT request not allowed for Physical interfaces"
-						return tlerr.NotSupported(err_str)
-					}
+					// OC interfaces yang does not have attributes to set Physical interface critical attributes like speed.
+					// Replace/PUT request without the critical attributes would end up in deletion of the same in PORT table, which cannot be allowed.
+					// Hence block the Replace/PUT request for Physical interfaces alone.
+					err_str := "Replace/PUT request not allowed for Physical interfaces"
+					return tlerr.NotSupported(err_str)
 				}
 			}
 		}
@@ -375,32 +337,12 @@ var intf_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) 
 		return tblList, tlerr.NotSupportedError{AppTag: "invalid-value", Path: "", Format: errStr}
 
 	} else if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/config") {
-		if IntfTypeVxlan != intfType {
-			tblList = append(tblList, intTbl.cfgDb.portTN)
-		}
+		tblList = append(tblList, intTbl.cfgDb.portTN)
 
-	} else if intfType != IntfTypeEthernet && intfType != IntfTypeMgmt &&
+	} else if intfType != IntfTypeEthernet &&
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet") {
 		//Checking interface type at container level, if not Ethernet type return nil
 		return nil, nil
-
-	} else if intfType != IntfTypePortChannel &&
-		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-aggregate:aggregation") {
-		//Checking interface type at container level, if not PortChannel type return nil
-		return nil, nil
-
-	} else if intfType != IntfTypeVlan &&
-		strings.HasPrefix(targetUriPath, "openconfig-interfaces:interfaces/interface/openconfig-vlan:routed-vlan") {
-		//Checking interface type at container level, if not Vlan type return nil
-		return nil, nil
-
-	} else if intfType != IntfTypeVxlan &&
-		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-vxlan:vxlan-if") {
-		//Checking interface type at container level, if not Vxlan type return nil
-		return nil, nil
-
-	} else if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/state/counters") {
-		tblList = append(tblList, "NONE")
 
 	} else if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/state") ||
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/ethernet/state") ||
@@ -1041,15 +983,12 @@ var intf_subintfs_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string
 		}
 
 		if ifName == "*" {
-			_intfTypeList = append(_intfTypeList, IntfTypeEthernet, IntfTypeMgmt, IntfTypePortChannel, IntfTypeLoopback)
+			_intfTypeList = append(_intfTypeList, IntfTypeEthernet)
 			_addSubIntfToList()
 		} else {
 			_ifType, _, _err := getIntfTypeByName(ifName)
 			if _ifType == IntfTypeUnset || _err != nil {
 				return tblList, errors.New("Invalid interface type IntfTypeUnset")
-			}
-			if IntfTypeVlan == _ifType || IntfTypeVxlan == _ifType {
-				return tblList, nil
 			}
 			_intfTypeList = append(_intfTypeList, _ifType)
 			_addSubIntfToList()
@@ -1134,10 +1073,6 @@ var YangToDb_intf_subintfs_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (str
 	intfType, _, ierr := getIntfTypeByName(ifName)
 	if intfType == IntfTypeUnset || ierr != nil {
 		return ifName, errors.New("Invalid interface type IntfTypeUnset")
-	}
-	if IntfTypeVlan == intfType {
-		log.Info("YangToDb_intf_subintfs_xfmr - IntfTypeVlan")
-		return ifName, nil
 	}
 
 	idx := pathInfo.Var("index")
@@ -1413,12 +1348,7 @@ func ValidateIntfProvisionedForRelay(d *db.DB, ifName string, prefixIp string, e
 	intTbl := IntfTypeTblMap[intfType]
 	tblList = intTbl.cfgDb.intfTN
 
-	// for VLAN - DHCP info is stored in the VLAN Table
-	if intfType == IntfTypeVlan {
-		tblList = intTbl.cfgDb.portTN
-	}
-
-	if entry == nil || intfType == IntfTypeVlan {
+	if entry == nil {
 		ent, dbErr := d.GetEntry(&db.TableSpec{Name: tblList}, db.Key{Comp: []string{ifName}})
 		entry = &ent
 		if dbErr != nil {
@@ -1630,7 +1560,7 @@ var DbToYang_intf_ip_addr_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) e
 			return nil
 		}
 
-		intfTypeList := [5]E_InterfaceType{IntfTypeEthernet, IntfTypeMgmt, IntfTypePortChannel, IntfTypeLoopback, IntfTypeSubIntf}
+		intfTypeList := [2]E_InterfaceType{IntfTypeEthernet, IntfTypeSubIntf}
 
 		// Get IP from all configDb table interfaces
 		for i := 0; i < len(intfTypeList); i++ {
@@ -1648,11 +1578,6 @@ var DbToYang_intf_ip_addr_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) e
 		// Handle GET requests for given interface
 		var intfObj *ocbinds.OpenconfigInterfaces_Interfaces_Interface
 		ifName = *(&uriIfName)
-
-		intfType, _, _ := getIntfTypeByName(ifName)
-		if IntfTypeVlan == intfType {
-			return nil
-		}
 
 		if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/subinterfaces") {
 			if intfsObj != nil && intfsObj.Interface != nil && len(intfsObj.Interface) > 0 {
@@ -1706,10 +1631,6 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 	if i32 > 0 {
 		intfType = IntfTypeSubIntf
 		ifName = *utils.GetSubInterfaceDBKeyfromParentInterfaceAndSubInterfaceID(&ifName, &idx)
-	}
-
-	if IntfTypeVxlan == intfType || IntfTypeVlan == intfType {
-		return subIntfmap, nil
 	}
 
 	intfsObj := getIntfsRoot(inParams.ygRoot)
@@ -2244,12 +2165,6 @@ func interfaceIPcount(tblName string, d *db.DB, intfName *string, ipCnt *int) er
 	return nil
 }
 func check_if_delete_l3_intf_entry(d *db.DB, tblName string, ifName string, ipCnt int, intfEntry *db.Value) bool {
-	if strings.HasPrefix(ifName, VLAN) {
-		sagIpKey, _ := d.GetKeysPattern(&db.TableSpec{Name: "SAG"}, db.Key{Comp: []string{ifName, "*"}})
-		if len(sagIpKey) != 0 {
-			return false
-		}
-	}
 	if intfEntry == nil {
 		entry, err := d.GetEntry(&db.TableSpec{Name: tblName}, db.Key{Comp: []string{ifName}})
 		if err != nil {
@@ -2488,7 +2403,7 @@ var YangToDb_ipv6_enabled_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (ma
 	}
 
 	intfType, _, ierr := getIntfTypeByName(ifUIName)
-	if ierr != nil || intfType == IntfTypeUnset || intfType == IntfTypeVxlan || intfType == IntfTypeMgmt {
+	if ierr != nil || intfType == IntfTypeUnset {
 		return res_map, errors.New("YangToDb_ipv6_enabled_xfmr, Error: Unsupported Interface: " + ifUIName)
 	}
 
@@ -2500,12 +2415,6 @@ var YangToDb_ipv6_enabled_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (ma
 
 	if inParams.param == nil {
 		return res_map, err
-	}
-
-	// Vlan Interface (routed-vlan) contains only one Key "ifname"
-	// For all other interfaces (subinterfaces/subintfaces) will have 2 keys "ifname" & "subintf-index"
-	if len(pathInfo.Vars) < 2 && intfType != IntfTypeVlan {
-		return res_map, errors.New("YangToDb_ipv6_enabled_xfmr, Error: Invalid Key length")
 	}
 
 	if log.V(3) {
@@ -2604,9 +2513,6 @@ var DbToYang_ipv6_enabled_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (ma
 	log.Info("Interface Name = ", *ifUIName)
 
 	intfType, _, _ := getIntfTypeByName(inParams.key)
-	if intfType == IntfTypeVxlan || intfType == IntfTypeMgmt {
-		return res_map, nil
-	}
 
 	intTbl := IntfTypeTblMap[intfType]
 	tblName, _ := getIntfTableNameByDBId(intTbl, inParams.curDb)
