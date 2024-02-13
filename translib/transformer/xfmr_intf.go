@@ -153,11 +153,6 @@ const (
 func getIntfTypeByName(name string) (E_InterfaceType, E_InterfaceSubType, error) {
 
 	var err error
-	if strings.Contains(name, ".") {
-		if strings.HasPrefix(name, ETHERNET) || strings.HasPrefix(name, "Po") {
-			return IntfTypeSubIntf, IntfSubTypeUnset, err
-		}
-	}
 	if strings.HasPrefix(name, ETHERNET) {
 		return IntfTypeEthernet, IntfSubTypeUnset, err
 	} else {
@@ -2415,6 +2410,12 @@ var YangToDb_ipv6_enabled_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (ma
 
 	if inParams.param == nil {
 		return res_map, err
+	}
+
+	// Vlan Interface (routed-vlan) contains only one Key "ifname"
+	// For all other interfaces (subinterfaces/subintfaces) will have 2 keys "ifname" & "subintf-index"
+	if len(pathInfo.Vars) < 2 {
+		return res_map, errors.New("YangToDb_ipv6_enabled_xfmr, Error: Invalid Key length")
 	}
 
 	if log.V(3) {
