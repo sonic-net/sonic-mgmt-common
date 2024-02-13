@@ -132,8 +132,4 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
  
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan {
-    deviate not-supported;
-  }
-
 }
