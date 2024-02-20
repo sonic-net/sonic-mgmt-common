@@ -391,10 +391,6 @@ module openconfig-if-ip {
        "The length of the subnet prefix.";
     }
     
-    leaf family  {
-      type string;
-      description "Indicates whether the IP address is IPv4 or IPv6";
-    }
   }
 
   grouping ipv4-neighbor-config {
@@ -506,10 +502,6 @@ module openconfig-if-ip {
       mandatory true;
       description
         "The length of the subnet prefix.";
-    }
-    leaf family  {
-      type string;
-      description "Indicates whether the IP address is IPv4 or IPv6";
     }
   }
 
