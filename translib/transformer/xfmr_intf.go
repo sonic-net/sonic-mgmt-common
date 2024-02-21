@@ -1375,12 +1375,9 @@ func convertIpMapToOC(intfIpMap map[string]db.Value, ifInfo *ocbinds.OpenconfigI
 			v4Address.Ip = ipStr
 			prfxLen := new(uint8)
 			*prfxLen = ipNetB.Bits()
-			ipv4Str := new(string)
-			*ipv4Str = "ipv4"
 			if isState {
 				v4Address.State.Ip = ipStr
 				v4Address.State.PrefixLength = prfxLen
-				v4Address.State.Family = ipv4Str
 			} else {
 				v4Address.Config.Ip = ipStr
 				v4Address.Config.PrefixLength = prfxLen
@@ -1393,12 +1390,9 @@ func convertIpMapToOC(intfIpMap map[string]db.Value, ifInfo *ocbinds.OpenconfigI
 			v6Address.Ip = ipStr
 			prfxLen := new(uint8)
 			*prfxLen = ipNetB.Bits()
-			ipv6Str := new(string)
-			*ipv6Str = "ipv6"
 			if isState {
 				v6Address.State.Ip = ipStr
 				v6Address.State.PrefixLength = prfxLen
-				v6Address.State.Family = ipv6Str
 			} else {
 				v6Address.Config.Ip = ipStr
 				v6Address.Config.PrefixLength = prfxLen
@@ -1597,17 +1591,6 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 					return subIntfmap, err
 				}
 				log.Info("prefix:=", *addr.Config.PrefixLength)
-				if addr.Config.Family == nil {
-					addr.Config.Family = new(string)
-					*addr.Config.Family = "ipv4"
-
-				} else if *addr.Config.Family == "ipv6" {
-					log.Error("Incorrect family ipv6!")
-					errStr := "IPv4 Family not present"
-					err = tlerr.InvalidArgsError{Format: errStr}
-					return subIntfmap, err
-				}
-				log.Info("family:=", *addr.Config.Family)
 
 				ipPref := *addr.Config.Ip + "/" + strconv.Itoa(int(*addr.Config.PrefixLength))
 				/* Check for IP overlap */
@@ -1632,6 +1615,7 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 				}
 
 				intf_key := intf_intf_tbl_key_gen(ifName, *addr.Config.Ip, int(*addr.Config.PrefixLength), "|")
+				m["family"] = "IPv4"
 
 				value := db.Value{Field: m}
 				if _, ok := subIntfmap[tblName]; !ok {
@@ -1660,17 +1644,6 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 					return subIntfmap, err
 				}
 				log.Info("Ipv6 prefix:=", *addr.Config.PrefixLength)
-				if addr.Config.Family == nil {
-					addr.Config.Family = new(string)
-					*addr.Config.Family = "ipv6"
-
-				} else if *addr.Config.Family == "ipv4" {
-					log.Error("Incorrect family!")
-					errStr := "IPv6 Family not present"
-					err = tlerr.InvalidArgsError{Format: errStr}
-					return subIntfmap, err
-				}
-				log.Info("family:=", *addr.Config.Family)
 
 				/* Check for IPv6 overlap */
 				ipPref := *addr.Config.Ip + "/" + strconv.Itoa(int(*addr.Config.PrefixLength))
@@ -1679,6 +1652,8 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 				m := make(map[string]string)
 
 				intf_key := intf_intf_tbl_key_gen(ifName, *addr.Config.Ip, int(*addr.Config.PrefixLength), "|")
+
+				m["family"] = "IPv6"
 
 				value := db.Value{Field: m}
 				if _, ok := subIntfmap[tblName]; !ok {
