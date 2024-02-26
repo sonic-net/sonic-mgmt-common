@@ -47,7 +47,6 @@ func init() {
 	XlateFuncBind("DbToYang_intf_enabled_xfmr", DbToYang_intf_enabled_xfmr)
 	XlateFuncBind("YangToDb_intf_eth_port_config_xfmr", YangToDb_intf_eth_port_config_xfmr)
 	XlateFuncBind("DbToYang_intf_eth_port_config_xfmr", DbToYang_intf_eth_port_config_xfmr)
-	XlateFuncBind("DbToYangPath_intf_eth_port_config_path_xfmr", DbToYangPath_intf_eth_port_config_path_xfmr)
 	XlateFuncBind("DbToYang_intf_eth_auto_neg_xfmr", DbToYang_intf_eth_auto_neg_xfmr)
 	XlateFuncBind("DbToYang_intf_eth_port_speed_xfmr", DbToYang_intf_eth_port_speed_xfmr)
 
@@ -62,7 +61,6 @@ func init() {
 	XlateFuncBind("intf_subintfs_table_xfmr", intf_subintfs_table_xfmr)
 	XlateFuncBind("YangToDb_subif_index_xfmr", YangToDb_subif_index_xfmr)
 	XlateFuncBind("DbToYang_subif_index_xfmr", DbToYang_subif_index_xfmr)
-	XlateFuncBind("DbToYangPath_intf_ip_path_xfmr", DbToYangPath_intf_ip_path_xfmr)
 	XlateFuncBind("Subscribe_intf_ip_addr_xfmr", Subscribe_intf_ip_addr_xfmr)
 
 	XlateFuncBind("YangToDb_subintf_ipv6_tbl_key_xfmr", YangToDb_subintf_ipv6_tbl_key_xfmr)
@@ -763,27 +761,6 @@ var DbToYang_intf_eth_port_config_xfmr SubTreeXfmrDbToYang = func(inParams XfmrP
 	return err
 }
 
-var DbToYangPath_intf_eth_port_config_path_xfmr PathXfmrDbToYangFunc = func(params XfmrDbToYgPathParams) error {
-	log.Info("DbToYangPath_intf_eth_port_config_path_xfmr: params: ", params)
-
-	intfRoot := "/openconfig-interfaces:interfaces/interface"
-	if params.tblName != "PORT" {
-		log.Info("DbToYangPath_intf_eth_port_config_path_xfmr: from wrong table: ", params.tblName)
-		return nil
-	}
-
-	if (params.tblName == "PORT") && (len(params.tblKeyComp) > 0) {
-		params.ygPathKeys[intfRoot+"/name"] = params.tblKeyComp[0]
-	} else {
-		log.Info("DbToYangPath_intf_eth_port_config_path_xfmr, wrong param: tbl ", params.tblName, " key ", params.tblKeyComp)
-		return nil
-	}
-
-	log.Info("DbToYangPath_intf_eth_port_config_path_xfmr: params.ygPathkeys: ", params.ygPathKeys)
-
-	return nil
-}
-
 var DbToYang_intf_eth_auto_neg_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
 	var err error
 	result := make(map[string]interface{})
@@ -1038,47 +1015,6 @@ var DbToYang_subif_index_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map
 	i64, _ := strconv.ParseUint(id, 10, 32)
 	res_map["index"] = i64
 	return res_map, nil
-}
-
-var DbToYangPath_intf_ip_path_xfmr PathXfmrDbToYangFunc = func(params XfmrDbToYgPathParams) error {
-	ifRoot := "/openconfig-interfaces:interfaces/interface"
-	subIf := ifRoot + "/subinterfaces/subinterface"
-	dbKey := ""
-
-	log.Info("DbToYangPath_intf_ip_path_xfmr: params: ", params)
-
-	uiName := &params.tblKeyComp[0]
-	ifParts := strings.Split(*uiName, ".")
-
-	params.ygPathKeys[ifRoot+"/name"] = ifParts[0]
-
-	if params.tblName == "INTERFACE" || params.tblName == "INTF_TABLE" {
-
-		addrPath := "/openconfig-if-ip:ipv4/addresses/address/ip"
-
-		/* For APPL_DB IPv6 case, addr is split [fe80  56bf 64ff feba 3bc0/64] instead of
-		   [fe80::56bf:64ff:feba:3bc0/64]
-		   Handle this case
-		*/
-		dbKey = strings.Join(params.tblKeyComp[1:], ":")
-
-		if len(params.tblKeyComp) > 2 || strings.Contains(dbKey, ":") {
-			addrPath = "/openconfig-if-ip:ipv6/addresses/address/ip"
-		}
-
-		ipKey := strings.Split(dbKey, "/")
-
-		if len(ifParts) > 1 {
-			params.ygPathKeys[subIf+"/index"] = ifParts[1]
-		} else {
-			params.ygPathKeys[subIf+"/index"] = "0"
-		}
-		params.ygPathKeys[subIf+addrPath] = ipKey[0]
-
-	}
-
-	log.Infof("DbToYangPath_intf_ip_path_xfmr:  tblName:%v dbKey:[%v] params.ygPathKeys: %v", params.tblName, dbKey, params.ygPathKeys)
-	return nil
 }
 
 /* Get interface to IP mapping for all interfaces in the given table */
