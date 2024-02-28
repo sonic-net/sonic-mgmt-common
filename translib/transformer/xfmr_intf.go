@@ -126,6 +126,7 @@ var intfOCToSpeedMap = map[ocbinds.E_OpenconfigIfEthernet_ETHERNET_SPEED]string{
 	ocbinds.OpenconfigIfEthernet_ETHERNET_SPEED_SPEED_100GB:  "100000",
 	ocbinds.OpenconfigIfEthernet_ETHERNET_SPEED_SPEED_200GB:  "200000",
 	ocbinds.OpenconfigIfEthernet_ETHERNET_SPEED_SPEED_400GB:  "400000",
+	ocbinds.OpenconfigIfEthernet_ETHERNET_SPEED_SPEED_800GB:  "800000",
 }
 
 type E_InterfaceType int64
@@ -159,17 +160,13 @@ func getIntfsRoot(s *ygot.GoStruct) *ocbinds.OpenconfigInterfaces_Interfaces {
 
 func getPortTableNameByDBId(intftbl IntfTblData, curDb db.DBNum) (string, error) {
 
-	var tblName string
+	tblName := intftbl.cfgDb.portTN
 
 	switch curDb {
-	case db.ConfigDB:
-		tblName = intftbl.cfgDb.portTN
 	case db.ApplDB:
 		tblName = intftbl.appDb.portTN
 	case db.StateDB:
 		tblName = intftbl.stateDb.portTN
-	default:
-		tblName = intftbl.cfgDb.portTN
 	}
 
 	return tblName, nil
