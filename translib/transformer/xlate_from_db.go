@@ -92,7 +92,7 @@ func getLeafrefRefdYangType(yngTerminalNdDtType yang.TypeKind, fldXpath string) 
 						leafPath := getXpathFromYangEntry(entry)
 						if strings.Contains(leafPath, "sonic") {
 							pathList := strings.Split(leafPath, "/")
-							leafPath = pathList[SONIC_TABLE_INDEX] + "/" + pathList[SONIC_FIELD_INDEX]
+							leafPath = pathList[SONIC_TABLE_INDEX] + "/" + pathList[len(pathList)-1]
 						}
 						xfmrLogDebug("xpath for leafref type:%v", leafPath)
 						return getLeafrefRefdYangType(yngTerminalNdDtType, leafPath)
@@ -105,12 +105,22 @@ func getLeafrefRefdYangType(yngTerminalNdDtType yang.TypeKind, fldXpath string) 
 			if strings.Contains(xpath, "sonic") {
 				pathList := strings.Split(xpath, "/")
 				if len(pathList) > SONIC_FIELD_INDEX {
-					xpath = pathList[SONIC_TABLE_INDEX] + "/" + pathList[SONIC_FIELD_INDEX]
+					xpath = pathList[SONIC_TABLE_INDEX] + "/" + pathList[len(pathList)-1]
 					if xpath == fldXpath {
 						if sonicTblChldInfo, ok := xDbSpecMap[pathList[SONIC_TABLE_INDEX]+"/"+pathList[SONIC_TBL_CHILD_INDEX]]; ok {
 							if sonicTblChldInfo.dbEntry != nil {
-								entry = sonicTblChldInfo.dbEntry.Dir[pathList[SONIC_FIELD_INDEX]]
-								yngTerminalNdDtType = sonicTblChldInfo.dbEntry.Dir[pathList[SONIC_FIELD_INDEX]].Type.Kind
+								entry = sonicTblChldInfo.dbEntry.Dir[pathList[len(pathList)-1]]
+								if entry == nil && len(sonicTblChldInfo.listName) > 0 {
+									// Leaf belongs to sonic inner list case
+									innerListDbEntry := sonicTblChldInfo.dbEntry.Dir[pathList[SONIC_FIELD_INDEX]]
+									if innerListDbEntry != nil && innerListDbEntry.IsList() {
+										entry = innerListDbEntry.Dir[pathList[len(pathList)-1]]
+									}
+								}
+								// Leaf in a regular list/singleton container case
+								if entry != nil {
+									yngTerminalNdDtType = entry.Type.Kind
+								}
 							}
 						}
 					} else {
@@ -147,7 +157,7 @@ func getLeafrefRefdYangType(yngTerminalNdDtType yang.TypeKind, fldXpath string) 
 				if strings.Contains(leafPath, "sonic") {
 					pathList := strings.Split(leafPath, "/")
 					if len(pathList) > SONIC_FIELD_INDEX {
-						leafPath = pathList[SONIC_TABLE_INDEX] + "/" + pathList[SONIC_FIELD_INDEX]
+						leafPath = pathList[SONIC_TABLE_INDEX] + "/" + pathList[len(pathList)-1]
 					}
 				}
 				xfmrLogDebug("getLeafrefRefdYangType: xpath for leafref type:%v", leafPath)
