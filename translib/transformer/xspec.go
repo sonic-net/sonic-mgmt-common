@@ -660,7 +660,14 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 			dbXpath = tableName
 		} else {
 			// This includes all nodes which are not module or table containers
-			dbXpath = tableName + "/" + entry.Name
+			if entry.IsList() && entry.Parent != nil && entry.Parent.IsList() { // nested/child list of list under table-level container
+				if nestedListProcessingErr := sonicYangNestedListValidateElements(tableName, entry); nestedListProcessingErr != nil {
+					return
+				}
+				dbXpath = tableName + "/" + entry.Parent.Name + "/" + entry.Name
+			} else {
+				dbXpath = tableName + "/" + entry.Name
+			}
 			if tblSpecInfo, tblOk = xDbSpecMap[tableName]; tblOk {
 				tblDbIndex = xDbSpecMap[tableName].dbIndex
 			}
@@ -696,7 +703,13 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 				}
 			}
 		} else if tblOk && (entryType == YANG_LIST && len(entry.Key) != 0) {
-			tblSpecInfo.listName = append(tblSpecInfo.listName, entry.Name)
+			if entry.Parent.IsList() { // nested/child list of list under table-level container
+				if parentListSpecInfo, parentListOk := xDbSpecMap[tableName+"/"+entry.Parent.Name]; parentListOk && parentListSpecInfo != nil {
+					parentListSpecInfo.listName = append(parentListSpecInfo.listName, entry.Name)
+				}
+			} else {
+				tblSpecInfo.listName = append(tblSpecInfo.listName, entry.Name)
+			}
 			xDbSpecMap[dbXpath].keyList = append(xDbSpecMap[dbXpath].keyList, strings.Split(entry.Key, " ")...)
 			for _, keyVal := range xDbSpecMap[dbXpath].keyList {
 				dbXpathForKeyLeaf := tableName + "/" + keyVal
@@ -706,9 +719,7 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 				xDbSpecMap[dbXpathForKeyLeaf].isKey = true
 			}
 		} else if entryType == YANG_LEAF || entryType == YANG_LEAF_LIST {
-			/* TODO - Uncomment this line once subscription changes for memory optimization ready
 			xDbSpecMap[dbXpath].dbEntry = nil //memory optimization - don't cache for leafy nodes
-			*/
 			if entry.Type.Kind == yang.Yleafref {
 				var lerr error
 				lrefpath := entry.Type.Path
@@ -802,21 +813,20 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 	}
 
 	var childList []string
-	childList = append(childList, entry.DirOKeys...)
+	childList = append(childList, entry.Dir...)
 
 	for _, child := range childList {
-		if _, ok := entry.Dir[child]; !ok {
-			for index, dir := range xDbSpecMap[xDbSpecPath].dbEntry.DirOKeys {
-				if dir == child {
-					xDbSpecMap[xDbSpecPath].dbEntry.DirOKeys = append(xDbSpecMap[xDbSpecPath].dbEntry.DirOKeys[:index], xDbSpecMap[xDbSpecPath].dbEntry.DirOKeys[index+1:]...)
-					break
-				}
-			}
-			continue
-		}
 
 		childPath := tableName + "/" + entry.Dir[child].Name
 		dbMapFill(tableName, childPath, moduleNm, xDbSpecMap, entry.Dir[child])
+		if entry.IsList() && entry.Dir[child].IsList() {
+			/* If nested list structure is not like current community-sonic yangs with nested lists ,
+			then its not supported case so don't traverse the parent list anymore.
+			*/
+			if _, nestedListOk := xDbSpecMap[tableName+"/"+entry.Name+"/"+entry.Dir[child].Name]; !nestedListOk {
+				return
+			}
+		}
 	}
 }
 
@@ -1325,4 +1335,24 @@ func xDbSpecTblSeqnMapPrint(fname string) {
 	}
 	fmt.Fprintf(fp, "-----------------------------------------------------------------\r\n")
 
+}
+
+func sonicYangNestedListValidateElements(tableName string, entry *yang.Entry) error {
+	/* All current sommunity sonic yangs have only one key and one non-key leaf in the nested list
+	   to support dynamic field-name and value in DB table.The key-leaf becomes dynamic field-name
+	   and the non-key-leaf becomes the value of the dynamic field.If the nested list does not conform
+	   to this structure do not load it and even its parent list.
+	*/
+	if (len(strings.Split(entry.Key, " ")) == 1) && (len(entry.Dir) == 2) {
+		return nil
+	}
+
+	errStr := fmt.Sprintf("Sonic yang nested list %v with more than one key or non-key leaf not supported.", tableName+"/"+entry.Parent.Name+"/"+entry.Name)
+	log.Warningf(errStr)
+	for _, child := range entry.Parent.Dir {
+		childXpath := tableName + "/" + child.Name
+		delete(xDbSpecMap, childXpath) // remove the parent list key-leaves
+	}
+	delete(xDbSpecMap, tableName+"/"+entry.Parent.Name)
+	return fmt.Errorf("%v", errStr)
 }
