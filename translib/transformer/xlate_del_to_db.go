@@ -864,6 +864,7 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 					dbEntry := getYangEntryForXPath(dbSpecField)
 					_, ok := xDbSpecMap[dbSpecField]
 					if ok && dbEntry != nil {
+
 						yangType := xDbSpecMap[dbSpecField].yangType
 						// terminal node case
 						if yangType == YANG_LEAF_LIST {
@@ -894,6 +895,24 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 							}
 							dbVal.Field[fieldName] = dbFldVal
 						}
+					} else !ok {
+						nestedChildName := fieldName
+						dbSpecPath := xlateParams.tableName + "/" + tokens[SONIC_TBL_CHILD_INDEX] + "/" + nestedChildName
+						dbSpecNestedChildInfo, ok := xDbSpecMap[dbSpecPath]
+						if ok && dbSpecNestedChildInfo != nil {
+							if dbSpecNestedChildInfo.yangType == YANG_LIST && dbSpecNestedChildInfo.dbEntry.Parent.IsList() { //nested list case
+								if (strings.HasSuffix(xlateParams.requestUri, "]") || strings.HasSuffix(xlateParams.requestUri, "]/")) { // target URI is at nested list-instance
+									dbVal.Field = map[string]string{xlateParams.keyName: ""} //nested list key becomes the field-name
+								} else { //nested whole list case or nested-list-instance/leaf 
+									return tlerr.NotSupportedError{Format: "DELETE not supported", Path: xlateParams.requestUri}
+								}
+							} else {
+								log.Warningf("For URI - %v, only nested list supported, other type of yang node not supported - %v", uri, dbSpecPath)
+							}
+						} else {
+						    log.Warningf("For URI - %v, no entry found in xDbSpecMap for table(%v)/field(%v)", uri, tableName, fldNm)	
+						}
+
 					}
 				}
 			}
