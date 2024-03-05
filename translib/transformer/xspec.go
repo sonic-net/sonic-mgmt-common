@@ -644,7 +644,6 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 	}
 
 	entryType := getYangTypeIntId(entry)
-	var xDbSpecPath string
 	tblDbIndex := db.ConfigDB
 	var tblSpecInfo *dbInfo
 	tblOk := false
@@ -672,7 +671,6 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 				tblDbIndex = xDbSpecMap[tableName].dbIndex
 			}
 		}
-		xDbSpecPath = dbXpath
 		if _, ok := xDbSpecMap[dbXpath]; !ok {
 			xDbSpecMap[dbXpath] = new(dbInfo)
 		}
@@ -758,7 +756,6 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 		}
 	} else {
 		moduleXpath := "/" + moduleNm + ":" + entry.Name
-		xDbSpecPath = moduleXpath
 		xDbSpecMap[moduleXpath] = new(dbInfo)
 		xDbSpecMap[moduleXpath].dbEntry = entry
 		xDbSpecMap[moduleXpath].yangType = entryType
@@ -812,22 +809,19 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 
 	}
 
-	var childList []string
-	childList = append(childList, entry.Dir...)
-
-	for _, child := range childList {
-
-		childPath := tableName + "/" + entry.Dir[child].Name
-		dbMapFill(tableName, childPath, moduleNm, xDbSpecMap, entry.Dir[child])
-		if entry.IsList() && entry.Dir[child].IsList() {
+	for _, childEntry := range entry.Dir {
+		childPath := tableName + "/" + childEntry.Name
+		dbMapFill(tableName, childPath, moduleNm, xDbSpecMap, childEntry)
+		if entry.IsList() && childEntry.IsList() {
 			/* If nested list structure is not like current community-sonic yangs with nested lists ,
 			then its not supported case so don't traverse the parent list anymore.
 			*/
-			if _, nestedListOk := xDbSpecMap[tableName+"/"+entry.Name+"/"+entry.Dir[child].Name]; !nestedListOk {
+			if _, nestedListOk := xDbSpecMap[tableName+"/"+entry.Name+"/"+childEntry.Name]; !nestedListOk {
 				return
 			}
 		}
 	}
+
 }
 
 /* Build redis db lookup map */
