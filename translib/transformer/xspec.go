@@ -660,6 +660,13 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 		} else {
 			// This includes all nodes which are not module or table containers
 			if entry.IsList() && entry.Parent != nil && entry.Parent.IsList() { // nested/child list of list under table-level container
+				if parentListSpecInfo, parentListOk := xDbSpecMap[tableName+"/"+entry.Parent.Name]; parentListOk &&
+					parentListSpecInfo != nil && len(parentListSpecInfo.listName) > 0 {
+					/*more than one nested lists not allowed since there is no way to know when
+					  processing GET request which nested list a dynamic field belongs to.*/
+					log.Warningf("More than one nested list not supported for sonic yangs. %v/%v/%v", tableName, entry.Parent.Name, entry.Name)
+					return
+				}
 				if nestedListProcessingErr := sonicYangNestedListValidateElements(tableName, entry); nestedListProcessingErr != nil {
 					return
 				}
@@ -812,14 +819,6 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 	for _, childEntry := range entry.Dir {
 		childPath := tableName + "/" + childEntry.Name
 		dbMapFill(tableName, childPath, moduleNm, xDbSpecMap, childEntry)
-		if entry.IsList() && childEntry.IsList() {
-			/* If nested list structure is not like current community-sonic yangs with nested lists ,
-			then its not supported case so don't traverse the parent list anymore.
-			*/
-			if _, nestedListOk := xDbSpecMap[tableName+"/"+entry.Name+"/"+childEntry.Name]; !nestedListOk {
-				return
-			}
-		}
 	}
 
 }
@@ -1343,10 +1342,5 @@ func sonicYangNestedListValidateElements(tableName string, entry *yang.Entry) er
 
 	errStr := fmt.Sprintf("Sonic yang nested list %v with more than one key or non-key leaf not supported.", tableName+"/"+entry.Parent.Name+"/"+entry.Name)
 	log.Warningf(errStr)
-	for _, child := range entry.Parent.Dir {
-		childXpath := tableName + "/" + child.Name
-		delete(xDbSpecMap, childXpath) // remove the parent list key-leaves
-	}
-	delete(xDbSpecMap, tableName+"/"+entry.Parent.Name)
 	return fmt.Errorf("%v", errStr)
 }

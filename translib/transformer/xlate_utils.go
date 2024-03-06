@@ -2956,3 +2956,58 @@ func hasSonicNestedList(tblName string) (bool, *dbInfo) {
 	}
 	return hasNestedList, innerListSpecInfo
 }
+
+func sonicNestedListGetRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, data map[string]map[string]db.Value) (map[string]map[string]db.Value, error) {
+	/* this function will process sonic yang nested list Get case and perform resource check for it*/
+	xfmrLogDebug("Process Sonic Nested List Get Request %v", uri)
+
+	dbSpecPath := tableNm + "/" + parentListNm + "/" + nestedListNm
+	nestedListDbSpecInfo, ok := xDbSpecMap[dbSpecPath]
+	if !ok && nestedListDbSpecInfo == nil || nestedListDbSpecInfo.dbEntry == nil {
+		errStr := fmt.Sprintf("No entry found in transformer sonic yang spec for path %v", dbSpecPath)
+		xfmrLogInfo(errStr)
+		return nil, tlerr.InternalError{Format: errStr, Path: uri}
+	}
+
+	//nested list case
+	if nestedListDbSpecInfo.yangType == YANG_LIST && nestedListDbSpecInfo.dbEntry.Parent.IsList() {
+		if strings.HasSuffix(uri, nestedListNm) || strings.HasSuffix(uri, nestedListNm+"/") {
+			// request target is nested whole list
+			return data, nil
+		} else { // request target is nested list-intance or nested list leaf
+			/*As per current sonic yang structure in community, nested list has only one key leaf that
+			  corresponds to dynamic field-name case
+			*/
+			nestedListYangKeyName := strings.Split(nestedListDbSpecInfo.dbEntry.Key, " ")[0]
+			fieldNm := extractLeafValFromUriKey(uri, nestedListYangKeyName)
+			if fieldNm != "" {
+				if fieldval, fieldOk := data[tableNm][key].Field[fieldNm]; fieldOk {
+					dbVal := db.Value{
+						Field: map[string]string{
+							fieldNm: fieldval,
+						},
+					}
+					dbData := map[string]map[string]db.Value{
+						tableNm: {
+							key: dbVal,
+						},
+					}
+					return dbData, nil
+				} else {
+					xfmrLogInfo("Field %v doesn't exist in table - %v, instance - %v", fieldNm, tableNm, key)
+					return nil, tlerr.NotFoundError{Format: "Resource not found."}
+				}
+			} else {
+				errStr := fmt.Sprintf("Could not extract value for key %v from uri %v", nestedListYangKeyName, uri)
+				xfmrLogInfo(errStr)
+				return nil, tlerr.InternalError{Format: errStr, Path: uri}
+			}
+		}
+	} else { // non nested list case
+		errStr := fmt.Sprintf("For sonic yang only nested list supported, other type of yang node not supported %v", dbSpecPath)
+		xfmrLogInfo(errStr)
+		return nil, tlerr.NotSupportedError{Format: errStr, Path: uri}
+	}
+
+	return nil, nil
+}

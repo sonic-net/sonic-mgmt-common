@@ -409,8 +409,11 @@ func dbMapTableChildListDataFill(uri string, tableName string, childListNames []
 
 		if hasNestedList {
 			for _, nestedListNm := range childListNames {
-				dbMapDataFillForNestedList(tableName, keyName, dbEntry.Dir[nestedListNm], d[nestedListNm], result)
-				delete(d, nestedListNm)
+				if nestedListData, nestedListPresentInPayload := d[nestedListNm]; nestedListPresentInPayload {
+					dbMapDataFillForNestedList(tableName, keyName, dbEntry.Dir[nestedListNm], nestedListData, result)
+					delete(d, nestedListNm)
+				}
+
 			}
 		}
 		dbMapDataFill(uri, tableName, keyName, d, result)
