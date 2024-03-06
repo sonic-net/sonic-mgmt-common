@@ -910,7 +910,7 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 								log.Warningf("For URI - %v, only nested list supported, other type of yang node not supported - %v", xlateParams.requestUri, dbSpecPath)
 							}
 						} else {
-							log.Warningf("For URI - %v, no entry found in xDbSpecMap for table(%v)/field(%v)", xlateParams.uri, xlateParams.tableName, fieldName)
+							log.Warningf("For URI - %v, no entry found in xDbSpecMap for  path %v", xlateParams.uri, dbSpecPath)
 						}
 
 					}
