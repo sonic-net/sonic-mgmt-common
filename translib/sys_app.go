@@ -43,6 +43,13 @@ type SysApp struct {
 	procTable   map[uint64]dbEntry
 }
 
+type reqType int
+
+type dbEntry struct {
+	op    reqType
+	entry db.Value
+}
+
 func init() {
 	log.Info("SysApp: Init called for System module")
 	err := register("/openconfig-system:system",
