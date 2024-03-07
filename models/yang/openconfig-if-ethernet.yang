@@ -410,7 +410,9 @@ module openconfig-if-ethernet {
       description "Ethernet interface counters";
 
       uses ethernet-interface-state-counters;
+      
     }
+    
   }
 
   // data definition statements

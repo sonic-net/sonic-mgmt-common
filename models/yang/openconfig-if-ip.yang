@@ -390,7 +390,6 @@ module openconfig-if-ip {
       description
        "The length of the subnet prefix.";
     }
-    
   }
 
   grouping ipv4-neighbor-config {
