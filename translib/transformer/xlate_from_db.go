@@ -364,17 +364,35 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) ([]typeMapOfInterfa
 	xpath := inParamsForGet.xpath
 	dbTblData := (*dbDataMap)[dbIdx][table]
 	delKeyCnt := 0
-	hasNestedList := false
 	nestedListName := ""
 	curUri := inParamsForGet.uri
+	traverseNestedList := false
 
 	if xDbSpecMap[xpath] != nil && xDbSpecMap[xpath].dbEntry != nil && xDbSpecMap[xpath].dbEntry.IsList() && len(xDbSpecMap[xpath].listName) > 0 {
-		hasNestedList = true
+		traverseNestedList = true
 		// The xpath is already at table list level. Hence form inner list xpath before we start processing nested list
 		// We only have one nested list entry for a given list. Hence accesing from index 0 entry
 		nestedListName = xDbSpecMap[xpath].listName[0]
 		xpath = xpath + "/" + nestedListName
 		curUri = curUri + "/" + nestedListName
+
+		if len(inParamsForGet.queryParams.fields) > 0 {
+			if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[xpath]; ok {
+				inParamsForGet.queryParams.fieldsFillAll = true
+			} else if _, ok := inParamsForGet.queryParams.allowFieldsXpath[xpath]; !ok {
+				if !inParamsForGet.queryParams.fieldsFillAll {
+					for path := range inParamsForGet.queryParams.tgtFieldsXpathMap {
+						if strings.HasPrefix(xpath, path) {
+							inParamsForGet.queryParams.fieldsFillAll = true
+						}
+					}
+					if !inParamsForGet.queryParams.fieldsFillAll {
+						traverseNestedList = false
+					}
+				}
+			}
+		}
+
 	}
 
 	for keyStr, dbVal := range dbTblData {
@@ -392,7 +410,7 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) ([]typeMapOfInterfa
 			if len(curMap) > 0 {
 				linParamsForGet := formXlateFromDbParams(inParamsForGet.dbs[dbIdx], inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, curUri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, keyStr, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 				var nestedMapSlice []typeMapOfInterface
-				if hasNestedList {
+				if traverseNestedList {
 					if nestedMapSlice, err = sonicDbToYangNestedListDataFill(linParamsForGet); err != nil {
 						return mapSlice, err
 					}
@@ -442,9 +460,10 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 	dbTblData := (*dbDataMap)[dbIdx][table][dbKey]
 
 	// Inner list always has one key
-	//Key is a comman seperated strings for multi key case. For single key case it will be single string
+	// Key is a comman seperated strings for multi key case. For single key case it will be single string
 	keyLeafYangName := xDbSpecMap[xpath].dbEntry.Key
 	nonKeyLeafYangName := ""
+	// For Inner list case we always have 2 leafs
 	for leaf := range xDbSpecMap[xpath].dbEntry.Dir {
 		if leaf != keyLeafYangName {
 			nonKeyLeafYangName = leaf
@@ -468,6 +487,11 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 	}
 
 	for field, value := range dbTblData.Field {
+		// Skip NULL fields. We do not expect NULL fields in nested list.
+		// This can happen only when the outer list instance is available in DB.
+		if field == "NULL" {
+			continue
+		}
 		curMap := make(map[string]interface{})
 		keyResVal, _, err := DbToYangType(yngTerminalKeyNdDtType, keyLeafXpath, field, inParamsForGet.oper)
 		if err != nil {
@@ -657,6 +681,8 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 	if inParamsForGet.queryParams.depthEnabled {
 		pathList := strings.Split(xpath, "/")
 		// Depth at requested URI starts at 1. Hence reduce the reqDepth calculated by 1
+		// The requested depth is the depth calculated for the whole yang tree from root.
+		// Current depth is the depth of the requested URI.
 		reqDepth := (len(pathList) - 1) + int(inParamsForGet.queryParams.curDepth) - 1
 		xfmrLogInfo("xpath: %v ,Sonic Yang len(pathlist) %v, reqDepth %v, sonic Field Index %v", xpath, len(pathList), reqDepth, SONIC_FIELD_INDEX)
 		if reqDepth < SONIC_FIELD_INDEX {
@@ -678,17 +704,15 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 			// Check if request is at nested list
 			dbTblChldNode, ok := xDbSpecMap[table+"/"+tokens[SONIC_TBL_CHILD_INDEX]]
 			if ok && dbTblChldNode.dbEntry != nil && dbTblChldNode.dbEntry.IsList() && len(dbTblChldNode.listName) > 0 {
-				isNestedListCase = true
+				if dbTblChldNode.dbEntry.Dir[tokens[SONIC_FIELD_INDEX]].IsList() {
+					isNestedListCase = true
+				}
 			}
 			if len(tokens) > SONIC_NESTEDLIST_FIELD_INDEX {
-				if isNestedListCase {
-					// For nestedList request at leaf/leaflist level set the xpath accordingly
-					xpath = table + "/" + tokens[SONIC_NESTEDLIST_FIELD_INDEX]
-					fieldName = tokens[SONIC_NESTEDLIST_FIELD_INDEX]
-					xfmrLogDebug("Request is at terminal node (leaf/leaf-list) for nested list - %v.", uri)
-				} else {
-					xfmrLogInfo("Xpath is not a nested listed case - %v", xpath)
-				}
+				// For nestedList request at leaf/leaflist level set the xpath accordingly
+				xpath = table + "/" + tokens[SONIC_NESTEDLIST_FIELD_INDEX]
+				fieldName = tokens[SONIC_NESTEDLIST_FIELD_INDEX]
+				xfmrLogDebug("Request is at terminal node (leaf/leaf-list) for nested list - %v.", uri)
 			} else if isNestedListCase {
 				// Request is at  nested list level
 				xpath = table + "/" + tokens[SONIC_TBL_CHILD_INDEX] + "/" + tokens[SONIC_FIELD_INDEX]
@@ -744,12 +768,13 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 				if err != nil {
 					return "", true, err
 				}
-				if len(key) > 0 && len(mapSlice) == 1 { // Single instance query. Don't return array of maps
+				if len(key) > 0 && len(mapSlice) == 1 && strings.HasSuffix(inParamsForGet.requestUri, "]") {
+					// Single instance query at target Uri. Don't return array of maps
 					for k, val := range mapSlice[0] {
 						resultMap[k] = val
 					}
 
-				} else if len(mapSlice) > 0 {
+				} else {
 					pathl := strings.Split(xpath, "/")
 					lname := pathl[len(pathl)-1]
 					resultMap[lname] = mapSlice

@@ -2418,17 +2418,30 @@ func escapeKeyValForSplitPathAndNewPathInfo(val string) string {
 func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 	var err error
 	curAllowedXpath := ""
-	if len(strings.Split(inParamsForGet.xpath, "/")) > 2 {
-		curAllowedXpath = strings.Split(inParamsForGet.xpath, "/")[2]
+	tokens := strings.Split(inParamsForGet.xpath, "/")
+	if len(tokens) > SONIC_TABLE_INDEX {
+		curAllowedXpath = tokens[SONIC_TABLE_INDEX]
 	}
 	if len(curAllowedXpath) > 0 {
 		inParamsForGet.queryParams.allowFieldsXpath[curAllowedXpath] = true
 	}
+
 	for _, field := range inParamsForGet.queryParams.fields {
 		curXpath := inParamsForGet.tbl
-		curAllowedXpath = strings.Join(strings.Split(inParamsForGet.xpath, "/")[2:], "/")
+		curAllowedXpath = strings.Join(tokens[SONIC_TABLE_INDEX:], "/")
 		fpath := strings.Split(field, "/")
 		curTable := inParamsForGet.tbl
+
+		// If the query is for nested list, the table list and the inner list is added to the allowed fields Xpath list
+		if len(tokens) > SONIC_FIELD_INDEX {
+			tableListXpath := tokens[SONIC_TABLE_INDEX] + "/" + tokens[SONIC_TBL_CHILD_INDEX]
+			innerListXpath := tableListXpath + "/" + tokens[SONIC_FIELD_INDEX]
+			dbTblListChldNode, ok := xDbSpecMap[innerListXpath]
+			if ok && dbTblListChldNode != nil && dbTblListChldNode.dbEntry != nil && dbTblListChldNode.dbEntry.IsList() {
+				inParamsForGet.queryParams.allowFieldsXpath[tableListXpath] = true
+			}
+		}
+
 		for _, p := range fpath {
 			if strings.Contains(p, "[") {
 				err = tlerr.NotSupported("Yang node type list not supported in fields query parameter(%v).", field)
@@ -2458,6 +2471,7 @@ func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 				curAllowedXpath = curXpath
 				curXpath = curTable
 			}
+
 			inParamsForGet.queryParams.allowFieldsXpath[curAllowedXpath] = true
 		}
 		if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[curXpath]; !ok {
