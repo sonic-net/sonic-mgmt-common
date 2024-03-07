@@ -487,6 +487,11 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 	}
 
 	for field, value := range dbTblData.Field {
+		// Skip NULL fields. We do not expect NULL fields in nested list.
+		// This can happen only when the outer list instance is available in DB.
+		if field == "NULL" {
+			continue
+		}
 		curMap := make(map[string]interface{})
 		keyResVal, _, err := DbToYangType(yngTerminalKeyNdDtType, keyLeafXpath, field, inParamsForGet.oper)
 		if err != nil {
