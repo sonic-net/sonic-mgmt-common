@@ -2978,7 +2978,7 @@ func sonicNestedListGetRequestResourceCheck(uri string, tableNm string, key stri
 			/*As per current sonic yang structure in community, nested list has only one key leaf that
 			  corresponds to dynamic field-name case
 			*/
-			nestedListYangKeyName := strings.Split(nestedListDbSpecInfo.dbEntry.Key, " ")[0]
+			nestedListYangKeyName := nestedListDbSpecInfo.dbEntry.Key
 			fieldNm := extractLeafValFromUriKey(uri, nestedListYangKeyName)
 			if fieldNm != "" {
 				if fieldval, fieldOk := data[tableNm][key].Field[fieldNm]; fieldOk {
