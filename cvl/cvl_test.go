@@ -3339,6 +3339,46 @@ func TestSortDepTables(t *testing.T) {
 	cvl.ValidationSessClose(cvSess)
 }
 
+func TestSortDepTablesWithMultiListTargetRaw(t *testing.T) {
+	cvSess, _ := NewCvlSession()
+
+	result, _ := cvSess.SortDepList([]string{"VLAN_SUB_INTERFACE", "OSPFV2_INTERFACE"})
+
+	expectedResult := []string{"OSPFV2_INTERFACE", "VLAN_SUB_INTERFACE_IPADDR", "VLAN_SUB_INTERFACE"}
+
+	for i := 0; i < len(expectedResult); i++ {
+		if result[i] != expectedResult[i] {
+			t.Errorf("Validation failed, returned value = %v", result)
+			break
+		}
+	}
+
+	cvl.ValidationSessClose(cvSess)
+}
+
+func TestSortDepTablesWithMultiListTarget(t *testing.T) {
+	cvSess, _ := NewCvlSession()
+
+	result, _ := cvSess.SortDepTables([]string{"VLAN_SUB_INTERFACE", "OSPFV2_INTERFACE"})
+
+	expectedResult := []string{"OSPFV2_INTERFACE", "VLAN_SUB_INTERFACE"}
+
+	if len(expectedResult) != len(result) {
+		t.Errorf("Validation failed, returned value = %v", result)
+		return
+	}
+
+	for i := 0; i < len(expectedResult); i++ {
+		if result[i] != expectedResult[i] {
+			t.Errorf("Validation failed, returned value = %v", result)
+			break
+		}
+	}
+
+	cvl.ValidationSessClose(cvSess)
+
+}
+
 func TestGetOrderedTables(t *testing.T) {
 	cvSess, _ := NewCvlSession()
 
