@@ -661,12 +661,6 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 			// This includes all nodes which are not module or table containers
 			dbXpath = tableName + "/" + entry.Name
 			if entry.IsList() && entry.Parent != nil && entry.Parent.IsList() { // nested/child list of list under table-level container
-				parentListSpecInfo, parentListOk := xDbSpecMap[tableName+"/"+entry.Parent.Name]
-				if !parentListOk || parentListSpecInfo == nil || parentListSpecInfo.dbEntry == nil {
-					log.Warningf("Parent info not available for %v in module/table %v/%v", entry.Name, moduleNm, tableName)
-					return
-				}
-
 				for siblingNm := range entry.Parent.Dir {
 					if (siblingNm == entry.Name) || strings.Contains(entry.Parent.Key, siblingNm) {
 						continue
@@ -832,12 +826,14 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 	for childNm, childEntry := range entry.Dir {
 		childPath := tableName + "/" + childNm
 		dbMapFill(tableName, childPath, moduleNm, xDbSpecMap, childEntry)
-		/* If structure is not like current community-sonic yangs with nested lists, that
-		   have only key leaves in parent list and only one nested list with only one
-		   key and one non-key leaf, then its not supported case so don't traverse the parent list anymore.
-		*/
-		if _, nestedListOk := xDbSpecMap[tableName+"/"+entry.Name+"/"+childNm]; !nestedListOk {
-			return
+		if entry.IsList() && childEntry.IsList() {
+			/* If structure is not like current community-sonic yangs with nested lists, that
+			   have only key leaves in parent list and only one nested list with only one
+			   key and one non-key leaf, then its not supported case so don't traverse the parent list anymore.
+			*/
+			if _, nestedListOk := xDbSpecMap[tableName+"/"+entry.Name+"/"+childNm]; !nestedListOk {
+				return
+			}
 		}
 	}
 
