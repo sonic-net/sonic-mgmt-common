@@ -659,20 +659,32 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 			dbXpath = tableName
 		} else {
 			// This includes all nodes which are not module or table containers
+			dbXpath = tableName + "/" + entry.Name
 			if entry.IsList() && entry.Parent != nil && entry.Parent.IsList() { // nested/child list of list under table-level container
-				if parentListSpecInfo, parentListOk := xDbSpecMap[tableName+"/"+entry.Parent.Name]; parentListOk &&
-					parentListSpecInfo != nil && len(parentListSpecInfo.listName) > 0 {
-					/*more than one nested lists not allowed since there is no way to know when
-					  processing GET request which nested list a dynamic field belongs to.*/
-					log.Warningf("More than one nested list not supported for sonic yangs. %v/%v/%v", tableName, entry.Parent.Name, entry.Name)
+				parentListSpecInfo, parentListOk := xDbSpecMap[tableName+"/"+entry.Parent.Name]
+				if !parentListOk || parentListSpecInfo == nil || parentListSpecInfo.dbEntry == nil {
+					log.Warningf("Parent info not available for %v in module/table %v/%v", entry.Name, moduleNm, tableName)
 					return
 				}
+
+				for siblingNm := range entry.Parent.Dir {
+					if (siblingNm == entry.Name) || strings.Contains(entry.Parent.Key, siblingNm) {
+						continue
+					}
+					log.Warningf("Nested list %v can have only key-leaf siblings under parent list %v for table %v in module %v",
+						entry.Name, entry.Parent.Name, tableName, moduleNm)
+					cleanupNestedListSpecInfo(tableName, entry.Parent)
+					return
+				}
+
 				if nestedListProcessingErr := sonicYangNestedListValidateElements(tableName, entry); nestedListProcessingErr != nil {
+					cleanupNestedListSpecInfo(tableName, entry.Parent)
 					return
 				}
 				dbXpath = tableName + "/" + entry.Parent.Name + "/" + entry.Name
-			} else {
-				dbXpath = tableName + "/" + entry.Name
+			} else if entry.IsList() && entry.Parent != nil && entry.Parent.Name != tableName {
+				log.Warningf("Nested list %v not supported under a non-table level container yang node %v in module %v", entry.Name, entry.Parent.Name, moduleNm)
+				return
 			}
 			if tblSpecInfo, tblOk = xDbSpecMap[tableName]; tblOk {
 				tblDbIndex = xDbSpecMap[tableName].dbIndex
@@ -681,6 +693,7 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 		if _, ok := xDbSpecMap[dbXpath]; !ok {
 			xDbSpecMap[dbXpath] = new(dbInfo)
 		}
+
 		xDbSpecMap[dbXpath].dbIndex = tblDbIndex
 		xDbSpecMap[dbXpath].yangType = entryType
 		xDbSpecMap[dbXpath].dbEntry = entry
@@ -816,9 +829,16 @@ func dbMapFill(tableName string, curPath string, moduleNm string, xDbSpecMap map
 
 	}
 
-	for _, childEntry := range entry.Dir {
-		childPath := tableName + "/" + childEntry.Name
+	for childNm, childEntry := range entry.Dir {
+		childPath := tableName + "/" + childNm
 		dbMapFill(tableName, childPath, moduleNm, xDbSpecMap, childEntry)
+		/* If structure is not like current community-sonic yangs with nested lists, that
+		   have only key leaves in parent list and only one nested list with only one
+		   key and one non-key leaf, then its not supported case so don't traverse the parent list anymore.
+		*/
+		if _, nestedListOk := xDbSpecMap[tableName+"/"+entry.Name+"/"+childNm]; !nestedListOk {
+			return
+		}
 	}
 
 }
@@ -1343,4 +1363,11 @@ func sonicYangNestedListValidateElements(tableName string, entry *yang.Entry) er
 	errStr := fmt.Sprintf("Sonic yang nested list %v with more than one key or non-key leaf not supported.", tableName+"/"+entry.Parent.Name+"/"+entry.Name)
 	log.Warningf(errStr)
 	return fmt.Errorf("%v", errStr)
+}
+
+func cleanupNestedListSpecInfo(tableName string, parentEntry *yang.Entry) {
+	for childNm := range parentEntry.Parent.Dir {
+		delete(xDbSpecMap, tableName+"/"+childNm)
+	}
+	delete(xDbSpecMap, tableName+"/"+parentEntry.Name)
 }

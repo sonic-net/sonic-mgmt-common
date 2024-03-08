@@ -895,24 +895,8 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 							}
 							dbVal.Field[fieldName] = dbFldVal
 						}
-					} else if !ok {
-						nestedChildName := fieldName
-						dbSpecPath := xlateParams.tableName + "/" + tokens[SONIC_TBL_CHILD_INDEX] + "/" + nestedChildName
-						dbSpecNestedChildInfo, ok := xDbSpecMap[dbSpecPath]
-						if ok && dbSpecNestedChildInfo != nil {
-							if dbSpecNestedChildInfo.yangType == YANG_LIST && dbSpecNestedChildInfo.dbEntry.Parent.IsList() { //nested list case
-								if strings.HasSuffix(xlateParams.requestUri, "]") || strings.HasSuffix(xlateParams.requestUri, "]/") { // target URI is at nested list-instance
-									dbVal.Field = map[string]string{xlateParams.keyName: ""} //nested list key becomes the field-name
-								} else { //nested whole list case or nested-list-instance/leaf
-									return tlerr.NotSupportedError{Format: "DELETE not supported", Path: xlateParams.requestUri}
-								}
-							} else {
-								log.Warningf("For URI - %v, only nested list supported, other type of yang node not supported - %v", xlateParams.requestUri, dbSpecPath)
-							}
-						} else {
-							log.Warningf("For URI - %v, no entry found in xDbSpecMap for  path %v", xlateParams.uri, dbSpecPath)
-						}
-
+					} else if !ok { //check if its nested list DELETE and process it
+						return checkAndProcessSonicYangNesetedListDelete(xlateParams, tokens[SONIC_TBL_CHILD_INDEX], fieldName)
 					}
 				}
 			}
@@ -983,6 +967,59 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 			}
 		}
 	}
+	xlateParams.resultMap[oper][db.ConfigDB] = xlateParams.result
+	return nil
+}
+
+func checkAndProcessSonicYangNesetedListDelete(xlateParams xlateToParams, parentListNm string, nestedChildNm string) error {
+	var fieldNm, fieldVal string
+
+	oper := xlateParams.oper //DELETE
+	dbSpecPath := xlateParams.tableName + "/" + parentListNm + "/" + nestedChildNm
+	dbSpecNestedChildInfo, ok := xDbSpecMap[dbSpecPath]
+
+	if !ok || dbSpecNestedChildInfo == nil {
+		errStr := fmt.Sprintf("Sonic yang path %v not found in spec so cannot be processed.", xlateParams.requestUri)
+		return tlerr.InternalError{Format: errStr, Path: xlateParams.requestUri}
+	}
+
+	if dbSpecNestedChildInfo.dbEntry == nil {
+		errStr := fmt.Sprintf("Yang entry not found for Sonic yang path in spec so cannot be processed.", xlateParams.requestUri)
+		return tlerr.InternalError{Format: errStr, Path: xlateParams.requestUri}
+	}
+
+	if dbSpecNestedChildInfo.dbEntry.Parent == nil {
+		errStr := fmt.Sprintf("Parent node yang entry not found for Sonic yang path in spec so cannot be processed.", xlateParams.requestUri)
+		return tlerr.InternalError{Format: errStr, Path: xlateParams.requestUri}
+	}
+
+	if dbSpecNestedChildInfo.yangType == YANG_LIST && dbSpecNestedChildInfo.dbEntry.Parent.IsList() { //nested list case
+		if strings.HasSuffix(xlateParams.requestUri, "]") || strings.HasSuffix(xlateParams.requestUri, "]/") { // target URI is at nested list-instance
+			nestedListInstanceValue := extractLeafValFromUriKey(xlateParams.requestUri, dbSpecNestedChildInfo.keyList[0])
+			xfmrLogDebug("Nested List Instance Value : %v", nestedListInstanceValue)
+			if nestedListInstanceValue != "" {
+				//nested list instance becomes field-name
+				fieldNm = nestedListInstanceValue
+				fieldVal = ""
+			} else {
+				errStr := fmt.Sprintf("List instance couldn't be extracted from URI - %v", xlateParams.requestUri)
+				return tlerr.InternalError{Format: errStr, Path: xlateParams.requestUri}
+			}
+		} else if strings.HasSuffix(xlateParams.requestUri, nestedChildNm) || strings.HasSuffix(xlateParams.requestUri, nestedChildNm+"/") {
+			//target URI is at nested whole list level hence all fields in the table-instance should be replaced with NULL/NULL
+			xfmrLogDebug("Target URI is at nested whole list level hence all fields in the table-instance should be replaced with NULL/NULL")
+			oper = REPLACE
+			fieldNm, fieldVal = "NULL", "NULL"
+		} else {
+			xfmrLogDebug("Target URI is at nested list non-key leaf, reject it.")
+			return tlerr.NotSupportedError{Format: "DELETE not supported.", Path: xlateParams.requestUri}
+		}
+	} else { //non-nested list case
+		errStr := fmt.Sprintf("For sonic yang only nested list under list is supported, other type of yang node not supported - %v", xlateParams.requestUri)
+		return tlerr.NotSupportedError{Format: errStr, Path: xlateParams.requestUri}
+	}
+
+	xlateParams.result[xlateParams.tableName][xlateParams.keyName] = db.Value{Field: map[string]string{fieldNm: fieldVal}}
 	xlateParams.resultMap[oper][db.ConfigDB] = xlateParams.result
 	return nil
 }
