@@ -300,8 +300,7 @@ func sonicDbToYangTerminalNodeFill(field string, inParamsForGet xlateFromDbParam
 
 	// Check if the terminal node is in the nested list case
 	if isNestedListEntry {
-		uriPathList := strings.Split(inParamsForGet.uri, "/")
-		innerListInstance := strings.TrimSuffix(strings.Split(uriPathList[SONIC_FIELD_INDEX], "=")[1], "]")
+		innerListInstance := extractLeafValFromUriKey(inParamsForGet.uri, dbEntry.Parent.Key)
 		if isKeyLeaf {
 			value = innerListInstance
 		} else {
@@ -365,6 +364,7 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) ([]typeMapOfInterfa
 	dbTblData := (*dbDataMap)[dbIdx][table]
 	delKeyCnt := 0
 	nestedListName := ""
+	nestedListXpath := ""
 	curUri := inParamsForGet.uri
 	traverseNestedList := false
 
@@ -373,16 +373,16 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) ([]typeMapOfInterfa
 		// The xpath is already at table list level. Hence form inner list xpath before we start processing nested list
 		// We only have one nested list entry for a given list. Hence accesing from index 0 entry
 		nestedListName = xDbSpecMap[xpath].listName[0]
-		xpath = xpath + "/" + nestedListName
+		nestedListXpath = xpath + "/" + nestedListName
 		curUri = curUri + "/" + nestedListName
 
 		if len(inParamsForGet.queryParams.fields) > 0 {
-			if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[xpath]; ok {
+			if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[nestedListXpath]; ok {
 				inParamsForGet.queryParams.fieldsFillAll = true
-			} else if _, ok := inParamsForGet.queryParams.allowFieldsXpath[xpath]; !ok {
+			} else if _, ok := inParamsForGet.queryParams.allowFieldsXpath[nestedListXpath]; !ok {
 				if !inParamsForGet.queryParams.fieldsFillAll {
 					for path := range inParamsForGet.queryParams.tgtFieldsXpathMap {
-						if strings.HasPrefix(xpath, path) {
+						if strings.HasPrefix(nestedListXpath, path) {
 							inParamsForGet.queryParams.fieldsFillAll = true
 						}
 					}
@@ -411,6 +411,7 @@ func sonicDbToYangListFill(inParamsForGet xlateFromDbParams) ([]typeMapOfInterfa
 				linParamsForGet := formXlateFromDbParams(inParamsForGet.dbs[dbIdx], inParamsForGet.dbs, dbIdx, inParamsForGet.ygRoot, curUri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, keyStr, dbDataMap, inParamsForGet.txCache, curMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 				var nestedMapSlice []typeMapOfInterface
 				if traverseNestedList {
+					linParamsForGet.xpath = nestedListXpath
 					if nestedMapSlice, err = sonicDbToYangNestedListDataFill(linParamsForGet); err != nil {
 						return mapSlice, err
 					}
@@ -769,7 +770,7 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 					return "", true, err
 				}
 				if len(key) > 0 && len(mapSlice) == 1 && strings.HasSuffix(inParamsForGet.requestUri, "]") {
-					// Single instance query at target Uri. Don't return array of maps
+					// Single instance query at target Uri (either outer list or inner list). Don't return array of maps
 					for k, val := range mapSlice[0] {
 						resultMap[k] = val
 					}
