@@ -273,7 +273,7 @@ func mapFillDataUtil(xlateParams xlateToParams) error {
 func sonicYangReqToDbMapCreate(xlateParams xlateToParams) error {
 	/* This function processeses soic yang CRU request and payload to DB format */
 	xfmrLogDebug("About to process uri: \"%v\".", xlateParams.requestUri)
-	toplevelContainerMap, contOk := xlateParams.jsonData.(map[string]interface{})
+	topLevelContainerMap, contOk := xlateParams.jsonData.(map[string]interface{})
 	if !contOk {
 		errStr := fmt.Sprintf("Unexpected JSON format for URI \"%v\".", xlateParams.requestUri)
 		xfmrLogInfo("%v", errStr)
@@ -283,9 +283,10 @@ func sonicYangReqToDbMapCreate(xlateParams xlateToParams) error {
 	if err != nil {
 		return tlerr.InternalError{Format: err.Error()}
 	}
-	topLevelContainerInterface, contIntfOk := toplevelContainerMap[moduleNm]
+	topContNdNmInJson := moduleNm + ":" + moduleNm
+	topLevelContainerInterface, contIntfOk := topLevelContainerMap[topContNdNmInJson]
 	if !contIntfOk {
-		errStr := fmt.Sprintf("Module %v not found in JSON for URI \"%v\".", moduleNm, xlateParams.requestUri)
+		errStr := fmt.Sprintf("Module %v not found in JSON for URI \"%v\".", topContNdNmInJson, xlateParams.requestUri)
 		xfmrLogInfo("%v", errStr)
 		return tlerr.InternalError{Format: errStr}
 	}
@@ -299,7 +300,7 @@ func sonicYangReqToDbMapCreate(xlateParams xlateToParams) error {
 
 	for tableLevelContainerName, valueInterface := range topLevelContainerData {
 		if _, ok := xDbSpecMap[tableLevelContainerName]; ok {
-			directDbMapData("", tableLevelContainerName, valueInterface, xlateParams.result, xlateParams.yangDefValMap)
+			directDbMapData(xlateParams.requestUri, tableLevelContainerName, valueInterface, xlateParams.result, xlateParams.yangDefValMap)
 		} else {
 			xfmrLogInfo("table \"%v\" under %v is not in transformer sonic yang spec map.", tableLevelContainerName, moduleNm)
 		}
@@ -309,7 +310,6 @@ func sonicYangReqToDbMapCreate(xlateParams xlateToParams) error {
 }
 
 func dbMapDataFill(uri string, tableName string, keyName string, d map[string]interface{}, result map[string]map[string]db.Value) {
-	result[tableName][keyName] = db.Value{Field: make(map[string]string)}
 
 	for field, value := range d {
 		fieldXpath := tableName + "/" + field
@@ -334,14 +334,14 @@ func dbMapDataFill(uri string, tableName string, keyName string, d map[string]in
 						fieldValue = fieldValue + fVal
 					}
 				}
-				result[tableName][keyName].Field[field] = fieldValue
+				dataToDBMapAdd(tableName, keyName, result, field, fieldValue)
 				continue
 			}
 			dbval, err := unmarshalJsonToDbData(dbEntry, fieldXpath, field, value)
 			if err != nil {
 				log.Warningf("Couldn't unmarshal Json to DbData: path(\"%v\") error (\"%v\").", fieldXpath, err)
 			} else {
-				result[tableName][keyName].Field[field] = dbval
+				dataToDBMapAdd(tableName, keyName, result, field, dbval)
 			}
 		} else {
 			// should ideally never happen , just adding for safety
@@ -377,7 +377,7 @@ func dbMapDataFillForNestedList(tableName string, key string, nestedListDbEntry 
 				log.Warningf("Couldn't unmarshal Json to DbData: path(\"%v\"), value %v error (\"%v\").", fieldValXpath, value, err)
 				break
 			} else {
-				result[tableName][key].Field[fieldName] = fieldValue
+				dataToDBMapAdd(tableName, key, result, fieldName, fieldValue)
 			}
 		}
 
