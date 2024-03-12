@@ -1739,7 +1739,7 @@ func splitUri(uri string) []string {
 	return pathList
 }
 
-func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bool, error) {
+func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bool, error, db.Value) {
 	var err error
 	// Read the table entry from DB
 	if len(tableName) > 0 {
@@ -1749,7 +1749,7 @@ func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bo
 			}
 			retKey, err := dbKeyValueXfmrHandler(oper, d.Opts.DBNo, tableName, dbKey, false)
 			if err != nil {
-				return false, err
+				return false, err, db.Value{}
 			}
 			xfmrLogDebug("dbKeyValueXfmrHandler() returned db key %v", retKey)
 			dbKey = retKey
@@ -1762,29 +1762,28 @@ func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bo
 			if derr != nil {
 				log.Warningf("Failed to get keys for tbl(%v) dbKey pattern %v error: %v", tableName, dbKey, derr)
 				err = tlerr.NotFound("Resource not found")
-				return false, err
+				return false, err, db.Value{}
 			}
 			xfmrLogDebug("keys for table %v are %v", tableName, keys)
 			if len(keys) > 0 {
-				return true, nil
+				return true, nil, db.Value{}
 			} else {
 				log.Warningf("dbKey %v does not exist in DB for table %v", dbKey, tableName)
 				err = tlerr.NotFound("Resource not found")
-				return false, err
+				return false, err, db.Value{}
 			}
 		} else {
-
 			existingEntry, derr := d.GetEntry(dbTblSpec, db.Key{Comp: []string{dbKey}})
 			if derr != nil {
 				log.Warningf("GetEntry failed for table: %v, key: %v err: %v", tableName, dbKey, derr)
 				err = tlerr.NotFound("Resource not found")
-				return false, err
+				return false, err, db.Value{}
 			}
-			return existingEntry.IsPopulated(), err
+			return existingEntry.IsPopulated(), err, existingEntry
 		}
 	} else {
 		log.Warning("Empty table name received")
-		return false, nil
+		return false, nil, db.Value{}
 	}
 }
 
@@ -2929,7 +2928,7 @@ func hasSonicNestedList(tblName string) (bool, *dbInfo) {
 	return hasNestedList, innerListSpecInfo
 }
 
-func sonicNestedListGetRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, data map[string]map[string]db.Value) (map[string]map[string]db.Value, error) {
+func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, data map[string]map[string]db.Value) (map[string]map[string]db.Value, error) {
 	/* this function will process sonic yang nested list Get case and perform resource check for it*/
 	xfmrLogDebug("Process Sonic Nested List Get Request %v", uri)
 
