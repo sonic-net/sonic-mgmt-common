@@ -751,7 +751,7 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 
 			if yangType == YANG_LEAF || yangType == YANG_LEAF_LIST {
 				dbEntry := getYangEntryForXPath(inParamsForGet.xpath)
-				linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, cdb, inParamsForGet.ygRoot, xpath, inParamsForGet.requestUri, uri, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
+				linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, cdb, inParamsForGet.ygRoot, uri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 				sonicDbToYangTerminalNodeFill(fieldName, linParamsForGet, dbEntry, isNestedListCase, dbNode.isKey)
 				resultMap = linParamsForGet.resultMap
 			} else if yangType == YANG_CONTAINER {
