@@ -1787,12 +1787,12 @@ func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bo
 	}
 }
 
-func dbTableExistsInDbData(dbNo db.DBNum, table string, dbKey string, dbData RedisDbMap) (bool, db.Value) {
+func dbTableExistsInDbData(dbNo db.DBNum, table string, dbKey string, dbData RedisDbMap) bool {
 	xfmrLogDebug("received DB no - %v, table - %v, dbkey - %v", dbNo, table, dbKey)
-	if tableEntryFields, exists := dbData[dbNo][table][dbKey]; exists {
-		return true, tableEntryFields
+	if _, exists := dbData[dbNo][table][dbKey]; exists {
+		return true
 	} else {
-		return false, db.Value{}
+		return false
 	}
 }
 
