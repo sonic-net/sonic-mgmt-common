@@ -472,6 +472,7 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 		}
 	}
 
+	// Get the data type of the key and non key leaf
 	yngTerminalKeyNdDtType := xDbSpecMap[xpath].dbEntry.Dir[keyLeafYangName].Type.Kind
 	yngTerminalNonKeyNdDtType := xDbSpecMap[xpath].dbEntry.Dir[nonKeyLeafYangName].Type.Kind
 	keyLeafXpath := table + "/" + keyLeafYangName
@@ -487,10 +488,18 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 		}
 	}
 
+	var requestedKey string
+	if strings.HasSuffix(inParamsForGet.requestUri, "]") || strings.HasSuffix(inParamsForGet.requestUri, "]/") {
+		requestedKey = extractLeafValFromUriKey(inParamsForGet.requestUri, keyLeafYangName)
+	}
+
 	for field, value := range dbTblData.Field {
 		// Skip NULL fields. We do not expect NULL fields in nested list.
 		// This can happen only when the outer list instance is available in DB.
 		if field == "NULL" {
+			continue
+		}
+		if requestedKey != "" && field != requestedKey {
 			continue
 		}
 		curMap := make(map[string]interface{})
