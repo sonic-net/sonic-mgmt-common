@@ -1787,12 +1787,12 @@ func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bo
 	}
 }
 
-func dbTableExistsInDbData(dbNo db.DBNum, table string, dbKey string, dbData RedisDbMap) bool {
+func dbTableExistsInDbData(dbNo db.DBNum, table string, dbKey string, dbData RedisDbMap) (bool, db.Value) {
 	xfmrLogDebug("received DB no - %v, table - %v, dbkey - %v", dbNo, table, dbKey)
-	if _, exists := dbData[dbNo][table][dbKey]; exists {
-		return true
+	if tableEntryFields, exists := dbData[dbNo][table][dbKey]; exists {
+		return true, tableEntryFields
 	} else {
-		return false
+		return false, db.Value{}
 	}
 }
 
@@ -2928,7 +2928,7 @@ func hasSonicNestedList(tblName string) (bool, *dbInfo) {
 	return hasNestedList, innerListSpecInfo
 }
 
-func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, data map[string]map[string]db.Value) (map[string]map[string]db.Value, error) {
+func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, data map[string]map[string]db.Value) error {
 	/* this function will process sonic yang nested list Get case and perform resource check for it*/
 	xfmrLogDebug("Process Sonic Nested List Get Request %v", uri)
 
@@ -2937,14 +2937,14 @@ func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string,
 	if !ok && nestedListDbSpecInfo == nil || nestedListDbSpecInfo.dbEntry == nil {
 		errStr := fmt.Sprintf("No entry found in transformer sonic yang spec for path %v", dbSpecPath)
 		xfmrLogInfo(errStr)
-		return nil, tlerr.InternalError{Format: errStr, Path: uri}
+		return tlerr.InternalError{Format: errStr, Path: uri}
 	}
 
 	//nested list case
 	if nestedListDbSpecInfo.yangType == YANG_LIST && nestedListDbSpecInfo.dbEntry.Parent.IsList() {
 		if strings.HasSuffix(uri, nestedListNm) || strings.HasSuffix(uri, nestedListNm+"/") {
 			// request target is nested whole list
-			return data, nil
+			return nil
 		} else { // request target is nested list-intance or nested list leaf
 			/*As per current sonic yang structure in community, nested list has only one key leaf that
 			  corresponds to dynamic field-name case
@@ -2952,35 +2952,25 @@ func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string,
 			nestedListYangKeyName := nestedListDbSpecInfo.dbEntry.Key
 			fieldNm := extractLeafValFromUriKey(uri, nestedListYangKeyName)
 			if fieldNm != "" {
-				if fieldval, fieldOk := data[tableNm][key].Field[fieldNm]; fieldOk {
-					dbVal := db.Value{
-						Field: map[string]string{
-							fieldNm: fieldval,
-						},
-					}
-					dbData := map[string]map[string]db.Value{
-						tableNm: {
-							key: dbVal,
-						},
-					}
-					return dbData, nil
+				if _, fieldOk := data[tableNm][key].Field[fieldNm]; fieldOk {
+					return nil
 				} else {
 					xfmrLogInfo("Field %v doesn't exist in table - %v, instance - %v", fieldNm, tableNm, key)
-					return nil, tlerr.NotFoundError{Format: "Resource not found."}
+					return tlerr.NotFoundError{Format: "Resource not found."}
 				}
 			} else {
 				errStr := fmt.Sprintf("Could not extract value for key %v from uri %v", nestedListYangKeyName, uri)
 				xfmrLogInfo(errStr)
-				return nil, tlerr.InternalError{Format: errStr, Path: uri}
+				return tlerr.InternalError{Format: errStr, Path: uri}
 			}
 		}
 	} else { // non nested list case
 		errStr := fmt.Sprintf("For sonic yang only nested list supported, other type of yang node not supported %v", dbSpecPath)
 		xfmrLogInfo(errStr)
-		return nil, tlerr.NotSupportedError{Format: errStr, Path: uri}
+		return tlerr.NotSupportedError{Format: errStr, Path: uri}
 	}
 
-	return nil, nil
+	return nil
 }
 
 func applyValueXfmronDbMapForNestedList(tblName string, fld string, val string, dbKey string, oper Operation, dbNum db.DBNum, resultMap map[Operation]map[db.DBNum]map[string]map[string]db.Value) error {

@@ -596,12 +596,6 @@ func XlateFromDb(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, data R
 								}
 							}
 						}
-					} else if !ok && fieldName != "" {
-						var nestedListErr error
-						dbData[cdb], nestedListErr = sonicNestedListRequestResourceCheck(requestUri, tableName, keyStr, tokens[SONIC_TBL_CHILD_INDEX], fieldName, data[cdb])
-						if nestedListErr != nil {
-							return []byte(""), true, nestedListErr
-						}
 					}
 				}
 			}

@@ -1170,7 +1170,7 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 		tableExists := false
 		var derr error
 
-		pathList := splitUri(uri)
+		pathList := strings.Split(xpath, "/")[1:]
 		hasSingletonContainer := SonicUriHasSingletonContainer(uri)
 		if hasSingletonContainer && oper != DELETE {
 			// No resource check required for singleton container for CRU cases
@@ -1185,8 +1185,7 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 			} else {
 				cdb = dbInfo.dbIndex
 			}
-			tableExists = dbTableExistsInDbData(cdb, table, dbKey, dbData)
-			derr = tlerr.NotFoundError{Format: "Resource not found"}
+			tableExists, tableEntryFields = dbTableExistsInDbData(cdb, table, dbKey, dbData)
 		} else {
 			// Valid table mapping exists. Read the table entry from DB
 			tableExists, derr, tableEntryFields = dbTableExists(d, table, dbKey, oper)
@@ -1215,9 +1214,11 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 			err = tlerr.NotFound("Resource not found")
 			return false, err
 		} else {
-			// Allow all other operations
-			if len(pathList) > SONIC_TBL_CHILD_INDEX { //check for nested-list instance/ nested-list/leaf query
-				field := pathList[SONIC_FIELD_INDEX]
+			/*For CRUD operations for a nested list check for nested-list instance/ nested-list/leaf query
+			  check if nested-list instance exists in DB.*/
+			if len(pathList) > SONIC_TBL_CHILD_INDEX {
+				//extract nested-list name from pathList
+				field := pathList[SONIC_FIELD_INDEX-1] // strippped off leading slash when creating pathList
 				dbSpecField := table + "/" + field
 				_, ok := xDbSpecMap[dbSpecField]
 				if !ok && field != "" { //field is innerListNm
@@ -1227,12 +1228,13 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 							dbKey: tableEntryFields,
 						},
 					}
-					_, nestedListErr = sonicNestedListRequestResourceCheck(uri, table, dbKey, pathList[SONIC_TBL_CHILD_INDEX], field, dbData)
+					nestedListErr = sonicNestedListRequestResourceCheck(uri, table, dbKey, pathList[SONIC_TBL_CHILD_INDEX-1], field, dbData)
 					if nestedListErr != nil {
 						return false, nestedListErr
 					}
 				}
 			}
+			// Allow all other operations
 			return true, err
 		}
 	} else {
@@ -1310,7 +1312,7 @@ func verifyParentTblSubtree(dbs [db.MaxDB]*db.DB, uri string, xfmrFuncNm string,
 							goto Exit
 						}
 						// GET case - attempt to find in dbData before doing a dbGet in dbTableExists()
-						exists = dbTableExistsInDbData(dbNo, table, dbKey, dbData)
+						exists, _ = dbTableExistsInDbData(dbNo, table, dbKey, dbData)
 						if exists {
 							xfmrLogDebug("Found table instance in dbData")
 							goto Exit
@@ -1433,7 +1435,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 					existsInDbData := false
 					if oper == GET {
 						// GET case - attempt to find in dbData before doing a dbGet in dbTableExists()
-						existsInDbData = dbTableExistsInDbData(cdb, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, dbData)
+						existsInDbData, _ = dbTableExistsInDbData(cdb, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, dbData)
 					}
 					// Read the table entry from DB
 					if !existsInDbData {
@@ -1531,7 +1533,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 				// GET case - find in dbData instead of doing a dbGet in dbTableExists()
 				cdb = xpathInfo.dbIndex
 				xfmrLogDebug("db index for xpath - %v is %v", xpath, cdb)
-				exists = dbTableExistsInDbData(cdb, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, dbData)
+				exists, _ = dbTableExistsInDbData(cdb, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, dbData)
 				if !exists {
 					exists, derr, _ = dbTableExists(dbs[cdb], xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
 					if derr != nil {
