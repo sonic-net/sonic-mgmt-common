@@ -489,8 +489,13 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 	}
 
 	var requestedKey string
-	if strings.HasSuffix(inParamsForGet.requestUri, "]") || strings.HasSuffix(inParamsForGet.requestUri, "]/") {
+	if (inParamsForGet.uri == inParamsForGet.requestUri) && (strings.HasSuffix(inParamsForGet.requestUri, "]") || strings.HasSuffix(inParamsForGet.requestUri, "]/")) {
 		requestedKey = extractLeafValFromUriKey(inParamsForGet.requestUri, keyLeafYangName)
+		// Check for resource existence
+		if _, ok := dbTblData.Field[requestedKey]; !ok {
+			xfmrLogInfo("Instance %v doesn't exist in table - %v, instance - %v", requestedKey, table, dbKey)
+			return mapSlice, tlerr.NotFoundError{Format: "Resource not found."}
+		}
 	}
 
 	for field, value := range dbTblData.Field {
