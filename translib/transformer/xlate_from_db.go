@@ -463,6 +463,17 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 	// Inner list always has one key
 	// Key is a comman seperated strings for multi key case. For single key case it will be single string
 	keyLeafYangName := xDbSpecMap[xpath].dbEntry.Key
+
+	var requestedKey string
+	// Check for resource existence if request is at nested list instance
+	if (inParamsForGet.uri == inParamsForGet.requestUri) && (strings.HasSuffix(inParamsForGet.requestUri, "]") || strings.HasSuffix(inParamsForGet.requestUri, "]/")) {
+		requestedKey = extractLeafValFromUriKey(inParamsForGet.requestUri, keyLeafYangName)
+		if _, ok := dbTblData.Field[requestedKey]; !ok {
+			xfmrLogInfo("Instance %v doesn't exist in table - %v, instance - %v", requestedKey, table, dbKey)
+			return mapSlice, tlerr.NotFoundError{Format: "Resource not found."}
+		}
+	}
+
 	nonKeyLeafYangName := ""
 	// For Inner list case we always have 2 leafs
 	for leaf := range xDbSpecMap[xpath].dbEntry.Dir {
@@ -485,16 +496,6 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 			if !inParamsForGet.queryParams.fieldsFillAll {
 				skipNonKeyLeafAdd = true
 			}
-		}
-	}
-
-	var requestedKey string
-	if (inParamsForGet.uri == inParamsForGet.requestUri) && (strings.HasSuffix(inParamsForGet.requestUri, "]") || strings.HasSuffix(inParamsForGet.requestUri, "]/")) {
-		requestedKey = extractLeafValFromUriKey(inParamsForGet.requestUri, keyLeafYangName)
-		// Check for resource existence
-		if _, ok := dbTblData.Field[requestedKey]; !ok {
-			xfmrLogInfo("Instance %v doesn't exist in table - %v, instance - %v", requestedKey, table, dbKey)
-			return mapSlice, tlerr.NotFoundError{Format: "Resource not found."}
 		}
 	}
 
