@@ -2054,7 +2054,7 @@ func getXfmrSpecInfoFromUri(uri string) (interface{}, error) {
 			tableName = tokens[SONIC_TABLE_INDEX]
 			dbSpecXpath = tableName + "/" + fieldName
 			specInfo, xpathInSpecMapOk = xDbSpecMap[dbSpecXpath]
-			if !xpathInSpecMapOk && specInfo == nil {
+			if !xpathInSpecMapOk {
 				// Check if xpath points to inner list
 				sncFldInxXpath := tableName + "/" + tokens[SONIC_TBL_CHILD_INDEX] + "/" + fieldName
 				specInfo, xpathInSpecMapOk = xDbSpecMap[sncFldInxXpath]
@@ -2371,6 +2371,8 @@ func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 	var err error
 	curAllowedXpath := ""
 	tokens := strings.Split(inParamsForGet.xpath, "/")
+	nestedlist := false
+
 	if len(tokens) > SONIC_TABLE_INDEX {
 		// Add table to the allowed path
 		curAllowedXpath = tokens[SONIC_TABLE_INDEX]
@@ -2379,22 +2381,33 @@ func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 		inParamsForGet.queryParams.allowFieldsXpath[curAllowedXpath] = true
 	}
 
+	// If the query is for nested list, the table list and the inner list is already added to the allowed fields Xpath list above.
+	// Here we add the ouer list xpath entry in allowed fields
+	if len(tokens) > SONIC_FIELD_INDEX {
+		tableListXpath := tokens[SONIC_TABLE_INDEX] + "/" + tokens[SONIC_TBL_CHILD_INDEX]
+		innerListXpath := tableListXpath + "/" + tokens[SONIC_FIELD_INDEX]
+		dbTblListChldNode, ok := xDbSpecMap[innerListXpath]
+		if ok && dbTblListChldNode != nil && dbTblListChldNode.dbEntry != nil && dbTblListChldNode.dbEntry.IsList() {
+			inParamsForGet.queryParams.allowFieldsXpath[tableListXpath] = true
+		}
+	}
+	if len(tokens) > SONIC_TBL_CHILD_INDEX {
+		tableListXpath := tokens[SONIC_TABLE_INDEX] + "/" + tokens[SONIC_TBL_CHILD_INDEX]
+		dbTblListSpecInfo, ok := xDbSpecMap[tableListXpath]
+		if ok && dbTblListSpecInfo != nil && len(dbTblListSpecInfo.listName) > 0 {
+			nestedlist = true
+		}
+	}
+
 	for _, field := range inParamsForGet.queryParams.fields {
 		curXpath := inParamsForGet.tbl
 		// Add target xpath to the allowed path
 		curAllowedXpath = strings.Join(tokens[SONIC_TABLE_INDEX:], "/")
 		fpath := strings.Split(field, "/")
 		curTable := inParamsForGet.tbl
+		if nestedlist {
+			curXpath += "/" + tokens[SONIC_TBL_CHILD_INDEX]
 
-		// If the query is for nested list, the table list and the inner list is already added to the allowed fields Xpath list above.
-		// Here we add the ouer list xpath entry in allowed fields
-		if len(tokens) > SONIC_FIELD_INDEX {
-			tableListXpath := tokens[SONIC_TABLE_INDEX] + "/" + tokens[SONIC_TBL_CHILD_INDEX]
-			innerListXpath := tableListXpath + "/" + tokens[SONIC_FIELD_INDEX]
-			dbTblListChldNode, ok := xDbSpecMap[innerListXpath]
-			if ok && dbTblListChldNode != nil && dbTblListChldNode.dbEntry != nil && dbTblListChldNode.dbEntry.IsList() {
-				inParamsForGet.queryParams.allowFieldsXpath[tableListXpath] = true
-			}
 		}
 
 		for _, p := range fpath {
@@ -2415,6 +2428,7 @@ func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 			yNode, ok := xDbSpecMap[curXpath]
 			if !ok || yNode == nil {
 				err = tlerr.InvalidArgs("Invalid field name/path: %v", field)
+				xfmrLogInfo("Unable to process field - %v, xpath not found in xDbSpecMap %v", field, curXpath)
 				return err
 			}
 			/* check for list */

@@ -300,20 +300,21 @@ func sonicDbToYangTerminalNodeFill(field string, inParamsForGet xlateFromDbParam
 
 	// Check if the terminal node is in the nested list case
 	if isNestedListEntry {
+		var fieldVal string
+		valueExists := true
 		innerListInstance := extractLeafValFromUriKey(inParamsForGet.uri, dbEntry.Parent.Key)
+		tblInstFields, dbDataExists := (*inParamsForGet.dbDataMap)[inParamsForGet.curDb][inParamsForGet.tbl][inParamsForGet.tblKey]
+		if dbDataExists {
+			fieldVal, valueExists = tblInstFields.Field[innerListInstance]
+			if !valueExists {
+				xfmrLogInfo("Instance %v doesn't exist in table - %v, instance - %v", innerListInstance, inParamsForGet.tbl, inParamsForGet.tblKey)
+				return
+			}
+		}
 		if isKeyLeaf {
 			value = innerListInstance
 		} else {
-			tblInstFields, dbDataExists := (*inParamsForGet.dbDataMap)[inParamsForGet.curDb][inParamsForGet.tbl][inParamsForGet.tblKey]
-			if dbDataExists {
-				fieldVal, valueExists := tblInstFields.Field[innerListInstance]
-				if valueExists {
-					value = fieldVal
-				} else {
-					log.Warningf("No entry found in dbDataMap for path %v", inParamsForGet.uri)
-					return
-				}
-			}
+			value = fieldVal
 		}
 	} else {
 		if inParamsForGet.dbDataMap != nil {
@@ -451,6 +452,10 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 		err = tlerr.RequestContextCancelled("Client request's context cancelled.", inParamsForGet.reqCtxt.Err())
 		log.Warningf(err.Error())
 		return mapSlice, err
+	}
+
+	if inParamsForGet.queryParams.depthEnabled && (inParamsForGet.queryParams.curDepth < SONIC_NESTEDLIST_FIELD_INDEX) {
+		return mapSlice, nil
 	}
 
 	dbDataMap := inParamsForGet.dbDataMap
@@ -704,6 +709,9 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 		if reqDepth < SONIC_FIELD_INDEX {
 			traverse = false
 		}
+		// Reset the curDepth to the requested depth which gives the depth from root to be processed.
+		// Used for nested list case only. Other cases should be identified through the traverse flag.
+		inParamsForGet.queryParams.curDepth = uint(reqDepth)
 	}
 
 	if len(inParamsForGet.queryParams.fields) > 0 {
@@ -768,6 +776,9 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 				dbEntry := getYangEntryForXPath(inParamsForGet.xpath)
 				linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, cdb, inParamsForGet.ygRoot, uri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 				sonicDbToYangTerminalNodeFill(fieldName, linParamsForGet, dbEntry, isNestedListCase, dbNode.isKey)
+				if isNestedListCase && len(linParamsForGet.resultMap) == 0 {
+					return "", true, tlerr.NotFoundError{Format: "Resource not found."}
+				}
 				resultMap = linParamsForGet.resultMap
 			} else if yangType == YANG_CONTAINER {
 				if err = sonicDbToYangDataFill(inParamsForGet); err != nil {
