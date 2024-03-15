@@ -752,7 +752,7 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 						dbSpecNestedChildInfo, ok := xDbSpecMap[dbSpecPath]
 						if ok && dbSpecNestedChildInfo != nil {
 							if dbSpecNestedChildInfo.yangType == YANG_LIST && dbSpecNestedChildInfo.dbEntry.Parent.IsList() { //nested list case
-								if !(strings.HasSuffix(requestUri, "]") || strings.HasSuffix(requestUri, "]/")) { //whole list case
+								if strings.HasSuffix(uri, nestedChildName) || strings.HasSuffix(uri, nestedChildName+"/") { //whole list case
 									resultMap[REPLACE] = make(RedisDbMap)
 									resultMap[REPLACE][db.ConfigDB] = result
 								} else { // target URI is at nested list-instance or nested-list-instance/leaf
@@ -1231,7 +1231,7 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 							dbKey: tableEntryFields,
 						},
 					}
-					nestedListErr = sonicNestedListRequestResourceCheck(uri, table, dbKey, pathList[SONIC_TBL_CHILD_INDEX-1], pathElement, dbData)
+					nestedListErr = sonicNestedListRequestResourceCheck(uri, table, dbKey, pathList[SONIC_TBL_CHILD_INDEX-1], pathElement, dbData, oper)
 					if nestedListErr != nil {
 						return false, nestedListErr
 					}

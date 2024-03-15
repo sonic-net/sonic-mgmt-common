@@ -2928,7 +2928,7 @@ func hasSonicNestedList(tblName string) (bool, *dbInfo) {
 	return hasNestedList, innerListSpecInfo
 }
 
-func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, data map[string]map[string]db.Value) error {
+func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, data map[string]map[string]db.Value, oper Operation) error {
 	/* this function will process sonic yang nested list Get case and perform resource check for it*/
 	xfmrLogDebug("Process Sonic Nested List Get Request %v", uri)
 
@@ -2949,6 +2949,9 @@ func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string,
 			/*As per current sonic yang structure in community, nested list has only one key leaf that
 			  corresponds to dynamic field-name case
 			*/
+			if oper == REPLACE && (strings.HasSuffix(uri, "]") || strings.HasSuffix(uri, "]/")) {
+				return nil
+			}
 			nestedListYangKeyName := nestedListDbSpecInfo.dbEntry.Key
 			fieldNm := extractLeafValFromUriKey(uri, nestedListYangKeyName)
 			if fieldNm != "" {
