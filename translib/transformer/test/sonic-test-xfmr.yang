@@ -322,11 +322,13 @@ module sonic-test-xfmr {
                                                 }
                                         }
                                 }
-
+                                 
                                 list TEST_CABLE_LENGTH {
                                         key "port";
                                         leaf port {
-                                                type string;
+                                                type leafref {
+                                                        path  "../../../../TEST_INTERFACE_MODE_TABLE/TEST_INTERFACE_MODE_TABLE_LIST/name";
+                                                }
                                         }
                                         leaf length {
                                                 type string {
