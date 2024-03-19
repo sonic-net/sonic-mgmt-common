@@ -32,7 +32,7 @@ module sonic-cablelength {
 				}
 
 				list CABLE_LENGTH { //this is list inside list for storing mapping between two fields
-					key "port length";
+					key "port";
 
 					leaf port {
 						type leafref {

@@ -11,6 +11,28 @@ from pyang.plugins import lint
 from pyang.error import err_add
 
 
+# utils
+
+def get_statement_depth(statement):
+    depth = 0
+    while statement.parent:
+        depth += 1
+        statement = statement.parent
+    return depth
+
+
+def get_keys(stmt):
+    """Gets the key names for the node if present.
+    Returns a list of key name strings.
+    """
+    key_obj = stmt.search_one('key')
+    key_names = []
+    keys = getattr(key_obj, 'arg', None)
+    if keys:
+        key_names = keys.split()
+    return key_names
+
+
 class SonicValidationRules(object):
     """Definitions of the validation rules specific for SONiC Yangs"""
     required_substmts = {
@@ -108,6 +130,10 @@ class SonicYangPlugin(lint.LintPlugin):
                              'Top container name "%s" must be same as module name "%s"')
         error.add_error_code('LINT_SONIC_BAD_LIST_NAME_SUFFIX', 3, 'List name "%s" must be suffixed with "_LIST"')
         error.add_error_code('LINT_SONIC_BAD_LIST_NAME_PREFIX', 3, 'List name "%s" must starts with "%s_"')
+        error.add_error_code('LINT_SONIC_BAD_DYNAMIC_FIELD_KEY', 3, 'Inner List "%s" for dynamic field'
+                                                                    ' must have single key leaf')
+        error.add_error_code('LINT_SONIC_BAD_DYNAMIC_FIELD_VALUE', 3, 'Inner List "%s" for dynamic field'
+                                                                      ' must have single non-key leaf')
         error.add_error_code('LINT_SONIC_MISSING_REQUIRED_SUBSTMT', 3, '%s: Statement "%s" must have "%s" substatement')
         error.add_error_code('LINT_SONIC_MISSING_RECOMMENDED_SUBSTMT', 4,
                              '%s: Statement "%s" should have "%s" substatement')
@@ -187,6 +213,17 @@ class SonicYangPlugin(lint.LintPlugin):
 
                 if not stmt.arg.startswith(stmt.parent.arg + "_"):
                     err_add(ctx.errors, stmt.pos, 'LINT_SONIC_BAD_LIST_NAME_PREFIX', (stmt.arg, stmt.parent.arg))
+                    return
+
+            # Dynamic fields - Making sure inner LIST has exactly one key leaf and one non-key leaf
+            if get_statement_depth(stmt) == 4:
+                key_leaves = get_keys(stmt)
+                if len(key_leaves) != 1:
+                    err_add(ctx.errors, stmt.pos, 'LINT_SONIC_BAD_DYNAMIC_FIELD_KEY', stmt.arg)
+                    return
+                non_key_leaves = [leaf for leaf in stmt.substmts if leaf.keyword == 'leaf' and leaf.arg not in key_leaves]
+                if len(non_key_leaves) != 1:
+                    err_add(ctx.errors, stmt.pos, 'LINT_SONIC_BAD_DYNAMIC_FIELD_VALUE', stmt.arg)
                     return
 
     def get_module_name(self, stmt):
