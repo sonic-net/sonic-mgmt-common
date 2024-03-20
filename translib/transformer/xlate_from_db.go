@@ -475,7 +475,7 @@ func sonicDbToYangNestedListDataFill(inParamsForGet xlateFromDbParams) ([]typeMa
 		requestedKey = extractLeafValFromUriKey(inParamsForGet.requestUri, keyLeafYangName)
 		if _, ok := dbTblData.Field[requestedKey]; !ok {
 			xfmrLogInfo("Instance %v doesn't exist in table - %v, instance - %v", requestedKey, table, dbKey)
-			return mapSlice, tlerr.NotFoundError{Format: "Resource not found."}
+			return mapSlice, tlerr.NotFoundError{Format: "Resource not found"}
 		}
 	}
 
@@ -777,7 +777,7 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 				linParamsForGet := formXlateFromDbParams(nil, inParamsForGet.dbs, cdb, inParamsForGet.ygRoot, uri, inParamsForGet.requestUri, xpath, inParamsForGet.oper, table, key, dbDataMap, inParamsForGet.txCache, resultMap, inParamsForGet.validate, inParamsForGet.queryParams, inParamsForGet.reqCtxt, nil)
 				sonicDbToYangTerminalNodeFill(fieldName, linParamsForGet, dbEntry, isNestedListCase, dbNode.isKey)
 				if isNestedListCase && len(linParamsForGet.resultMap) == 0 {
-					return "", true, tlerr.NotFoundError{Format: "Resource not found."}
+					return "", true, tlerr.NotFoundError{Format: "Resource not found"}
 				}
 				resultMap = linParamsForGet.resultMap
 			} else if yangType == YANG_CONTAINER {
