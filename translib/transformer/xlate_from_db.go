@@ -802,9 +802,11 @@ func directDbToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, e
 					}
 
 				} else {
-					pathl := strings.Split(xpath, "/")
-					lname := pathl[len(pathl)-1]
-					resultMap[lname] = mapSlice
+					if len(mapSlice) > 0 {
+						pathl := strings.Split(xpath, "/")
+						lname := pathl[len(pathl)-1]
+						resultMap[lname] = mapSlice
+					}
 				}
 			}
 		}
