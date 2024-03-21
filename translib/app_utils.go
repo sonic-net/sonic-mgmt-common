@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
@@ -219,6 +220,22 @@ func isNotFoundError(err error) bool {
 	switch err.(type) {
 	case tlerr.TranslibRedisClientEntryNotExist, tlerr.NotFoundError:
 		return true
+	default:
+		return false
+	}
+}
+
+// isBulkNotFoundError return true if the error is a 'not found' error
+func isBulkNotFoundError(err error) bool {
+	switch e := err.(type) {
+	case tlerr.TranslibRedisClientEntryNotExist, tlerr.NotFoundError:
+		return true
+	case tlerr.TranslibCVLFailure:
+		if cvl.CVLRetCode(e.Code) == cvl.CVL_SEMANTIC_KEY_NOT_EXIST {
+			return true
+		} else {
+			return false
+		}
 	default:
 		return false
 	}
