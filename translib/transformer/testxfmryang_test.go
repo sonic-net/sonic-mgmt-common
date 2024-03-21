@@ -1318,3 +1318,55 @@ func Test_Sonic_NestedList_Get_Fields_QueryParams(t *testing.T) {
 	unloadDB(db.CountersDB, prereq2)
 
 }
+
+func Test_Sonic_NestedList_Delete(t *testing.T) {
+	prereq := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"eth0": "10m", "eth1": "20m"},
+		"testcable_02": map[string]interface{}{"eth0": "30m"}}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	//Delete targeted on nested non-key leaf when nested list instance doesn't exist in DB
+	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth4]/length"
+	exp_err_res_not_found := tlerr.NotFoundError{Format: "Resource not found"}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on non-key leaf when nested list instance doesn't exist in DB +++++++++++++")
+	t.Run("DELETE on nested list non-key leaf when nested list instance doesn't exist in DB", processDeleteRequest(url, true, exp_err_res_not_found))
+
+	//Delete targeted on nested non-key leaf when nested list instance exists in DB
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth0]/length"
+	exp_err_not_supp := tlerr.NotSupportedError{Format: "DELETE not supported"}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on non-key leaf when nested list instance exists in DB +++++++++++++")
+	t.Run("DELETE on nested list non-key leaf when nested list instance exists in DB", processDeleteRequest(url, true, exp_err_not_supp))
+
+	//Delete targeted on nested list instance and that instance doesn't exist in DB
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth4]"
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on nested list instance and that instance doesn't exist in DB +++++++++++++")
+	t.Run("DELETE on nested list instance and that instance doesn't exist in DB", processDeleteRequest(url, true, exp_err_res_not_found))
+
+	//Delete targeted on nested list instance and that instance exists in DB
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth0]"
+	expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"eth1": "20m"}}}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on nested list instance and that instance exists in DB +++++++++++++")
+	t.Run("DELETE on nested list instance and that instance exists in DB", processDeleteRequest(url, false))
+	t.Run("DELETE on nested list instance and that instance exists in DB - verify other instance of nested list still exists and the one deleted doesn't exist", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testcable_01", expected_map, false))
+
+	//Delete targeted on whole nested list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH"
+	expected_map = map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"NULL": "NULL"}}}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on whole nested list +++++++++++++")
+	t.Run("DELETE on whole nested list", processDeleteRequest(url, false))
+	t.Run("DELETE on whole nested list - verify that all nested list instances are replaced by NULL/NULL preserving parent list instance", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testcable_01", expected_map, true))
+
+	//Delete targetted at list instance that has nested child list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]"
+	expected_map_testcable_01 := map[string]interface{}{}
+	expected_map_testcable_02 := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_02": map[string]interface{}{"eth0": "30m"}}}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on list instance that has nested child list +++++++++++++")
+	t.Run("DELETE on list instance that has nested child list", processDeleteRequest(url, false))
+	t.Run("DELETE on list instance that has nested child list - verify that only that parent list instance is deleted and other instnaces are instact(testcable_01 is deleted)", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testcable_01", expected_map_testcable_01, false))
+	t.Run("DELETE on list instance that has nested child list - verify that only that parent list instance is deleted and other instnaces are instact(testcable_02 is instact)", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testcable_02", expected_map_testcable_02, false))
+
+	//Teardown
+	unloadDB(db.ConfigDB, prereq)
+
+}

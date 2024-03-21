@@ -1012,7 +1012,7 @@ func checkAndProcessSonicYangNesetedListDelete(xlateParams xlateToParams, parent
 			fieldNm, fieldVal = "NULL", "NULL"
 		} else {
 			xfmrLogDebug("Target URI is at nested list non-key leaf, reject it.")
-			return tlerr.NotSupportedError{Format: "DELETE not supported.", Path: xlateParams.requestUri}
+			return tlerr.NotSupportedError{Format: "DELETE not supported", Path: xlateParams.requestUri}
 		}
 	} else { //non-nested list case
 		errStr := fmt.Sprintf("For sonic yang only nested list under list is supported, other type of yang node not supported - %v", xlateParams.requestUri)
