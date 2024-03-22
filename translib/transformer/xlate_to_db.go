@@ -271,25 +271,45 @@ func mapFillDataUtil(xlateParams xlateToParams) error {
 }
 
 func sonicYangReqToDbMapCreate(xlateParams xlateToParams) error {
-	xfmrLogDebug("About to process uri: \"%v\".", xlateParams.uri)
-	if reflect.ValueOf(xlateParams.jsonData).Kind() == reflect.Map {
-		data := reflect.ValueOf(xlateParams.jsonData)
-		for _, key := range data.MapKeys() {
-			_, ok := xDbSpecMap[key.String()]
-			if ok {
-				directDbMapData("", key.String(), data.MapIndex(key).Interface(), xlateParams.result, xlateParams.yangDefValMap)
-			} else {
-				curXlateParams := xlateParams
-				curXlateParams.jsonData = data.MapIndex(key).Interface()
-				sonicYangReqToDbMapCreate(curXlateParams)
-			}
+	/* This function processeses soic yang CRU request and payload to DB format */
+	xfmrLogDebug("About to process uri: \"%v\".", xlateParams.requestUri)
+	topLevelContainerMap, contOk := xlateParams.jsonData.(map[string]interface{})
+	if !contOk {
+		errStr := fmt.Sprintf("Unexpected JSON format for URI \"%v\".", xlateParams.requestUri)
+		xfmrLogInfo("%v", errStr)
+		return tlerr.InternalError{Format: errStr}
+	}
+	moduleNm, err := uriModuleNameGet(xlateParams.requestUri)
+	if err != nil {
+		return tlerr.InternalError{Format: err.Error()}
+	}
+	topContNdNmInJson := moduleNm + ":" + moduleNm
+	topLevelContainerInterface, contIntfOk := topLevelContainerMap[topContNdNmInJson]
+	if !contIntfOk {
+		errStr := fmt.Sprintf("Module %v not found in JSON for URI \"%v\".", topContNdNmInJson, xlateParams.requestUri)
+		xfmrLogInfo("%v", errStr)
+		return tlerr.InternalError{Format: errStr}
+	}
+
+	topLevelContainerData, contDataOk := topLevelContainerInterface.(map[string]interface{})
+	if !contDataOk {
+		errStr := fmt.Sprintf("Unexpected JSON format value of module %v for URI \"%v\".", moduleNm, xlateParams.requestUri)
+		xfmrLogInfo("%v", errStr)
+		return tlerr.InternalError{Format: errStr}
+	}
+
+	for tableLevelContainerName, valueInterface := range topLevelContainerData {
+		if _, ok := xDbSpecMap[tableLevelContainerName]; ok {
+			directDbMapData(xlateParams.requestUri, tableLevelContainerName, valueInterface, xlateParams.result, xlateParams.yangDefValMap)
+		} else {
+			xfmrLogInfo("table \"%v\" under %v is not in transformer sonic yang spec map.", tableLevelContainerName, moduleNm)
 		}
 	}
+
 	return nil
 }
 
 func dbMapDataFill(uri string, tableName string, keyName string, d map[string]interface{}, result map[string]map[string]db.Value) {
-	result[tableName][keyName] = db.Value{Field: make(map[string]string)}
 
 	for field, value := range d {
 		fieldXpath := tableName + "/" + field
@@ -314,14 +334,14 @@ func dbMapDataFill(uri string, tableName string, keyName string, d map[string]in
 						fieldValue = fieldValue + fVal
 					}
 				}
-				result[tableName][keyName].Field[field] = fieldValue
+				dataToDBMapAdd(tableName, keyName, result, field, fieldValue)
 				continue
 			}
 			dbval, err := unmarshalJsonToDbData(dbEntry, fieldXpath, field, value)
 			if err != nil {
 				log.Warningf("Couldn't unmarshal Json to DbData: path(\"%v\") error (\"%v\").", fieldXpath, err)
 			} else {
-				result[tableName][keyName].Field[field] = dbval
+				dataToDBMapAdd(tableName, keyName, result, field, dbval)
 			}
 		} else {
 			// should ideally never happen , just adding for safety
@@ -330,9 +350,46 @@ func dbMapDataFill(uri string, tableName string, keyName string, d map[string]in
 	}
 }
 
-func dbMapTableChildListDataFill(uri string, tableName string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value, yangDefValMap map[string]map[string]db.Value) {
+func dbMapDataFillForNestedList(tableName string, key string, nestedListDbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
+	/*function to process CRU request for nested/child list of list under table level container in sonic yang.*/
+	nestedListData := reflect.ValueOf(jsonData) //nested list slice/array containing its instances
+	/*As per current sonic yang structure in community nested list has only one key leaf that
+	  corresponds to dynamic field-name case.
+	*/
+	nestedListYangKeyName := strings.Split(nestedListDbEntry.Key, " ")[0]
+	for idx := 0; idx < nestedListData.Len(); idx++ {
+		nestedListInstance := nestedListData.Index(idx).Interface().(map[string]interface{}) //child/nested list instance
+		fieldXpath := tableName + "/" + nestedListYangKeyName
+		fieldDbEntry := nestedListDbEntry.Dir[nestedListYangKeyName]
+		fieldName, err := unmarshalJsonToDbData(fieldDbEntry, fieldXpath, nestedListYangKeyName, nestedListInstance[nestedListYangKeyName])
+		if err != nil {
+			log.Warningf("Couldn't unmarshal Json to DbData: path(\"%v\"), value %v,  error (\"%v\").", fieldXpath, nestedListInstance[nestedListYangKeyName], err)
+			continue
+		}
+		for field, value := range nestedListInstance {
+			if field == nestedListYangKeyName {
+				continue
+			}
+			fieldValXpath := tableName + "/" + field
+			fieldDbEntry := nestedListDbEntry.Dir[field]
+			fieldValue, err := unmarshalJsonToDbData(fieldDbEntry, fieldValXpath, field, value)
+			if err != nil {
+				log.Warningf("Couldn't unmarshal Json to DbData: path(\"%v\"), value %v error (\"%v\").", fieldValXpath, value, err)
+				break
+			} else {
+				dataToDBMapAdd(tableName, key, result, fieldName, fieldValue)
+			}
+		}
+
+	}
+
+}
+
+func dbMapTableChildListDataFill(uri string, tableName string, childListNames []string, dbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value, yangDefValMap map[string]map[string]db.Value) {
 	data := reflect.ValueOf(jsonData)
 	tblKeyName := strings.Split(dbEntry.Key, " ")
+	hasNestedList := len(childListNames) > 0
+
 	for idx := 0; idx < data.Len(); idx++ {
 		keyName := ""
 		d := data.Index(idx).Interface().(map[string]interface{})
@@ -349,8 +406,19 @@ func dbMapTableChildListDataFill(uri string, tableName string, dbEntry *yang.Ent
 			}
 			delete(d, k)
 		}
+
+		if hasNestedList {
+			for _, nestedListNm := range childListNames {
+				if nestedListData, nestedListPresentInPayload := d[nestedListNm]; nestedListPresentInPayload {
+					dbMapDataFillForNestedList(tableName, keyName, dbEntry.Dir[nestedListNm], nestedListData, result)
+					delete(d, nestedListNm)
+				}
+
+			}
+		}
 		dbMapDataFill(uri, tableName, keyName, d, result)
 		sonicDefaultFieldValFill(dbEntry, tableName, keyName, result, yangDefValMap)
+
 		if len(result[tableName][keyName].Field) == 0 {
 			dataToDBMapAdd(tableName, keyName, result, "NULL", "NULL") // redis needs atleast one field:val to create an instance
 		}
@@ -415,7 +483,7 @@ func directDbMapData(uri string, tableName string, jsonData interface{}, result 
 				switch eType {
 				case YANG_LIST:
 					xfmrLogDebug("Fill data for list %v child of table level node %v", k, tableName)
-					dbMapTableChildListDataFill(uri, tableName, curDbSpecData.dbEntry, v, result, yangDefValMap)
+					dbMapTableChildListDataFill(uri, tableName, curDbSpecData.listName, curDbSpecData.dbEntry, v, result, yangDefValMap)
 				case YANG_CONTAINER:
 					xfmrLogDebug("Fill data for container %v child of table level node %v", k, tableName)
 					dbMapTableChildContainerDataFill(uri, tableName, curDbSpecData.dbEntry, v, result, yangDefValMap)
@@ -678,8 +746,26 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 						} else {
 							log.Warningf("For URI - %v, unrecognized terminal YANG node type", uri)
 						}
-					} else {
-						log.Warningf("For URI - %v, no entry found in xDbSpecMap for table(%v)/field(%v)", uri, tableName, fldNm)
+					} else if !dbFldok {
+						nestedChildName := fldNm
+						dbSpecPath := tableName + "/" + fldPth[SONIC_TBL_CHILD_INDEX] + "/" + nestedChildName
+						dbSpecNestedChildInfo, ok := xDbSpecMap[dbSpecPath]
+						if ok && dbSpecNestedChildInfo != nil {
+							if dbSpecNestedChildInfo.yangType == YANG_LIST && dbSpecNestedChildInfo.dbEntry.Parent.IsList() { //nested list case
+								if strings.HasSuffix(uri, nestedChildName) || strings.HasSuffix(uri, nestedChildName+"/") { //whole list case
+									resultMap[REPLACE] = make(RedisDbMap)
+									resultMap[REPLACE][db.ConfigDB] = result
+								} else { // target URI is at nested list-instance or nested-list-instance/leaf
+									resultMap[UPDATE] = make(RedisDbMap)
+									resultMap[UPDATE][db.ConfigDB] = result
+								}
+							} else {
+								log.Warningf("For URI - %v, only nested list supported, other type of yang node not supported - %v", uri, dbSpecPath)
+							}
+						} else {
+							log.Warningf("For URI - %v, no entry found in xDbSpecMap for table(%v)/field(%v)", uri, tableName, fldNm)
+						}
+
 					}
 				} else {
 					log.Warningf("For URI - %v, no entry found in xDbSpecMap with tableName - %v", uri, tableName)
@@ -1075,6 +1161,7 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 
 func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri string, dbData RedisDbMap) (bool, error) {
 	var err error
+	var tableEntryFields db.Value
 
 	xpath, dbKey, table := sonicXpathKeyExtract(uri)
 	xfmrLogDebug("uri: %v xpath: %v table: %v, key: %v", uri, xpath, table, dbKey)
@@ -1083,7 +1170,7 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 		tableExists := false
 		var derr error
 
-		pathList := splitUri(uri)
+		pathList := strings.Split(xpath, "/")[1:]
 		hasSingletonContainer := SonicUriHasSingletonContainer(uri)
 		if hasSingletonContainer && oper != DELETE {
 			// No resource check required for singleton container for CRU cases
@@ -1099,10 +1186,9 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 				cdb = dbInfo.dbIndex
 			}
 			tableExists = dbTableExistsInDbData(cdb, table, dbKey, dbData)
-			derr = tlerr.NotFoundError{Format: "Resource not found"}
 		} else {
 			// Valid table mapping exists. Read the table entry from DB
-			tableExists, derr = dbTableExists(d, table, dbKey, oper)
+			tableExists, derr, tableEntryFields = dbTableExists(d, table, dbKey, oper)
 			if hasSingletonContainer && oper == DELETE {
 				// Special case when we delete at container that does'nt exist. Return true to skip translation.
 				if !tableExists {
@@ -1110,9 +1196,6 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 				} else {
 					return true, nil
 				}
-			}
-			if derr != nil {
-				return false, derr
 			}
 		}
 		if len(pathList) == SONIC_TBL_CHILD_INDEX && (oper == UPDATE || oper == CREATE || oper == DELETE || oper == GET) && !tableExists {
@@ -1131,12 +1214,35 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 			err = tlerr.NotFound("Resource not found")
 			return false, err
 		} else {
+			/*For CRUD operations on a nested list-intance or nested-list[intance]/leaf query
+			  check if nested-list instance exists in DB. For GET operation the resource check for
+			  nested list instance will be checked before populating data tinto yang from dbData,
+			  to optimize processing since dbdata will be referenced there anyways using nested list
+			  instance key-value */
+			if len(pathList) > SONIC_TBL_CHILD_INDEX && oper != GET {
+				//extract nested-list name from pathList
+				pathElement := pathList[SONIC_FIELD_INDEX-1] //Empty element at index 0 is removed when xpath split on slash
+				dbSpecField := table + "/" + pathElement
+				_, ok := xDbSpecMap[dbSpecField]
+				if !ok && pathElement != "" {
+					var nestedListErr error
+					dbData := map[string]map[string]db.Value{
+						table: {
+							dbKey: tableEntryFields,
+						},
+					}
+					nestedListErr = sonicNestedListRequestResourceCheck(uri, table, dbKey, pathList[SONIC_TBL_CHILD_INDEX-1], pathElement, dbData, oper)
+					if nestedListErr != nil {
+						return false, nestedListErr
+					}
+				}
+			}
 			// Allow all other operations
 			return true, err
 		}
 	} else {
 		// Request is at module level. No need to check for parent table. Hence return true always or
-		// Request at /sonic-module:sonic-module/container-table level
+		// Request at /sonic-module:sonic-module/container-table or container-table/whole list level
 		return true, err
 	}
 }
@@ -1201,7 +1307,7 @@ func verifyParentTblSubtree(dbs [db.MaxDB]*db.DB, uri string, xfmrFuncNm string,
 							parentTblExists = false
 							goto Exit
 						}
-						exists, err = dbTableExists(dptr, table, dbKey, oper)
+						exists, err, _ = dbTableExists(dptr, table, dbKey, oper)
 					} else {
 						d := dbs[dbNo]
 						if dbKey == "*" { //dbKey is "*" for GET on entire list
@@ -1214,7 +1320,7 @@ func verifyParentTblSubtree(dbs [db.MaxDB]*db.DB, uri string, xfmrFuncNm string,
 							xfmrLogDebug("Found table instance in dbData")
 							goto Exit
 						}
-						exists, err = dbTableExists(d, table, dbKey, oper)
+						exists, err, _ = dbTableExists(d, table, dbKey, oper)
 					}
 					if !exists || err != nil {
 						log.Warningf("Parent Tbl :%v, dbKey: %v does not exist for URI %v", table, dbKey, uri)
@@ -1336,7 +1442,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 					}
 					// Read the table entry from DB
 					if !existsInDbData {
-						exists, derr := dbTableExists(d, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
+						exists, derr, _ := dbTableExists(d, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
 						if derr != nil {
 							return false, derr
 						}
@@ -1432,7 +1538,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 				xfmrLogDebug("db index for xpath - %v is %v", xpath, cdb)
 				exists = dbTableExistsInDbData(cdb, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, dbData)
 				if !exists {
-					exists, derr = dbTableExists(dbs[cdb], xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
+					exists, derr, _ = dbTableExists(dbs[cdb], xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
 					if derr != nil {
 						return false, derr
 					}
@@ -1443,7 +1549,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 					}
 				}
 			} else {
-				exists, derr = dbTableExists(d, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
+				exists, derr, _ = dbTableExists(d, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
 			}
 			if derr != nil {
 				log.Warningf("ParentTable GetEntry failed for table: %v, key: %v err: %v", xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, derr)
@@ -1481,7 +1587,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 		curTable := xpathKeyExtRet.tableName
 		if len(curTable) > 0 {
 			if perr == nil && cerr == nil && (curTable != parentTable) && len(curKey) > 0 {
-				exists, derr := dbTableExists(d, curTable, curKey, oper)
+				exists, derr, _ := dbTableExists(d, curTable, curKey, oper)
 				if !exists {
 					return true, derr
 				} else {
