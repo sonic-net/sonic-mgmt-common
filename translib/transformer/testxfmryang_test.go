@@ -399,17 +399,15 @@ func Test_node_exercising_singleton_container_and_keyname_mapping(t *testing.T) 
 
 func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 
-	cleanuptbl := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": ""}}
-	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+	cleanuptbl := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": "", "test_device|32": ""}}
 
 	t.Log("++++++++++++++  Test_create_on_sonic_singleton_container_yang_node +++++++++++++")
-
+	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
 	// Setup - Prerequisite
 	unloadDB(db.ConfigDB, cleanuptbl)
-
 	// Payload
 	post_payload := "{ \"sonic-test-xfmr:global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescp\" }}"
-	post_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp", "reset-time": 5}}}
+	post_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp", "reset_time": 5}}}
 
 	t.Run("Create on singleton sonic table yang node", processSetRequest(url, post_payload, "POST", false))
 	time.Sleep(1 * time.Second)
@@ -418,39 +416,143 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
-	t.Log("++++++++++++++  Test_patch_on_sonic_singleton_container_node +++++++++++++")
-
-	prereq := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp"}}}
-	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor"
-
+	t.Log("++++++++++++++  Test_create_on_sonic_node_having_singleton_container_sibling_list +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
 	// Setup - Prerequisite
-	loadDB(db.ConfigDB, prereq)
-
+	unloadDB(db.ConfigDB, cleanuptbl)
 	// Payload
-	patch_payload := "{ \"sonic-test-xfmr:global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description\" }}"
-	patch_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description"}}}
+	post_payload = "{ \"sonic-test-xfmr:global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescp\" }, \"sonic-test-xfmr:TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\", \"device_id\": 32,\"device_status\": \"ON\"}]}"
+	post_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp", "reset_time": 5}}}
+	post_sensor_device_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"test_device|32": map[string]interface{}{"device_status": "ON"}}}
 
-	t.Run("Patch on singleton sonic container yang node", processSetRequest(url, patch_payload, "PATCH", false))
+	t.Run("Create on sonic table yang node having singleton container and sibling list", processSetRequest(url, post_payload, "POST", false))
 	time.Sleep(1 * time.Second)
-	t.Run("Verify patch on singleton sonic container yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
+	t.Run("Verify Create on sonic table yang node with singleton container and sibling list", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", post_sensor_device_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
-	t.Log("++++++++++++++  Test_replace_on_sonic_singleton_container +++++++++++++")
+	t.Log("++++++++++++++  Test_patch_on_sonic_singleton_container_node +++++++++++++")
+
+	prereq := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}}}
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor"
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+	// Payload
+	patch_payload := "{ \"sonic-test-xfmr:global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description\", \"reset_time\": 20 }}"
+	patch_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description", "reset_time": 20}}}
+	patch_sensor_timer_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}}}
+
+	t.Run("Patch on singleton sonic container yang node", processSetRequest(url, patch_payload, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify patch on singleton sonic container yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
+	t.Run("Verify patch on singleton sonic container yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", patch_sensor_timer_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_create_and_modify_on_sonic_sibling_singleton_container_yang_node +++++++++++++")
+
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description"}}}
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+	// Payload
+	patch_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{\"global_sensor\": {\"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\": 25 }, \"sonic-test-xfmr:global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\" }}}"
+	patch_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}}}
+	patch_sensor_timer_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 5}}}
+
+	t.Run("Create and modify on sibling singleton containers sonic yang node", processSetRequest(url, patch_payload, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify Create and modify on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
+	t.Run("Verify Create and modify on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", patch_sensor_timer_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_patch_on_sonic_yang_with_singleton_container_sibling_list +++++++++++++")
+
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "test_device|32": map[string]interface{}{"device_status": "ON"}}}
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+	// Payload
+	patch_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescp\" }, \"TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\",\"device_id\": 32, \"device_status\": \"OFF\"}]}}"
+
+	patch_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescp", "reset_time": 25}}}
+	patch_sensor_timer_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}}}
+	patch_sensor_device_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"test_device|32": map[string]interface{}{"device_status": "OFF"}}}
+
+	t.Run("Patch on sonic node having singleton container and sibling list yang nodes", processSetRequest(url, patch_payload, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", patch_sensor_global_expected, false))
+	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", patch_sensor_timer_expected, false))
+	t.Run("Verify patch on sonic yang node with sibling list and singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", patch_sensor_device_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_replace_on_sonic_singleton_container_leaf +++++++++++++")
 
 	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/mode"
 
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description"}}}
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
 
 	// Payload
 	put_payload := "{ \"sonic-test-xfmr:mode\": \"test_mode_1\"}"
-	put_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "test_mode_1", "description": "testdescp"}}}
+	put_sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "test_mode_1", "description": "test description"}}}
 
-	t.Run("Put on singleton sonic yang node", processSetRequest(url, put_payload, "PUT", false))
+	t.Run("Put on singleton sonic yang leaf node", processSetRequest(url, put_payload, "PUT", false))
 	time.Sleep(1 * time.Second)
-	t.Run("Verify put on singleton sonic yang node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", put_sensor_global_expected, false))
+	t.Run("Verify put on singleton sonic yang leaf node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", put_sensor_global_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_replace_on_sonic_sibling_singleton_container_yang_node +++++++++++++")
+
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description", "reset_time": 40}, "test_device|32": map[string]interface{}{"device_status": "ON"}}}
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+	// Payload
+	put_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{\"global_sensor\": {\"mode\": \"testmode\", \"description\": \"test description for testmode\"}, \"sonic-test-xfmr:global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\" },\"TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\",\"device_id\": 32, \"device_status\": \"OFF\"}]}}"
+	put_sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 5}}}
+	put_sensor_timer_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 5}}}
+	put_sensor_device_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"test_device|32": map[string]interface{}{"device_status": "OFF"}}}
+
+	t.Run("Create and replace on sibling singleton containers sonic yang node", processSetRequest(url, put_payload, "PUT", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify Create and replace on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", put_sensor_global_expected, false))
+	t.Run("Verify Create and replace on sibling singleton containers in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", put_sensor_timer_expected, false))
+	t.Run("Verify replace on sibling singleton containers to list in sonic yang table node", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", put_sensor_device_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_replace_on_sonic_list_instance_sibling_to_singleton_container +++++++++++++")
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/TEST_SENSOR_GLOBAL_LIST[device_name=test_device][device_id=32]"
+
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description"}}}
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	// Payload
+	put_payload = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\",\"device_id\": 32, \"device_status\": \"OFF\"}]}"
+	put_sensor_device_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"test_device|32": map[string]interface{}{"device_status": "OFF"}}}
+
+	t.Run("Put on sonic yang node list, sibling to singleton container", processSetRequest(url, put_payload, "PUT", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify put/create on  sonic yang node list, sibling to singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", put_sensor_device_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
@@ -471,19 +573,72 @@ func Test_singleton_sonic_yang_node_operations(t *testing.T) {
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
-	t.Log("++++++++++++++  Test_get_on_sonic_singleton_container  +++++++++++++")
+	t.Log("++++++++++++++  Test_delete_on_whole_sibling_list_to_singleton_sonic_container  +++++++++++++")
 
-	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "mode_test", "description": "test description for single container"}}}
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/TEST_SENSOR_GLOBAL_LIST"
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "test_device|32": map[string]interface{}{"device_status": "OFF"}, "test_device|54": map[string]interface{}{"device_status": "ON"}}}
+	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "test_device|32": "", "test_device|54": ""}}
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	delete_expected = make(map[string]interface{})
+	delete_expected_global_sensor := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}}}
+
+	t.Run("Delete on singleton sonic container", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify delete on whole sibling list to singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", delete_expected, false))
+	t.Run("Verify delete on whole sibling list to singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|54", delete_expected, false))
+	t.Run("Verify delete on whole sibling list to singleton container", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", delete_expected_global_sensor, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_delete_on_table_with_mutiple_sibling_singleton_sonic_containers_and_sibling_list  +++++++++++++")
+
 	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "test_device|32": map[string]interface{}{"device_status": "OFF"}}}
+	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": "", "test_device|32": ""}}
 
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
 
-	get_expected := "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"mode_test\", \"description\": \"test description for single container\" }}}"
+	delete_expected = make(map[string]interface{})
+
+	t.Run("Delete on table with mutiple sibling singleton sonic containers and sibling list", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify delete on table with mutiple sonic singleton container and sibling list(global_sensor)", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", delete_expected, false))
+	t.Run("Verify delete on table with mutiple sonic singleton container and sbling list(global_sensor_timer)", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor_timer", delete_expected, false))
+	t.Run("Verify delete on table with mutiple sonic singleton containerand sibling list(test_device|32)", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|test_device|32", delete_expected, false))
+
+	t.Log("++++++++++++++  Test_get_on_sonic_singleton_container  +++++++++++++")
+
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "mode_test", "description": "test description for single container"}}}
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor"
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	get_expected := "{\"sonic-test-xfmr:global_sensor\": { \"mode\": \"mode_test\", \"description\": \"test description for single container\" }}"
 	t.Run("Get on Sonic singleton container", processGetRequest(url, nil, get_expected, false))
 
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_get_on_table_with_mutiple_sibling_singleton_sonic_containers_and_sibling_list  +++++++++++++")
+
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL"
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "test description for testmode", "reset_time": 25}, "global_sensor_timer": map[string]interface{}{"timer_mode": "sample", "timer_description": "test sample timer mode", "reset_time": 30}, "test_device|32": map[string]interface{}{"device_status": "OFF"}}}
+	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": "", "global_sensor_timer": "", "test_device|32": ""}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	get_expected = "{\"sonic-test-xfmr:TEST_SENSOR_GLOBAL\":{ \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"test description for testmode\", \"reset_time\":25 },\"global_sensor_timer\": { \"timer_mode\": \"sample\", \"timer_description\": \"test sample timer mode\", \"reset_time\":30}, \"TEST_SENSOR_GLOBAL_LIST\": [{\"device_name\": \"test_device\",\"device_id\": 32, \"device_status\": \"OFF\"}]}}"
+	t.Run("Get on Sonic table with mutiple sonic singleton containers and sibling list", processGetRequest(url, nil, get_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
 }
 
 // Query parameter UT cases
@@ -643,91 +798,177 @@ func Test_Query_Params_OC_Yang_Get(t *testing.T) {
 /* sonic yang GET operation query-parameter tests */
 func Test_sonic_yang_content_query_parameter_operations(t *testing.T) {
 	var qp queryParamsUT
-
+	prereq_config_db := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}},
+		"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"eth0": "10m"}}}
+	prereq_nonconfig_db := map[string]interface{}{"TEST_SENSOR_MODE_TABLE": map[string]interface{}{"mode:testsensor123:3543": map[string]interface{}{"description": "Test sensor mode"}}}
+	//Setup
+	loadDB(db.ConfigDB, prereq_config_db)
+	loadDB(db.CountersDB, prereq_nonconfig_db)
 	t.Log("++++++++++++++  Test_content_all_query_parameter_on_sonic_yang  +++++++++++++")
-	prereq_sensor_global := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}}}
-	prereq_sensor_mode := map[string]interface{}{"TEST_SENSOR_MODE_TABLE": map[string]interface{}{"mode:testsensor123:3543": map[string]interface{}{"description": "Test sensor mode"}}}
+	//covers singleton container and nested list
 	url := "/sonic-test-xfmr:sonic-test-xfmr"
 	qp.content = "all"
-	//Setup
-	loadDB(db.ConfigDB, prereq_sensor_global)
-	loadDB(db.CountersDB, prereq_sensor_mode)
-	get_expected := "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
+	get_expected := "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_CABLE_LENGTH\":{\"TEST_CABLE_LENGTH_LIST\": [{\"name\": \"testcable_01\",\"TEST_CABLE_LENGTH\": [{\"length\": \"10m\",\"port\": \"eth0\"}]}]},\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
 	t.Run("Sonic yang query parameter content=all", processGetRequest(url, &qp, get_expected, false))
 
 	t.Log("++++++++++++++  Test_content_config_query_parameter_on_sonic_yang  +++++++++++++")
+	//URI target is top-level container
 	url = "/sonic-test-xfmr:sonic-test-xfmr"
 	qp.content = "config"
-	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}}}}"
-	t.Run("Sonic yang query parameter content=config", processGetRequest(url, &qp, get_expected, false))
+	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_CABLE_LENGTH\":{\"TEST_CABLE_LENGTH_LIST\": [{\"name\": \"testcable_01\",\"TEST_CABLE_LENGTH\": [{\"length\": \"10m\",\"port\": \"eth0\"}]}]},\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}}}}"
+	t.Run("Sonic yang query parameter content=config(target is top-level container)", processGetRequest(url, &qp, get_expected, false))
+
+	//URI target is configurable nested whole list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH"
+	qp.content = "config"
+	get_expected = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\": [{\"length\": \"10m\",\"port\": \"eth0\"}]}"
+	t.Run("Sonic yang query parameter content=config(target is whole nested child list)", processGetRequest(url, &qp, get_expected, false))
+
+	//URI target is table level container
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH"
+	qp.content = "config"
+	get_expected = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":{\"TEST_CABLE_LENGTH_LIST\":[{\"TEST_CABLE_LENGTH\":[{\"length\":\"10m\",\"port\":\"eth0\"}],\"name\":\"testcable_01\"}]}}"
+	t.Run("Sonic yang query parameter content=config(target is table level container)", processGetRequest(url, &qp, get_expected, false))
+
+	//URI target is immediate child list of table
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST"
+	qp.content = "config"
+	get_expected = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH_LIST\": [{\"name\": \"testcable_01\",\"TEST_CABLE_LENGTH\": [{\"length\": \"10m\",\"port\": \"eth0\"}]}]}"
+	t.Run("Sonic yang query parameter content=config(target is immediate child list of table)", processGetRequest(url, &qp, get_expected, false))
+
+	//URI target is nested list leaf
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth0]/length"
+	qp.content = "config"
+	get_expected = "{\"sonic-test-xfmr:length\":\"10m\"}"
+	t.Run("Sonic yang query parameter content=config(target is nested list leaf)", processGetRequest(url, &qp, get_expected, false))
 
 	t.Log("++++++++++++++  Test_content_nonconfig_query_parameter_on_sonic_yang  +++++++++++++")
+	//URI target is top-level container
 	url = "/sonic-test-xfmr:sonic-test-xfmr"
 	qp.content = "nonconfig"
 	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
 	t.Run("Sonic yang query parameter content=nonconfig", processGetRequest(url, &qp, get_expected, false))
 
+	//URI target is configutable nested whole list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH"
+	qp.content = "nonconfig"
+	get_expected = "{}"
+	t.Run("Sonic yang query parameter content=nonconfig(target is whole nested child list)", processGetRequest(url, &qp, get_expected, false))
+
 	t.Log("++++++++++++++  Test_content_mismatch_error_query_parameter_on_sonic_yang  +++++++++++++")
+	//URI target is nonconfigurable leaf
 	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_MODE_TABLE/TEST_SENSOR_MODE_TABLE_LIST[id=3543][mode=testsensor123]/description"
 	qp.content = "config"
-	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
 	get_expected = "{}"
 	exp_err := tlerr.InvalidArgsError{Format: "Bad Request - requested content type doesn't match content type of terminal node uri."}
 	t.Run("Sonic yang query parameter simple terminal node content mismatch error.", processGetRequest(url, &qp, get_expected, true, exp_err))
+
+	//URI target is nested list leaf
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth0]/length"
+	qp.content = "nonconfig"
+	get_expected = "{}"
+	t.Run("Sonic yang query parameter nested list leaf content mismatch error", processGetRequest(url, &qp, get_expected, true, exp_err))
+
 	// Teardown
-	unloadDB(db.ConfigDB, prereq_sensor_global)
-	unloadDB(db.CountersDB, prereq_sensor_mode)
+	unloadDB(db.ConfigDB, prereq_config_db)
+	unloadDB(db.CountersDB, prereq_nonconfig_db)
 
 }
 
 func Test_sonic_yang_depth_query_parameter_operations(t *testing.T) {
 	var qp queryParamsUT
 
+	prereq := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}},
+		"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"eth0": "10m", "eth1": "11m"},
+			"testcable_02": map[string]interface{}{"eth2": "22m"}}}
+
 	t.Log("++++++++++++++  Test_depth_level_1_query_parameter_on_sonic_yang  +++++++++++++")
-	prereq_sensor_global := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}}}
+	//URI target is singleton container leaf
 	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/description"
 	qp.depth = 1
 	//Setup
-	loadDB(db.ConfigDB, prereq_sensor_global)
+	loadDB(db.ConfigDB, prereq)
 	get_expected := "{\"sonic-test-xfmr:description\":\"testdescription\"}"
-	t.Run("Sonic yang query parameter depth=1", processGetRequest(url, &qp, get_expected, false))
+	t.Run("Sonic yang query parameter depth=1(target is singleton container leaf)", processGetRequest(url, &qp, get_expected, false))
+
+	//URI target is nested child  list-instance of table-list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth0]"
+	qp.depth = 1
+	get_expected = "{}"
+	t.Run("Sonic yang query parameter depth=1(target is nested child list-instance of table-list)", processGetRequest(url, &qp, get_expected, false))
+
+	//URI target is nested list leaf
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth0]/length"
+	qp.depth = 1
+	get_expected = "{\"sonic-test-xfmr:length\":\"10m\"}"
+	t.Run("Sonic yang query parameter depth=1(target is nested list leaf)", processGetRequest(url, &qp, get_expected, false))
 
 	t.Log("++++++++++++++  Test_depth_level_2_query_parameter_on_sonic_yang  +++++++++++++")
+	//URI target is singleton container
 	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor"
 	qp.depth = 2
 	get_expected = "{\"sonic-test-xfmr:global_sensor\":{\"description\":\"testdescription\"}}"
-	t.Run("Sonic yang query parameter depth=2", processGetRequest(url, &qp, get_expected, false))
+	t.Run("Sonic yang query parameter depth=2(target is singleton container)", processGetRequest(url, &qp, get_expected, false))
+
+	//URI target is table-list having a nested child list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST"
+	qp.depth = 2
+	get_expected = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH_LIST\": [{\"name\": \"testcable_01\"},{\"name\": \"testcable_02\"}]}"
+	t.Run("Sonic yang query parameter depth=2(target is table-list having a nested child list)", processGetRequest(url, &qp, get_expected, false))
+
+	//URI target is nested child whole-list of table-list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH"
+	qp.depth = 2
+	get_expected = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\": [{\"length\": \"10m\",\"port\": \"eth0\"},{\"length\": \"11m\",\"port\": \"eth1\"}]}"
+	t.Run("Sonic yang query parameter depth=2(target is nested child list of table-list)", processGetRequest(url, &qp, get_expected, false))
+
+	t.Log("++++++++++++++  Test_depth_level_3_query_parameter_on_sonic_yang  +++++++++++++")
+	//URI target is table-list having a nested child list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST"
+	qp.depth = 3
+	get_expected = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH_LIST\": [{\"name\": \"testcable_01\",\"TEST_CABLE_LENGTH\": [{\"length\": \"10m\",\"port\": \"eth0\"},{\"length\": \"11m\",\"port\": \"eth1\"}]},{\"name\": \"testcable_02\", \"TEST_CABLE_LENGTH\": [{\"length\": \"22m\",\"port\": \"eth2\"}]}]}"
+	t.Run("Sonic yang query parameter depth=3(target is table-list having a nested child list)", processGetRequest(url, &qp, get_expected, false))
 
 	t.Log("++++++++++++++  Test_depth_level_4_query_parameter_on_sonic_yang  +++++++++++++")
+	//URI target is top-level container and covers singleton and nested list
 	url = "/sonic-test-xfmr:sonic-test-xfmr"
 	qp.depth = 4
-	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}}}}"
-	t.Run("Sonic yang query parameter depth=4", processGetRequest(url, &qp, get_expected, false))
+	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\": {\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_CABLE_LENGTH\": {\"TEST_CABLE_LENGTH_LIST\": [{\"name\": \"testcable_01\"},{\"name\": \"testcable_02\"}]}}}"
+	t.Run("Sonic yang query parameter depth=4(target is nested child list of table-list)", processGetRequest(url, &qp, get_expected, false))
+
+	t.Log("++++++++++++++  Test_depth_level_5_query_parameter_on_sonic_yang  +++++++++++++")
+	//URI target is top-level container and covers singleton and nested list
+	url = "/sonic-test-xfmr:sonic-test-xfmr"
+	qp.depth = 5
+	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\": {\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_CABLE_LENGTH\":{\"TEST_CABLE_LENGTH_LIST\": [{\"name\": \"testcable_01\",\"TEST_CABLE_LENGTH\": [{\"length\": \"10m\",\"port\": \"eth0\"},{\"length\": \"11m\",\"port\": \"eth1\"}]},{\"name\": \"testcable_02\", \"TEST_CABLE_LENGTH\": [{\"length\": \"22m\",\"port\": \"eth2\"}]}]}}}"
+	t.Run("Sonic yang query parameter depth=5", processGetRequest(url, &qp, get_expected, false))
 	// Teardown
-	unloadDB(db.ConfigDB, prereq_sensor_global)
+	unloadDB(db.ConfigDB, prereq)
 }
 
 func Test_sonic_yang_content_plus_depth_query_parameter_operations(t *testing.T) {
 	var qp queryParamsUT
 
-	prereq_sensor_global := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}}}
-	prereq_sensor_mode := map[string]interface{}{"TEST_SENSOR_MODE_TABLE": map[string]interface{}{"mode:testsensor123:3543": map[string]interface{}{"description": "Test sensor mode"}}}
+	prereq_config_db := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription"}},
+		"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"eth0": "10m"}}}
+	prereq_nonconfig_db := map[string]interface{}{"TEST_SENSOR_MODE_TABLE": map[string]interface{}{"mode:testsensor123:3543": map[string]interface{}{"description": "Test sensor mode"}}}
+	//Setup
+	loadDB(db.ConfigDB, prereq_config_db)
+	loadDB(db.CountersDB, prereq_nonconfig_db)
+
 	t.Log("++++++++++++++  Test_content_all_depth_level_4_query_parameter_on_sonic_yang  +++++++++++++")
 	url := "/sonic-test-xfmr:sonic-test-xfmr"
 	qp.depth = 4
 	qp.content = "all"
-	//Setup
-	loadDB(db.ConfigDB, prereq_sensor_global)
-	loadDB(db.CountersDB, prereq_sensor_mode)
-	get_expected := "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
+	get_expected := "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_CABLE_LENGTH\":{\"TEST_CABLE_LENGTH_LIST\": [{\"name\": \"testcable_01\"}]},\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}},\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
 	t.Run("Sonic yang query parameter content=all depth=4", processGetRequest(url, &qp, get_expected, false))
 
-	t.Log("++++++++++++++  Test_content_config_depth_level_4_query_parameter_on_sonic_yang  +++++++++++++")
+	t.Log("++++++++++++++  Test_content_config_depth_level_5_query_parameter_on_sonic_yang  +++++++++++++")
 	url = "/sonic-test-xfmr:sonic-test-xfmr"
-	qp.depth = 4
+	qp.depth = 5
 	qp.content = "config"
-	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}}}}"
-	t.Run("Sonic yang query parameter content=config depth=4", processGetRequest(url, &qp, get_expected, false))
+	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_CABLE_LENGTH\":{\"TEST_CABLE_LENGTH_LIST\": [{\"name\": \"testcable_01\",\"TEST_CABLE_LENGTH\": [{\"length\": \"10m\",\"port\": \"eth0\"}]}]},\"TEST_SENSOR_GLOBAL\":{\"global_sensor\":{\"description\":\"testdescription\"}}}}"
+	t.Run("Sonic yang query parameter content=config depth=5", processGetRequest(url, &qp, get_expected, false))
 
 	t.Log("++++++++++++++  Test_content_nonconfig_depth_level_4_query_parameter_on_sonic_yang  +++++++++++++")
 	url = "/sonic-test-xfmr:sonic-test-xfmr"
@@ -736,8 +977,8 @@ func Test_sonic_yang_content_plus_depth_query_parameter_operations(t *testing.T)
 	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"Test sensor mode\",\"id\":3543,\"mode\":\"mode:testsensor123\"}]}}}"
 	t.Run("Sonic yang query parameter content=nonconfig depth=4", processGetRequest(url, &qp, get_expected, false))
 	// Teardown
-	unloadDB(db.ConfigDB, prereq_sensor_global)
-	unloadDB(db.CountersDB, prereq_sensor_mode)
+	unloadDB(db.ConfigDB, prereq_config_db)
+	unloadDB(db.CountersDB, prereq_nonconfig_db)
 }
 
 func Test_sonic_yang_fields_query_parameter_operations(t *testing.T) {
@@ -830,7 +1071,7 @@ func Test_NodeWithListHavingConfigLeafRefByKey_OC_Yang(t *testing.T) {
 	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups"
 	// Payload
 	post_payload := "{\"openconfig-test-xfmr:test-sensor-group\":[ { \"id\" : \"test_group_1\", \"config\": { \"id\": \"test_group_1\"} } ]}"
-	post_sensor_group_expected := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"NULL": "NULL", "color-hold-time": "10"}}}
+	post_sensor_group_expected := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"color-hold-time": "10"}}}
 	t.Run("Set on OC-Yang node with list having config leaf referenced by list key.", processSetRequest(url, post_payload, "POST", false))
 	time.Sleep(1 * time.Second)
 	t.Run("Verify set on OC-Yang node with list having config leaf referenced by list key.", verifyDbResult(rclient, "TEST_SENSOR_GROUP|test_group_1", post_sensor_group_expected, false))
@@ -912,7 +1153,7 @@ func Test_sonic_yang_default_value_handling(t *testing.T) {
 	unloadDB(db.ConfigDB, pre_req)
 	url := "/sonic-test-xfmr:sonic-test-xfmr"
 	post_payload := "{ \"sonic-test-xfmr:TEST_SENSOR_GROUP\": { \"TEST_SENSOR_GROUP_LIST\": [ { \"id\": \"test_group_1\" } ] }, \"sonic-test-xfmr:TEST_SENSOR_GLOBAL\": { \"global_sensor\": { \"mode\": \"testmode\", \"description\": \"testdescription\"} }}"
-	sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription", "mode": "testmode", "reset-time": 5}}}
+	sensor_global_expected := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"description": "testdescription", "mode": "testmode", "reset_time": 5}}}
 	sensor_group_expected := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"color-hold-time": 10}}}
 	t.Run("Test set on sonic yang where default value for a node not present in payload.", processSetRequest(url, post_payload, "POST", false, nil))
 	t.Run("Verify set on sonic yang where default value for a node not present in payload for list node", verifyDbResult(rclient, "TEST_SENSOR_GROUP|test_group_1", sensor_group_expected, false))
@@ -921,11 +1162,11 @@ func Test_sonic_yang_default_value_handling(t *testing.T) {
 	unloadDB(db.ConfigDB, pre_req)
 
 	t.Log("++++++++++++++  Test_delete_reseting_sonic_yang_leaf_node_to_default  +++++++++++++")
-	pre_req = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset-time": 19}}}
+	pre_req = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset_time": 19}}}
 	//setup
 	loadDB(db.ConfigDB, pre_req)
-	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/reset-time"
-	sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset-time": 5}}}
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_SENSOR_GLOBAL/global_sensor/reset_time"
+	sensor_global_expected = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "reset_time": 5}}}
 	t.Run("Test delete reseting sonic yang leaf node to default", processDeleteRequest(url, false))
 	t.Run("Verify delete reseting sonic yang leaf node to default", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", sensor_global_expected, false))
 	//Teardown
@@ -977,4 +1218,56 @@ func Test_Validate_Handler_Get(t *testing.T) {
 	t.Run("Test Get on list with children having validate handler", processGetRequest(url, nil, get_expected, false))
 	// Teardown
 	unloadDB(db.ConfigDB, prereq)
+}
+
+func Test_Sonic_NestedList_Delete(t *testing.T) {
+	prereq := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"eth0": "10m", "eth1": "20m"},
+		"testcable_02": map[string]interface{}{"eth0": "30m"}}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	//Delete targeted on nested non-key leaf when nested list instance doesn't exist in DB
+	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth4]/length"
+	exp_err_res_not_found := tlerr.NotFoundError{Format: "Resource not found"}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on non-key leaf when nested list instance doesn't exist in DB +++++++++++++")
+	t.Run("DELETE on nested list non-key leaf when nested list instance doesn't exist in DB", processDeleteRequest(url, true, exp_err_res_not_found))
+
+	//Delete targeted on nested non-key leaf when nested list instance exists in DB
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth0]/length"
+	exp_err_not_supp := tlerr.NotSupportedError{Format: "DELETE not supported"}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on non-key leaf when nested list instance exists in DB +++++++++++++")
+	t.Run("DELETE on nested list non-key leaf when nested list instance exists in DB", processDeleteRequest(url, true, exp_err_not_supp))
+
+	//Delete targeted on nested list instance and that instance doesn't exist in DB
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth4]"
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on nested list instance and that instance doesn't exist in DB +++++++++++++")
+	t.Run("DELETE on nested list instance and that instance doesn't exist in DB", processDeleteRequest(url, true, exp_err_res_not_found))
+
+	//Delete targeted on nested list instance and that instance exists in DB
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH[port=eth0]"
+	expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"eth1": "20m"}}}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on nested list instance and that instance exists in DB +++++++++++++")
+	t.Run("DELETE on nested list instance and that instance exists in DB", processDeleteRequest(url, false))
+	t.Run("DELETE on nested list instance and that instance exists in DB - verify other instance of nested list still exists and the one deleted doesn't exist", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testcable_01", expected_map, false))
+
+	//Delete targeted on whole nested list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]/TEST_CABLE_LENGTH"
+	expected_map = map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"NULL": "NULL"}}}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on whole nested list +++++++++++++")
+	t.Run("DELETE on whole nested list", processDeleteRequest(url, false))
+	t.Run("DELETE on whole nested list - verify that all nested list instances are replaced by NULL/NULL preserving parent list instance", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testcable_01", expected_map, true))
+
+	//Delete targetted at list instance that has nested child list
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testcable_01]"
+	expected_map_testcable_01 := map[string]interface{}{}
+	expected_map_testcable_02 := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_02": map[string]interface{}{"eth0": "30m"}}}
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Delete on list instance that has nested child list +++++++++++++")
+	t.Run("DELETE on list instance that has nested child list", processDeleteRequest(url, false))
+	t.Run("DELETE on list instance that has nested child list - verify that only that parent list instance is deleted and other instnaces are instact(testcable_01 is deleted)", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testcable_01", expected_map_testcable_01, false))
+	t.Run("DELETE on list instance that has nested child list - verify that only that parent list instance is deleted and other instnaces are instact(testcable_02 is instact)", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testcable_02", expected_map_testcable_02, false))
+
+	//Teardown
+	unloadDB(db.ConfigDB, prereq)
+
 }
