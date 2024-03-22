@@ -2973,7 +2973,7 @@ func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string,
 					return nil
 				} else {
 					xfmrLogInfo("Field %v doesn't exist in table - %v, instance - %v", fieldNm, tableNm, key)
-					return tlerr.NotFoundError{Format: "Resource not found."}
+					return tlerr.NotFoundError{Format: "Resource not found"}
 				}
 			} else {
 				errStr := fmt.Sprintf("Could not extract value for key %v from uri %v", nestedListYangKeyName, uri)
