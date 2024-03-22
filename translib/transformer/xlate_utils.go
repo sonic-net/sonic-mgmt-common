@@ -1497,7 +1497,8 @@ func dbDataXfmrHandler(resultMap map[Operation]map[db.DBNum]map[string]map[strin
 								}
 								/* check & invoke value-xfmr */
 								fldXpath := tblName + "/" + fldName
-								if fInfo, ok := xDbSpecMap[fldXpath]; ok && fInfo.xfmrValue != nil {
+								fInfo, ok := xDbSpecMap[fldXpath]
+								if ok && fInfo.xfmrValue != nil {
 									inParams := formXfmrDbInputRequest(oper, dbNum, tblName, dbKey, fld, val)
 									retVal, err := valueXfmrHandler(inParams, *fInfo.xfmrValue)
 									if err != nil {
@@ -1506,6 +1507,12 @@ func dbDataXfmrHandler(resultMap map[Operation]map[db.DBNum]map[string]map[strin
 										return err
 									}
 									resultMap[oper][dbNum][tblName][dbKey].Field[fld] = retVal
+								} else if !ok {
+									// Check if its a nested list case and apply the value transformation for its leaves
+									err := applyValueXfmronDbMapForNestedList(tblName, fld, val, dbKey, oper, dbNum, resultMap)
+									if err != nil {
+										return err
+									}
 								}
 							}
 
@@ -1732,7 +1739,7 @@ func splitUri(uri string) []string {
 	return pathList
 }
 
-func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bool, error) {
+func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bool, error, db.Value) {
 	var err error
 	// Read the table entry from DB
 	if len(tableName) > 0 {
@@ -1742,7 +1749,7 @@ func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bo
 			}
 			retKey, err := dbKeyValueXfmrHandler(oper, d.Opts.DBNo, tableName, dbKey, false)
 			if err != nil {
-				return false, err
+				return false, err, db.Value{}
 			}
 			xfmrLogDebug("dbKeyValueXfmrHandler() returned db key %v", retKey)
 			dbKey = retKey
@@ -1755,29 +1762,28 @@ func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bo
 			if derr != nil {
 				log.Warningf("Failed to get keys for tbl(%v) dbKey pattern %v error: %v", tableName, dbKey, derr)
 				err = tlerr.NotFound("Resource not found")
-				return false, err
+				return false, err, db.Value{}
 			}
 			xfmrLogDebug("keys for table %v are %v", tableName, keys)
 			if len(keys) > 0 {
-				return true, nil
+				return true, nil, db.Value{}
 			} else {
 				log.Warningf("dbKey %v does not exist in DB for table %v", dbKey, tableName)
 				err = tlerr.NotFound("Resource not found")
-				return false, err
+				return false, err, db.Value{}
 			}
 		} else {
-
 			existingEntry, derr := d.GetEntry(dbTblSpec, db.Key{Comp: []string{dbKey}})
 			if derr != nil {
 				log.Warningf("GetEntry failed for table: %v, key: %v err: %v", tableName, dbKey, derr)
 				err = tlerr.NotFound("Resource not found")
-				return false, err
+				return false, err, db.Value{}
 			}
-			return existingEntry.IsPopulated(), err
+			return existingEntry.IsPopulated(), err, existingEntry
 		}
 	} else {
 		log.Warning("Empty table name received")
-		return false, nil
+		return false, nil, db.Value{}
 	}
 }
 
@@ -2048,6 +2054,17 @@ func getXfmrSpecInfoFromUri(uri string) (interface{}, error) {
 			tableName = tokens[SONIC_TABLE_INDEX]
 			dbSpecXpath = tableName + "/" + fieldName
 			specInfo, xpathInSpecMapOk = xDbSpecMap[dbSpecXpath]
+			if !xpathInSpecMapOk {
+				// Check if xpath points to inner list
+				sncFldInxXpath := tableName + "/" + tokens[SONIC_TBL_CHILD_INDEX] + "/" + fieldName
+				specInfo, xpathInSpecMapOk = xDbSpecMap[sncFldInxXpath]
+				if len(tokens)-1 == SONIC_NESTEDLIST_FIELD_INDEX { // Nested list field case
+					nested_list_leaf := tokens[SONIC_NESTEDLIST_FIELD_INDEX]
+					xpath = tableName + "/" + nested_list_leaf
+					specInfo, xpathInSpecMapOk = xDbSpecMap[xpath]
+				}
+			}
+
 		} else if len(tokens) > SONIC_TBL_CHILD_INDEX {
 			tableName = tokens[SONIC_TABLE_INDEX]
 			tblChldName = tokens[SONIC_TBL_CHILD_INDEX]
@@ -2125,7 +2142,7 @@ func contentQParamTgtEval(uri string, qParams QueryParams) (bool, error) {
 			if yangType == YANG_LEAF || yangType == YANG_LEAF_LIST {
 				pathList := strings.Split(yangXpath, "/")
 				if len(pathList) > SONIC_FIELD_INDEX {
-					dbXpath := pathList[SONIC_TABLE_INDEX] + "/" + pathList[SONIC_FIELD_INDEX]
+					dbXpath := pathList[SONIC_TABLE_INDEX] + "/" + pathList[len(pathList)-1]
 					yangEntry = getYangEntryForXPath(dbXpath)
 				}
 			} else {
@@ -2353,17 +2370,46 @@ func escapeKeyValForSplitPathAndNewPathInfo(val string) string {
 func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 	var err error
 	curAllowedXpath := ""
-	if len(strings.Split(inParamsForGet.xpath, "/")) > 2 {
-		curAllowedXpath = strings.Split(inParamsForGet.xpath, "/")[2]
+	tokens := strings.Split(inParamsForGet.xpath, "/")
+	nestedlist := false
+
+	if len(tokens) > SONIC_TABLE_INDEX {
+		// Add table to the allowed path
+		curAllowedXpath = tokens[SONIC_TABLE_INDEX]
 	}
 	if len(curAllowedXpath) > 0 {
 		inParamsForGet.queryParams.allowFieldsXpath[curAllowedXpath] = true
 	}
+
+	// If the query is for nested list, the table list and the inner list is already added to the allowed fields Xpath list above.
+	// Here we add the ouer list xpath entry in allowed fields
+	if len(tokens) > SONIC_FIELD_INDEX {
+		tableListXpath := tokens[SONIC_TABLE_INDEX] + "/" + tokens[SONIC_TBL_CHILD_INDEX]
+		innerListXpath := tableListXpath + "/" + tokens[SONIC_FIELD_INDEX]
+		dbTblListChldNode, ok := xDbSpecMap[innerListXpath]
+		if ok && dbTblListChldNode != nil && dbTblListChldNode.dbEntry != nil && dbTblListChldNode.dbEntry.IsList() {
+			inParamsForGet.queryParams.allowFieldsXpath[tableListXpath] = true
+		}
+	}
+	if len(tokens) > SONIC_TBL_CHILD_INDEX {
+		tableListXpath := tokens[SONIC_TABLE_INDEX] + "/" + tokens[SONIC_TBL_CHILD_INDEX]
+		dbTblListSpecInfo, ok := xDbSpecMap[tableListXpath]
+		if ok && dbTblListSpecInfo != nil && len(dbTblListSpecInfo.listName) > 0 {
+			nestedlist = true
+		}
+	}
+
 	for _, field := range inParamsForGet.queryParams.fields {
 		curXpath := inParamsForGet.tbl
-		curAllowedXpath = strings.Join(strings.Split(inParamsForGet.xpath, "/")[2:], "/")
+		// Add target xpath to the allowed path
+		curAllowedXpath = strings.Join(tokens[SONIC_TABLE_INDEX:], "/")
 		fpath := strings.Split(field, "/")
 		curTable := inParamsForGet.tbl
+		if nestedlist {
+			curXpath += "/" + tokens[SONIC_TBL_CHILD_INDEX]
+
+		}
+
 		for _, p := range fpath {
 			if strings.Contains(p, "[") {
 				err = tlerr.NotSupported("Yang node type list not supported in fields query parameter(%v).", field)
@@ -2382,6 +2428,7 @@ func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 			yNode, ok := xDbSpecMap[curXpath]
 			if !ok || yNode == nil {
 				err = tlerr.InvalidArgs("Invalid field name/path: %v", field)
+				xfmrLogInfo("Unable to process field - %v, xpath not found in xDbSpecMap %v", field, curXpath)
 				return err
 			}
 			/* check for list */
@@ -2393,6 +2440,7 @@ func validateAndFillSonicQpFields(inParamsForGet xlateFromDbParams) error {
 				curAllowedXpath = curXpath
 				curXpath = curTable
 			}
+
 			inParamsForGet.queryParams.allowFieldsXpath[curAllowedXpath] = true
 		}
 		if _, ok := inParamsForGet.queryParams.tgtFieldsXpathMap[curXpath]; !ok {
@@ -2529,24 +2577,40 @@ func getYangEntryForXPath(xpath string) *yang.Entry {
 				field := dbPathList[1]
 				yNd, tok := xDbSpecMap[table]
 				if tok && yNd.yangType == YANG_CONTAINER && yNd.dbEntry != nil {
+					// Traverse the Table container child(List/Singleton container) Node
 					for _, chldNode := range yNd.dbEntry.Dir {
 						if chldNode == nil {
 							continue
 						}
+						// Terminal node is child of table child container(List or singleton container)
 						if chEntry, cok := chldNode.Dir[field]; cok {
 							entry = chEntry
 							break
 						}
 					}
 					if entry == nil {
+						// Traverse the Table container child(List) Node
 						for _, tblChldNode := range yNd.dbEntry.Dir {
 							if tblChldNode == nil {
 								continue
 							}
+							// Traverse the child of table level list Node
 							for _, chNode := range tblChldNode.Dir {
 								if chNode == nil {
 									continue
 								}
+								// Check for nested list case and handle it
+								xpathList := table + "/" + tblChldNode.Name
+								xpathInnerList := xpathList + "/" + chNode.Name
+								dbTblListSpecInfo, listOk := xDbSpecMap[xpathList]
+								_, innerListOk := xDbSpecMap[xpathInnerList]
+								if listOk && len(dbTblListSpecInfo.listName) > 0 && innerListOk {
+									if chEntry, cok := chNode.Dir[field]; cok {
+										entry = chEntry
+										goto done
+									}
+								}
+								// Handle choice-case yang nodes
 								if chNode.Kind == yang.ChoiceEntry {
 									for _, caNode := range chNode.Dir {
 										if caNode == nil {
@@ -2849,4 +2913,126 @@ func verifyPartialKeyForOc(uri string, xpath string, dbKey string) bool {
 	}
 	xfmrLogInfo("Verify Partial key for uri %v, key %v returns %v", uri, dbKey, isPartialKey)
 	return isPartialKey
+}
+
+// Check if the table has a nested list
+func hasSonicNestedList(tblName string) (bool, *dbInfo) {
+	hasNestedList := false
+	innerListSpecInfo := &dbInfo{}
+	dbSpecInfo, ok := xDbSpecMap[tblName]
+	if ok && dbSpecInfo != nil {
+		// Currently in nested list case, we have only one parent outer list child to table container
+		// Sibling nested lists are not supported.
+		// If sibling nested list cases are introduced in sonic yang the return values to reflect the list of dbInfos for all the nested list entries available
+
+		for _, list := range dbSpecInfo.listName {
+			listXpath := tblName + "/" + list
+			if listSpecInfo, lok := xDbSpecMap[listXpath]; lok {
+				// We always expect only one inner list entry for each outer list
+				if len(listSpecInfo.listName) == 1 {
+					innerListXpath := listXpath + "/" + listSpecInfo.listName[0]
+					if innerListSpecInfo, ok = xDbSpecMap[innerListXpath]; ok {
+						hasNestedList = true
+						break
+					}
+				}
+			}
+		}
+	}
+	return hasNestedList, innerListSpecInfo
+}
+
+func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, data map[string]map[string]db.Value, oper Operation) error {
+	/* this function will process sonic yang nested list Get case and perform resource check for it*/
+	xfmrLogDebug("Process Sonic Nested List Get Request %v", uri)
+
+	dbSpecPath := tableNm + "/" + parentListNm + "/" + nestedListNm
+	nestedListDbSpecInfo, ok := xDbSpecMap[dbSpecPath]
+	if !ok && nestedListDbSpecInfo == nil || nestedListDbSpecInfo.dbEntry == nil {
+		errStr := fmt.Sprintf("No entry found in transformer sonic yang spec for path %v", dbSpecPath)
+		xfmrLogInfo(errStr)
+		return tlerr.InternalError{Format: errStr, Path: uri}
+	}
+
+	//nested list case
+	if nestedListDbSpecInfo.yangType == YANG_LIST && nestedListDbSpecInfo.dbEntry.Parent.IsList() {
+		if strings.HasSuffix(uri, nestedListNm) || strings.HasSuffix(uri, nestedListNm+"/") {
+			// request target is nested whole list
+			return nil
+		} else { // request target is nested list-intance or nested list leaf
+			/*As per current sonic yang structure in community, nested list has only one key leaf that
+			  corresponds to dynamic field-name case
+			*/
+			if oper == REPLACE && (strings.HasSuffix(uri, "]") || strings.HasSuffix(uri, "]/")) {
+				return nil
+			}
+			nestedListYangKeyName := nestedListDbSpecInfo.dbEntry.Key
+			fieldNm := extractLeafValFromUriKey(uri, nestedListYangKeyName)
+			if fieldNm != "" {
+				if _, fieldOk := data[tableNm][key].Field[fieldNm]; fieldOk {
+					return nil
+				} else {
+					xfmrLogInfo("Field %v doesn't exist in table - %v, instance - %v", fieldNm, tableNm, key)
+					return tlerr.NotFoundError{Format: "Resource not found"}
+				}
+			} else {
+				errStr := fmt.Sprintf("Could not extract value for key %v from uri %v", nestedListYangKeyName, uri)
+				xfmrLogInfo(errStr)
+				return tlerr.InternalError{Format: errStr, Path: uri}
+			}
+		}
+	} else { // non nested list case
+		errStr := fmt.Sprintf("For sonic yang only nested list supported, other type of yang node not supported %v", dbSpecPath)
+		xfmrLogInfo(errStr)
+		return tlerr.NotSupportedError{Format: errStr, Path: uri}
+	}
+
+	return nil
+}
+
+func applyValueXfmronDbMapForNestedList(tblName string, fld string, val string, dbKey string, oper Operation, dbNum db.DBNum, resultMap map[Operation]map[db.DBNum]map[string]map[string]db.Value) error {
+	nestedListOk, innerListSpecInfo := hasSonicNestedList(tblName)
+	if nestedListOk && innerListSpecInfo != nil {
+		// Apply value transformer for fields of inner list
+		// The inner list should have only 2 leaves including key leaf
+		// Key leaf represents fieldName and non key leaf contains the fieldName value
+		// Inner list should have only one key
+		keyLeaf := innerListSpecInfo.keyList[0]
+		nonKeyLeaf := ""
+		for leaf := range innerListSpecInfo.dbEntry.Dir {
+			if leaf != keyLeaf {
+				nonKeyLeaf = leaf
+				break
+			}
+		}
+		// Invoke value transformer for value of key field of inner list
+		keyLeafXpath := tblName + "/" + keyLeaf
+		keyRetVal := fld
+		nonKeyRetVal := val
+		if kInfo, kok := xDbSpecMap[keyLeafXpath]; kok && kInfo.xfmrValue != nil {
+			inParams := formXfmrDbInputRequest(oper, dbNum, tblName, dbKey, keyLeaf, fld)
+			ret, kerr := valueXfmrHandler(inParams, *kInfo.xfmrValue)
+			if kerr != nil {
+				log.Warningf("value-xfmr:fldpath(\"%v\") val(\"%v\"):err(\"%v\").",
+					keyLeafXpath, fld, kerr)
+				return kerr
+			}
+			keyRetVal = ret
+			delete(resultMap[oper][dbNum][tblName][dbKey].Field, fld)
+		}
+		nonKeyLeafXpath := tblName + "/" + nonKeyLeaf
+		if nkInfo, nkok := xDbSpecMap[nonKeyLeafXpath]; nkok && nkInfo.xfmrValue != nil {
+			// Invoke value transformer for value of non key field of inner list
+			inParams := formXfmrDbInputRequest(oper, dbNum, tblName, dbKey, nonKeyLeaf, val)
+			ret, nkerr := valueXfmrHandler(inParams, *nkInfo.xfmrValue)
+			if nkerr != nil {
+				log.Warningf("value-xfmr:fldpath(\"%v\") val(\"%v\"):err(\"%v\").",
+					nonKeyLeafXpath, val, nkerr)
+				return nkerr
+			}
+			nonKeyRetVal = ret
+		}
+		resultMap[oper][dbNum][tblName][dbKey].Field[keyRetVal] = nonKeyRetVal
+	}
+	return nil
 }

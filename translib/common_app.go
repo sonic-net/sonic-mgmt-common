@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/path"
@@ -679,7 +680,6 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 	var cmnAppTs *db.TableSpec
 	var xfmrTblLst []string
 	var resultTblLst []string
-	var isSonicYangReq bool
 
 	for tblNm := range dbMap {
 		xfmrTblLst = append(xfmrTblLst, tblNm)
@@ -687,9 +687,6 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 	resultTblLst, err = utils.SortAsPerTblDeps(xfmrTblLst)
 	if err != nil {
 		return err
-	}
-	if strings.HasPrefix(app.pathInfo.Path, "/sonic") {
-		isSonicYangReq = true
 	}
 
 	/* CVL sorted order is in child first, parent later order. CRU ops from parent first order */
@@ -716,6 +713,13 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 			for _, tblKey := range reverOrdDbKeyLst {
 				tblRw := tblVal[tblKey]
 				log.Info("Processing Table key ", tblKey)
+				existingEntry, _ := d.GetEntry(cmnAppTs, db.Key{Comp: []string{tblKey}})
+				if existingEntry.IsPopulated() && len(tblRw.Field) == 1 && (opcode == CREATE || opcode == UPDATE) {
+					/*If tbl/key in result map exists in Db and the resultmap has only NULL/NULL field then don't do Db oper */
+					if _, nullFieldOk := tblRw.Field["NULL"]; nullFieldOk {
+						continue
+					}
+				}
 				// REDIS doesn't allow to create a table instance without any fields
 				if tblRw.Field == nil {
 					tblRw.Field = map[string]string{"NULL": "NULL"}
@@ -726,7 +730,6 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 				if len(tblRw.Field) > 1 {
 					delete(tblRw.Field, "NULL")
 				}
-				existingEntry, _ := d.GetEntry(cmnAppTs, db.Key{Comp: []string{tblKey}})
 				switch opcode {
 				case CREATE:
 					if existingEntry.IsPopulated() {
@@ -746,10 +749,12 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						if tblRwDefaults, defaultOk := app.cmnAppYangDefValMap[tblNm][tblKey]; defaultOk {
 							log.Info("Entry ", tblKey, " doesn't exist so fill yang defined defaults - ", tblRwDefaults)
 							for fld, val := range tblRwDefaults.Field {
-								tblRw.Field[fld] = val
+								if _, fldOk := tblRw.Field[fld]; !fldOk {
+									tblRw.Field[fld] = val
+								}
 							}
 						}
-						if isSonicYangReq && len(tblRw.Field) > 1 {
+						if len(tblRw.Field) > 1 {
 							delete(tblRw.Field, "NULL")
 						}
 						log.Info("Processing Table row ", tblRw)
@@ -778,10 +783,12 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						if tblRwDefaults, defaultOk := app.cmnAppYangDefValMap[tblNm][tblKey]; defaultOk {
 							log.Info("Entry ", tblKey, " doesn't exist so fill defaults - ", tblRwDefaults)
 							for fld, val := range tblRwDefaults.Field {
-								tblRw.Field[fld] = val
+								if _, fldOk := tblRw.Field[fld]; !fldOk {
+									tblRw.Field[fld] = val
+								}
 							}
 						}
-						if isSonicYangReq && len(tblRw.Field) > 1 {
+						if len(tblRw.Field) > 1 {
 							delete(tblRw.Field, "NULL")
 						}
 						log.Info("Processing Table row ", tblRw)
@@ -799,10 +806,12 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 					if tblRwDefaults, defaultOk := app.cmnAppYangDefValMap[tblNm][tblKey]; defaultOk {
 						log.Info("For entry ", tblKey, ", being replaced, fill defaults - ", tblRwDefaults)
 						for fld, val := range tblRwDefaults.Field {
-							tblRw.Field[fld] = val
+							if _, fldOk := tblRw.Field[fld]; !fldOk {
+								tblRw.Field[fld] = val
+							}
 						}
 					}
-					if isSonicYangReq && len(tblRw.Field) > 1 {
+					if len(tblRw.Field) > 1 {
 						delete(tblRw.Field, "NULL")
 					}
 					log.Info("Processing Table row ", tblRw)
@@ -842,10 +851,13 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						}
 						if isTlNd && isPartialReplace(existingEntry, tblRw, auxRw) {
 							log.Info("Since its partial replace modifying fields - ", tblRw)
-							err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, tblRw)
-							if err != nil {
-								log.Warning("REPLACE case - d.ModEntry() failure")
-								return err
+							/*If tbl/key in result map has only NULL/NULL field then nothing to do as other fields are already present in the table instance(partialReplaceCase)  */
+							if _, nullFieldOk := tblRw.Field["NULL"]; (len(tblRw.Field) > 1) || (len(tblRw.Field) == 1 && !nullFieldOk) {
+								err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, tblRw)
+								if err != nil {
+									log.Warning("REPLACE case - d.ModEntry() failure")
+									return err
+								}
 							}
 							if auxRwOk {
 								if len(auxRw.Field) > 0 {
@@ -976,17 +988,33 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 					}
 					err = d.DeleteEntry(cmnAppTs, db.Key{Comp: []string{tblKey}})
 					if err != nil {
-						log.Warning("DELETE case - d.DeleteEntry() failure")
-						return err
+						switch e := err.(type) {
+						case tlerr.TranslibCVLFailure:
+							if cvl.CVLRetCode(e.Code) == cvl.CVL_SEMANTIC_KEY_NOT_EXIST {
+								log.Infof("Ignore delete that cannot be processed for table %v key %v that does not exist. err %v", tblNm, tblKey, e.CVLErrorInfo.ConstraintErrMsg)
+								err = nil
+							} else {
+								log.Warning("DELETE case - d.DeleteEntry() failure")
+								return err
+							}
+						default:
+							log.Warning("DELETE case - d.DeleteEntry() failure")
+							return err
+						}
 					}
 					log.Info("Finally deleted the parent table row with key = ", tblKey)
 				} else {
+					// In case we have FillFields available in the tblRw, do not send the request to DB.
+					if len(tblRw.Field) == 1 {
+						if tblRw.Has("FillFields") {
+							continue
+						}
+					}
 					log.Info("DELETE case - fields/cols to delete hence delete only those fields.")
 					existingEntry, exstErr := d.GetEntry(cmnAppTs, db.Key{Comp: []string{tblKey}})
 					if exstErr != nil {
-						log.Info("Table Entry from which the fields are to be deleted does not exist")
-						err = exstErr
-						return err
+						log.Info("Table Entry from which the fields are to be deleted does not exist. Ignore error for non existant instance for idempotency")
+						continue
 					}
 					/* handle leaf-list merge if any leaf-list exists */
 					resTblRw := checkAndProcessLeafList(existingEntry, tblRw, DELETE, d, tblNm, tblKey)

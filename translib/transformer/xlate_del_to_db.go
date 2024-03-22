@@ -847,11 +847,11 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 	if xlateParams.tableName != "" {
 		// Specific table entry case
 		xlateParams.result[xlateParams.tableName] = make(map[string]db.Value)
+		tokens := strings.Split(xlateParams.xpath, "/")
 		isFieldReq := false
+		var dbVal db.Value
 		if xlateParams.keyName != "" {
 			// Specific key case
-			var dbVal db.Value
-			tokens := strings.Split(xlateParams.xpath, "/")
 			if tokens[SONIC_TABLE_INDEX] == xlateParams.tableName {
 				fieldName := ""
 				if len(tokens) > SONIC_FIELD_INDEX {
@@ -864,6 +864,7 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 					dbEntry := getYangEntryForXPath(dbSpecField)
 					_, ok := xDbSpecMap[dbSpecField]
 					if ok && dbEntry != nil {
+
 						yangType := xDbSpecMap[dbSpecField].yangType
 						// terminal node case
 						if yangType == YANG_LEAF_LIST {
@@ -894,10 +895,54 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 							}
 							dbVal.Field[fieldName] = dbFldVal
 						}
+					} else if !ok { //check if its nested list DELETE and process it
+						return checkAndProcessSonicYangNesetedListDelete(xlateParams, tokens[SONIC_TBL_CHILD_INDEX], fieldName)
 					}
 				}
 			}
 			xlateParams.result[xlateParams.tableName][xlateParams.keyName] = dbVal
+		} else {
+			/* handle delete request at whole list level which is a sibling list to singleton container.
+			   For such delete request, we need to get make sure we delete only list keys and not the keys that
+			   correspond to singleton container(s).
+			*/
+			if len(tokens) > SONIC_TBL_CHILD_INDEX {
+				tblChldNm := tokens[SONIC_TBL_CHILD_INDEX]
+				xfmrLogDebug("Table Child Name : %v", tblChldNm)
+				tblChldXpath := xlateParams.tableName + "/" + tblChldNm
+				if specTblChldInfo, ok := xDbSpecMap[tblChldXpath]; ok && specTblChldInfo != nil {
+					if specTblChldInfo.yangType == YANG_LIST && (!strings.HasSuffix(xlateParams.requestUri, "]") || !strings.HasSuffix(xlateParams.requestUri, "]/")) {
+						if tblSpecInfo, ok := xDbSpecMap[xlateParams.tableName]; ok && tblSpecInfo != nil {
+							if len(tblSpecInfo.dbEntry.Dir) > len(tblSpecInfo.listName) { // table level container has singleton container and list as siblings.
+								singletonContainers := make(map[string]bool)
+								for childName, child := range tblSpecInfo.dbEntry.Dir {
+									if child.IsContainer() {
+										singletonContainers[childName] = true
+									}
+								}
+								if len(singletonContainers) > 0 {
+									dbTblSpec := &db.TableSpec{Name: xlateParams.tableName}
+									allKeys, err := xlateParams.d.GetKeys(dbTblSpec)
+									if err != nil {
+										xfmrLogInfo("Failed to get keys for table (%v), Error: (%v)", xlateParams.tableName, err)
+										delete(xlateParams.result, xlateParams.tableName)
+									}
+									separator := xlateParams.d.Opts.KeySeparator
+									for _, key := range allKeys {
+										keyStr := strings.Join(key.Comp, separator)
+										if _, ok := singletonContainers[keyStr]; ok {
+											xfmrLogDebug("Skipping %v since it matches singleton container", keyStr)
+											continue
+										}
+										xlateParams.result[xlateParams.tableName][keyStr] = dbVal
+									}
+								}
+							}
+						}
+					}
+				}
+
+			}
 		}
 		if !isFieldReq {
 			if tblSpecInfo, ok := xDbSpecMap[xlateParams.tableName]; ok && (tblSpecInfo.cascadeDel == XFMR_ENABLE) {
@@ -922,6 +967,59 @@ func sonicYangReqToDbMapDelete(xlateParams xlateToParams) error {
 			}
 		}
 	}
+	xlateParams.resultMap[oper][db.ConfigDB] = xlateParams.result
+	return nil
+}
+
+func checkAndProcessSonicYangNesetedListDelete(xlateParams xlateToParams, parentListNm string, nestedChildNm string) error {
+	var fieldNm, fieldVal string
+
+	oper := xlateParams.oper //DELETE
+	dbSpecPath := xlateParams.tableName + "/" + parentListNm + "/" + nestedChildNm
+	dbSpecNestedChildInfo, ok := xDbSpecMap[dbSpecPath]
+
+	if !ok || dbSpecNestedChildInfo == nil {
+		errStr := fmt.Sprintf("Sonic yang path %v not found in spec so cannot be processed.", xlateParams.requestUri)
+		return tlerr.InternalError{Format: errStr, Path: xlateParams.requestUri}
+	}
+
+	if dbSpecNestedChildInfo.dbEntry == nil {
+		errStr := fmt.Sprintf("Yang entry not found for Sonic yang path in spec so cannot be processed.", xlateParams.requestUri)
+		return tlerr.InternalError{Format: errStr, Path: xlateParams.requestUri}
+	}
+
+	if dbSpecNestedChildInfo.dbEntry.Parent == nil {
+		errStr := fmt.Sprintf("Parent node yang entry not found for Sonic yang path in spec so cannot be processed.", xlateParams.requestUri)
+		return tlerr.InternalError{Format: errStr, Path: xlateParams.requestUri}
+	}
+
+	if dbSpecNestedChildInfo.yangType == YANG_LIST && dbSpecNestedChildInfo.dbEntry.Parent.IsList() { //nested list case
+		if strings.HasSuffix(xlateParams.requestUri, "]") || strings.HasSuffix(xlateParams.requestUri, "]/") { // target URI is at nested list-instance
+			nestedListInstanceValue := extractLeafValFromUriKey(xlateParams.requestUri, dbSpecNestedChildInfo.keyList[0])
+			xfmrLogDebug("Nested List Instance Value : %v", nestedListInstanceValue)
+			if nestedListInstanceValue != "" {
+				//nested list instance becomes field-name
+				fieldNm = nestedListInstanceValue
+				fieldVal = ""
+			} else {
+				errStr := fmt.Sprintf("List instance couldn't be extracted from URI - %v", xlateParams.requestUri)
+				return tlerr.InternalError{Format: errStr, Path: xlateParams.requestUri}
+			}
+		} else if strings.HasSuffix(xlateParams.requestUri, nestedChildNm) || strings.HasSuffix(xlateParams.requestUri, nestedChildNm+"/") {
+			//target URI is at nested whole list level hence all fields in the table-instance should be replaced with NULL/NULL
+			xfmrLogDebug("Target URI is at nested whole list level hence all fields in the table-instance should be replaced with NULL/NULL")
+			oper = REPLACE
+			fieldNm, fieldVal = "NULL", "NULL"
+		} else {
+			xfmrLogDebug("Target URI is at nested list non-key leaf, reject it.")
+			return tlerr.NotSupportedError{Format: "DELETE not supported", Path: xlateParams.requestUri}
+		}
+	} else { //non-nested list case
+		errStr := fmt.Sprintf("For sonic yang only nested list under list is supported, other type of yang node not supported - %v", xlateParams.requestUri)
+		return tlerr.NotSupportedError{Format: errStr, Path: xlateParams.requestUri}
+	}
+
+	xlateParams.result[xlateParams.tableName][xlateParams.keyName] = db.Value{Field: map[string]string{fieldNm: fieldVal}}
 	xlateParams.resultMap[oper][db.ConfigDB] = xlateParams.result
 	return nil
 }

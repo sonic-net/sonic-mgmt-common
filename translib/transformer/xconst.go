@@ -19,19 +19,20 @@
 package transformer
 
 const (
-	XPATH_SEP_FWD_SLASH    = "/"
-	XFMR_EMPTY_STRING      = ""
-	XFMR_NONE_STRING       = "NONE"
-	SONIC_TABLE_INDEX      = 2
-	SONIC_TBL_CHILD_INDEX  = 3
-	SONIC_FIELD_INDEX      = 4
-	SONIC_TOPCONTR_INDEX   = 1
-	SONIC_MDL_PFX          = "sonic"
-	OC_MDL_PFX             = "openconfig-"
-	IETF_MDL_PFX           = "ietf-"
-	IANA_MDL_PFX           = "iana-"
-	PATH_XFMR_RET_ARGS     = 1
-	PATH_XFMR_RET_ERR_INDX = 0
+	XPATH_SEP_FWD_SLASH          = "/"
+	XFMR_EMPTY_STRING            = ""
+	XFMR_NONE_STRING             = "NONE"
+	SONIC_TABLE_INDEX            = 2
+	SONIC_TBL_CHILD_INDEX        = 3
+	SONIC_FIELD_INDEX            = 4
+	SONIC_NESTEDLIST_FIELD_INDEX = 5
+	SONIC_TOPCONTR_INDEX         = 1
+	SONIC_MDL_PFX                = "sonic"
+	OC_MDL_PFX                   = "openconfig-"
+	IETF_MDL_PFX                 = "ietf-"
+	IANA_MDL_PFX                 = "iana-"
+	PATH_XFMR_RET_ARGS           = 1
+	PATH_XFMR_RET_ERR_INDX       = 0
 
 	YANG_CONTAINER_NM_CONFIG  = "config"
 	CONFIG_CNT_SUFFIXED_XPATH = "/config"
