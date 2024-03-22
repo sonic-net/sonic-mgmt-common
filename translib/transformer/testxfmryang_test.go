@@ -1220,6 +1220,203 @@ func Test_Validate_Handler_Get(t *testing.T) {
 	unloadDB(db.ConfigDB, prereq)
 }
 
+//Sonic Nested list GET test cases
+
+func Test_Sonic_NestedList_Get(t *testing.T) {
+
+	prereq := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "23m", "eth1": "32m"}, "testCable_02": map[string]interface{}{"eth0": "20m", "eth1": "34m"}},
+		"TEST_SENSOR_GROUP": map[string]interface{}{"testgroup": map[string]interface{}{"color-hold-time": 20, "colors@": "red,blue"}, "testGroup": map[string]interface{}{"color-hold-time": 30, "colors@": "red,blue"}}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get at module level +++++++++++++")
+	url := "/sonic-test-xfmr:sonic-test-xfmr"
+	get_expected := "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_CABLE_LENGTH\":{\"TEST_CABLE_LENGTH_LIST\":[{\"TEST_CABLE_LENGTH\":[{\"length\":\"23m\",\"port\":\"eth0\"},{\"length\":\"32m\",\"port\":\"eth1\"}],\"name\":\"testCable\"},{\"TEST_CABLE_LENGTH\":[{\"length\":\"20m\",\"port\":\"eth0\"},{\"length\":\"34m\",\"port\":\"eth1\"}],\"name\":\"testCable_02\"}]},\"TEST_SENSOR_GROUP\":{\"TEST_SENSOR_GROUP_LIST\":[{\"color-hold-time\":30,\"colors\":[\"red\",\"blue\"],\"id\":\"testGroup\"},{\"color-hold-time\":20,\"colors\":[\"red\",\"blue\"],\"id\":\"testgroup\"}]}}}"
+	t.Run("GET on Sonic_NestedList at module level", processGetRequest(url, nil, get_expected, false))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get at outer list level  +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST"
+	get_expected = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH_LIST\":[{\"TEST_CABLE_LENGTH\":[{\"length\":\"23m\",\"port\":\"eth0\"},{\"length\":\"32m\",\"port\":\"eth1\"}],\"name\":\"testCable\"},{\"TEST_CABLE_LENGTH\":[{\"length\":\"20m\",\"port\":\"eth0\"},{\"length\":\"34m\",\"port\":\"eth1\"}],\"name\":\"testCable_02\"}]}"
+	t.Run("GET on Sonic_NestedList at outer list level", processGetRequest(url, nil, get_expected, false))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get at outer list level non existent instance  +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable2]"
+	expected_err := tlerr.NotFoundError{Format: "Resource not found"}
+	t.Run("GET on Sonic_NestedList at outer list level non existent instance", processGetRequest(url, nil, get_expected, true, expected_err))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get at inner list level non existent instance  +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth3]"
+	expected_err = tlerr.NotFoundError{Format: "Resource not found"}
+	t.Run("GET on Sonic_NestedList at inner list level non existent instance ", processGetRequest(url, nil, get_expected, true, expected_err))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get at inner list level instance  +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth1]"
+	get_expected = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\": [{\"length\": \"32m\",\"port\": \"eth1\"}]}"
+	t.Run("GET on Sonic_NestedList at inner list level instance", processGetRequest(url, nil, get_expected, false))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get at inner whole list level  +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable_02]/TEST_CABLE_LENGTH"
+	get_expected = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\": [{\"length\":\"20m\",\"port\":\"eth0\"},{\"length\": \"34m\",\"port\": \"eth1\"}]}"
+	t.Run("GET on Sonic_NestedList at inner whole list level", processGetRequest(url, nil, get_expected, false))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get at inner list instance non key non existent +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth3]/length"
+	expected_err = tlerr.NotFoundError{Format: "Resource not found"}
+	t.Run("GET on Sonic_NestedList at inner list instance non key non existent", processGetRequest(url, nil, get_expected, true, expected_err))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get at inner list instance non key existent case +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable_02]/TEST_CABLE_LENGTH[port=eth1]/length"
+	get_expected = "{\"sonic-test-xfmr:length\": \"34m\"}"
+	t.Run("GET on Sonic_NestedList at inner list instance non key existent case", processGetRequest(url, nil, get_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, prereq)
+
+}
+
+func Test_Sonic_NestedList_Get_Fields_QueryParams(t *testing.T) {
+
+	prereq := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "23m", "eth1": "32m"}, "testCable_02": map[string]interface{}{"eth0": "20m", "eth1": "34m"}},
+		"TEST_SENSOR_GROUP": map[string]interface{}{"testgroup": map[string]interface{}{"color-hold-time": 20, "colors@": "red,blue"}, "testGroup": map[string]interface{}{"color-hold-time": 30, "colors@": "red,blue"}}}
+	var qp queryParamsUT
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get fields Query parameter having inner list in query +++++++++++++")
+	qp.fields = []string{"TEST_CABLE_LENGTH/port"}
+	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST"
+	get_expected := "{}"
+	exp_err := tlerr.NotSupportedError{Format: "Yang node type list not supported in fields query parameter(TEST_CABLE_LENGTH/port)."}
+	t.Run("GET on Sonic_NestedList fields Query parameter having inner list in query", processGetRequest(url, &qp, get_expected, true, exp_err))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get fields Query parameter having outer list in query +++++++++++++")
+	qp.fields = []string{"TEST_CABLE_LENGTH_LIST/TEST_CABLE_LENGTH/port"}
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH"
+	get_expected = "{}"
+	exp_err = tlerr.NotSupportedError{Format: "Yang node type list not supported in fields query parameter(TEST_CABLE_LENGTH_LIST/TEST_CABLE_LENGTH/port)."}
+	t.Run("GET on Sonic_NestedList fields Query parameter having outer list in query", processGetRequest(url, &qp, get_expected, true, exp_err))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get fields Query parameter for only one table  +++++++++++++")
+	qp.fields = []string{"TEST_CABLE_LENGTH"}
+	url = "/sonic-test-xfmr:sonic-test-xfmr"
+	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_CABLE_LENGTH\":{\"TEST_CABLE_LENGTH_LIST\":[{\"TEST_CABLE_LENGTH\":[{\"length\":\"23m\",\"port\":\"eth0\"},{\"length\":\"32m\",\"port\":\"eth1\"}],\"name\":\"testCable\"},{\"TEST_CABLE_LENGTH\":[{\"length\":\"20m\",\"port\":\"eth0\"},{\"length\":\"34m\",\"port\":\"eth1\"}],\"name\":\"testCable_02\"}]}}}"
+	t.Run("GET on Sonic_NestedList fields Query parameter for only one table", processGetRequest(url, &qp, get_expected, false))
+
+	t.Log("++++++++++++++  Test_Sonic_NestedList_Get fields Query parameter for multiple tables +++++++++++++")
+	prereq2 := map[string]interface{}{"TEST_SENSOR_MODE_TABLE": map[string]interface{}{"mode:testsensor:23": map[string]interface{}{"description": "testDesc"}, "testsensor:23": map[string]interface{}{"description": "testDesc"}}}
+	loadDB(db.CountersDB, prereq2)
+	time.Sleep(1 * time.Second)
+	qp.fields = make([]string, 0)
+	qp.fields = append(qp.fields, "TEST_CABLE_LENGTH", "TEST_SENSOR_MODE_TABLE")
+	url = "/sonic-test-xfmr:sonic-test-xfmr"
+	get_expected = "{\"sonic-test-xfmr:sonic-test-xfmr\":{\"TEST_CABLE_LENGTH\":{\"TEST_CABLE_LENGTH_LIST\":[{\"TEST_CABLE_LENGTH\":[{\"length\":\"23m\",\"port\":\"eth0\"},{\"length\":\"32m\",\"port\":\"eth1\"}],\"name\":\"testCable\"},{\"TEST_CABLE_LENGTH\":[{\"length\":\"20m\",\"port\":\"eth0\"},{\"length\":\"34m\",\"port\":\"eth1\"}],\"name\":\"testCable_02\"}]},\"TEST_SENSOR_MODE_TABLE\":{\"TEST_SENSOR_MODE_TABLE_LIST\":[{\"description\":\"testDesc\",\"id\":23,\"mode\":\"mode:testsensor\"},{\"description\":\"testDesc\",\"id\":23,\"mode\":\"testsensor\"}]}}}"
+	t.Run("GET on Sonic_NestedList fields Query parameter for multiple tables", processGetRequest(url, &qp, get_expected, false))
+
+	// Teardown
+	unloadDB(db.ConfigDB, prereq)
+	unloadDB(db.CountersDB, prereq2)
+
+}
+
+func Test_Sonic_NestedList_Create(t *testing.T) {
+
+	cleanuptbl := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": ""}}
+
+	// Setup - Prerequisite
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+	t.Log("++++++++++++++  Test_Sonic_Nested_list_Create_instance_err  +++++++++++++")
+	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]"
+	url_body_json := "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth0\",\"length\":\"12m\"}]}"
+	expected_err := tlerr.NotFoundError{Format: "Resource not found"}
+	t.Run("Test_Sonic_Nested_list_Create_instance_err", processSetRequest(url, url_body_json, "POST", true, expected_err))
+
+	// Commenting the cases that have a Dependency on CVL for the DB write operation. CVL changes to validate single key for inner list is pending to be merged
+	/*
+		t.Log("++++++++++++++  Test_Sonic_Nested_list_Create_instance  +++++++++++++")
+		url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH"
+		url_body_json = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH_LIST\":[{\"name\":\"testCable\",\"TEST_CABLE_LENGTH\":[{\"port\":\"eth0\",\"length\":\"12m\"}]}]}"
+		expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "12m"}}}
+		t.Run("Test_Sonic_Nested_list_Create_instance", processSetRequest(url, url_body_json, "POST", false, nil))
+		time.Sleep(1 * time.Second)
+		t.Run("Test_Sonic_Nested_list_Create_instance Verify DB", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+
+		t.Log("++++++++++++++  Test_Sonic_Nested_list_Create_modify_instance  +++++++++++++")
+		url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]"
+		url_body_json = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth1\",\"length\":\"22m\"}]}"
+		expected_map = map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "12m", "eth1": "22m"}}}
+		t.Run("Test_Sonic_Nested_list_Create_modify_instance", processSetRequest(url, url_body_json, "POST", false, nil))
+		time.Sleep(1 * time.Second)
+		t.Run("Test_Sonic_Nested_list_Create_modify_instance Verify DB", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+	*/
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+
+}
+
+func Test_Sonic_NestedList_Update(t *testing.T) {
+
+	cleanuptbl := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": ""}}
+	prereq := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "12m", "eth1": "22m"}}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+	// Commenting the cases that have a Dependency on CVL for the DB write operation. CVL changes to validate single key for inner list is pending to be merged
+	/*
+		t.Log("++++++++++++++  Test_Sonic_Nested_list_Update_inner_list_instance_existance_case  +++++++++++++")
+		url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth0]"
+		url_body_json := "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth0\",\"length\":\"77m\"}]}"
+		expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "22m"}}}
+		t.Run("Test_Sonic_Nested_list_Update_inner_list_instance_existance_case", processSetRequest(url, url_body_json, "PATCH", false, nil))
+		time.Sleep(1 * time.Second)
+		t.Run("Test_Sonic_Nested_list_Update_inner_list_instance_existance_case", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+	*/
+	t.Log("++++++++++++++  Test_Sonic_Nested_list_Update_inner_list_instance_non_existance_case  +++++++++++++")
+	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth3]"
+	url_body_json := "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth3\",\"length\":\"57m\"}]}"
+	expected_err := tlerr.NotFoundError{Format: "Resource not found"}
+	t.Run("Test_Sonic_Nested_list_Update_inner_list_instance_non_existance_case", processSetRequest(url, url_body_json, "PATCH", true, expected_err))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+}
+
+func Test_Sonic_NestedList_Replace(t *testing.T) {
+
+	cleanuptbl := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": ""}}
+	prereq := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "22m"}}}
+
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+	// Commenting the cases that have a Dependency on CVL for the DB write operation. CVL changes to validate single key for inner list is pending to be merged
+	/*
+		t.Log("++++++++++++++  Test_Sonic_Nested_list_Replace_inner_list_instance_non_existance_case  +++++++++++++")
+		url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth3]"
+		url_body_json := "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth3\",\"length\":\"66m\"}]}"
+		expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "22m", "eth3": "66m"}}}
+		t.Run("Test_Sonic_Nested_list_Replace_inner_list_instance_non_existance_case", processSetRequest(url, url_body_json, "PUT", false, nil))
+		time.Sleep(1 * time.Second)
+		t.Run("Test_Sonic_Nested_list_Replace_inner_list_instance_non_existance_case Verify", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+
+		t.Log("++++++++++++++  Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_existance_case  +++++++++++++")
+		url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth1]/length"
+		url_body_json = "{\"sonic-test-xfmr:length\":\"11m\"}"
+		expected_map = map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "11m", "eth3": "66m"}}}
+		t.Run("Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_existance_case", processSetRequest(url, url_body_json, "PUT", false, nil))
+		time.Sleep(1 * time.Second)
+		t.Run("Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_existance_case Verify", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+	*/
+	t.Log("++++++++++++++  Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_non_existance_case  +++++++++++++")
+	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth8]/length"
+	url_body_json := "{\"sonic-test-xfmr:length\":\"88m\"}"
+	expected_err := tlerr.NotFoundError{Format: "Resource not found"}
+	t.Run("Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_non_existance_case", processSetRequest(url, url_body_json, "PUT", true, expected_err))
+
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+}
+
 func Test_Sonic_NestedList_Delete(t *testing.T) {
 	prereq := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testcable_01": map[string]interface{}{"eth0": "10m", "eth1": "20m"},
 		"testcable_02": map[string]interface{}{"eth0": "30m"}}}
