@@ -100,6 +100,14 @@ module sonic-device-metadata {
 						enum LeafRouter;
 					}
 				}
+
+				leaf nexthop_group {
+					type enumeration {
+						enum enabled;
+						enum disabled;
+					}
+					default disabled;
+				}
 			}
 		}
 	}

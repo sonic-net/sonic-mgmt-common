@@ -55,7 +55,8 @@ var json_validate_config_data = []string{`{
 						"mac": "4c:76:25:f4:70:82",
 						"default_pfcwd_status": "disable",
 						"deployment_id": "1",
-						"type": "ToRRouter"
+						"type": "ToRRouter",
+						"nexthop_group": "disabled"
 						}
 					}
 				}`,
