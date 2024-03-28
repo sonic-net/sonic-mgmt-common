@@ -103,6 +103,10 @@ stages:
 
         popd
 
+        # Populates test data in essential tables like PORT, DEVICE_METADATA, SWITCH_TABLE, USER_TABLE etc.
+
+        tools/test/dbinit.py --overwrite
+
         # Run translib tests
 
         pushd build/tests/translib

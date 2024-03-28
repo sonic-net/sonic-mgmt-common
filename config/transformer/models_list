@@ -3,3 +3,7 @@ openconfig-acl.yang
 openconfig-acl-annot.yang
 openconfig-sampling-sflow.yang
 openconfig-sampling-sflow-annot.yang
+openconfig-if-ethernet.yang
+openconfig-interfaces.yang
+openconfig-interfaces-annot.yang
+openconfig-if-ip.yang

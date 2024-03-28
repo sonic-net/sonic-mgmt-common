@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-// Copyright 2019 Dell, Inc.
+// Copyright 2024 Dell, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,6 +41,13 @@ type SysApp struct {
 
 	dockerTable map[string]dbEntry
 	procTable   map[uint64]dbEntry
+}
+
+type reqType int
+
+type dbEntry struct {
+	op    reqType
+	entry db.Value
 }
 
 func init() {

@@ -19,8 +19,9 @@ require (
 	github.com/pborman/getopt v0.0.0-20190409184431-ee0cd42419d3 // indirect
 	github.com/philopon/go-toposort v0.0.0-20170620085441-9be86dbd762f
 	github.com/pkg/profile v1.7.0
-	golang.org/x/text v0.3.0
+	golang.org/x/text v0.3.3
 	google.golang.org/grpc v1.28.0
+	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a
 )
 
 go 1.13
