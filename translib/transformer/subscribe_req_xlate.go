@@ -1052,13 +1052,21 @@ func (pathXltr *subscribePathXlator) handleYangToDbKeyXfmr() (string, error) {
 			if len(pathElems[idx].Key) > 0 {
 				if ygXpathInfo, ok := xYangSpecMap[ygPath]; ok {
 					if ygXpathInfo.virtualTbl == nil || !(*ygXpathInfo.virtualTbl) {
-						for _, kv := range pathElems[idx].Key {
+						/* Build the database key string in the form of:
+						 * <keyVal1><Seperator><KeyVal2>...<Seperator><KeyValN>
+						 * or just <keyVal1> in the case of a single key.
+						 * Note the yangEntry.Key field contains the key field names in order and
+						 * seperated by ' ' characters while the pathElems.Key variable maps the
+						 * field names to their values. */
+						for _, keyName := range strings.Split(ygXpathInfo.yangEntry.Key, " ") {
+							kv := pathElems[idx].Key[keyName]
 							if isKeyEmpty {
+								// For the first key there is no need to append and add the seperator.
 								dbKey = kv
 								isKeyEmpty = false
-								continue
+							} else {
+								dbKey = dbKey + keyDelm + kv
 							}
-							dbKey = dbKey + keyDelm + kv
 						}
 					}
 				} else {
