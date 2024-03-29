@@ -231,7 +231,7 @@ func Test_openconfig_subintf_ipv4(t *testing.T) {
 
 	t.Log("\n\n--- Get/Verify IPv4 address at subinterfaces ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json := "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
+	expected_get_json := "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
 	t.Run("Test Get IPv4 address at subinterfaces", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -244,7 +244,7 @@ func Test_openconfig_subintf_ipv4(t *testing.T) {
 
 	t.Log("\n\n--- Verify IPv4 address at subinterfaces level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv4\": {\"addresses\": {\"address\": [{\"config\": {\"ip\": \"4.4.4.4\", \"prefix-length\": 24}, \"ip\": \"4.4.4.4\"}]}}, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
+	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv4\": {\"addresses\": {\"address\": [{\"config\": {\"ip\": \"4.4.4.4\", \"prefix-length\": 24}, \"ip\": \"4.4.4.4\"}]}}, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
 	t.Run("Test Get/Verify Patch IPv4 address at subinterfaces level", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -255,7 +255,7 @@ func Test_openconfig_subintf_ipv4(t *testing.T) {
 
 	t.Log("\n\n--- Verify Delete IPv4 address at subinterfaces level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
+	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
 	t.Run("Test/Verify Get at subinterfaces", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -263,7 +263,7 @@ func Test_openconfig_subintf_ipv4(t *testing.T) {
 
 	t.Log("\n\n--- Get at subinterfaces/subinterface[index=0] level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface[index=0]"
-	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}"
+	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}"
 	t.Run("Test Get at subinterface[index=0]", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -276,7 +276,7 @@ func Test_openconfig_subintf_ipv4(t *testing.T) {
 
 	t.Log("\n\n--- Verify IPv4 address at subinterfaces/subinterface[index=0] level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface[index=0]"
-	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv4\": {\"addresses\": {\"address\": [{\"config\": {\"ip\": \"4.4.4.4\", \"prefix-length\": 24}, \"ip\": \"4.4.4.4\"}]}}, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}"
+	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv4\": {\"addresses\": {\"address\": [{\"config\": {\"ip\": \"4.4.4.4\", \"prefix-length\": 24}, \"ip\": \"4.4.4.4\"}]}}, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}"
 	t.Run("Test Get/Verify Patch IPv4 address at subinterface[index=0]", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -293,13 +293,13 @@ func Test_openconfig_subintf_ipv4(t *testing.T) {
 
 	t.Log("\n\n--- Verify Delete IPv4 address at subinterfaces/subinterface[index=0] level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface[index=0]"
-	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}"
+	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}"
 	t.Run("Test Get/Verify Delete IPv4 address at subinterface[index=0]", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify Delete IPv4 address at subinterfaces level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
+	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
 	t.Run("Test Get/Verify Delete IPv4 address at subinterfaces", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -331,7 +331,7 @@ func Test_openconfig_subintf_ipv4(t *testing.T) {
 
 	t.Log("\n\n--- Verify Delete IPv4 address at subinterfaces level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
+	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
 	t.Run("Test Get/Verify Delete at subinterfaces", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -365,7 +365,7 @@ func Test_openconfig_subintf_ipv4(t *testing.T) {
 
 	t.Log("\n\n--- Verify Delete IPv4 address at subinterfaces level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
+	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
 	t.Run("Test Get/Verify Delete IPv4 address at subinterfaces", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -383,7 +383,7 @@ func Test_openconfig_subintf_ipv6(t *testing.T) {
 
 	t.Log("\n\n--- Get IPv6 address at subinterfaces ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json := "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
+	expected_get_json := "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
 	t.Run("Test Get IPv6 address at subinterfaces", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -396,7 +396,7 @@ func Test_openconfig_subintf_ipv6(t *testing.T) {
 
 	t.Log("\n\n--- Verify IPv6 address at subinterfaces level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json = "{\"openconfig-interfaces:subinterfaces\":{\"subinterface\":[{\"config\":{\"index\":0},\"index\":0,\"openconfig-if-ip:ipv6\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"a::e\",\"prefix-length\":64},\"ip\":\"a::e\"}]},\"config\":{\"enabled\":false}},\"state\":{\"index\":0}}]}}"
+	expected_get_json = "{\"openconfig-interfaces:subinterfaces\":{\"subinterface\":[{\"config\":{\"index\":0},\"index\":0,\"openconfig-if-ip:ipv6\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"a::e\",\"prefix-length\":64},\"ip\":\"a::e\"}]},\"config\":{\"enabled\":false}, \"state\": {\"enabled\": false}}, \"state\":{\"index\":0}}]}}"
 	t.Run("Test Get/Verify Patch IPv6 address at subinterfaces level", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -407,7 +407,7 @@ func Test_openconfig_subintf_ipv6(t *testing.T) {
 
 	t.Log("\n\n--- Verify Delete IPv6 address at subinterfaces ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
+	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
 	t.Run("Test Get/Verify Delete IPv6 address at subinterfaces", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -422,7 +422,7 @@ func Test_openconfig_subintf_ipv6(t *testing.T) {
 
 	t.Log("\n\n--- Verify PATCH IPv6 address at subinterface level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface"
-	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\":{\"index\":0},\"index\":0,\"openconfig-if-ip:ipv6\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"a::e\",\"prefix-length\":64},\"ip\":\"a::e\"}]},\"config\":{\"enabled\":false}},\"state\":{\"index\":0}}]}"
+	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\":{\"index\":0},\"index\":0,\"openconfig-if-ip:ipv6\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"a::e\",\"prefix-length\":64},\"ip\":\"a::e\"}]},\"config\":{\"enabled\":false}, \"state\": {\"enabled\": false}}, \"state\":{\"index\":0}}]}"
 	t.Run("Test Get/Verify Patch IPv6 address at subinterface", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -433,7 +433,7 @@ func Test_openconfig_subintf_ipv6(t *testing.T) {
 
 	t.Log("\n\n--- Verify Delete IPv6 address at subinterface ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface"
-	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}"
+	expected_get_json = "{\"openconfig-interfaces:subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}"
 	t.Run("Test Get/Verify Delete IPv6 address at subinterface", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -494,7 +494,7 @@ func Test_openconfig_subintf_ipv6(t *testing.T) {
 
 	t.Log("\n\n--- Verify Delete IPv6 address at subinterfaces ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces"
-	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
+	expected_get_json = "{\"openconfig-interfaces:subinterfaces\": {\"subinterface\": [{\"config\": {\"index\": 0}, \"index\": 0, \"openconfig-if-ip:ipv6\": {\"config\": {\"enabled\": false}, \"state\": {\"enabled\": false}}, \"state\": {\"index\": 0}}]}}"
 	t.Run("Test Get IPv6 address at subinterfaces", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 

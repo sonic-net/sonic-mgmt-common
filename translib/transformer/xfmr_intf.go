@@ -936,11 +936,7 @@ var YangToDb_intf_subintfs_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (str
 
 	idx := pathInfo.Var("index")
 
-	if idx != "0" && idx != "*" && idx != "" {
-		subintf_key = ifName + "." + idx
-	} else { /* For get 0 index case & subscribe index * case */
-		subintf_key = idx
-	}
+	subintf_key = idx
 
 	log.Info("YangToDb_intf_subintfs_xfmr - return subintf_key ", subintf_key)
 	return subintf_key, err
@@ -953,12 +949,7 @@ var DbToYang_intf_subintfs_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map
 	}
 	var idx string
 
-	if strings.Contains(inParams.key, ".") {
-		key_split := strings.Split(inParams.key, ".")
-		idx = key_split[1]
-	} else {
-		idx = inParams.key
-	}
+	idx = inParams.key
 
 	rmap := make(map[string]interface{})
 	var err error

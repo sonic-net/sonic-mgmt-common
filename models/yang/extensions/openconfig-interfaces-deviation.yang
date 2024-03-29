@@ -88,6 +88,10 @@ module openconfig-interfaces-deviation {
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:admin-status {
     deviate not-supported;
   }
+  
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:name {
+   deviate not-supported;
+  }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:oper-status {
     deviate not-supported;
@@ -179,7 +183,19 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
  
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state {
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:mtu {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:dup-addr-detect-transmits {
+    deviate not-supported;
+  }
+ 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:dhcp-client {
+    deviate not-supported;
+  }
+  
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:counters {
     deviate not-supported;
   }
 
