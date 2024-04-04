@@ -109,7 +109,8 @@ def create_linter_plugins(ctx: Context) -> List[PyangPlugin]:
         if plugin_dir:
             sys.path.insert(1, plugin_dir)
         from openconfig import OpenConfigPlugin
-        plugins = [OpenConfigPlugin()]
+        from pyang_plugins.strict_lint import OpenconfigExtraChecksPlugin
+        plugins = [OpenConfigPlugin(), OpenconfigExtraChecksPlugin()]
     elif ctx.opts.ietf:
         from pyang.plugins.lint import LintPlugin
         from pyang.plugins.ietf import IETFPlugin
@@ -146,7 +147,7 @@ def resolve_oclint_plugin_dir(ctx: Context) -> str:
         f"git clone https://github.com/openconfig/oc-pyang.git {oc_linter_dir}",
         shell=True)
     check_call(
-        "git reset --hard 8e096632abf066f092ccfb0fa8d5cfef79ca1eda",
+        "git reset --hard 4607fd1987d4f586aba03b40f222015cb3ef8161",
         shell=True, cwd=oc_linter_dir)
     return oc_plugin_dir
 
