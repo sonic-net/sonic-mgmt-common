@@ -6,3 +6,4 @@
 # Other sonic yangs referred by these will also be copied.
 #
 SONICYANG_IMPORTS += sonic-sflow.yang
+SONICYANG_IMPORTS += sonic-device_metadata.yang
