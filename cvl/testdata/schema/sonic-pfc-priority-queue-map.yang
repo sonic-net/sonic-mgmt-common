@@ -28,7 +28,7 @@ module sonic-pfc-priority-queue-map {
 				}
 
 				list MAP_PFC_PRIORITY_TO_QUEUE { //this is list inside list for storing mapping between two fields
-					key "pfc_priority qindex";
+					key "pfc_priority";
 
 					leaf pfc_priority {
 						type string {

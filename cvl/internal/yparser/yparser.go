@@ -711,9 +711,22 @@ func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 		case C.LYS_LIST:
 			nodeInnerList := (*C.struct_lys_node_list)(unsafe.Pointer(sChild))
 			innerListkeys := (*[10]*C.struct_lys_node_leaf)(unsafe.Pointer(nodeInnerList.keys))
-			for idx := 0; idx < int(nodeInnerList.keys_size); idx++ {
-				keyName := C.GoString(innerListkeys[idx].name)
+			if nodeInnerList.keys_size == 1 {
+				keyName := C.GoString(innerListkeys[0].name)
 				l.MapLeaf = append(l.MapLeaf, keyName)
+				// Now, find and add the first non-key leaf.
+				for sChildInner := nodeInnerList.child; sChildInner != nil; sChildInner = sChildInner.next {
+					if sChildInner.nodetype == C.LYS_LEAF {
+						// Check if the leaf is not a key.
+						if name := C.GoString(sChildInner.name); name != keyName {
+							l.MapLeaf = append(l.MapLeaf, name)
+							break
+						}
+					}
+				}
+			} else { // should never hit here, as linter does the validation
+				listName := C.GoString(nodeInnerList.name)
+				TRACE_LOG(TRACE_YPARSER, "Inner List %s for Dynamic fields has %d keys", listName, nodeInnerList.keys_size)
 			}
 		case C.LYS_USES:
 			nodeUses := (*C.struct_lys_node_uses)(unsafe.Pointer(sChild))

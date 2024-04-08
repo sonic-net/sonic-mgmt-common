@@ -28,7 +28,7 @@ module sonic-tc-queue-map {
 				}
 
 				list TC_TO_QUEUE_MAP { //this is list inside list for storing mapping between two fields
-					key "tc_num qindex";
+					key "tc_num";
 
 					leaf tc_num {
 						type string {
