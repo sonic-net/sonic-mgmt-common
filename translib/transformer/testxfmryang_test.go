@@ -1332,24 +1332,22 @@ func Test_Sonic_NestedList_Create(t *testing.T) {
 	expected_err := tlerr.NotFoundError{Format: "Resource not found"}
 	t.Run("Test_Sonic_Nested_list_Create_instance_err", processSetRequest(url, url_body_json, "POST", true, expected_err))
 
-	// Commenting the cases that have a Dependency on CVL for the DB write operation. CVL changes to validate single key for inner list is pending to be merged
-	/*
-		t.Log("++++++++++++++  Test_Sonic_Nested_list_Create_instance  +++++++++++++")
-		url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH"
-		url_body_json = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH_LIST\":[{\"name\":\"testCable\",\"TEST_CABLE_LENGTH\":[{\"port\":\"eth0\",\"length\":\"12m\"}]}]}"
-		expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "12m"}}}
-		t.Run("Test_Sonic_Nested_list_Create_instance", processSetRequest(url, url_body_json, "POST", false, nil))
-		time.Sleep(1 * time.Second)
-		t.Run("Test_Sonic_Nested_list_Create_instance Verify DB", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+	t.Log("++++++++++++++  Test_Sonic_Nested_list_Create_instance  +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH"
+	url_body_json = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH_LIST\":[{\"name\":\"testCable\",\"TEST_CABLE_LENGTH\":[{\"port\":\"eth0\",\"length\":\"12m\"}]}]}"
+	expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "12m"}}}
+	t.Run("Test_Sonic_Nested_list_Create_instance", processSetRequest(url, url_body_json, "POST", false, nil))
+	time.Sleep(1 * time.Second)
+	t.Run("Test_Sonic_Nested_list_Create_instance Verify DB", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
 
-		t.Log("++++++++++++++  Test_Sonic_Nested_list_Create_modify_instance  +++++++++++++")
-		url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]"
-		url_body_json = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth1\",\"length\":\"22m\"}]}"
-		expected_map = map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "12m", "eth1": "22m"}}}
-		t.Run("Test_Sonic_Nested_list_Create_modify_instance", processSetRequest(url, url_body_json, "POST", false, nil))
-		time.Sleep(1 * time.Second)
-		t.Run("Test_Sonic_Nested_list_Create_modify_instance Verify DB", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
-	*/
+	t.Log("++++++++++++++  Test_Sonic_Nested_list_Create_modify_instance  +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]"
+	url_body_json = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth1\",\"length\":\"22m\"}]}"
+	expected_map = map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "12m", "eth1": "22m"}}}
+	t.Run("Test_Sonic_Nested_list_Create_modify_instance", processSetRequest(url, url_body_json, "POST", false, nil))
+	time.Sleep(1 * time.Second)
+	t.Run("Test_Sonic_Nested_list_Create_modify_instance Verify DB", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 
@@ -1362,19 +1360,18 @@ func Test_Sonic_NestedList_Update(t *testing.T) {
 
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
-	// Commenting the cases that have a Dependency on CVL for the DB write operation. CVL changes to validate single key for inner list is pending to be merged
-	/*
-		t.Log("++++++++++++++  Test_Sonic_Nested_list_Update_inner_list_instance_existance_case  +++++++++++++")
-		url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth0]"
-		url_body_json := "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth0\",\"length\":\"77m\"}]}"
-		expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "22m"}}}
-		t.Run("Test_Sonic_Nested_list_Update_inner_list_instance_existance_case", processSetRequest(url, url_body_json, "PATCH", false, nil))
-		time.Sleep(1 * time.Second)
-		t.Run("Test_Sonic_Nested_list_Update_inner_list_instance_existance_case", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
-	*/
+
+	t.Log("++++++++++++++  Test_Sonic_Nested_list_Update_inner_list_instance_existance_case  +++++++++++++")
+	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth0]"
+	url_body_json := "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth0\",\"length\":\"77m\"}]}"
+	expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "22m"}}}
+	t.Run("Test_Sonic_Nested_list_Update_inner_list_instance_existance_case", processSetRequest(url, url_body_json, "PATCH", false, nil))
+	time.Sleep(1 * time.Second)
+	t.Run("Test_Sonic_Nested_list_Update_inner_list_instance_existance_case", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+
 	t.Log("++++++++++++++  Test_Sonic_Nested_list_Update_inner_list_instance_non_existance_case  +++++++++++++")
-	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth3]"
-	url_body_json := "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth3\",\"length\":\"57m\"}]}"
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth3]"
+	url_body_json = "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth3\",\"length\":\"57m\"}]}"
 	expected_err := tlerr.NotFoundError{Format: "Resource not found"}
 	t.Run("Test_Sonic_Nested_list_Update_inner_list_instance_non_existance_case", processSetRequest(url, url_body_json, "PATCH", true, expected_err))
 
@@ -1389,27 +1386,26 @@ func Test_Sonic_NestedList_Replace(t *testing.T) {
 
 	// Setup - Prerequisite
 	loadDB(db.ConfigDB, prereq)
-	// Commenting the cases that have a Dependency on CVL for the DB write operation. CVL changes to validate single key for inner list is pending to be merged
-	/*
-		t.Log("++++++++++++++  Test_Sonic_Nested_list_Replace_inner_list_instance_non_existance_case  +++++++++++++")
-		url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth3]"
-		url_body_json := "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth3\",\"length\":\"66m\"}]}"
-		expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "22m", "eth3": "66m"}}}
-		t.Run("Test_Sonic_Nested_list_Replace_inner_list_instance_non_existance_case", processSetRequest(url, url_body_json, "PUT", false, nil))
-		time.Sleep(1 * time.Second)
-		t.Run("Test_Sonic_Nested_list_Replace_inner_list_instance_non_existance_case Verify", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
 
-		t.Log("++++++++++++++  Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_existance_case  +++++++++++++")
-		url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth1]/length"
-		url_body_json = "{\"sonic-test-xfmr:length\":\"11m\"}"
-		expected_map = map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "11m", "eth3": "66m"}}}
-		t.Run("Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_existance_case", processSetRequest(url, url_body_json, "PUT", false, nil))
-		time.Sleep(1 * time.Second)
-		t.Run("Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_existance_case Verify", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
-	*/
+	t.Log("++++++++++++++  Test_Sonic_Nested_list_Replace_inner_list_instance_non_existance_case  +++++++++++++")
+	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth3]"
+	url_body_json := "{\"sonic-test-xfmr:TEST_CABLE_LENGTH\":[{\"port\":\"eth3\",\"length\":\"66m\"}]}"
+	expected_map := map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "22m", "eth3": "66m"}}}
+	t.Run("Test_Sonic_Nested_list_Replace_inner_list_instance_non_existance_case", processSetRequest(url, url_body_json, "PUT", false, nil))
+	time.Sleep(1 * time.Second)
+	t.Run("Test_Sonic_Nested_list_Replace_inner_list_instance_non_existance_case Verify", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+
+	t.Log("++++++++++++++  Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_existance_case  +++++++++++++")
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth1]/length"
+	url_body_json = "{\"sonic-test-xfmr:length\":\"11m\"}"
+	expected_map = map[string]interface{}{"TEST_CABLE_LENGTH": map[string]interface{}{"testCable": map[string]interface{}{"eth0": "77m", "eth1": "11m", "eth3": "66m"}}}
+	t.Run("Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_existance_case", processSetRequest(url, url_body_json, "PUT", false, nil))
+	time.Sleep(1 * time.Second)
+	t.Run("Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_existance_case Verify", verifyDbResult(rclient, "TEST_CABLE_LENGTH|testCable", expected_map, false))
+
 	t.Log("++++++++++++++  Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_non_existance_case  +++++++++++++")
-	url := "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth8]/length"
-	url_body_json := "{\"sonic-test-xfmr:length\":\"88m\"}"
+	url = "/sonic-test-xfmr:sonic-test-xfmr/TEST_CABLE_LENGTH/TEST_CABLE_LENGTH_LIST[name=testCable]/TEST_CABLE_LENGTH[port=eth8]/length"
+	url_body_json = "{\"sonic-test-xfmr:length\":\"88m\"}"
 	expected_err := tlerr.NotFoundError{Format: "Resource not found"}
 	t.Run("Test_Sonic_Nested_list_Replace_inner_list_non_key_leaf_non_existance_case", processSetRequest(url, url_body_json, "PUT", true, expected_err))
 
