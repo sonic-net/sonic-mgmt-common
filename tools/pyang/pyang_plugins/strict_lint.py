@@ -22,6 +22,7 @@ import sys
 
 from pyang import plugin
 from pyang import error
+from pyang import statements
 
 
 def prepare_ignore_list(ctx,ignore_file_dict):
@@ -58,6 +59,57 @@ def prepare_patched_mods_list(ctx,patched_mods):
 
 def pyang_plugin_init():
     plugin.register_plugin(CheckStrictLintPlugin())
+    plugin.register_plugin(OpenconfigExtraChecksPlugin())
+
+
+class OpenconfigExtraChecksPlugin(plugin.PyangPlugin):
+    """
+    This plugin will include checks missed (or not handled correctly) by oc-linter
+    """
+    def check_leaf_mirroring_for_deviate_not_supported(self, ctx, modules):
+        """
+         oc-linter is performing leaf mirroring check at reference_2 stage, but not-supported deviation is only applied
+         post validation. Any deviation removing mirror elements are not error reported
+        """
+
+        def handle_leaf(deviation):
+            # Handle if the target is the leaf/leaf-list, provided they are part of state container
+            target_node = deviation.i_target_node
+            target_node_parent = target_node.parent
+            if target_node.keyword in [u"leaf", u"leaf-list"] and target_node_parent.arg == "state":
+                config_container = target_node_parent.parent.search_one("container", "config")
+                if config_container and config_container.search_one(target_node.keyword, target_node.arg,
+                                                                    children=config_container.i_children):
+                    error.err_add(ctx.errors, deviation.pos, "OC_OPSTATE_APPLIED_CONFIG",
+                                  (target_node.arg, statements.mk_path_str(config_container, False)))
+
+        def handle_state_container(deviation):
+            # Handle if the target is the state container
+            target_node = deviation.i_target_node
+            if target_node.keyword == "container" and target_node.arg == "state":
+                config_container = target_node.parent.search_one("container", "config")
+                if config_container:
+                    for child in config_container.i_children:
+                        if child.arg != "config" and child.keyword in [u"leaf", u"leaf-list", u"container", u"list",
+                                                                       u"choice"]:
+                            # Ideally we should only be caring leaf and leaf-list, but mimic oc-linter behavior here
+                            error.err_add(ctx.errors, deviation.pos, "OC_OPSTATE_APPLIED_CONFIG",
+                                          (child.arg, statements.mk_path_str(config_container, False)))
+
+        def process(module):
+            for deviation in module.search("deviation"):
+                if deviation.search_one("deviate", "not-supported"):
+                    handle_leaf(deviation)
+                    handle_state_container(deviation)
+
+        for module in modules:
+            # Act only for deviations belonging to extension yang models
+            if "/extensions/" in str(module.pos):
+                process(module)
+
+    def post_validate(self, ctx, modules):
+        self.check_leaf_mirroring_for_deviate_not_supported(ctx, modules)
+
 
 class CheckStrictLintPlugin(plugin.PyangPlugin):
     def __init__(self):
