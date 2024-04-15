@@ -28,7 +28,7 @@ module sonic-tc-priority-group-map {
 				}
 
 				list TC_TO_PRIORITY_GROUP_MAP { //this is list inside list for storing mapping between two fields
-					key "tc_num pg_num";
+					key "tc_num";
 
 					leaf tc_num {
 						type string {
