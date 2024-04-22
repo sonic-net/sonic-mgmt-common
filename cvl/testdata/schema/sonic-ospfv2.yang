@@ -1,0 +1,64 @@
+module sonic-ospfv2 {
+    namespace "http://github.com/Azure/sonic-ospfv2";
+    prefix sn-ospfv2;
+    yang-version 1.1;
+
+    import sonic-extension {
+        prefix sonic-ext;
+    }
+    import sonic-vlan-subinterface {
+        prefix svlansub;
+    }
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "SONIC ospfv2 Global YANG";
+
+    revision 2020-03-21 {
+        description
+            "Added Yang definition for OSPFv2 features.";
+    }
+
+    typedef ospf-sub-vlan-interface {
+        type union {
+            type string {
+                pattern "vlansub";
+            }
+            type leafref {
+                path "/svlansub:sonic-vlan-subinterface/svlansub:VLAN_SUB_INTERFACE/svlansub:VLAN_SUB_INTERFACE_LIST/svlansub:id";
+            }
+        }
+    }
+
+    typedef ospf-interface {
+        type union {
+            type string {
+                pattern "null";
+            }
+            type ospf-sub-vlan-interface;
+        }
+        description
+            "OSPF Interface name";
+    }
+
+    container sonic-ospfv2 {
+        container OSPFV2_INTERFACE {
+            description
+                "OSPFv2 Interface Table.";
+            list OSPFV2_INTERFACE_LIST {
+                key "name";
+                leaf name {
+                    type ospf-interface;
+                    description
+                        "OSPF interface";
+                }
+            } //OSPFV2_INTERFACE_LIST
+        } //OSPFV2_INTERFACE
+    } //sonic-ospfv2
+
+}
+
