@@ -33,7 +33,7 @@ stages:
       vmImage: ubuntu-20.04
 
     container:
-      image: sonicdev-microsoft.azurecr.io:443/sonic-slave-bullseye:latest
+      image: sonicdev-microsoft.azurecr.io:443/sonic-slave-bookworm:latest
 
     steps:
     - checkout: self
@@ -50,8 +50,8 @@ stages:
         runVersion: 'latestFromBranch'
         runBranch: 'refs/heads/$(BUILD_BRANCH)'
         patterns: |
-            target/debs/bullseye/libyang*.deb
-            target/python-wheels/bullseye/sonic_yang_models*.whl
+            target/debs/bookworm/libyang*.deb
+            target/python-wheels/bookworm/sonic_yang_models*.whl
       displayName: "Download sonic buildimage"
 
     - script: |
@@ -64,11 +64,11 @@ stages:
         sudo service redis-server start
 
         # LIBYANG
-        sudo dpkg -i ../target/debs/bullseye/libyang*1.0.73*.deb
+        sudo dpkg -i ../target/debs/bookworm/libyang*1.0.73*.deb
       displayName: "Install dependency"
 
     - script: |
-        sudo pip3 install ../target/python-wheels/bullseye/sonic_yang_models-1.0-py3-none-any.whl
+        sudo pip3 install ../target/python-wheels/bookworm/sonic_yang_models-1.0-py3-none-any.whl
       displayName: "Install sonic yangs"
 
     - script: |
