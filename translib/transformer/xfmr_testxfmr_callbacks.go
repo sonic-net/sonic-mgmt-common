@@ -737,7 +737,9 @@ var DbToYang_test_sensor_mode_key_xfmr SonicKeyXfmrDbToYang = func(inParams Soni
 			res_map["id"] = i32
 		} else if len(temp) == 2 {
 			res_map["mode"] = temp[0]
-			res_map["id"] = temp[1]
+			i64, _ := strconv.ParseUint(temp[1], 10, 32)
+			i32 := uint32(i64)
+			res_map["id"] = i32
 		} else {
 			errStr := "Invalid Key in uri."
 			return res_map, tlerr.InvalidArgsError{Format: errStr}
