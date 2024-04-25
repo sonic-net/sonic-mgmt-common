@@ -735,6 +735,17 @@ func (c *CVL) sortDepTables(inTableList []string) ([]string, CVLRetCode) {
 	return result, CVL_SUCCESS
 }
 
+// SortDepList Sort list of given tables as per their dependency, returns LIST names, useful for testing
+func (c *CVL) SortDepList(inTables []string) ([]string, CVLRetCode) {
+	list := make([]string, 0, len(inTables))
+	for _, inTbl := range inTables {
+		if tblLists, ok := modelInfo.redisTableToYangList[inTbl]; ok {
+			list = append(list, tblLists...)
+		}
+	}
+	return c.sortDepTables(list)
+}
+
 // SortDepTables Sort list of given tables as per their dependency
 func (c *CVL) SortDepTables(inTableList []string) ([]string, CVLRetCode) {
 
@@ -879,46 +890,27 @@ func (c *CVL) addDepTables(tableMap map[string]bool, listEntry string) {
 
 // processTopoSortResult - Converts List to Table name and placeholder for all future processing
 func processTopoSortResult(result []string) ([]string, CVLRetCode) {
-	// Replace list to table name
-	for i, tblList := range result {
-		if tblEntry, exists := modelInfo.tableInfo[tblList]; exists {
-			result[i] = tblEntry.redisTableName
+	lastOccurrence := make(map[string]int) // This map tracks the last occurrence of each entry
+	processedResult := []string{}          // This will store the final processed list
+
+	for i, entry := range result {
+		// Replace the entry with the table name from modelInfo, if exists
+		if newName, exists := modelInfo.tableInfo[entry]; exists {
+			entry = newName.redisTableName
+			result[i] = entry // Update the entry in the result slice
 		}
-	}
-	if len(result) < 2 {
-		return result, CVL_SUCCESS
-	}
-
-	seen := make(map[string]bool)
-	list := make([]string, 0, len(result))
-
-	lastSeen := result[0]
-	list = append(list, lastSeen)
-	seen[lastSeen] = true
-
-	for _, entry := range result[1:] {
-		if entry == lastSeen {
-			// This is the case when there is an internal reference, LIKE INTERFACE_IP_ADDR refer to INTERFACE
-			// Skip consecutive duplicates for now. Ideally we should return TABLE_NAME with key data or list name
-			// to be decided based on the requirement of transformer/Apps
-			continue
-		}
-
-		if seen[entry] {
-			// Non-consecutive duplicate found
-			// This is the case when the external table refers to lists, x11, x12, y11, x13
-			// Skip entry for now. Ideally we should return TABLE_NAME with key data or list name
-			// or should we return error here??
-			//since we dont have this case yet, therefore continuing
-			continue
-		}
-
-		list = append(list, entry)
-		seen[entry] = true
-		lastSeen = entry
+		// Always update the last occurrence of this entry
+		lastOccurrence[entry] = i
 	}
 
-	return list, CVL_SUCCESS
+	// Now, filter the results to include only the last occurrence of each entry
+	for i, entry := range result {
+		if i == lastOccurrence[entry] {
+			processedResult = append(processedResult, entry)
+		}
+	}
+
+	return processedResult, CVL_SUCCESS
 }
 
 // GetDepTables Get the list of dependent tables for a given table in a YANG module

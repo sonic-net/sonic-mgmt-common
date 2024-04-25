@@ -28,7 +28,7 @@ module sonic-dscp-tc-map {
 				}
 
 				list DSCP_TO_TC_MAP { //this is list inside list for storing mapping between two fields
-					key "dscp tc_num";
+					key "dscp";
 
 					leaf tc_num {
 						type string {
