@@ -178,10 +178,6 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 	var err error
 	switch inParams.oper {
 	case DELETE:
-		if *requestUriPath == "/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface" && subintfid != 0 {
-			return nil
-		}
-
 		if *requestUriPath == "/openconfig-interfaces:interfaces/interface" {
 			switch ifType {
 			case IntfTypeEthernet:
@@ -380,6 +376,13 @@ var YangToDb_intf_tbl_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (stri
 		i32 = uint32(i64)
 	}
 
+	log.Infof("YangToDb_intf_tbl_key_xfmr: i32: %s", i32)
+
+	if i32 != 0 {
+		err_str := "Subinterfaces not supported"
+		return ifName, tlerr.NotSupported(err_str)
+	}
+
 	if ifName == "*" {
 		return ifName, nil
 	}
@@ -405,8 +408,30 @@ var DbToYang_intf_tbl_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[
 		log.Info("Entering DbToYang_intf_tbl_key_xfmr")
 	}
 	res_map := make(map[string]interface{})
+
+	pathInfo := NewPathInfo(inParams.uri)
+	reqpathInfo := NewPathInfo(inParams.requestUri)
+	requestUriPath := reqpathInfo.YangPath
+
+	log.Infof("DbToYang_intf_tbl_key_xfmr: inParams.uri: %s, pathInfo: %s, inParams.requestUri: %s", inParams.uri, pathInfo, requestUriPath)
+	idx := reqpathInfo.Var("index")
+	var i32 uint32
+	i32 = 0
+
+	if idx != "" {
+		i64, _ := strconv.ParseUint(idx, 10, 32)
+		i32 = uint32(i64)
+	}
+
+	log.Infof("DbToYang_intf_tbl_key_xfmr: i32: %s", i32)
+
+	if i32 != 0 {
+		err_str := "Subinterfaces not supported"
+		return res_map, tlerr.NotSupported(err_str)
+	}
 	log.Info("DbToYang_intf_tbl_key_xfmr: Interface Name = ", inParams.key)
 	res_map["name"] = inParams.key
+
 	return res_map, nil
 }
 
@@ -839,8 +864,8 @@ var intf_post_xfmr PostXfmrFunc = func(inParams XfmrParams) (map[string]map[stri
 		if xpath == "/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv6/config/enabled" {
 			if len(inParams.subOpDataMap) > 0 {
 				dbMap := make(map[string]map[string]db.Value)
-				if inParams.subOpDataMap[4] != nil && (*inParams.subOpDataMap[4])[db.ConfigDB] != nil {
-					(*inParams.subOpDataMap[4])[db.ConfigDB] = dbMap
+				if inParams.subOpDataMap[UPDATE] != nil && (*inParams.subOpDataMap[UPDATE])[db.ConfigDB] != nil {
+					(*inParams.subOpDataMap[UPDATE])[db.ConfigDB] = dbMap
 				}
 				log.Info("intf_post_xfmr inParams.subOpDataMap :", inParams.subOpDataMap)
 			}
@@ -908,6 +933,9 @@ var intf_subintfs_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string
 				(*inParams.dbDataMap)[db.ConfigDB]["SUBINTF_TBL"]["0"].Field["NULL"] = "NULL"
 			}
 			tblList = append(tblList, "SUBINTF_TBL")
+		} else if idx != "0" {
+			err_str := "Subinterfaces not supported"
+			return tblList, tlerr.NotSupported(err_str)
 		}
 		if log.V(3) {
 			log.Info("intf_subintfs_table_xfmr - Subinterface get operation ")
@@ -920,6 +948,8 @@ var intf_subintfs_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string
 var YangToDb_intf_subintfs_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
 	var subintf_key string
 	var err error
+	var i32 uint32
+	i32 = 0
 
 	log.Info("YangToDb_intf_subintfs_xfmr - inParams.uri ", inParams.uri)
 
@@ -936,6 +966,17 @@ var YangToDb_intf_subintfs_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (str
 
 	idx := pathInfo.Var("index")
 
+	if idx != "" {
+		i64, _ := strconv.ParseUint(idx, 10, 32)
+		i32 = uint32(i64)
+	}
+
+	log.Info("YangToDb_intf_subintfs_xfmr: i32: %s", i32)
+
+	if i32 != 0 {
+		err_str := "Subinterfaces not supported"
+		return subintf_key, tlerr.NotSupported(err_str)
+	}
 	subintf_key = idx
 
 	log.Info("YangToDb_intf_subintfs_xfmr - return subintf_key ", subintf_key)
@@ -950,12 +991,19 @@ var DbToYang_intf_subintfs_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map
 	var idx string
 
 	idx = inParams.key
+	var i32 uint32
+	i32 = 0
 
 	rmap := make(map[string]interface{})
 	var err error
 	i64, _ := strconv.ParseUint(idx, 10, 32)
+	i32 = uint32(i64)
+	if i32 != 0 {
+		log.Info("DbToYang_intf_subintfs_xfmr - rmap ", rmap)
+		err_str := "Subinterfaces not supported"
+		return rmap, tlerr.NotSupported(err_str)
+	}
 	rmap["index"] = i64
-
 	log.Info("DbToYang_intf_subintfs_xfmr rmap ", rmap)
 	return rmap, err
 }
@@ -1001,6 +1049,11 @@ var DbToYang_subif_index_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map
 	id := pathInfo.Var("index")
 	log.Info("DbToYang_subif_index_xfmr: Sub-interface Index = ", id)
 	i64, _ := strconv.ParseUint(id, 10, 32)
+	i32 := uint32(i64)
+	if i32 != 0 {
+		err_str := "Subinterfaces not supported"
+		return res_map, tlerr.NotSupported(err_str)
+	}
 	res_map["index"] = i64
 	return res_map, nil
 }
@@ -1093,18 +1146,8 @@ func handleAllIntfIPGetForTable(inParams XfmrParams, tblName string, isAppDb boo
 	// YGOT filling
 	for intfName, ipMapDB := range intfIpMap {
 
-		var subIdxStr string
 		var name string
-		if strings.Contains(intfName, ".") {
-			intfLongName := *(&intfName)
-			parts := strings.Split(intfLongName, ".")
-			name = *(&parts[0])
-			subIdxStr = parts[1]
-			tmpIdx, _ := strconv.Atoi(subIdxStr)
-			i32 = uint32(tmpIdx)
-		} else {
-			name = *(&intfName)
-		}
+		name = *(&intfName)
 
 		if intfsObj != nil && intfsObj.Interface != nil && len(intfsObj.Interface) > 0 {
 			var ok bool = false
