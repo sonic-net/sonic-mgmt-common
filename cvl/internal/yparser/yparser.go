@@ -358,7 +358,9 @@ func Debug(on bool) {
 
 func Initialize() {
 	if !yparserInitialized {
-		ypCtx = (*YParserCtx)(C.ly_ctx_new(C.CString(CVL_SCHEMA), 0))
+		cs := C.CString(CVL_SCHEMA)
+		defer C.free(unsafe.Pointer(cs))
+		ypCtx = (*YParserCtx)(C.ly_ctx_new(cs, 0))
 		C.ly_verb(C.LY_LLERR)
 		//	yparserInitialized = true
 	}
