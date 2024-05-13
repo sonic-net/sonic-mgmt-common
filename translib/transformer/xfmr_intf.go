@@ -50,6 +50,12 @@ func init() {
 	XlateFuncBind("DbToYang_intf_eth_auto_neg_xfmr", DbToYang_intf_eth_auto_neg_xfmr)
 	XlateFuncBind("DbToYang_intf_eth_port_speed_xfmr", DbToYang_intf_eth_port_speed_xfmr)
 
+	XlateFuncBind("DbToYang_intf_get_counters_xfmr", DbToYang_intf_get_counters_xfmr)
+	XlateFuncBind("DbToYang_intf_get_ether_counters_xfmr", DbToYang_intf_get_ether_counters_xfmr)
+	XlateFuncBind("Subscribe_intf_get_counters_xfmr", Subscribe_intf_get_counters_xfmr)
+	XlateFuncBind("DbToYangPath_intf_get_counters_path_xfmr", DbToYangPath_intf_get_counters_path_xfmr)
+	XlateFuncBind("Subscribe_intf_get_ether_counters_xfmr", Subscribe_intf_get_ether_counters_xfmr)
+
 	XlateFuncBind("YangToDb_intf_subintfs_xfmr", YangToDb_intf_subintfs_xfmr)
 	XlateFuncBind("DbToYang_intf_subintfs_xfmr", DbToYang_intf_subintfs_xfmr)
 
@@ -93,17 +99,27 @@ type TblData struct {
 	keySep   string
 }
 
+type PopulateIntfCounters func(inParams XfmrParams, counters interface{}) error
+
+type CounterData struct {
+	OIDTN            string
+	CountersTN       string
+	PopulateCounters PopulateIntfCounters
+}
+
 type IntfTblData struct {
-	cfgDb   TblData
-	appDb   TblData
-	stateDb TblData
+	cfgDb       TblData
+	appDb       TblData
+	stateDb     TblData
+	CountersHdl CounterData
 }
 
 var IntfTypeTblMap = map[E_InterfaceType]IntfTblData{
 	IntfTypeEthernet: IntfTblData{
-		cfgDb:   TblData{portTN: "PORT", intfTN: "INTERFACE", keySep: PIPE},
-		appDb:   TblData{portTN: "PORT_TABLE", intfTN: "INTF_TABLE", keySep: COLON},
-		stateDb: TblData{portTN: "PORT_TABLE", intfTN: "INTERFACE_TABLE", keySep: PIPE},
+		cfgDb:       TblData{portTN: "PORT", intfTN: "INTERFACE", keySep: PIPE},
+		appDb:       TblData{portTN: "PORT_TABLE", intfTN: "INTF_TABLE", keySep: COLON},
+		stateDb:     TblData{portTN: "PORT_TABLE", intfTN: "INTERFACE_TABLE", keySep: PIPE},
+		CountersHdl: CounterData{OIDTN: "COUNTERS_PORT_NAME_MAP", CountersTN: "COUNTERS", PopulateCounters: populatePortCounters},
 	},
 }
 
@@ -309,6 +325,8 @@ var intf_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) 
 		//Checking interface type at container level, if not Ethernet type return nil
 		return nil, nil
 
+	} else if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/state/counters") {
+		tblList = append(tblList, "NONE")
 	} else if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/state") ||
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/ethernet/state") ||
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state") {
@@ -840,6 +858,435 @@ var DbToYang_intf_eth_port_speed_xfmr FieldXfmrDbtoYang = func(inParams XfmrPara
 	}
 
 	return result, err
+}
+
+func getIntfCountersTblKey(d *db.DB, ifKey string) (string, error) {
+	var oid string
+
+	portOidCountrTblTs := &db.TableSpec{Name: "COUNTERS_PORT_NAME_MAP"}
+	ifCountInfo, err := d.GetMapAll(portOidCountrTblTs)
+	if err != nil {
+		log.Error("Port-OID (Counters) get for all the interfaces failed!")
+		return oid, err
+	}
+
+	if ifCountInfo.IsPopulated() {
+		_, ok := ifCountInfo.Field[ifKey]
+		if !ok {
+			err = errors.New("OID info not found from Counters DB for interface " + ifKey)
+		} else {
+			oid = ifCountInfo.Field[ifKey]
+		}
+	} else {
+		err = errors.New("Get for OID info from all the interfaces from Counters DB failed!")
+	}
+
+	return oid, err
+}
+
+func getCounters(entry *db.Value, attr string, counter_val **uint64) error {
+
+	var ok bool = false
+	var err error
+	val1, ok := entry.Field[attr]
+	if !ok {
+		return errors.New("Attr " + attr + "doesn't exist in IF table Map!")
+	}
+
+	if len(val1) > 0 {
+		v, _ := strconv.ParseUint(val1, 10, 64)
+		*counter_val = &v
+		return nil
+	}
+	return err
+}
+
+var portCntList []string = []string{"in-octets", "in-unicast-pkts", "in-broadcast-pkts", "in-multicast-pkts",
+	"in-errors", "in-discards", "in-pkts", "out-octets", "out-unicast-pkts",
+	"out-broadcast-pkts", "out-multicast-pkts", "out-errors", "out-discards",
+	"out-pkts"}
+var etherCntList []string = []string{"in-oversize-frames", "in-undersize-frames", "in-jabber-frames", "in-fragment-frames", "in-distribution/in-frames-128-255-octets"}
+var etherCntInList []string = []string{"in-frames-64-octets", "in-frames-65-127-octets", "in-frames-128-255-octets",
+	"in-frames-256-511-octets", "in-frames-512-1023-octets", "in-frames-1024-1518-octets"}
+
+func getSpecificCounterAttr(targetUriPath string, entry *db.Value, counter interface{}) (bool, error) {
+
+	var e error
+	var counter_val *ocbinds.OpenconfigInterfaces_Interfaces_Interface_State_Counters
+	var eth_counter_val *ocbinds.OpenconfigInterfaces_Interfaces_Interface_Ethernet_State_Counters
+
+	if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/state/counters") {
+		counter_val = counter.(*ocbinds.OpenconfigInterfaces_Interfaces_Interface_State_Counters)
+	} else {
+		eth_counter_val = counter.(*ocbinds.OpenconfigInterfaces_Interfaces_Interface_Ethernet_State_Counters)
+	}
+
+	switch targetUriPath {
+	case "/openconfig-interfaces:interfaces/interface/state/counters/in-octets":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_IN_OCTETS", &counter_val.InOctets)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/in-unicast-pkts":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_IN_UCAST_PKTS", &counter_val.InUnicastPkts)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/in-broadcast-pkts":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_IN_BROADCAST_PKTS", &counter_val.InBroadcastPkts)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/in-multicast-pkts":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_IN_MULTICAST_PKTS", &counter_val.InMulticastPkts)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/in-errors":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_IN_ERRORS", &counter_val.InErrors)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/in-discards":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_IN_DISCARDS", &counter_val.InDiscards)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/in-pkts":
+		var inNonUCastPkt, inUCastPkt *uint64
+		var in_pkts uint64
+
+		e = getCounters(entry, "SAI_PORT_STAT_IF_IN_NON_UCAST_PKTS", &inNonUCastPkt)
+		if e == nil {
+			e = getCounters(entry, "SAI_PORT_STAT_IF_IN_UCAST_PKTS", &inUCastPkt)
+			if e != nil {
+				return true, e
+			}
+			in_pkts = *inUCastPkt + *inNonUCastPkt
+			counter_val.InPkts = &in_pkts
+			return true, e
+		} else {
+			return true, e
+		}
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/out-octets":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_OUT_OCTETS", &counter_val.OutOctets)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/out-unicast-pkts":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_OUT_UCAST_PKTS", &counter_val.OutUnicastPkts)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/out-broadcast-pkts":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_OUT_BROADCAST_PKTS", &counter_val.OutBroadcastPkts)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/out-multicast-pkts":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_OUT_MULTICAST_PKTS", &counter_val.OutMulticastPkts)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/out-errors":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_OUT_ERRORS", &counter_val.OutErrors)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/out-discards":
+		e = getCounters(entry, "SAI_PORT_STAT_IF_OUT_DISCARDS", &counter_val.OutDiscards)
+		return true, e
+
+	case "/openconfig-interfaces:interfaces/interface/state/counters/out-pkts":
+		var outNonUCastPkt, outUCastPkt *uint64
+		var out_pkts uint64
+
+		e = getCounters(entry, "SAI_PORT_STAT_IF_OUT_NON_UCAST_PKTS", &outNonUCastPkt)
+		if e == nil {
+			e = getCounters(entry, "SAI_PORT_STAT_IF_OUT_UCAST_PKTS", &outUCastPkt)
+			if e != nil {
+				return true, e
+			}
+			out_pkts = *outUCastPkt + *outNonUCastPkt
+			counter_val.OutPkts = &out_pkts
+			return true, e
+		} else {
+			return true, e
+		}
+
+	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters/in-oversize-frames",
+		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/in-oversize-frames":
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_RX_OVERSIZE_PKTS", &eth_counter_val.InOversizeFrames)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters/in-undersize-frames",
+		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/in-undersize-frames":
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_STATS_UNDERSIZE_PKTS", &eth_counter_val.InUndersizeFrames)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters/in-jabber-frames",
+		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/in-jabber-frames":
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_STATS_JABBERS", &eth_counter_val.InJabberFrames)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters/in-fragment-frames",
+		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/in-fragment-frames":
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_STATS_FRAGMENTS", &eth_counter_val.InFragmentFrames)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution/in-frames-64-octets":
+		ygot.BuildEmptyTree(eth_counter_val)
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_IN_PKTS_64_OCTETS", &eth_counter_val.InDistribution.InFrames_64Octets)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution/in-frames-65-127-octets":
+		ygot.BuildEmptyTree(eth_counter_val)
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_IN_PKTS_65_TO_127_OCTETS", &eth_counter_val.InDistribution.InFrames_65_127Octets)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution/in-frames-128-255-octets",
+		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution/in-frames-128-255-octets":
+		ygot.BuildEmptyTree(eth_counter_val)
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_IN_PKTS_128_TO_255_OCTETS", &eth_counter_val.InDistribution.InFrames_128_255Octets)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution/in-frames-256-511-octets":
+		ygot.BuildEmptyTree(eth_counter_val)
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_IN_PKTS_256_TO_511_OCTETS", &eth_counter_val.InDistribution.InFrames_256_511Octets)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution/in-frames-512-1023-octets":
+		ygot.BuildEmptyTree(eth_counter_val)
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_IN_PKTS_512_TO_1023_OCTETS", &eth_counter_val.InDistribution.InFrames_512_1023Octets)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution/in-frames-1024-1518-octets":
+		ygot.BuildEmptyTree(eth_counter_val)
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_IN_PKTS_1024_TO_1518_OCTETS", &eth_counter_val.InDistribution.InFrames_1024_1518Octets)
+		return true, e
+
+	default:
+		log.Infof(targetUriPath + " - Not an interface state counter attribute")
+	}
+	return false, nil
+}
+
+var DbToYang_intf_get_counters_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
+	var err error
+
+	intfsObj := getIntfsRoot(inParams.ygRoot)
+	pathInfo := NewPathInfo(inParams.uri)
+	uriIfName := pathInfo.Var("name")
+	ifName := uriIfName
+
+	targetUriPath := pathInfo.YangPath
+	log.Info("targetUriPath is ", targetUriPath)
+
+	if !strings.Contains(targetUriPath, "/openconfig-interfaces:interfaces/interface/state/counters") {
+		log.Infof("%s is redundant", targetUriPath)
+		return err
+	}
+
+	intfType, _, ierr := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || ierr != nil {
+		log.Info("DbToYang_intf_get_counters_xfmr - Invalid interface type IntfTypeUnset")
+		return errors.New("Invalid interface type IntfTypeUnset")
+	}
+	intTbl := IntfTypeTblMap[intfType]
+	if intTbl.CountersHdl.PopulateCounters == nil {
+		log.Infof("Counters for Interface: %s not supported!", ifName)
+		return nil
+	}
+	var state_counters *ocbinds.OpenconfigInterfaces_Interfaces_Interface_State_Counters
+
+	if intfsObj != nil && intfsObj.Interface != nil && len(intfsObj.Interface) > 0 {
+		var ok bool = false
+		var intfObj *ocbinds.OpenconfigInterfaces_Interfaces_Interface
+		if intfObj, ok = intfsObj.Interface[uriIfName]; !ok {
+			intfObj, _ = intfsObj.NewInterface(uriIfName)
+			ygot.BuildEmptyTree(intfObj)
+		}
+		ygot.BuildEmptyTree(intfObj)
+		if intfObj.State == nil || intfObj.State.Counters == nil {
+			ygot.BuildEmptyTree(intfObj.State)
+		}
+		state_counters = intfObj.State.Counters
+	} else {
+		ygot.BuildEmptyTree(intfsObj)
+		intfObj, _ := intfsObj.NewInterface(uriIfName)
+		ygot.BuildEmptyTree(intfObj)
+		state_counters = intfObj.State.Counters
+	}
+
+	err = intTbl.CountersHdl.PopulateCounters(inParams, state_counters)
+	if log.V(3) {
+		log.Info("DbToYang_intf_get_counters_xfmr - ", state_counters)
+	}
+
+	return err
+}
+
+var Subscribe_intf_get_counters_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubscInParams) (XfmrSubscOutParams, error) {
+	var err error
+	var result XfmrSubscOutParams
+
+	if inParams.subscProc == TRANSLATE_SUBSCRIBE {
+		log.Info("Subscribe_intf_get_counters_xfmr: inParams.subscProc: ", inParams.subscProc)
+
+		pathInfo := NewPathInfo(inParams.uri)
+		targetUriPath := pathInfo.YangPath
+
+		log.Infof("Subscribe_intf_get_counters_xfmr:- URI:%s pathinfo:%s ", inParams.uri, pathInfo.Path)
+		log.Infof("Subscribe_intf_get_counters_xfmr:- Target URI path:%s", targetUriPath)
+
+		// to handle the TRANSLATE_SUBSCRIBE
+		result.nOpts = new(notificationOpts)
+		result.nOpts.pType = Sample
+		result.nOpts.mInterval = 30
+		result.isVirtualTbl = false
+		result.needCache = true
+
+		ifName := pathInfo.Var("name")
+		log.Info("Subscribe_intf_get_counters_xfmr: ifName: ", ifName)
+
+		if ifName == "" || ifName == "*" {
+			if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters") {
+				ifName = "Eth" + "*"
+			} else {
+				ifName = "*"
+			}
+		}
+
+		result.dbDataMap = RedisDbSubscribeMap{db.CountersDB: {"COUNTERS_PORT_NAME_MAP": {"": {FIELD_CURSOR: ifName}}}}
+
+		log.Info("Subscribe_intf_eth_port_config_xfmr: result ", result)
+	}
+	return result, err
+}
+
+var DbToYangPath_intf_get_counters_path_xfmr PathXfmrDbToYangFunc = func(params XfmrDbToYgPathParams) error {
+	log.Info("DbToYangPath_intf_get_counters_path_xfmr: params: ", params)
+
+	intfRoot := "/openconfig-interfaces:interfaces/interface"
+
+	if params.tblName != "COUNTERS_PORT_NAME_MAP" {
+		log.Info("DbToYangPath_intf_get_counters_path_xfmr: from wrong table: ", params.tblName)
+		return nil
+	}
+
+	if (params.tblName == "COUNTERS_PORT_NAME_MAP") && (len(params.tblKeyComp) > 0) {
+		params.ygPathKeys[intfRoot+"/name"] = params.tblKeyComp[0]
+	} else {
+		log.Info("DbToYangPath_intf_get_counters_path_xfmr, wrong param: tbl ", params.tblName, " key ", params.tblKeyComp)
+		return nil
+	}
+
+	log.Info("DbToYangPath_intf_get_counters_path_xfmr: params.ygPathkeys: ", params.ygPathKeys)
+
+	return nil
+}
+
+var Subscribe_intf_get_ether_counters_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubscInParams) (XfmrSubscOutParams, error) {
+	return Subscribe_intf_get_counters_xfmr(inParams)
+}
+
+var populatePortCounters PopulateIntfCounters = func(inParams XfmrParams, counter interface{}) error {
+	var err error
+	pathInfo := NewPathInfo(inParams.uri)
+	ifName := pathInfo.Var("name")
+
+	targetUriPath := pathInfo.YangPath
+
+	if log.V(3) {
+		log.Info("PopulateIntfCounters : inParams.curDb : ", inParams.curDb, "D: ", inParams.d, "DB index : ", inParams.dbs[inParams.curDb])
+	}
+	oid, oiderr := getIntfCountersTblKey(inParams.dbs[inParams.curDb], ifName)
+	if oiderr != nil {
+		log.Info(oiderr)
+		return oiderr
+	}
+	cntTs := &db.TableSpec{Name: "COUNTERS"}
+	entry, dbErr := inParams.dbs[inParams.curDb].GetEntry(cntTs, db.Key{Comp: []string{oid}})
+	if dbErr != nil {
+		log.Info("PopulateIntfCounters : not able find the oid entry in DB Counters table")
+		return dbErr
+	}
+	CounterData := entry
+
+	switch targetUriPath {
+	case "/openconfig-interfaces:interfaces/interface/state/counters":
+		for _, attr := range portCntList {
+			uri := targetUriPath + "/" + attr
+			if ok, err := getSpecificCounterAttr(uri, &CounterData, counter); !ok || err != nil {
+				log.Info("Get Counter URI failed :", uri)
+				//err = errors.New("Get Counter URI failed")
+			}
+		}
+	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters",
+		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters":
+		for _, attr := range etherCntList {
+			uri := targetUriPath + "/" + attr
+			if ok, err := getSpecificCounterAttr(uri, &CounterData, counter); !ok || err != nil {
+				log.Info("Get Ethernet Counter URI failed :", uri)
+				//err = errors.New("Get Ethernet Counter URI failed")
+			}
+		}
+		targetUriPath = "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution"
+		fallthrough
+	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution",
+		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution":
+		for _, attr := range etherCntInList {
+			uri := targetUriPath + "/" + attr
+			if ok, err := getSpecificCounterAttr(uri, &CounterData, counter); !ok || err != nil {
+				log.Info("Get Ethernet Counter URI failed :", uri)
+			}
+		}
+
+	default:
+		_, err = getSpecificCounterAttr(targetUriPath, &CounterData, counter)
+	}
+
+	return err
+}
+
+var YangToDb_intf_counters_key KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	pathInfo := NewPathInfo(inParams.uri)
+	intfName := pathInfo.Var("name")
+	oid, oiderr := getIntfCountersTblKey(inParams.dbs[inParams.curDb], intfName)
+
+	return oid, oiderr
+}
+
+var DbToYang_intf_counters_key KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	rmap := make(map[string]interface{})
+	var err error
+	return rmap, err
+}
+
+var DbToYang_intf_get_ether_counters_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
+	var err error
+
+	intfsObj := getIntfsRoot(inParams.ygRoot)
+	pathInfo := NewPathInfo(inParams.uri)
+	uriIfName := pathInfo.Var("name")
+	ifName := uriIfName
+	log.Info("Ether counters subtree and ifname: ", ifName)
+
+	targetUriPath := pathInfo.YangPath
+	intfType, _, ierr := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || ierr != nil {
+		log.Info("DbToYang_intf_get_ether_counters_xfmr - Invalid interface type IntfTypeUnset")
+		return errors.New("Invalid interface type IntfTypeUnset")
+	}
+
+	if !strings.Contains(targetUriPath, "/openconfig-interfaces:interfaces/interface/ethernet/state/counters") &&
+		!strings.Contains(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters") {
+		log.Infof("%s is redundant", targetUriPath)
+		return err
+	}
+
+	var intfObj *ocbinds.OpenconfigInterfaces_Interfaces_Interface
+	var eth_counters *ocbinds.OpenconfigInterfaces_Interfaces_Interface_Ethernet_State_Counters
+
+	if intfsObj != nil && intfsObj.Interface != nil && len(intfsObj.Interface) > 0 {
+		var ok bool = false
+		if intfObj, ok = intfsObj.Interface[uriIfName]; !ok {
+			intfObj, _ = intfsObj.NewInterface(uriIfName)
+		}
+		ygot.BuildEmptyTree(intfObj)
+	} else {
+		ygot.BuildEmptyTree(intfsObj)
+		intfObj, _ = intfsObj.NewInterface(uriIfName)
+		ygot.BuildEmptyTree(intfObj)
+	}
+
+	ygot.BuildEmptyTree(intfObj.Ethernet)
+	ygot.BuildEmptyTree(intfObj.Ethernet.State)
+	ygot.BuildEmptyTree(intfObj.Ethernet.State.Counters)
+	eth_counters = intfObj.Ethernet.State.Counters
+
+	return populatePortCounters(inParams, eth_counters)
 }
 
 var intf_post_xfmr PostXfmrFunc = func(inParams XfmrParams) (map[string]map[string]db.Value, error) {
