@@ -75,6 +75,22 @@ module openconfig-interfaces-annot {
             sonic-ext:field-name "admin_status";
         }
     }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters {
+        deviate add {
+            sonic-ext:subtree-transformer "intf_get_counters_xfmr";
+            sonic-ext:db-name "COUNTERS_DB";
+            sonic-ext:subscribe-on-change "disable";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters {
+        deviate add {
+            sonic-ext:db-name "COUNTERS_DB";
+            sonic-ext:subtree-transformer "intf_get_ether_counters_xfmr";
+            sonic-ext:subscribe-on-change "disable";
+        }
+    }
     
     deviation /oc-intf:interfaces {
       deviate add {
