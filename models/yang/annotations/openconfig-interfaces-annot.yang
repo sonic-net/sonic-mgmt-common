@@ -19,6 +19,7 @@ module openconfig-interfaces-annot {
     deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:config {
         deviate add {
             sonic-ext:subtree-transformer "intf_eth_port_config_xfmr";
+            sonic-ext:path-transformer "intf_eth_port_config_path_xfmr";
         }
     }
 
@@ -110,6 +111,7 @@ module openconfig-interfaces-annot {
             sonic-ext:table-transformer "intf_subintfs_table_xfmr";
             sonic-ext:virtual-table "true";
             sonic-ext:key-transformer "intf_subintfs_xfmr";
+            sonic-ext:path-transformer "intf_ip_path_xfmr";
         }
     }
     
