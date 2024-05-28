@@ -1192,7 +1192,7 @@ func (pathXltr *subscribePathXlator) handleTableXfmrCallback() ([]string, error)
 		dbDataMap[i] = make(map[string]map[string]db.Value)
 	}
 	ygotObj, err := newYgotRootObj()
-	if err == nil {
+	if err != nil {
 		log.Warningf(pathXltr.subReq.reqLogId, "newYgotRootObj: error: %v", err)
 		return nil, err
 	}
