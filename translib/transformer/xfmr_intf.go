@@ -752,9 +752,9 @@ var DbToYang_intf_eth_port_config_xfmr SubTreeXfmrDbToYang = func(inParams XfmrP
 	intfsObj := getIntfsRoot(inParams.ygRoot)
 	pathInfo := NewPathInfo(inParams.uri)
 	uriIfName := pathInfo.Var("name")
-	ifName := *(&uriIfName)
+	ifName := uriIfName
 
-	log.Infof("DbToYang_intf_eth_port_config_xfmr: Interface name : %s ", ifName)
+	log.V(3).Infof("DbToYang_intf_eth_port_config_xfmr: Interface name : %s ", ifName)
 
 	intfType, _, err := getIntfTypeByName(ifName)
 	if err != nil {
@@ -835,13 +835,13 @@ var Subscribe_intf_eth_port_config_xfmr SubTreeXfmrSubscribe = func(inParams Xfm
 	var result XfmrSubscOutParams
 
 	if inParams.subscProc == TRANSLATE_SUBSCRIBE {
-		log.Info("Subscribe_intf_eth_port_config_xfmr: inParams.subscProc: ", inParams.subscProc)
+		log.V(3).Info("Subscribe_intf_eth_port_config_xfmr: inParams.subscProc: ", inParams.subscProc)
 
 		pathInfo := NewPathInfo(inParams.uri)
 		targetUriPath := pathInfo.YangPath
 
-		log.Infof("Subscribe_intf_eth_port_config_xfmr:- URI:%s pathinfo:%s ", inParams.uri, pathInfo.Path)
-		log.Infof("Subscribe_intf_eth_port_config_xfmr:- Target URI path:%s", targetUriPath)
+		log.V(3).Infof("Subscribe_intf_eth_port_config_xfmr:- URI:%s pathinfo:%s ", inParams.uri, pathInfo.Path)
+		log.V(3).Infof("Subscribe_intf_eth_port_config_xfmr:- Target URI path:%s", targetUriPath)
 
 		// to handle the TRANSLATE_SUBSCRIBE
 		result.nOpts = new(notificationOpts)
@@ -850,23 +850,20 @@ var Subscribe_intf_eth_port_config_xfmr SubTreeXfmrSubscribe = func(inParams Xfm
 		result.isVirtualTbl = false
 		result.needCache = true
 
-		ifName := pathInfo.Var("name")
 		log.Info("Subscribe_intf_eth_port_config_xfmr: ifName: ", ifName)
 
-		if ifName == "" {
-			ifName = "*"
-		}
+		ifName := pathInfo.StringVar("name", "*")
 
 		result.dbDataMap = RedisDbSubscribeMap{db.ConfigDB: {
 			"PORT": {ifName: {"autoneg": "auto-negotiate", "speed": "port-speed"}}}}
 
-		log.Info("Subscribe_intf_eth_port_config_xfmr: result ", result)
+		log.V(3).Info("Subscribe_intf_eth_port_config_xfmr: result ", result)
 	}
 	return result, err
 }
 
 var DbToYangPath_intf_eth_port_config_path_xfmr PathXfmrDbToYangFunc = func(params XfmrDbToYgPathParams) error {
-	log.Info("DbToYangPath_intf_eth_port_config_path_xfmr: params: ", params)
+	log.V(3).Info("DbToYangPath_intf_eth_port_config_path_xfmr: params: ", params)
 
 	intfRoot := "/openconfig-interfaces:interfaces/interface"
 
@@ -876,7 +873,7 @@ var DbToYangPath_intf_eth_port_config_path_xfmr PathXfmrDbToYangFunc = func(para
 	}
 
 	if (params.tblName == "PORT") && (len(params.tblKeyComp) > 0) {
-		params.ygPathKeys[intfRoot+"/name"] = *(&params.tblKeyComp[0])
+		params.ygPathKeys[intfRoot+"/name"] = params.tblKeyComp[0]
 	} else {
 		log.Info("DbToYangPath_intf_eth_port_config_path_xfmr, wrong param: tbl ", params.tblName, " key ", params.tblKeyComp)
 		return nil
@@ -1453,7 +1450,7 @@ var intf_subintfs_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string
 	if inParams.oper == SUBSCRIBE {
 		var _intfTypeList []E_InterfaceType
 
-		if idx == "*" || idx != "0" {
+		if idx != "*" && idx != "0" {
 			err_str := "Subinterfaces not supported"
 			return tblList, tlerr.NotSupported(err_str)
 		}
@@ -2603,17 +2600,12 @@ var Subscribe_intf_ip_addr_xfmr = func(inParams XfmrSubscInParams) (XfmrSubscOut
 		result.nOpts.pType = OnChange
 		result.isVirtualTbl = false
 
-		uriIfName := pathInfo.Var("name")
+		//uriIfName := pathInfo.Var("name")
 		tableName := ""
 		ipKey := ""
 		ifKey := ""
 
-		if uriIfName == "" || uriIfName == "*" {
-			ifKey = "*"
-		} else {
-			sonicIfName := &uriIfName
-			ifKey = *sonicIfName
-		}
+		ifKey := pathInfo.StringVar("name", "*")
 
 		addressConfigPath := "/address/config"
 		addressStatePath := "/address/state"
