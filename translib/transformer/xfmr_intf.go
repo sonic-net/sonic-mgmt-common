@@ -850,9 +850,9 @@ var Subscribe_intf_eth_port_config_xfmr SubTreeXfmrSubscribe = func(inParams Xfm
 		result.isVirtualTbl = false
 		result.needCache = true
 
-		log.Info("Subscribe_intf_eth_port_config_xfmr: ifName: ", ifName)
-
 		ifName := pathInfo.StringVar("name", "*")
+
+		log.V(3).Info("Subscribe_intf_eth_port_config_xfmr: ifName: ", ifName)
 
 		result.dbDataMap = RedisDbSubscribeMap{db.ConfigDB: {
 			"PORT": {ifName: {"autoneg": "auto-negotiate", "speed": "port-speed"}}}}
@@ -2604,7 +2604,7 @@ var Subscribe_intf_ip_addr_xfmr = func(inParams XfmrSubscInParams) (XfmrSubscOut
 		ipKey := ""
 		ifKey := ""
 
-		ifKey := pathInfo.StringVar("name", "*")
+		ifKey = pathInfo.StringVar("name", "*")
 
 		addressConfigPath := "/address/config"
 		addressStatePath := "/address/state"
