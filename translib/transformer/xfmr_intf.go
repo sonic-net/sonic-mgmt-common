@@ -2600,7 +2600,6 @@ var Subscribe_intf_ip_addr_xfmr = func(inParams XfmrSubscInParams) (XfmrSubscOut
 		result.nOpts.pType = OnChange
 		result.isVirtualTbl = false
 
-		//uriIfName := pathInfo.Var("name")
 		tableName := ""
 		ipKey := ""
 		ifKey := ""
