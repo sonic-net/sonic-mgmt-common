@@ -1,6 +1,6 @@
-module sonic-sample-global {
-    namespace "http://github.com/sonic-net/sonic-sample-global";
-    prefix sonic-sample;
+module sonic-security-global {
+    namespace "http://github.com/sonic-net/sonic-security-global";
+    prefix sonic-security;
     yang-version 1.1;
 
     import sonic-pki {
@@ -14,7 +14,7 @@ module sonic-sample-global {
         "SONiC";
 
     description
-        "This module defines the global configuration for the sonic-sample.";
+        "This module defines the global security configuration for SONiC.";
 
     revision 2024-07-03 {
         description
@@ -23,8 +23,8 @@ module sonic-sample-global {
             "RFC XXXX";
     }
 
-    container sonic-sample-global {
-        container SOME_SAMPLE {
+    container sonic-security-global {
+        container SECURITY_GLOBAL {
             container global {
                 leaf security_profile {
                     type leafref {

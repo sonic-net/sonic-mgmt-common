@@ -2511,7 +2511,7 @@ func TestValidateEditConfig_Delete_Dep_Leafref_singleton(t *testing.T) {
 				"certificate-name": "somecert",
 			},
 		},
-		"SOME_SAMPLE": map[string]interface{}{
+		"SECURITY_GLOBAL": map[string]interface{}{
 			"global": map[string]interface{}{
 				"security_profile": "someprof",
 			},
