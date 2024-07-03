@@ -2503,6 +2503,40 @@ func TestValidateEditConfig_Delete_Dep_Leafref_Negative(t *testing.T) {
 	})
 }
 
+// EditConfig(Delete) deleting entry already used by other table as leafref
+func TestValidateEditConfig_Delete_Dep_Leafref_singleton(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"SECURITY_PROFILES": map[string]interface{}{
+			"someprof": map[string]interface{}{
+				"certificate-name": "somecert",
+			},
+		},
+		"SOME_SAMPLE": map[string]interface{}{
+			"global": map[string]interface{}{
+				"security_profile": "someprof",
+			},
+		},
+	})
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_DELETE,
+			"SECURITY_PROFILES|someprof",
+			map[string]string{},
+			false,
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:   CVL_SEMANTIC_ERROR,
+		TableName: "SECURITY_PROFILES",
+		Keys:      []string{"someprof"},
+		Msg:       instanceInUseErrMessage,
+		ErrAppTag: "instance-in-use",
+	})
+}
+
 func TestValidateEditConfig_Create_Syntax_RangeValidation(t *testing.T) {
 	t.Run("success", func(tt *testing.T) {
 		data := []CVLEditConfigData{{
