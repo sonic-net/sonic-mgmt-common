@@ -32,10 +32,10 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	t.Log("\n\n+++++++++++++ CONFIGURING PORTCHANNEL ++++++++++++")
 
-	t.Log("\n\n--- PUT to Create PortChannel 111 ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]"
+	t.Log("\n\n--- POST to Create PortChannel 111 ---")
+	url = "/openconfig-interfaces:interfaces"
 	url_input_body_json = "{\"openconfig-interfaces:interface\": [{\"name\":\"PortChannel111\", \"config\": {\"name\": \"PortChannel111\", \"mtu\": 9100, \"description\": \"put_pc\", \"enabled\": true}}]}"
-	t.Run("Test Create PortChannel111", processSetRequest(url, url_input_body_json, "PUT", false, nil))
+	t.Run("Test Create PortChannel111", processSetRequest(url, url_input_body_json, "POST", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify PortChannel Creation ---")

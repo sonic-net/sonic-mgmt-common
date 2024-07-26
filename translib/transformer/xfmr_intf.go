@@ -210,8 +210,10 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 	var err error
 	switch inParams.oper {
 	case DELETE:
-		if *requestUriPath == "/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface" && subintfid != 0 {
-			return nil
+		if strings.HasPrefix(*requestUriPath, "/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface") && subintfid != 0 {
+			errStr := "Subinterfaces not supported"
+			log.Error(errStr)
+			return tlerr.NotSupported(errStr)
 		}
 
 		if *requestUriPath == "/openconfig-interfaces:interfaces/interface" {
@@ -254,6 +256,15 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 					// Hence block the Replace/PUT request for Physical interfaces alone.
 					err_str := "Replace/PUT request not allowed for Physical interfaces"
 					return tlerr.NotSupported(err_str)
+				}
+			}
+		}
+		if ifType == IntfTypePortChannel {
+			if (inParams.oper == UPDATE) || (inParams.oper == REPLACE) {
+				err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypePortChannel].cfgDb.portTN, *ifName)
+				if err != nil { //No Matching PortChannel to UPDATE/REPLACE
+					errStr := "PortChannel: " + *ifName + " does not exist"
+					return tlerr.InvalidArgsError{Format: errStr}
 				}
 			}
 		}

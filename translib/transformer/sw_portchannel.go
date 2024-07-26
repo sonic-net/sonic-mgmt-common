@@ -340,8 +340,6 @@ var DbToYang_intf_lag_state_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams)
 		if err != nil {
 			return err
 		}
-	case "/openconfig-interfaces:interfaces/interface/aggregation/state":
-		fallthrough
 	case "/openconfig-interfaces:interfaces/interface/openconfig-if-aggregate:aggregation/state":
 		log.Info("Get is for State Container!")
 		err = getLagState(inParams, inParams.d, &ifName, lagInfoMap, ocAggregationStateVal)
