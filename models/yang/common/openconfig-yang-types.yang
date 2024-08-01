@@ -32,7 +32,38 @@ module openconfig-yang-types {
     Section 4.c of the IETF Trust's Legal Provisions Relating
     to IETF Documents (http://trustee.ietf.org/license-info).";
 
-  oc-ext:openconfig-version "0.2.1";
+  oc-ext:openconfig-version "1.0.0";
+
+  revision "2024-05-30" {
+    description
+      "Add hex-string-prefixed typedef";
+    reference "1.0.0";
+  }
+
+  revision "2021-07-14" {
+    description
+      "Use auto-generated regex for certain pattern statements:
+      - dotted-quad
+      - date-and-time
+      - date
+
+      For date-and-time, allow lowercase z and t in the pattern.";
+    reference "0.3.1";
+  }
+
+  revision "2021-03-02" {
+    description
+      "Fix date-and-time and date's pattern statement, and remove the
+      regexp-posix extension, which makes pattern statements conform to the
+      YANG standard.";
+    reference "0.3.0";
+  }
+
+  revision "2020-06-30" {
+    description
+      "Add OpenConfig POSIX pattern extensions.";
+    reference "0.2.2";
+  }
 
   revision "2018-11-21" {
     description
@@ -65,15 +96,17 @@ module openconfig-yang-types {
   }
 
   // OpenConfig specific extensions for module metadata.
-  oc-ext:regexp-posix;
   oc-ext:catalog-organization "openconfig";
   oc-ext:origin "openconfig";
 
   typedef dotted-quad {
     type string {
-      pattern '^(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|'       +
-              '25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4]' +
-              '[0-9]|25[0-5])$';
+      pattern
+        '([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\.([0-9]|'
+        + '[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])){3}';
+      oc-ext:posix-pattern
+        '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\.([0-9]|'
+        + '[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])){3})$';
     }
     description
       "An unsigned 32-bit integer expressed as a dotted quad. The
@@ -82,11 +115,26 @@ module openconfig-yang-types {
   }
 
   typedef hex-string {
+    status deprecated;
     type string {
-      pattern '^[0-9a-fA-F]*$';
+      pattern '[0-9a-fA-F]*';
+      oc-ext:posix-pattern '^[0-9a-fA-F]*$';
     }
     description
-      "A string consisting of a hexadecimal characters.";
+      "A string consisting of a hexadecimal characters.  This leaf is
+      deprecated and will removed in a future version of this model.
+      The type hex-string-prefixed should be used instead.";
+  }
+
+  typedef hex-string-prefixed {
+    type string {
+      pattern '(0x)([0-9a-fA-F]{2})*';
+      oc-ext:posix-pattern '^(0x)([0-9a-fA-F]{2})*$';
+      length "3..max";
+    }
+    description
+      "A string encoding a hexadecimal number with a prefix of '0x' followed
+      by a list of bytes.";
   }
 
   typedef counter32 {
@@ -105,7 +153,6 @@ module openconfig-yang-types {
   typedef counter64 {
     type uint64;
     description
-
       "A 64-bit counter. A counter value is a monotonically increasing
       value which is used to express a count of a number of
       occurrences of a particular event or entity. When a counter64
@@ -118,8 +165,15 @@ module openconfig-yang-types {
   typedef date-and-time {
     type string {
       pattern
-        '^[0-9]{4}\-[0-9]{2}\-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}' +
-        '(\.[0-9]+)?Z[+-][0-9]{2}:[0-9]{2}$';
+        '[0-9]{4}\-(0[1-9]|1[0-2])\-(0[1-9]|[12][0-9]|3[01])[Tt](0[0-9]|'
+        + '1[0-9]|2[0-3]):(0[0-9]|[1-5][0-9]):(0[0-9]|[1-5][0-9]|'
+        + '60)(\.[0-9]+)?([Zz]|([+-](0[0-9]|1[0-9]|2[0-3]):(0[0-9]|'
+        + '[1-5][0-9])))';
+      oc-ext:posix-pattern
+        '^([0-9]{4}\-(0[1-9]|1[0-2])\-(0[1-9]|[12][0-9]|3[01])[Tt](0[0-9]|'
+        + '1[0-9]|2[0-3]):(0[0-9]|[1-5][0-9]):(0[0-9]|[1-5][0-9]|'
+        + '60)(\.[0-9]+)?([Zz]|([+-](0[0-9]|1[0-9]|2[0-3]):(0[0-9]|'
+        + '[1-5][0-9]))))$';
     }
     description
       "A date and time, expressed in the format described in RFC3339.
@@ -147,7 +201,10 @@ module openconfig-yang-types {
 
   typedef date {
     type string {
-      pattern '^[0-9]{4}\-[0-9]{2}\-[0-9]{2}$';
+      pattern
+        '[0-9]{4}\-(0[1-9]|1[0-2])\-(0[1-9]|[12][0-9]|3[01])';
+      oc-ext:posix-pattern
+        '^([0-9]{4}\-(0[1-9]|1[0-2])\-(0[1-9]|[12][0-9]|3[01]))$';
     }
     description
       "A full UTC date, expressed in the format described in RFC3339.
@@ -174,7 +231,8 @@ module openconfig-yang-types {
 
   typedef phys-address {
     type string {
-      pattern '^([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?$';
+      pattern '([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?';
+      oc-ext:posix-pattern '^([0-9a-fA-F]{2}(:[0-9a-fA-F]{2})*)?$';
     }
     description
       "A physical layer address, expressed as a series of pairs of
@@ -183,7 +241,8 @@ module openconfig-yang-types {
 
   typedef mac-address {
     type string {
-      pattern '^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$';
+      pattern '[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}';
+      oc-ext:posix-pattern '^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$';
     }
     description
       "An IEEE 802 MAC address";
