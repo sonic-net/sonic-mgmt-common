@@ -175,7 +175,6 @@ type ProcessState struct {
 	Name              string
 	Pid               uint64
 	StartTime         uint64
-	Uptime            uint64
 }
 
 func (app *SysApp) getSystemProcess(sysproc *ocbinds.OpenconfigSystem_System_Processes_Process, pid uint64) {
@@ -196,7 +195,6 @@ func (app *SysApp) getSystemProcess(sysproc *ocbinds.OpenconfigSystem_System_Pro
 	procstate.Name = e.Get("CMD")
 	procstate.Pid = pid
 	procstate.StartTime = 0
-	procstate.Uptime = 0
 
 	targetUriPath, perr := getYangPathFromUri(app.path.Path)
 	if perr != nil {
@@ -213,8 +211,6 @@ func (app *SysApp) getSystemProcess(sysproc *ocbinds.OpenconfigSystem_System_Pro
 	case "/openconfig-system:system/processes/process/state/args":
 	case "/openconfig-system:system/processes/process/state/start-time":
 		sysproc.State.StartTime = &procstate.StartTime
-	case "/openconfig-system:system/processes/process/state/uptime":
-		sysproc.State.Uptime = &procstate.Uptime
 	case "/openconfig-system:system/processes/process/state/cpu-usage-user":
 		sysproc.State.CpuUsageUser = &procstate.CpuUsageUser
 	case "/openconfig-system:system/processes/process/state/cpu-usage-system":
@@ -235,7 +231,6 @@ func (app *SysApp) getSystemProcess(sysproc *ocbinds.OpenconfigSystem_System_Pro
 		sysproc.State.Name = &procstate.Name
 		sysproc.State.Pid = &procstate.Pid
 		sysproc.State.StartTime = &procstate.StartTime
-		sysproc.State.Uptime = &procstate.Uptime
 	}
 }
 
