@@ -17,7 +17,14 @@ module openconfig-system-utilization {
     "This module adds configuration and operational state for
     system wide resource utilization thresholds.";
 
-  oc-ext:openconfig-version "0.1.0";
+  oc-ext:openconfig-version "0.1.1";
+
+  revision "2024-08-03" {
+    description
+      "Commented dependency on latest version of oc-platform module
+       resource-utilization-threshold-common until the same is supported in sonic.";
+    reference "0.1.1";
+  }
 
   revision "2023-02-13" {
       description
@@ -39,7 +46,7 @@ module openconfig-system-utilization {
         "Resource name within the system.";
     }
 
-    uses oc-platform:resource-utilization-threshold-common;
+    //uses oc-platform:resource-utilization-threshold-common;
   }
 
   grouping system-resource-utilization-state {
