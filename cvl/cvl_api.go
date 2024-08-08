@@ -1042,8 +1042,8 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 	for _, refTbl := range modelInfo.tableInfo[tableName].refFromTables {
 
 		//check if ref field is a key
-		numKeys := len(modelInfo.tableInfo[refTbl.tableName].keys)
 		refRedisTblName := getYangListToRedisTbl(refTbl.tableName)
+		numKeys := len(modelInfo.tableInfo[refTbl.tableName].keys)
 		idx := 0
 
 		if refRedisTblName == "" {
@@ -1079,10 +1079,10 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 			}
 		}
 
-		if _, exists := mCmd[refTbl.tableName]; !exists {
-			mCmd[refTbl.tableName] = make([]cmn.StrSliceResult, 0)
+		if _, exists := mCmd[refRedisTblName]; !exists {
+			mCmd[refRedisTblName] = make([]cmn.StrSliceResult, 0)
 		}
-		mCmdArr := mCmd[refTbl.tableName]
+		mCmdArr := mCmd[refRedisTblName]
 
 		for ; idx < numKeys; idx++ {
 			if modelInfo.tableInfo[refTbl.tableName].keys[idx] != refTbl.field {
@@ -1095,7 +1095,7 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 			mCmdArr = append(mCmdArr, pipe.Keys(expr))
 			break
 		}
-		mCmd[refTbl.tableName] = mCmdArr
+		mCmd[refRedisTblName] = mCmdArr
 
 		if idx == numKeys {
 			//field is hash-set field, not a key, match with hash-set field
@@ -1132,7 +1132,8 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 	//Add dependent keys which should be modified
 	for tableName, mFilterScriptArr := range mFilterScripts {
 		for _, mFilterScript := range mFilterScriptArr {
-			s := cmn.Search{Pattern: tableName + "|*", Predicate: mFilterScript.script, KeyNames: modelInfo.tableInfo[tableName].keys, WithField: mFilterScript.field}
+			tblName := getYangListToRedisTbl(tableName)
+			s := cmn.Search{Pattern: tblName + "|*", Predicate: mFilterScript.script, KeyNames: modelInfo.tableInfo[tableName].keys, WithField: mFilterScript.field}
 			refEntriesJson, err := c.dbAccess.Lookup(s).Result()
 
 			if err != nil {
@@ -1243,9 +1244,10 @@ func (c *CVL) GetAllReferringTables(tableName string) map[string][]string {
 	var refTbls = make(map[string][]string)
 	if tblInfo, exists := modelInfo.tableInfo[tableName]; exists {
 		for _, refTbl := range tblInfo.refFromTables {
-			fldArr := refTbls[refTbl.tableName]
+			refTblName := getYangListToRedisTbl(refTbl.tableName)
+			fldArr := refTbls[refTblName]
 			fldArr = append(fldArr, refTbl.field)
-			refTbls[refTbl.tableName] = fldArr
+			refTbls[refTblName] = fldArr
 		}
 	}
 

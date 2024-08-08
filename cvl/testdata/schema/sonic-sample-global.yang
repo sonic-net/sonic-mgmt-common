@@ -1,0 +1,39 @@
+module sonic-sample-global {
+    namespace "http://github.com/sonic-net/sonic-sample-global";
+    prefix sonic-sample;
+    yang-version 1.1;
+
+    import sonic-pki {
+        prefix spki;
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "This module defines the global configuration for the sonic-sample.";
+
+    revision 2024-07-03 {
+        description
+            "Initial revision.";
+        reference
+            "RFC XXXX";
+    }
+
+    container sonic-sample-global {
+        container SOME_SAMPLE {
+            container global {
+                leaf security_profile {
+                    type leafref {
+                        path "/spki:sonic-pki/spki:SECURITY_PROFILES/spki:SECURITY_PROFILES_LIST/spki:profile-name";
+                    }
+                    description
+                        "Reference to the security profile defined in the sonic-pki module.";
+                }
+            }
+        }
+    }
+}
