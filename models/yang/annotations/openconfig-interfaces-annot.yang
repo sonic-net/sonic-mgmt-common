@@ -43,6 +43,12 @@ module openconfig-interfaces-annot {
         }
     }
 
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-lag:aggregate-id {
+        deviate add {
+            sonic-ext:field-transformer "intf_eth_aggr_id_xfmr";
+        }
+    }
+
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state {
         deviate add {
             sonic-ext:db-name "APPL_DB";
@@ -68,6 +74,20 @@ module openconfig-interfaces-annot {
             sonic-ext:field-transformer "intf_enabled_xfmr";
             sonic-ext:field-name "admin_status";
         }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:min-links {
+        deviate add {
+            sonic-ext:field-transformer "lag_min_links_xfmr";
+            sonic-ext:field-name "min_links";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state {
+      deviate add {
+            sonic-ext:subtree-transformer "intf_lag_state_xfmr";
+            sonic-ext:path-transformer "intf_lag_state_path_xfmr";
+      }
     }
 
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:enabled {

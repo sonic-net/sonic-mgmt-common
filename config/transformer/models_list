@@ -7,3 +7,5 @@ openconfig-if-ethernet.yang
 openconfig-interfaces.yang
 openconfig-interfaces-annot.yang
 openconfig-if-ip.yang
+openconfig-if-aggregate.yang
+openconfig-interfaces-annot.yang

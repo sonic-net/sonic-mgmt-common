@@ -8,3 +8,4 @@
 SONICYANG_IMPORTS += sonic-sflow.yang
 SONICYANG_IMPORTS += sonic-interface.yang
 SONICYANG_IMPORTS += sonic-port.yang
+SONICYANG_IMPORTS += sonic-portchannel.yang
