@@ -256,7 +256,7 @@ index c5709dc..decfc08 100644
  // Any / inside square brackets are ignored.
  func SplitPath(path string) []string {
 diff --git a/util/reflect.go b/util/reflect.go
-index 6f9f3ea..457a245 100644
+index 6f9f3ea..4ff75b6 100644
 --- a/util/reflect.go
 +++ b/util/reflect.go
 @@ -12,6 +12,9 @@
@@ -275,10 +275,10 @@ index 6f9f3ea..457a245 100644
  func InsertIntoMap(parentMap interface{}, key interface{}, value interface{}) error {
 -	DbgPrint("InsertIntoMap into parent type %T with key %v(%T) value \n%s\n (%T)",
 -		parentMap, ValueStrDebug(key), key, pretty.Sprint(value), value)
-+    if debugLibrary {
-+	   DbgPrint("InsertIntoMap into parent type %T with key %v(%T) value \n%s\n (%T)",
-+	      parentMap, ValueStrDebug(key), key, pretty.Sprint(value), value)
-+    }
++	if debugLibrary {
++		DbgPrint("InsertIntoMap into parent type %T with key %v(%T) value \n%s\n (%T)",
++		         parentMap, ValueStrDebug(key), key, pretty.Sprint(value), value)
++	}
  
  	v := reflect.ValueOf(parentMap)
  	t := reflect.TypeOf(parentMap)
@@ -291,14 +291,33 @@ index 6f9f3ea..457a245 100644
  		return fmt.Errorf("cannot assign value %v (type %T) to struct field %s (type %v) in struct %T", fieldValue, fieldValue, fieldName, ft.Type, parentStruct)
  	}
  
-@@ -452,14 +457,36 @@ func DeepEqualDerefPtrs(a, b interface{}) bool {
+@@ -452,14 +457,46 @@ func DeepEqualDerefPtrs(a, b interface{}) bool {
  	return cmp.Equal(aa, bb)
  }
  
 +func updateChildSchemaCache (schema *yang.Entry, tagStr reflect.StructTag, ygEntry *yang.Entry) {
-+	schema.ChildSchemaMutex.Lock()		
-+	schema.ChildSchemaCache[tagStr] = ygEntry
-+	schema.ChildSchemaMutex.Unlock()
++	schema.PerfOpts.ChildSchemaMutex.Lock()
++	schema.PerfOpts.ChildSchemaCache[tagStr] = ygEntry
++	schema.PerfOpts.ChildSchemaMutex.Unlock()
++}
++
++func childSchemaCache(schema *yang.Entry, tagStr reflect.StructTag) *yang.Entry {
++	if schema.PerfOpts.ChildSchemaCache == nil {
++		schema.PerfOpts.ChildSchemaMutex.Lock()
++		if schema.PerfOpts.ChildSchemaCache == nil {
++			schema.PerfOpts.ChildSchemaCache = make(map[reflect.StructTag]*yang.Entry)
++			schema.PerfOpts.ChildSchemaMutex.Unlock()
++			return nil
++		}
++		schema.PerfOpts.ChildSchemaMutex.Unlock()
++	}
++	schema.PerfOpts.ChildSchemaMutex.RLock()
++	rv, ok := schema.PerfOpts.ChildSchemaCache[tagStr]
++	schema.PerfOpts.ChildSchemaMutex.RUnlock()
++	if ok {
++		return rv
++	}
++	return nil
 +}
 +
  // ChildSchema returns the schema for the struct field f, if f contains a valid
@@ -309,19 +328,10 @@ index 6f9f3ea..457a245 100644
  func ChildSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error) {
 -	pathTag, _ := f.Tag.Lookup("path")
 -	DbgSchema("childSchema for schema %s, field %s, tag %s\n", schema.Name, f.Name, pathTag)
-+	schema.ChildSchemaMutex.Lock()
-+	if (schema.ChildSchemaCache == nil) {
-+		schema.ChildSchemaCache = make(map[reflect.StructTag]*yang.Entry)
-+	}
-+	schema.ChildSchemaMutex.Unlock()
-+
-+	schema.ChildSchemaMutex.RLock()
-+	if cschema, ok := schema.ChildSchemaCache[f.Tag]; ok {
-+		schema.ChildSchemaMutex.RUnlock()
++	if cschema := childSchemaCache(schema, f.Tag); cschema != nil {
 +		return cschema, nil
 +	}
-+	schema.ChildSchemaMutex.RUnlock()
-+	
++
 +	if IsDebugSchemaEnabled() {
 +		pathTag, _ := f.Tag.Lookup("path")
 +		DbgSchema("childSchema for schema %s, field %s, tag %s\n", schema.Name, f.Name, pathTag)	
@@ -330,7 +340,7 @@ index 6f9f3ea..457a245 100644
  	p, err := RelativeSchemaPath(f)
  	if err != nil {
  		return nil, err
-@@ -490,6 +517,7 @@ func ChildSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error)
+@@ -490,6 +527,7 @@ func ChildSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error)
  	}
  	if foundSchema {
  		DbgSchema(" - found\n")
@@ -338,7 +348,7 @@ index 6f9f3ea..457a245 100644
  		return childSchema, nil
  	}
  	DbgSchema(" - not found\n")
-@@ -505,11 +533,15 @@ func ChildSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error)
+@@ -505,11 +543,15 @@ func ChildSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error)
  		// path element i.e. choice1/case1/leaf1 path in the schema will have
  		// struct tag `path:"leaf1"`. This implies that only paths with length
  		// 1 are eligible for this matching.
@@ -348,14 +358,14 @@ index 6f9f3ea..457a245 100644
  	entries := FindFirstNonChoiceOrCase(schema)
  
 -	DbgSchema("checking for %s against non choice/case entries: %v\n", p[0], stringMapKeys(entries))
-+    if IsDebugSchemaEnabled() {
++	if IsDebugSchemaEnabled() {
 +		DbgSchema("checking for %s against non choice/case entries: %v\n", p[0], stringMapKeys(entries))
-+    }
-+    
++	}
++
  	for path, entry := range entries {
  		splitPath := SplitPath(path)
  		name := splitPath[len(splitPath)-1]
-@@ -517,11 +549,13 @@ func ChildSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error)
+@@ -517,11 +559,13 @@ func ChildSchema(schema *yang.Entry, f reflect.StructField) (*yang.Entry, error)
  
  		if StripModulePrefix(name) == p[0] {
  			DbgSchema(" - match\n")
@@ -370,7 +380,7 @@ index 6f9f3ea..457a245 100644
  }
  
 diff --git a/ygen/codegen.go b/ygen/codegen.go
-index 991705e..66f1fe3 100644
+index 991705e..ca48c82 100644
 --- a/ygen/codegen.go
 +++ b/ygen/codegen.go
 @@ -15,6 +15,10 @@
@@ -393,6 +403,14 @@ index 991705e..66f1fe3 100644
  			continue
  		default:
  			errs = util.AppendErr(errs, fmt.Errorf("unknown type of entry %v in findMappableEntities for %s", e.Kind, e.Path()))
+@@ -999,6 +1003,7 @@ func MakeFakeRoot(rootName string) *yang.Entry {
+ 		Node: &yang.Value{
+ 			Name: rootElementNodeName,
+ 		},
++		PerfOpts: &yang.PerformanceOpts{},
+ 	}
+ }
+ 
 diff --git a/ygen/genstate.go b/ygen/genstate.go
 index e39c478..b7766f0 100644
 --- a/ygen/genstate.go
@@ -464,10 +482,14 @@ index e39c478..b7766f0 100644
  	}
  
 diff --git a/ygen/schemaparse.go b/ygen/schemaparse.go
-index f71e7e6..800ec60 100644
+index f71e7e6..1183fb8 100644
 --- a/ygen/schemaparse.go
 +++ b/ygen/schemaparse.go
-@@ -43,10 +43,28 @@ func buildJSONTree(ms []*yang.Entry, dn map[string]string, fakeroot *yang.Entry,
+@@ -40,13 +40,32 @@ func buildJSONTree(ms []*yang.Entry, dn map[string]string, fakeroot *yang.Entry,
+ 	rootEntry := &yang.Entry{
+ 		Dir:        map[string]*yang.Entry{},
+ 		Annotation: map[string]interface{}{},
++		PerfOpts:   &yang.PerformanceOpts{},
  	}
  	for _, m := range ms {
  		annotateChildren(m, dn)
@@ -496,7 +518,7 @@ index f71e7e6..800ec60 100644
  			rootEntry.Dir[ch.Name] = ch
  		}
  	}
-@@ -101,6 +119,7 @@ func annotateChildren(e *yang.Entry, dn map[string]string) {
+@@ -101,6 +120,7 @@ func annotateChildren(e *yang.Entry, dn map[string]string) {
  //    corresponds to a YANG directory.
  func annotateEntry(e *yang.Entry, dn map[string]string) {
  	e.Description = ""
@@ -504,7 +526,7 @@ index f71e7e6..800ec60 100644
  	if e.Annotation == nil {
  		e.Annotation = map[string]interface{}{}
  	}
-@@ -110,6 +129,11 @@ func annotateEntry(e *yang.Entry, dn map[string]string) {
+@@ -110,6 +130,11 @@ func annotateEntry(e *yang.Entry, dn map[string]string) {
  	if e.IsDir() {
  		e.Annotation["schemapath"] = e.Path()
  	}
@@ -1328,7 +1350,7 @@ index 1d4195a..55de85c 100644
 +}
 \ No newline at end of file
 diff --git a/ytypes/list.go b/ytypes/list.go
-index ec52ee3..c312ec3 100644
+index ec52ee3..a67b164 100644
 --- a/ytypes/list.go
 +++ b/ytypes/list.go
 @@ -12,6 +12,9 @@
@@ -1354,7 +1376,7 @@ index ec52ee3..c312ec3 100644
  		if len(schema.Key) == 0 {
  			return fmt.Errorf("list %s with config set must have a key", schema.Name)
  		}
-+		if schema.IsSchemaValidated == true {
++		if schema.PerfOpts.IsSchemaValidated.Load() {
 +			return nil
 +		}
  		keys := strings.Fields(schema.Key)
@@ -1364,7 +1386,7 @@ index ec52ee3..c312ec3 100644
  		}
  	}
  
-+	schema.IsSchemaValidated = true
++	schema.PerfOpts.IsSchemaValidated.Store(true)
  	return nil
  }
  
@@ -1799,7 +1821,7 @@ index bad8474..e38c0f9 100644
  type TreeNode struct {
  	// Schema is the schema entry for the data tree node, specified as a goyang Entry struct.
 diff --git a/ytypes/string_type.go b/ytypes/string_type.go
-index 4ae91e2..f91bd74 100644
+index 4ae91e2..9ea12c3 100644
 --- a/ytypes/string_type.go
 +++ b/ytypes/string_type.go
 @@ -12,6 +12,9 @@
@@ -1816,7 +1838,7 @@ index 4ae91e2..f91bd74 100644
  	"fmt"
  	"regexp"
  	"unicode/utf8"
-+  "sync"
++	"sync"
  
  	"github.com/openconfig/goyang/pkg/yang"
  )
@@ -1858,7 +1880,7 @@ index 4ae91e2..f91bd74 100644
  		return fmt.Errorf("string schema %s has wrong type %v", schema.Name, schema.Type.Kind)
  	}
  
-+	if schema.IsSchemaValidated {
++	if schema.PerfOpts.IsSchemaValidated.Load() {
 +		return nil
 +	}
 +	
@@ -1885,7 +1907,7 @@ index 4ae91e2..f91bd74 100644
  
 -	return validateLengthSchema(schema)
 +	if err = validateLengthSchema(schema); err == nil {
-+		schema.IsSchemaValidated = true
++		schema.PerfOpts.IsSchemaValidated.Store(true)
 +	}
 +	
 +	return err 
@@ -1947,6 +1969,29 @@ index 864562f..2eea6d2 100644
 +	}
 +	return false
 +}
+diff --git a/ytypes/util_types.go b/ytypes/util_types.go
+index 38a3535..21fc68c 100644
+--- a/ytypes/util_types.go
++++ b/ytypes/util_types.go
+@@ -244,8 +244,9 @@ func checkJSONFloat64Range(t yang.TypeKind, f float64) error {
+ // yangTypeToLeafEntry returns a leaf Entry with Type set to t.
+ func yangTypeToLeafEntry(t *yang.YangType) *yang.Entry {
+ 	return &yang.Entry{
+-		Kind: yang.LeafEntry,
+-		Type: t,
++		Kind:     yang.LeafEntry,
++		Type:     t,
++		PerfOpts: &yang.PerformanceOpts{},
+ 	}
+ }
+ 
+@@ -256,5 +257,6 @@ func yangKindToLeafEntry(k yang.TypeKind) *yang.Entry {
+ 		Type: &yang.YangType{
+ 			Kind: k,
+ 		},
++		PerfOpts: &yang.PerformanceOpts{},
+ 	}
+ }
 diff --git a/ytypes/validate.go b/ytypes/validate.go
 index a99f449..1ee0c17 100644
 --- a/ytypes/validate.go
