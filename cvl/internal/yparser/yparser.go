@@ -975,6 +975,8 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 						l.DependentOnTable = argVal
 					case "tbl-key":
 						l.Key = argVal
+					case "map-leaf":
+						l.MapLeaf = strings.Split(argVal, " ")
 					}
 				}
 
