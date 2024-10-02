@@ -1,6 +1,20 @@
-diff -ruN goyang-dir-orig/annotate.go goyang-dir/annotate.go
---- goyang-dir-orig/annotate.go	1969-12-31 16:00:00.000000000 -0800
-+++ goyang-dir/annotate.go	2022-01-17 23:55:14.303340837 -0800
+diff --git a/README.md b/README.md
+index 4d22c1e..805adb5 100644
+--- a/README.md
++++ b/README.md
+@@ -14,6 +14,7 @@ The forms include:
+ 
+ *  tree - a simple tree representation
+ *  types - list understood types extracted from the schema
++*  annotate - a template file to annotate the yang modules
+ 
+ The yang package, and the goyang program, are not complete and are a work in
+ progress.
+diff --git a/annotate.go b/annotate.go
+new file mode 100644
+index 0000000..286a29c
+--- /dev/null
++++ b/annotate.go
 @@ -0,0 +1,395 @@
 +// Copyright 2015 Google Inc.
 +//
@@ -397,10 +411,11 @@ diff -ruN goyang-dir-orig/annotate.go goyang-dir/annotate.go
 +        }
 +}
 +
-diff -ruN goyang-dir-orig/pkg/yang/ast.go goyang-dir/pkg/yang/ast.go
---- goyang-dir-orig/pkg/yang/ast.go	2022-01-17 23:53:09.174875206 -0800
-+++ goyang-dir/pkg/yang/ast.go	2022-01-18 14:03:49.606900799 -0800
-@@ -391,6 +391,11 @@
+diff --git a/pkg/yang/ast.go b/pkg/yang/ast.go
+index 5673e69..4629c99 100644
+--- a/pkg/yang/ast.go
++++ b/pkg/yang/ast.go
+@@ -391,6 +391,11 @@ func initTypes(at reflect.Type) {
  			descend(name, f.Type)
  
  			fn = func(s *Statement, v, p reflect.Value) error {
@@ -412,18 +427,42 @@ diff -ruN goyang-dir-orig/pkg/yang/ast.go goyang-dir/pkg/yang/ast.go
  				if v.Type() != at {
  					panic(fmt.Sprintf("given type %s, need type %s", v.Type(), at))
  				}
-diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
---- goyang-dir-orig/pkg/yang/entry.go	2022-01-17 23:53:09.174875206 -0800
-+++ goyang-dir/pkg/yang/entry.go	2022-01-18 15:32:08.428212781 -0800
-@@ -29,6 +29,7 @@
+diff --git a/pkg/yang/entry.go b/pkg/yang/entry.go
+index dfd4525..c3da2a5 100644
+--- a/pkg/yang/entry.go
++++ b/pkg/yang/entry.go
+@@ -29,6 +29,8 @@ import (
  	"sort"
  	"strconv"
  	"strings"
 +	"sync"
++	"sync/atomic"
  
  	"github.com/openconfig/goyang/pkg/indent"
  )
-@@ -79,8 +80,9 @@
+@@ -62,6 +64,21 @@ func (t TriState) String() string {
+ 	}
+ }
+ 
++type PerformanceOpts struct {
++	// The ChildSchemaCache accelerates the ChildSchema function in the ygot
++	// library.  A bottleneck there is mapping a reflect package StructTag to a
++	// child schema (Entry struct in Entry's Dir map).  This cache saves the
++	// result of that mapping to go directly from the StructTag to the child
++	// Entry without having to do the string manipulation and map iteration.
++	ChildSchemaCache  map[reflect.StructTag]*Entry
++	ChildSchemaMutex  sync.RWMutex                 `json:"-"`
++
++	// The IsSchemaValidated allows us to perform the validation of list keys
++	// and string reg-ex once in the ygot library rather than every time the
++	// schema tree is traversed.
++	IsSchemaValidated atomic.Bool                  `json:"-"`
++}
++
+ // An Entry represents a single node (directory or leaf) created from the
+ // AST.  Directory entries have a non-nil Dir entry.  Leaf nodes have a nil
+ // Dir entry.  If Errors is not nil then the only other valid field is Node.
+@@ -79,8 +96,9 @@ type Entry struct {
  	Mandatory   TriState  `json:",omitempty"` // whether this entry is mandatory in the tree
  
  	// Fields associated with directory nodes
@@ -435,19 +474,16 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
  
  	// Fields associated with leaf nodes
  	Type *YangType    `json:",omitempty"`
-@@ -115,6 +117,11 @@
+@@ -115,6 +133,8 @@ type Entry struct {
  	// the augmenting entity per RFC6020 Section 7.15.2. The namespace
  	// of the Entry should be accessed using the Namespace function.
  	namespace *Value
 +
-+	ChildSchemaCache map[reflect.StructTag]*Entry `json:"-"`
-+	ChildSchemaMutex sync.RWMutex                 `json:"-"`
-+
-+	IsSchemaValidated bool `json:"-"`
++	PerfOpts  *PerformanceOpts `json:",omitempty"`
  }
  
  // An RPCEntry contains information related to an RPC Node.
-@@ -262,11 +269,12 @@
+@@ -262,11 +282,13 @@ func (k EntryKind) String() string {
  // newDirectory returns an empty directory Entry.
  func newDirectory(n Node) *Entry {
  	return &Entry{
@@ -462,10 +498,11 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
 +		Node:     n,
 +		Name:     n.NName(),
 +		Extra:    map[string][]interface{}{},
++		PerfOpts: &PerformanceOpts{},
  	}
  }
  
-@@ -360,6 +368,7 @@
+@@ -360,6 +382,7 @@ func (e *Entry) add(key string, value *Entry) *Entry {
  		return e
  	}
  	e.Dir[key] = value
@@ -473,23 +510,25 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
  	return e
  }
  
-@@ -540,6 +549,7 @@
+@@ -540,6 +563,8 @@ func ToEntry(n Node) (e *Entry) {
  		e.Config, err = tristateValue(s.Config)
  		e.addError(err)
  		e.Prefix = getRootPrefix(e)
 +		e.Description = ""
++		e.PerfOpts = &PerformanceOpts{}
  		return e
  	case *LeafList:
  		// Create the equivalent leaf element that we are a list of.
-@@ -567,6 +577,7 @@
+@@ -567,6 +592,8 @@ func ToEntry(n Node) (e *Entry) {
  			OrderedBy:   s.OrderedBy,
  		}
  		e.Prefix = getRootPrefix(e)
 +		e.Description = ""
++		e.PerfOpts = &PerformanceOpts{}
  		return e
  	case *Uses:
  		g := FindGrouping(s, s.Name, map[string]bool{})
-@@ -932,6 +943,11 @@
+@@ -932,6 +959,11 @@ func ToEntry(n Node) (e *Entry) {
  		e.Prefix = getRootPrefix(e)
  	}
  
@@ -501,7 +540,7 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
  	return e
  }
  
-@@ -999,7 +1015,7 @@
+@@ -999,7 +1031,7 @@ func (e *Entry) ApplyDeviate() []error {
  					}
  
  					if devSpec.Default != "" {
@@ -510,7 +549,23 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
  					}
  
  					if devSpec.Mandatory != TSUnset {
-@@ -1082,6 +1098,7 @@
+@@ -1073,15 +1105,17 @@ func (e *Entry) FixChoice() {
+ 						Source:     ce.Node.Statement(),
+ 						Extensions: ce.Node.Exts(),
+ 					},
+-					Name:   ce.Name,
+-					Kind:   CaseEntry,
+-					Config: ce.Config,
+-					Prefix: ce.Prefix,
+-					Dir:    map[string]*Entry{ce.Name: ce},
+-					Extra:  map[string][]interface{}{},
++					Name:     ce.Name,
++					Kind:     CaseEntry,
++					Config:   ce.Config,
++					Prefix:   ce.Prefix,
++					Dir:      map[string]*Entry{ce.Name: ce},
++					Extra:    map[string][]interface{}{},
++					PerfOpts: &PerformanceOpts{},
  				}
  				ce.Parent = ne
  				e.Dir[k] = ne
@@ -518,7 +573,7 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
  			}
  		}
  	}
-@@ -1252,6 +1269,14 @@
+@@ -1252,12 +1286,24 @@ func (e *Entry) shallowDup() *Entry {
  	// copied we will have to explicitly uncopy them.
  	ne := *e
  
@@ -533,10 +588,22 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
  	// Now only copy direct children, clear their Dir, and fix up
  	// Parent pointers.
  	if e.Dir != nil {
-@@ -1275,6 +1300,14 @@
+ 		ne.Dir = make(map[string]*Entry, len(e.Dir))
++		ne.PerfOpts = &PerformanceOpts{}
+ 		for k, v := range e.Dir {
+ 			de := *v
++			if de.PerfOpts != nil {
++				de.PerfOpts = &PerformanceOpts{}
++			}
+ 			de.Dir = nil
+ 			de.Parent = &ne
+ 			ne.Dir[k] = &de
+@@ -1274,6 +1320,15 @@ func (e *Entry) dup() *Entry {
+ 	// such as Exts, Choice and Case, but it is not clear that we need
  	// to do that.
  	ne := *e
- 
++	ne.PerfOpts = &PerformanceOpts{}
++
 +	//Copy the ordered Dir keys to new entry
 +	if len(e.DirOKeys) > 0 {
 +		ne.DirOKeys = make([]string, 0)
@@ -544,11 +611,10 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
 +			ne.DirOKeys = append(ne.DirOKeys, key)
 +		}
 +	}
-+
+ 
  	// Now recurse down to all of our children, fixing up Parent
  	// pointers as we go.
- 	if e.Dir != nil {
-@@ -1310,6 +1343,7 @@
+@@ -1310,6 +1365,7 @@ func (e *Entry) merge(prefix *Value, namespace *Value, oe *Entry) {
  			v.Parent = e
  			v.Exts = append(v.Exts, oe.Exts...)
  			e.Dir[k] = v
@@ -556,7 +622,7 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
  		}
  	}
  }
-@@ -1371,8 +1405,8 @@
+@@ -1371,8 +1427,8 @@ func (s sortedErrors) Less(i, j int) bool {
  		}
  		return nless(fi[x], fj[x])
  	}
@@ -567,9 +633,10 @@ diff -ruN goyang-dir-orig/pkg/yang/entry.go goyang-dir/pkg/yang/entry.go
  		case -1:
  			return true
  		case 1:
-diff -ruN goyang-dir-orig/pkg/yang/types.go goyang-dir/pkg/yang/types.go
---- goyang-dir-orig/pkg/yang/types.go	2022-01-17 23:53:09.174875206 -0800
-+++ goyang-dir/pkg/yang/types.go	2022-01-17 23:55:14.303340837 -0800
+diff --git a/pkg/yang/types.go b/pkg/yang/types.go
+index 307610a..ffb59a6 100644
+--- a/pkg/yang/types.go
++++ b/pkg/yang/types.go
 @@ -12,6 +12,9 @@
  // See the License for the specific language governing permissions and
  // limitations under the License.
@@ -580,7 +647,7 @@ diff -ruN goyang-dir-orig/pkg/yang/types.go goyang-dir/pkg/yang/types.go
  package yang
  
  // This file implements the functions relating to types and typedefs.
-@@ -69,6 +72,12 @@
+@@ -69,6 +72,12 @@ func (d *typeDictionary) findExternal(n Node, prefix, name string) (*Typedef, er
  	}
  	if td := d.find(root, name); td != nil {
  		return td, nil
@@ -593,21 +660,11 @@ diff -ruN goyang-dir-orig/pkg/yang/types.go goyang-dir/pkg/yang/types.go
  	}
  	if prefix != "" {
  		name = prefix + ":" + name
-diff -ruN goyang-dir-orig/README.md goyang-dir/README.md
---- goyang-dir-orig/README.md	2022-01-17 23:53:09.174875206 -0800
-+++ goyang-dir/README.md	2022-01-17 23:55:14.303340837 -0800
-@@ -14,6 +14,7 @@
- 
- *  tree - a simple tree representation
- *  types - list understood types extracted from the schema
-+*  annotate - a template file to annotate the yang modules
- 
- The yang package, and the goyang program, are not complete and are a work in
- progress.
-diff -ruN goyang-dir-orig/yang.go goyang-dir/yang.go
---- goyang-dir-orig/yang.go	2022-01-17 23:53:09.174875206 -0800
-+++ goyang-dir/yang.go	2022-01-17 23:55:14.303340837 -0800
-@@ -58,6 +58,7 @@
+diff --git a/yang.go b/yang.go
+index 2480a4e..515d1b3 100644
+--- a/yang.go
++++ b/yang.go
+@@ -58,6 +58,7 @@ import (
  type formatter struct {
  	name  string
  	f     func(io.Writer, []*yang.Entry)
@@ -615,7 +672,7 @@ diff -ruN goyang-dir-orig/yang.go goyang-dir/yang.go
  	help  string
  	flags *getopt.Set
  }
-@@ -208,5 +209,8 @@
+@@ -208,5 +209,8 @@ Formats:
  		entries[x] = yang.ToEntry(mods[n])
  	}
  
