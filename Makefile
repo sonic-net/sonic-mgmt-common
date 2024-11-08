@@ -46,11 +46,8 @@ go-deps-clean:
 	$(RM) -r vendor
 
 .PHONY: cvl
-cvl: $(GO_DEPS)
+cvl: $(GO_DEPS) | models
 	$(MAKE) -C ./cvl
-
-cvl-all: $(GO_DEPS)
-	$(MAKE) -C ./cvl all
 
 cvl-clean:
 	$(MAKE) -C ./cvl clean
@@ -59,7 +56,7 @@ cvl-test:
 	$(MAKE) -C ./cvl gotest
 
 .PHONY: translib
-translib: $(GO_DEPS)
+translib: $(GO_DEPS) | models
 	$(MAKE) -C ./translib
 
 translib-all: $(GO_DEPS)
@@ -69,7 +66,7 @@ translib-clean:
 	$(MAKE) -C ./translib clean
 
 .PHONY: models
-models:
+models: | $(GO_DEPS)
 	$(MAKE) -C models/yang
 
 models-clean:

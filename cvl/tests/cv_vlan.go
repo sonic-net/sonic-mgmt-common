@@ -19,14 +19,14 @@
 
 package main
 
-
 import (
 	"fmt"
 	"os"
-	"time"
-	"github.com/Azure/sonic-mgmt-common/cvl"
-	"github.com/go-redis/redis"
 	"strconv"
+	"time"
+
+	"github.com/Azure/sonic-mgmt-common/cvl"
+	"github.com/go-redis/redis/v7"
 )
 
 func getConfigDbClient() *redis.Client {
@@ -56,9 +56,9 @@ func unloadConfigDB(rclient *redis.Client, key string, data map[string]string) {
 /* Loads the Config DB based on JSON File. */
 func loadConfigDB(rclient *redis.Client, key string, data map[string]string) {
 
-	dataTmp  := make(map[string]interface{})
+	dataTmp := make(map[string]interface{})
 
-	for k, v :=  range data {
+	for k, v := range data {
 		dataTmp[k] = v
 	}
 
@@ -75,58 +75,60 @@ func main() {
 	count := 0
 
 	cvl.Initialize()
-	if ((len(os.Args) > 1) && (os.Args[1] == "debug")) {
+	if (len(os.Args) > 1) && (os.Args[1] == "debug") {
 		cvl.Debug(true)
 	}
 
 	rclient := getConfigDbClient()
 
-	if ((len(os.Args) > 1) && (os.Args[1] == "add")) {
+	if (len(os.Args) > 1) && (os.Args[1] == "add") {
 
 		//Add  ACL
 		vlanNoStart, _ := strconv.Atoi(os.Args[2])
 		vlanNoEnd, _ := strconv.Atoi(os.Args[3])
-		for vlanNum:= vlanNoStart ;vlanNum <= vlanNoEnd; vlanNum++ {
+		for vlanNum := vlanNoStart; vlanNum <= vlanNoEnd; vlanNum++ {
 			cvSess, _ := cvl.ValidationSessOpen()
 
-			cfgDataVlan := []cvl.CVLEditConfigData {
-				cvl.CVLEditConfigData {
+			cfgDataVlan := []cvl.CVLEditConfigData{
+				cvl.CVLEditConfigData{
 					cvl.VALIDATE_ALL,
 					cvl.OP_CREATE,
 					fmt.Sprintf("VLAN|Vlan%d", vlanNum),
-					map[string]string {
-						"vlanid":  fmt.Sprintf("%d", vlanNum),
+					map[string]string{
+						"vlanid":   fmt.Sprintf("%d", vlanNum),
 						"members@": "Ethernet0,Ethernet4,Ethernet8,Ethernet12,Ethernet16,Ethernet20,Ethernet24,Ethernet28",
 					},
+					false,
 				},
 			}
 
 			_, ret := cvSess.ValidateEditConfig(cfgDataVlan)
 
-			if (ret != cvl.CVL_SUCCESS) {
+			if ret != cvl.CVL_SUCCESS {
 				fmt.Printf("Validation failure\n")
 				return
 			}
 
 			cfgDataVlan[0].VType = cvl.VALIDATE_NONE
 
-			for i:=0; i<7; i++ {
-				cfgDataVlan = append(cfgDataVlan, cvl.CVLEditConfigData {
+			for i := 0; i < 7; i++ {
+				cfgDataVlan = append(cfgDataVlan, cvl.CVLEditConfigData{
 					cvl.VALIDATE_ALL,
 					cvl.OP_CREATE,
-					fmt.Sprintf("VLAN_MEMBER|Vlan%d|Ethernet%d", vlanNum, i * 4),
-					map[string]string {
-						"tagging_mode" : "tagged",
+					fmt.Sprintf("VLAN_MEMBER|Vlan%d|Ethernet%d", vlanNum, i*4),
+					map[string]string{
+						"tagging_mode": "tagged",
 					},
+					false,
 				})
 
 				_, ret1 := cvSess.ValidateEditConfig(cfgDataVlan)
-				if (ret1 != cvl.CVL_SUCCESS) {
+				if ret1 != cvl.CVL_SUCCESS {
 					fmt.Printf("Validation failure\n")
 					return
 				}
 
-				cfgDataVlan[1 + i].VType = cvl.VALIDATE_NONE
+				cfgDataVlan[1+i].VType = cvl.VALIDATE_NONE
 			}
 
 			//Write to DB
@@ -138,28 +140,28 @@ func main() {
 		}
 
 		return
-	} else if ((len(os.Args) > 1) && (os.Args[1] == "del")) {
+	} else if (len(os.Args) > 1) && (os.Args[1] == "del") {
 		vlanNoStart, _ := strconv.Atoi(os.Args[2])
 		vlanNoEnd, _ := strconv.Atoi(os.Args[3])
-		for vlanNum:= vlanNoStart ;vlanNum <= vlanNoEnd; vlanNum++ {
-			cvSess,_ := cvl.ValidationSessOpen()
+		for vlanNum := vlanNoStart; vlanNum <= vlanNoEnd; vlanNum++ {
+			cvSess, _ := cvl.ValidationSessOpen()
 
 			//Delete ACL
 
 			cfgDataVlan := []cvl.CVLEditConfigData{}
 
 			//Create 7 ACL rules
-			for i:=0; i<7; i++ {
-				cfgDataVlan = append(cfgDataVlan, cvl.CVLEditConfigData {
+			for i := 0; i < 7; i++ {
+				cfgDataVlan = append(cfgDataVlan, cvl.CVLEditConfigData{
 					cvl.VALIDATE_ALL,
 					cvl.OP_DELETE,
-					fmt.Sprintf("VLAN_MEMBER|Vlan%d|Ethernet%d", vlanNum, i * 4),
-					map[string]string {
-					},
+					fmt.Sprintf("VLAN_MEMBER|Vlan%d|Ethernet%d", vlanNum, i*4),
+					map[string]string{},
+					false,
 				})
 
 				_, ret := cvSess.ValidateEditConfig(cfgDataVlan)
-				if (ret != cvl.CVL_SUCCESS) {
+				if ret != cvl.CVL_SUCCESS {
 					fmt.Printf("Validation failure\n")
 					//return
 				}
@@ -167,16 +169,16 @@ func main() {
 				cfgDataVlan[i].VType = cvl.VALIDATE_NONE
 			}
 
-			cfgDataVlan = append(cfgDataVlan,	cvl.CVLEditConfigData {
+			cfgDataVlan = append(cfgDataVlan, cvl.CVLEditConfigData{
 				cvl.VALIDATE_ALL,
 				cvl.OP_DELETE,
 				fmt.Sprintf("VLAN|Vlan%d", vlanNum),
-				map[string]string {
-				},
+				map[string]string{},
+				false,
 			})
 
 			_, ret := cvSess.ValidateEditConfig(cfgDataVlan)
-			if (ret != cvl.CVL_SUCCESS) {
+			if ret != cvl.CVL_SUCCESS {
 				fmt.Printf("Validation failure\n")
 				//return
 			}
@@ -191,117 +193,121 @@ func main() {
 		return
 	}
 	cv, ret := cvl.ValidationSessOpen()
-	if (ret != cvl.CVL_SUCCESS) {
+	if ret != cvl.CVL_SUCCESS {
 		fmt.Printf("NewDB: Could not create CVL session")
 		return
 	}
 
 	{
 		count++
-		keyData :=  []cvl.CVLEditConfigData {
-			cvl.CVLEditConfigData {
+		keyData := []cvl.CVLEditConfigData{
+			cvl.CVLEditConfigData{
 				cvl.VALIDATE_NONE,
 				cvl.OP_NONE,
 				"PORTCHANNEL|ch1",
-				map[string]string {
+				map[string]string{
 					"admin_status": "up",
-					"mtu": "9100",
+					"mtu":          "9100",
 				},
+				false,
 			},
-			cvl.CVLEditConfigData {
+			cvl.CVLEditConfigData{
 				cvl.VALIDATE_NONE,
 				cvl.OP_NONE,
 				"PORTCHANNEL|ch2",
-				map[string]string {
+				map[string]string{
 					"admin_status": "up",
-					"mtu": "9100",
+					"mtu":          "9100",
 				},
+				false,
 			},
-			cvl.CVLEditConfigData {
+			cvl.CVLEditConfigData{
 				cvl.VALIDATE_NONE,
 				cvl.OP_NONE,
 				"PORTCHANNEL_MEMBER|ch1|Ethernet4",
-				map[string]string {
-				},
+				map[string]string{},
+				false,
 			},
-			cvl.CVLEditConfigData {
+			cvl.CVLEditConfigData{
 				cvl.VALIDATE_NONE,
 				cvl.OP_NONE,
 				"PORTCHANNEL_MEMBER|ch1|Ethernet8",
-				map[string]string {
-				},
+				map[string]string{},
+				false,
 			},
-			cvl.CVLEditConfigData {
+			cvl.CVLEditConfigData{
 				cvl.VALIDATE_NONE,
 				cvl.OP_NONE,
 				"PORTCHANNEL_MEMBER|ch2|Ethernet12",
-				map[string]string {
-				},
+				map[string]string{},
+				false,
 			},
-			cvl.CVLEditConfigData {
+			cvl.CVLEditConfigData{
 				cvl.VALIDATE_NONE,
 				cvl.OP_NONE,
 				"PORTCHANNEL_MEMBER|ch2|Ethernet16",
-				map[string]string {
-				},
+				map[string]string{},
+				false,
 			},
-			cvl.CVLEditConfigData {
+			cvl.CVLEditConfigData{
 				cvl.VALIDATE_NONE,
 				cvl.OP_NONE,
 				"PORTCHANNEL_MEMBER|ch2|Ethernet20",
-				map[string]string {
-				},
+				map[string]string{},
+				false,
 			},
-			cvl.CVLEditConfigData {
+			cvl.CVLEditConfigData{
 				cvl.VALIDATE_ALL,
 				cvl.OP_CREATE,
 				"VLAN|Vlan1001",
-				map[string]string {
-					"vlanid": "1001",
+				map[string]string{
+					"vlanid":   "1001",
 					"members@": "Ethernet24,ch1,Ethernet8",
 				},
+				false,
 			},
 		}
 
-		fmt.Printf("\nValidating data for must = %v\n\n", keyData);
+		fmt.Printf("\nValidating data for must = %v\n\n", keyData)
 
 		_, err := cv.ValidateEditConfig(keyData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 
 	}
 
 	{
-		keyData :=  []cvl.CVLEditConfigData {
-			cvl.CVLEditConfigData {
+		keyData := []cvl.CVLEditConfigData{
+			cvl.CVLEditConfigData{
 				cvl.VALIDATE_ALL,
 				cvl.OP_DELETE,
 				"ACL_TABLE|MyACL1_ACL_IPV4",
-				map[string]string {
+				map[string]string{
 					"type": "L3",
 				},
+				false,
 			},
 		}
 
 		_, err := cv.ValidateEditConfig(keyData)
 
-		fmt.Printf("\nValidating field delete...\n\n");
+		fmt.Printf("\nValidating field delete...\n\n")
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 
 	}
 
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"VLAN": {
 				"Vlan100": {
 					"members": [
@@ -313,21 +319,20 @@ func main() {
 			}
 		}`
 
-
 		err := cv.ValidateConfig(jsonData)
 
-		fmt.Printf("\nValidating data = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data = %v\n\n", jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"VLAN": {
 				"Vln100": {
 					"members": [
@@ -339,21 +344,20 @@ func main() {
 			}
 		}`
 
-
 		err := cv.ValidateConfig(jsonData)
 
-		fmt.Printf("\nValidating data for key syntax = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for key syntax = %v\n\n", jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"VLAN": {
 				"Vlan4096": {
 					"members": [
@@ -365,20 +369,19 @@ func main() {
 			}
 		}`
 
-
 		err := cv.ValidateConfig(jsonData)
 
-		fmt.Printf("\nValidating data for range check = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for range check = %v\n\n", jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"VLAN": {
 				"Vlan201": {
 					"members": [
@@ -390,15 +393,14 @@ func main() {
 			}
 		}`
 
-
 		err := cv.ValidateConfig(jsonData)
 
-		fmt.Printf("\nValidating data for internal dependency check = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for internal dependency check = %v\n\n", jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 	{
@@ -421,7 +423,7 @@ func main() {
 				}
 			}
 		}`*/
-		jsonData :=`{
+		jsonData := `{
 			"VLAN": {
 				"Vlan4095": {
 					"vlanid": "4995"
@@ -431,12 +433,12 @@ func main() {
 
 		err := cv.ValidateConfig(jsonData)
 
-		fmt.Printf("\nValidating data for external dependency check = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for external dependency check = %v\n\n", jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 

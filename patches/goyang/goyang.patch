@@ -411,47 +411,98 @@ index 0000000..286a29c
 +        }
 +}
 +
+diff --git a/pkg/yang/ast.go b/pkg/yang/ast.go
+index 5673e69..4629c99 100644
+--- a/pkg/yang/ast.go
++++ b/pkg/yang/ast.go
+@@ -391,6 +391,11 @@ func initTypes(at reflect.Type) {
+ 			descend(name, f.Type)
+ 
+ 			fn = func(s *Statement, v, p reflect.Value) error {
++				if s.Keyword == "yang-version" ||
++					s.Keyword == "import" {
++					// unset for optimization
++					return nil
++				}
+ 				if v.Type() != at {
+ 					panic(fmt.Sprintf("given type %s, need type %s", v.Type(), at))
+ 				}
 diff --git a/pkg/yang/entry.go b/pkg/yang/entry.go
-index dfd4525..cdf6eb1 100644
+index dfd4525..c3da2a5 100644
 --- a/pkg/yang/entry.go
 +++ b/pkg/yang/entry.go
-@@ -29,6 +29,7 @@ import (
+@@ -29,6 +29,8 @@ import (
  	"sort"
  	"strconv"
  	"strings"
 +	"sync"
++	"sync/atomic"
  
  	"github.com/openconfig/goyang/pkg/indent"
  )
-@@ -80,6 +81,7 @@ type Entry struct {
+@@ -62,6 +64,21 @@ func (t TriState) String() string {
+ 	}
+ }
+ 
++type PerformanceOpts struct {
++	// The ChildSchemaCache accelerates the ChildSchema function in the ygot
++	// library.  A bottleneck there is mapping a reflect package StructTag to a
++	// child schema (Entry struct in Entry's Dir map).  This cache saves the
++	// result of that mapping to go directly from the StructTag to the child
++	// Entry without having to do the string manipulation and map iteration.
++	ChildSchemaCache  map[reflect.StructTag]*Entry
++	ChildSchemaMutex  sync.RWMutex                 `json:"-"`
++
++	// The IsSchemaValidated allows us to perform the validation of list keys
++	// and string reg-ex once in the ygot library rather than every time the
++	// schema tree is traversed.
++	IsSchemaValidated atomic.Bool                  `json:"-"`
++}
++
+ // An Entry represents a single node (directory or leaf) created from the
+ // AST.  Directory entries have a non-nil Dir entry.  Leaf nodes have a nil
+ // Dir entry.  If Errors is not nil then the only other valid field is Node.
+@@ -79,8 +96,9 @@ type Entry struct {
+ 	Mandatory   TriState  `json:",omitempty"` // whether this entry is mandatory in the tree
  
  	// Fields associated with directory nodes
- 	Dir map[string]*Entry `json:",omitempty"`
-+	DirOKeys    []string  // Ordered Keys list in Dir
- 	Key string            `json:",omitempty"` // Optional key name for lists (i.e., maps)
+-	Dir map[string]*Entry `json:",omitempty"`
+-	Key string            `json:",omitempty"` // Optional key name for lists (i.e., maps)
++	Dir      map[string]*Entry `json:",omitempty"`
++	DirOKeys []string          // Ordered Keys list in Dir
++	Key      string            `json:",omitempty"` // Optional key name for lists (i.e., maps)
  
  	// Fields associated with leaf nodes
-@@ -115,6 +117,11 @@ type Entry struct {
+ 	Type *YangType    `json:",omitempty"`
+@@ -115,6 +133,8 @@ type Entry struct {
  	// the augmenting entity per RFC6020 Section 7.15.2. The namespace
  	// of the Entry should be accessed using the Namespace function.
  	namespace *Value
 +
-+	ChildSchemaCache map[reflect.StructTag]*Entry `json:"-"`
-+	ChildSchemaMutex sync.RWMutex `json:"-"`
-+	
-+	IsSchemaValidated bool `json:"-"`
++	PerfOpts  *PerformanceOpts `json:",omitempty"`
  }
  
  // An RPCEntry contains information related to an RPC Node.
-@@ -264,6 +271,7 @@ func newDirectory(n Node) *Entry {
+@@ -262,11 +282,13 @@ func (k EntryKind) String() string {
+ // newDirectory returns an empty directory Entry.
+ func newDirectory(n Node) *Entry {
  	return &Entry{
- 		Kind:  DirectoryEntry,
- 		Dir:   make(map[string]*Entry),
+-		Kind:  DirectoryEntry,
+-		Dir:   make(map[string]*Entry),
+-		Node:  n,
+-		Name:  n.NName(),
+-		Extra: map[string][]interface{}{},
++		Kind:     DirectoryEntry,
++		Dir:      make(map[string]*Entry),
 +		DirOKeys: make([]string, 0),
- 		Node:  n,
- 		Name:  n.NName(),
- 		Extra: map[string][]interface{}{},
-@@ -360,6 +368,7 @@ func (e *Entry) add(key string, value *Entry) *Entry {
++		Node:     n,
++		Name:     n.NName(),
++		Extra:    map[string][]interface{}{},
++		PerfOpts: &PerformanceOpts{},
+ 	}
+ }
+ 
+@@ -360,6 +382,7 @@ func (e *Entry) add(key string, value *Entry) *Entry {
  		return e
  	}
  	e.Dir[key] = value
@@ -459,7 +510,37 @@ index dfd4525..cdf6eb1 100644
  	return e
  }
  
-@@ -999,7 +1008,7 @@ func (e *Entry) ApplyDeviate() []error {
+@@ -540,6 +563,8 @@ func ToEntry(n Node) (e *Entry) {
+ 		e.Config, err = tristateValue(s.Config)
+ 		e.addError(err)
+ 		e.Prefix = getRootPrefix(e)
++		e.Description = ""
++		e.PerfOpts = &PerformanceOpts{}
+ 		return e
+ 	case *LeafList:
+ 		// Create the equivalent leaf element that we are a list of.
+@@ -567,6 +592,8 @@ func ToEntry(n Node) (e *Entry) {
+ 			OrderedBy:   s.OrderedBy,
+ 		}
+ 		e.Prefix = getRootPrefix(e)
++		e.Description = ""
++		e.PerfOpts = &PerformanceOpts{}
+ 		return e
+ 	case *Uses:
+ 		g := FindGrouping(s, s.Name, map[string]bool{})
+@@ -932,6 +959,11 @@ func ToEntry(n Node) (e *Entry) {
+ 		e.Prefix = getRootPrefix(e)
+ 	}
+ 
++	// unset for optimization
++	e.Description = ""
++	e.Extra = nil
++	e.Augmented = nil
++
+ 	return e
+ }
+ 
+@@ -999,7 +1031,7 @@ func (e *Entry) ApplyDeviate() []error {
  					}
  
  					if devSpec.Default != "" {
@@ -468,7 +549,23 @@ index dfd4525..cdf6eb1 100644
  					}
  
  					if devSpec.Mandatory != TSUnset {
-@@ -1082,6 +1091,7 @@ func (e *Entry) FixChoice() {
+@@ -1073,15 +1105,17 @@ func (e *Entry) FixChoice() {
+ 						Source:     ce.Node.Statement(),
+ 						Extensions: ce.Node.Exts(),
+ 					},
+-					Name:   ce.Name,
+-					Kind:   CaseEntry,
+-					Config: ce.Config,
+-					Prefix: ce.Prefix,
+-					Dir:    map[string]*Entry{ce.Name: ce},
+-					Extra:  map[string][]interface{}{},
++					Name:     ce.Name,
++					Kind:     CaseEntry,
++					Config:   ce.Config,
++					Prefix:   ce.Prefix,
++					Dir:      map[string]*Entry{ce.Name: ce},
++					Extra:    map[string][]interface{}{},
++					PerfOpts: &PerformanceOpts{},
  				}
  				ce.Parent = ne
  				e.Dir[k] = ne
@@ -476,37 +573,48 @@ index dfd4525..cdf6eb1 100644
  			}
  		}
  	}
-@@ -1252,6 +1262,14 @@ func (e *Entry) shallowDup() *Entry {
+@@ -1252,12 +1286,24 @@ func (e *Entry) shallowDup() *Entry {
  	// copied we will have to explicitly uncopy them.
  	ne := *e
  
-+       //Copy the ordered Dir keys to new entry
-+        if len(e.DirOKeys) > 0 {
-+            ne.DirOKeys = make([]string, 0)
-+	    for _, key := range e.DirOKeys {
-+                ne.DirOKeys = append(ne.DirOKeys, key)
-+            }
++	//Copy the ordered Dir keys to new entry
++	if len(e.DirOKeys) > 0 {
++		ne.DirOKeys = make([]string, 0)
++		for _, key := range e.DirOKeys {
++			ne.DirOKeys = append(ne.DirOKeys, key)
++		}
 +	}
 +
  	// Now only copy direct children, clear their Dir, and fix up
  	// Parent pointers.
  	if e.Dir != nil {
-@@ -1275,6 +1293,14 @@ func (e *Entry) dup() *Entry {
+ 		ne.Dir = make(map[string]*Entry, len(e.Dir))
++		ne.PerfOpts = &PerformanceOpts{}
+ 		for k, v := range e.Dir {
+ 			de := *v
++			if de.PerfOpts != nil {
++				de.PerfOpts = &PerformanceOpts{}
++			}
+ 			de.Dir = nil
+ 			de.Parent = &ne
+ 			ne.Dir[k] = &de
+@@ -1274,6 +1320,15 @@ func (e *Entry) dup() *Entry {
+ 	// such as Exts, Choice and Case, but it is not clear that we need
  	// to do that.
  	ne := *e
- 
-+       //Copy the ordered Dir keys to new entry
-+        if len(e.DirOKeys) > 0 {
-+            ne.DirOKeys = make([]string, 0)
-+            for _, key := range e.DirOKeys {
-+                ne.DirOKeys = append(ne.DirOKeys, key)
-+            }
-+        }
++	ne.PerfOpts = &PerformanceOpts{}
 +
++	//Copy the ordered Dir keys to new entry
++	if len(e.DirOKeys) > 0 {
++		ne.DirOKeys = make([]string, 0)
++		for _, key := range e.DirOKeys {
++			ne.DirOKeys = append(ne.DirOKeys, key)
++		}
++	}
+ 
  	// Now recurse down to all of our children, fixing up Parent
  	// pointers as we go.
- 	if e.Dir != nil {
-@@ -1310,6 +1336,7 @@ func (e *Entry) merge(prefix *Value, namespace *Value, oe *Entry) {
+@@ -1310,6 +1365,7 @@ func (e *Entry) merge(prefix *Value, namespace *Value, oe *Entry) {
  			v.Parent = e
  			v.Exts = append(v.Exts, oe.Exts...)
  			e.Dir[k] = v
@@ -514,7 +622,7 @@ index dfd4525..cdf6eb1 100644
  		}
  	}
  }
-@@ -1371,8 +1398,8 @@ func (s sortedErrors) Less(i, j int) bool {
+@@ -1371,8 +1427,8 @@ func (s sortedErrors) Less(i, j int) bool {
  		}
  		return nless(fi[x], fj[x])
  	}

@@ -1,0 +1,172 @@
+module openconfig-test-xfmr-annot {
+
+    yang-version "1";
+
+    namespace "http://openconfig.net/yang/annotation/oc-test-xfmr-annot";
+    prefix "oc-test-xfmr-annot";
+
+    import openconfig-extensions { prefix oc-ext; }
+    import openconfig-test-xfmr { prefix oc-test-xfmr; }
+    import sonic-extensions { prefix sonic-ext; }
+
+    deviation /oc-test-xfmr:test-xfmr {
+      deviate add {
+        sonic-ext:pre-transformer "test_pre_xfmr";
+        sonic-ext:post-transformer "test_post_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group {
+      deviate add {
+	sonic-ext:table-name "TEST_SENSOR_GROUP";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:config/oc-test-xfmr:group-colors {
+      deviate add {
+	sonic-ext:field-name "colors";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:state/oc-test-xfmr:group-colors {
+      deviate add {
+	sonic-ext:field-name "colors";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:state/oc-test-xfmr:counters {
+      deviate add {
+	sonic-ext:table-name "TEST_SENSOR_GROUP_COUNTERS";
+	sonic-ext:db-name "COUNTERS_DB";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types {
+      deviate add {
+	sonic-ext:table-name "NONE";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type {
+      deviate add {
+            sonic-ext:table-transformer "test_sensor_type_tbl_xfmr";
+            sonic-ext:key-transformer "test_sensor_type_key_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:config/oc-test-xfmr:type {
+      deviate add {
+            sonic-ext:field-transformer "test_sensor_type_field_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:config/oc-test-xfmr:exclude-filter {
+      deviate add {
+            sonic-ext:field-transformer "exclude_filter_field_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:state/oc-test-xfmr:type {
+      deviate add {
+            sonic-ext:field-transformer "test_sensor_type_field_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:state/oc-test-xfmr:exclude-filter {
+      deviate add {
+            sonic-ext:field-transformer "exclude_filter_field_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:sensor-a-light-sensors {
+      deviate add {
+	sonic-ext:table-name "NONE";
+        sonic-ext:get-validate "light_sensor_validate";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:sensor-a-light-sensors/oc-test-xfmr:sensor-a-light-sensor {
+      deviate add {
+            sonic-ext:table-name "TEST_SENSOR_A_LIGHT_SENSOR_TABLE";
+            sonic-ext:key-transformer "sensor_a_light_sensor_key_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-components/oc-test-xfmr:test-sensor-component {
+      deviate add {
+            sonic-ext:table-name "TEST_SENSOR_COMPONENT_TABLE";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-zones {
+      deviate add {
+            sonic-ext:table-name "NONE";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-zones/oc-test-xfmr:test-sensor-zone {
+      deviate add {
+            sonic-ext:table-name "TEST_SENSOR_ZONE_TABLE";
+            sonic-ext:key-transformer "test_sensor_zone_key_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:test-set {
+      deviate add {
+            sonic-ext:table-name "TEST_SET_TABLE";
+            sonic-ext:key-transformer "test_set_key_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:test-set/oc-test-xfmr:config/oc-test-xfmr:type {
+      deviate add {
+            sonic-ext:field-transformer "test_set_type_field_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:test-set/oc-test-xfmr:config/oc-test-xfmr:name {
+      deviate add {
+            sonic-ext:field-transformer "test_set_name_field_xfmr";
+      }
+    }
+
+    
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:test-set/oc-test-xfmr:config/oc-test-xfmr:description {
+      deviate add {
+            sonic-ext:field-transformer "test_set_description_field_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:test-set/oc-test-xfmr:state/oc-test-xfmr:name {
+      deviate add {
+            sonic-ext:field-transformer "test_set_name_field_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:test-set/oc-test-xfmr:state/oc-test-xfmr:type {
+      deviate add {
+            sonic-ext:field-transformer "test_set_type_field_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:test-set/oc-test-xfmr:state/oc-test-xfmr:description {
+      deviate add {
+            sonic-ext:field-transformer "test_set_description_field_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:interfaces {
+      deviate add {
+	sonic-ext:subtree-transformer "test_port_bindings_xfmr";
+        sonic-ext:virtual-table "true";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:global-sensor {
+      deviate add {
+	sonic-ext:table-name "TEST_SENSOR_GLOBAL";
+        sonic-ext:key-name "global_sensor";
+      }
+    }
+}
+

@@ -17,6 +17,7 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+//go:build test
 // +build test
 
 package translib
@@ -101,8 +102,12 @@ func (app *apiTests) translateAction(dbs [db.MaxDB]*db.DB) error {
 	return nil
 }
 
-func (app *apiTests) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-	return nil, nil, nil
+func (app *apiTests) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
+}
+
+func (app *apiTests) processSubscribe(req processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, tlerr.New("not implemented")
 }
 
 func (app *apiTests) processCreate(d *db.DB) (SetResponse, error) {
@@ -121,7 +126,7 @@ func (app *apiTests) processDelete(d *db.DB) (SetResponse, error) {
 	return app.processSet()
 }
 
-func (app *apiTests) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
+func (app *apiTests) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
 	var gr GetResponse
 	err := app.getError()
 	if err != nil {
@@ -132,6 +137,8 @@ func (app *apiTests) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
 	resp["message"] = app.echoMsg
 	resp["path"] = app.path
 	resp["depth"] = app.depth
+	resp["content"] = app.content
+	resp["fields"] = app.fields
 
 	gr.Payload, err = json.Marshal(&resp)
 	return gr, err

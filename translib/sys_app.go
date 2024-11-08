@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////////
 //
-// Copyright 2019 Dell, Inc.
+// Copyright 2024 Dell, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,12 +20,14 @@ package translib
 
 import (
 	"errors"
-	log "github.com/golang/glog"
-	"github.com/openconfig/ygot/ygot"
 	"reflect"
 	"strconv"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
 type SysApp struct {
@@ -39,6 +41,13 @@ type SysApp struct {
 
 	dockerTable map[string]dbEntry
 	procTable   map[uint64]dbEntry
+}
+
+type reqType int
+
+type dbEntry struct {
+	op    reqType
+	entry db.Value
 }
 
 func init() {
@@ -77,14 +86,16 @@ func (app *SysApp) getAppRootObject() *ocbinds.OpenconfigSystem_System {
 }
 
 func (app *SysApp) translateAction(dbs [db.MaxDB]*db.DB) error {
-    err := errors.New("Not supported")
-    return err
+	err := errors.New("Not supported")
+	return err
 }
 
-func (app *SysApp) translateSubscribe(dbs [db.MaxDB]*db.DB, path string) (*notificationOpts, *notificationInfo, error) {
-	var err error
+func (app *SysApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
+	return emptySubscribeResponse(req.path)
+}
 
-	return nil, nil, err
+func (app *SysApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
+	return processSubResponse{}, tlerr.New("not implemented")
 }
 
 func (app *SysApp) translateCreate(d *db.DB) ([]db.WatchKeys, error) {
@@ -252,7 +263,7 @@ func (app *SysApp) getSystemProcesses(sysprocs *ocbinds.OpenconfigSystem_System_
 	return
 }
 
-func (app *SysApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
+func (app *SysApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
 	log.Info("SysApp: processGet Path: ", app.path.Path)
 
 	stateDb := dbs[db.StateDB]
@@ -317,38 +328,31 @@ func (app *SysApp) processGet(dbs [db.MaxDB]*db.DB) (GetResponse, error) {
 		if targetUriPath == "/openconfig-system:system/processes" {
 			ygot.BuildEmptyTree(sysObj)
 			app.getSystemProcesses(sysObj.Processes, false)
-			payload, err = dumpIetfJson(sysObj, false)
 		} else if targetUriPath == "/openconfig-system:system/processes/process" {
 			pid, perr := app.path.IntVar("pid")
 			if perr == nil {
 				if pid == 0 {
 					ygot.BuildEmptyTree(sysObj)
 					app.getSystemProcesses(sysObj.Processes, false)
-					payload, err = dumpIetfJson(sysObj.Processes, false)
 				} else {
 					app.getSystemProcesses(sysObj.Processes, true)
-					payload, err = dumpIetfJson(sysObj.Processes, false)
 				}
 			}
 		} else if targetUriPath == "/openconfig-system:system/processes/process/state" {
-			pid, _ := app.path.IntVar("pid")
 			app.getSystemProcesses(sysObj.Processes, true)
-			payload, err = dumpIetfJson(sysObj.Processes.Process[uint64(pid)], true)
 		} else if isSubtreeRequest(targetUriPath, "/openconfig-system:system/processes/process/state") {
-			pid, _ := app.path.IntVar("pid")
 			app.getSystemProcesses(sysObj.Processes, true)
-			payload, err = dumpIetfJson(sysObj.Processes.Process[uint64(pid)].State, true)
 		}
 	} else {
 		return GetResponse{Payload: payload}, errors.New("Not implemented processGet, path: ")
 	}
-	return GetResponse{Payload: payload}, err
+
+	return generateGetResponse(app.path.Path, app.ygotRoot, fmtType)
 }
 
 func (app *SysApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
-    var resp ActionResponse
-    err := errors.New("Not implemented")
+	var resp ActionResponse
+	err := errors.New("Not implemented")
 
-    return resp, err
+	return resp, err
 }
-

@@ -2,10 +2,6 @@ module sonic-tc-queue-map {
 	namespace "http://github.com/Azure/sonic-tc-queue-map";
 	prefix tqm;
 
-	import sonic-extension {
-		prefix sonic-ext;
-	}
-
 	organization
 		"SONiC";
 
@@ -26,15 +22,13 @@ module sonic-tc-queue-map {
 
 			list TC_TO_QUEUE_MAP_LIST {
 				key "name";
-				sonic-ext:map-list "true"; //special conversion for map tables
-				sonic-ext:map-leaf "tc_num qindex"; //every key:value pair is mapped to list keys, e.g. "1":"7" ==> tc_num=1, qindex=7
 
 				leaf name {
 					type string;
 				}
 
 				list TC_TO_QUEUE_MAP { //this is list inside list for storing mapping between two fields
-					key "tc_num qindex";
+					key "tc_num";
 
 					leaf tc_num {
 						type string {

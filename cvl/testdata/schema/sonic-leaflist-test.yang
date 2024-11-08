@@ -1,0 +1,50 @@
+module sonic-leaflist-test {
+  namespace "http://github.com/Azure/sonic-leaflist-test";
+  prefix "test-ll";
+
+  organization "SONiC";
+  contact "SONiC";
+  description
+    "A test schema for verification of various constratints on
+    db fields modeled as leaf-list. Should not be used in production";
+
+  revision 2023-02-13 {
+    description
+      "Initial version with min-elements and max-elements constraints.";
+  }
+
+  container sonic-leaflist-test {
+
+    container TEST_LEAFLIST {
+      list TEST_LEAFLIST_LIST {
+        key "id";
+
+        leaf id {
+          type string;
+          description "Key attribute";
+        }
+        leaf-list without-minmax {
+          type string;
+          description "No min-elements and max-elements constrains.";
+        }
+        leaf-list with-min0 {
+          type string;
+          min-elements 0;
+          description "min-elements 0; same as not defined";
+        }
+        leaf-list with-min1-max2 {
+          type string;
+          min-elements 1;
+          max-elements 2;
+          description "min-elements 1 and max-elements 2";
+        }
+        leaf-list with-min4 {
+          type string;
+          min-elements 4;
+          description "min-elements 4";
+        }
+      }
+    }
+
+  }
+}

@@ -22,9 +22,12 @@ package translib
 import (
 	"reflect"
 	"strings"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	log "github.com/golang/glog"
 	"github.com/openconfig/gnmi/proto/gnmi"
@@ -67,16 +70,16 @@ func getYangPathFromYgotStruct(s ygot.GoStruct, yangPathPrefix string, appModule
 	return ""
 }
 
-func generateGetResponsePayload(targetUri string, deviceObj *ocbinds.Device, ygotTarget *interface{}) ([]byte, error) {
+func generateGetResponse(targetUri string, root *ygot.GoStruct, fmtType TranslibFmtType) (GetResponse, error) {
 	var err error
-	var payload []byte
+	var resp GetResponse
 
 	if len(targetUri) == 0 {
-		return payload, tlerr.InvalidArgs("GetResponse failed as target Uri is not valid")
+		return resp, tlerr.InvalidArgs("generateGetResponse failed as target Uri is not valid")
 	}
 	path, err := ygot.StringToPath(targetUri, ygot.StructuredPath, ygot.StringSlicePath)
 	if err != nil {
-		return payload, tlerr.InvalidArgs("URI to path conversion failed: %v", err)
+		return resp, tlerr.InvalidArgs("URI to path conversion failed: %v", err)
 	}
 
 	// Get current node (corresponds to ygotTarget) and its parent node
@@ -92,21 +95,26 @@ func generateGetResponsePayload(targetUri string, deviceObj *ocbinds.Device, ygo
 			parentPath.Elem = append(parentPath.Elem, pathList[i])
 		}
 	}
-	parentNodeList, err := ytypes.GetNode(ygSchema.RootSchema(), deviceObj, parentPath)
+	parentNodeList, err := ytypes.GetNode(ygSchema.RootSchema(), *root, parentPath)
 	if err != nil {
-		return payload, err
+		return resp, err
 	}
 	if len(parentNodeList) == 0 {
-		return payload, tlerr.InvalidArgs("Invalid URI: %s", targetUri)
+		return resp, tlerr.InvalidArgs("Invalid URI: %s", targetUri)
 	}
 	parentNode := parentNodeList[0].Data
 
-	currentNodeList, err := ytypes.GetNode(ygSchema.RootSchema(), deviceObj, path, &(ytypes.GetPartialKeyMatch{}))
-	if err != nil {
-		return payload, err
+	currentNodeList, ygerr := ytypes.GetNode(ygSchema.RootSchema(), *root, path, &(ytypes.GetPartialKeyMatch{}))
+	if ygerr != nil {
+		log.Errorf("Error from ytypes.GetNode: %v", ygerr)
+		if status.Convert(ygerr).Code() == codes.NotFound {
+			return resp, tlerr.NotFound("Resource not found")
+		} else {
+			return resp, ygerr
+		}
 	}
 	if len(currentNodeList) == 0 {
-		return payload, tlerr.NotFound("Resource not found")
+		return resp, tlerr.NotFound("Resource not found")
 	}
 	//currentNode := currentNodeList[0].Data
 	currentNodeYangName := currentNodeList[0].Schema.Name
@@ -136,10 +144,14 @@ func generateGetResponsePayload(targetUri string, deviceObj *ocbinds.Device, ygo
 			log.Infof("Target yang name: %s  OC Field name: %s\n", currentNodeYangName, currentNodeOCFieldName)
 		}
 	}
+	if fmtType == TRANSLIB_FMT_YGOT {
+		resp.ValueTree = parentCloneObj
+		return resp, err
+	}
 
-	payload, err = dumpIetfJson(parentCloneObj, true)
+	resp.Payload, err = dumpIetfJson(parentCloneObj)
 
-	return payload, err
+	return resp, err
 }
 
 func getTargetNodeYangSchema(targetUri string, deviceObj *ocbinds.Device) (*yang.Entry, error) {
@@ -174,15 +186,11 @@ func getTargetNodeYangSchema(targetUri string, deviceObj *ocbinds.Device) (*yang
 	return targetNodeSchema, nil
 }
 
-func dumpIetfJson(s ygot.ValidatedGoStruct, skipValidation bool) ([]byte, error) {
-	jsonStr, err := ygot.EmitJSON(s, &ygot.EmitJSONConfig{
-		Format:         ygot.RFC7951,
-		SkipValidation: skipValidation,
-		RFC7951Config: &ygot.RFC7951JSONConfig{
-			AppendModuleName: true,
-		},
-	})
-	return []byte(jsonStr), err
+func dumpIetfJson(s ygot.ValidatedGoStruct) ([]byte, error) {
+	cfg := ocbinds.EmitJSONOptions{
+		SortList: true,
+	}
+	return ocbinds.EmitJSON(s, &cfg)
 }
 
 func contains(sl []string, str string) bool {

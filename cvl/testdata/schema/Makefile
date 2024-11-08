@@ -19,38 +19,17 @@
 
 TOPDIR?=$(abspath ../../../)
 
-yang_dir=../../../models/yang
-sonic_yang=../../../models/yang/sonic
-pyang_plugin_dir=../../../tools/pyang/pyang_plugins
-src_files=$(wildcard *.yang)
-out_dir=$(TOPDIR)/build/tests/cvl/testdata/schema/
-out=$(patsubst %.yang, $(out_dir)/%.yin, $(src_files)) 
-out_ext=$(patsubst %.yang, $(out_dir)/%.tree, $(src_files)) 
-search_path=$(yang_dir)/common:$(sonic_yang):$(sonic_yang)/common
+all: schema
 
-all:precheck schema
+.PHONY: schema
+schema:
+	$(MAKE) -C ../.. test-schema
 
-precheck:
-	mkdir -p $(out_dir) 
-
-schema: $(out)
-
-schema-tree: $(out_ext)
-
-$(out_dir)/%.yin:%.yang
-	@echo "Generating `basename $@` ..."
-	@devFile="`echo $< | cut -d . -f1`-deviation.yang"; \
-	if [ -f $$devFile ] ; then devOpt="--deviation-module $$devFile"; fi; \
-	pyang -p $(search_path) \
-		--plugindir $(pyang_plugin_dir) -f yin-cvl $$devOpt $< -o $@
-
-$(out_dir)/%.tree:%.yang
-	@echo "Generating `basename $@` ..."
-	@devFile="`echo $< | cut -d . -f1`-deviation.yang"; \
-	if [ -f $$devFile ] ; then devOpt="--deviation-module $$devFile"; fi; \
-	pyang -p $(search_path) \
-			-f tree $$devOpt $< -o $@
+.PHONY: tree
+tree:
+	$(TOPDIR)/tools/pyang/tree \
+		--text=allyangs.tree \
+		-p $(TOPDIR)/models/yang/sonic/common *.yang
 
 clean:
-	@echo "Removing files ..."
-	rm -rf platform
+	$(RM) -r allyangs.tree $(TOPDIR)/build/tests/cvl/testdata/schema

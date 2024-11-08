@@ -7,32 +7,104 @@ trigger:
   branches:
     include:
     - master
-
 pr:
   branches:
     include:
     - master
-
-pool: 
-  vmImage: ubuntu-20.04
-
 stages:
 - stage: Build
   jobs:
   - job:
-    displayName: "build"
-    timeoutInMinutes: 60
+
     steps:
     - checkout: self
       clean: true
       submodules: recursive
       displayName: 'Checkout code'
+
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        source: specific
+        project: build
+        pipeline: 142
+        artifact: sonic-buildimage.vs
+        runVersion: 'latestFromBranch'
+        runBranch: 'refs/heads/$(BUILD_BRANCH)'
+        patterns: |
+            target/debs/bookworm/libyang*.deb
+            target/python-wheels/bookworm/sonic_yang_models*.whl
+      displayName: "Download sonic buildimage"
+
     - script: |
-        echo Hello
-        # the following is copied from jenkins
-        # set -ex
-        # ./scripts/common/sonic-mgmt-common-build/build.sh
-        # ./scripts/common/sonic-mgmt-common-build/test.sh
-    - publish: $(System.DefaultWorkingDirectory)/target/
+        # REDIS
+        sudo apt-get update
+        sudo apt-get install -y redis-server
+        sudo sed -ri 's/^# unixsocket/unixsocket/' /etc/redis/redis.conf
+        sudo sed -ri 's/^unixsocketperm .../unixsocketperm 777/' /etc/redis/redis.conf
+        sudo sed -ri 's/redis-server.sock/redis.sock/' /etc/redis/redis.conf
+        sudo service redis-server start
+
+        # LIBYANG
+        sudo dpkg -i ../target/debs/bookworm/libyang*1.0.73*.deb
+      displayName: "Install dependency"
+
+    - script: |
+        sudo pip3 install ../target/python-wheels/bookworm/sonic_yang_models-1.0-py3-none-any.whl
+      displayName: "Install sonic yangs"
+
+    - script: |
+        ls -l
+        INCLUDE_TEST_MODELS=y dpkg-buildpackage -rfakeroot -us -uc -b -j$(nproc) && cp ../*.deb .
+      displayName: "Build"
+
+    - publish: $(System.DefaultWorkingDirectory)/
       artifact: sonic-mgmt-common
       displayName: "Archive artifacts"
+
+    - script: |
+        # Run sanity tests for sonic-mgmt-common.
+        # Assumes sonic-mgmt-common is already compiled and all dependencies
+        # are installed.
+
+        set -x
+
+        STATUS=0
+        DEBDIR=$(realpath debian/sonic-mgmt-common)
+
+        # Update unixsocket path in database_config.json
+        tools/test/dbconfig.py -o build/tests/database_config.json
+        export DB_CONFIG_PATH=${PWD}/build/tests/database_config.json
+
+        # Run CVL tests
+
+        pushd build/tests/cvl
+
+        CVL_SCHEMA_PATH=testdata/schema \
+            ./cvl.test -test.v -logtostderr || STATUS=1
+
+        popd
+
+        # Populates test data in essential tables like PORT, DEVICE_METADATA, SWITCH_TABLE, USER_TABLE etc.
+
+        tools/test/dbinit.py --overwrite
+
+        # Run translib tests
+
+        pushd build/tests/translib
+
+        export CVL_SCHEMA_PATH=${DEBDIR}/usr/sbin/schema
+        export YANG_MODELS_PATH=${DEBDIR}/usr/models/yang
+
+        ./db.test -test.v -logtostderr || STATUS=1
+
+        ./translib.test -test.v -logtostderr || STATUS=1
+
+        ./transformer.test -test.v -logtostderr || STATUS=1
+
+        ./testapp.test -test.v -logtostderr || STATUS=1
+
+        popd
+
+        exit ${STATUS}
+      displayName: "Sanity test"

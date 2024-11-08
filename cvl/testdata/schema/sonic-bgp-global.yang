@@ -7,6 +7,10 @@ module sonic-bgp-global {
         prefix svrf;
     }
 
+    import sonic-port {
+        prefix prt;
+    }
+
     import ietf-inet-types {
         prefix inet;
     }
@@ -172,7 +176,7 @@ module sonic-bgp-global {
 
                 leaf write_quanta {
                     type uint8 {
-                        range 1..10;
+                        range 1..64;
                     }
                     description
                         "This indicates how many packets to write to peer socket per run";
@@ -282,6 +286,23 @@ module sonic-bgp-global {
                     }
                     description
                         "Maximum delay for updates.";
+                }
+            }
+        }
+        container EVPN_ETHERNET_SEGMENT {
+            list EVPN_ETHERNET_SEGMENT_LIST {
+                key "name";
+                leaf name {
+                    type string;
+                }
+                leaf ifname {
+                    type leafref {
+                        path "/prt:sonic-port/prt:PORT/prt:PORT_LIST/prt:ifname";
+                    }
+                    must "count(../../EVPN_ETHERNET_SEGMENT_LIST[name!=current()/../name][ifname=current()]) = 0";
+                }
+                leaf delay-time {
+                    type uint16;
                 }
             }
         }

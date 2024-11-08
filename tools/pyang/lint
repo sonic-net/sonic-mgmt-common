@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+################################################################################
+#                                                                              #
+#  Copyright 2022 Broadcom. The term Broadcom refers to Broadcom Inc. and/or   #
+#  its subsidiaries.                                                           #
+#                                                                              #
+#  Licensed under the Apache License, Version 2.0 (the "License");             #
+#  you may not use this file except in compliance with the License.            #
+#  You may obtain a copy of the License at                                     #
+#                                                                              #
+#     http://www.apache.org/licenses/LICENSE-2.0                               #
+#                                                                              #
+#  Unless required by applicable law or agreed to in writing, software         #
+#  distributed under the License is distributed on an "AS IS" BASIS,           #
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    #
+#  See the License for the specific language governing permissions and         #
+#  limitations under the License.                                              #
+#                                                                              #
+################################################################################
+
+try:
+    from pyang import Context
+except ImportError:
+    from pyang.context import Context
+from pyang.plugin import PyangPlugin
+
+import optparse
+import os
+import sys
+import yangtools
+from yangtools import log
+from typing import List
+from subprocess import check_call
+
+from pyang_plugins.strict_lint import CheckStrictLintPlugin
+reporter = CheckStrictLintPlugin()
+
+
+def main():
+    # init pyang context and linter plugins
+    opts, yangfiles = parse_argv()
+    ctx = yangtools.create_context(opts)
+    linters = create_linter_plugins(ctx)
+
+    # Load yangs into the pyang context and validate
+    modules = load_yangs(ctx, yangfiles)
+    reporter.collect_errors(ctx)
+    if not reporter.has_error():
+        lint(ctx, modules, linters)
+        upcheck(ctx, modules)
+
+    # Display issues using the reporter plugin.. Exits with non-zero
+    # status code if there are errors.
+    reporter.emit(ctx, modules, sys.stdout)
+
+
+def parse_argv():
+    op = optparse.OptionParser(
+        usage="%prog [options] <yangfile>...",
+        description="Run yang linter for the specified yang files",
+    )
+    linter_sel = op.add_option_group("Linter selection (one of these is required)")
+    linter_sel.add_option(
+        "--yang-linter", dest="lint", default=False, action="store_true",
+        help="Use pyang's base yang linter")
+    linter_sel.add_option(
+        "--ietf-linter", dest="ietf", default=False, action="store_true",
+        help="Use pyang's ietf yang linter")
+    linter_sel.add_option(
+        "--oc-linter", dest="openconfig", default=False, action="store_true",
+        help="Use the yang linter from openconfig community")
+    linter_sel.add_option(
+        "--sonic-linter", dest="sonic", default=False, action="store_true",
+        help="Use the sonic yang linter")
+    op.add_option(
+        "-o", "--outfile", metavar="LOGFILE",
+        help="Write linter logs to a file")
+
+    opts, yangfiles = yangtools.parse_argv(op, reporter)
+    linters = sum([opts.lint, opts.ietf, opts.openconfig, opts.sonic])
+    if linters == 0:
+        op.error("One of --oc-linter, --yang-linter, --ietf-linter, --sonic-linter is required")
+    if linters != 1:
+        op.error("--oc-linter, --yang-linter, --ietf-linter, --sonic-linter are mutually exclusive")
+    if not opts.yangdir:
+        guess = "models/yang/sonic" if opts.sonic else "build/yang"
+        opts.yangdir = yangtools.getpath(guess)
+    if opts.openconfig:
+        set_default_lintignore_opts(opts, "lint_ignore.ocstyle")
+    if opts.ietf:
+        set_default_lintignore_opts(opts, "lint_ignore.ietf")
+    return opts, yangfiles
+
+
+def set_default_lintignore_opts(opts: optparse.Values, ignore_file: str):
+    if hasattr(opts, "ignore_file") and opts.ignore_file is None:
+        opts.ignore_file = yangtools.getpath("models/yang/" + ignore_file)
+        log(f"using default ignorefile = {opts.ignore_file}\n")
+    if hasattr(opts, "patch_listfile") and opts.patch_listfile is None:
+        guess = os.path.join(opts.yangdir, "file_list")
+        if os.path.exists(guess):
+            opts.patch_listfile = guess
+            log(f"using default patchlistfile = {opts.patch_listfile}\n")
+
+
+def create_linter_plugins(ctx: Context) -> List[PyangPlugin]:
+    if ctx.opts.openconfig:
+        plugin_dir = resolve_oclint_plugin_dir(ctx)
+        if plugin_dir:
+            sys.path.insert(1, plugin_dir)
+        from openconfig import OpenConfigPlugin
+        from pyang_plugins.strict_lint import OpenconfigExtraChecksPlugin
+        plugins = [OpenConfigPlugin(), OpenconfigExtraChecksPlugin()]
+    elif ctx.opts.ietf:
+        from pyang.plugins.lint import LintPlugin
+        from pyang.plugins.ietf import IETFPlugin
+        plugins = [IETFPlugin(), LintPlugin()]
+    elif ctx.opts.sonic:
+        from pyang_plugins.sonic_linter import SonicYangPlugin
+        plugins = [SonicYangPlugin()]
+    else:
+        from pyang.plugins.lint import LintPlugin
+        plugins = [LintPlugin()]
+    return plugins
+
+
+def resolve_oclint_plugin_dir(ctx: Context) -> str:
+    try:
+        from openconfig import OpenConfigPlugin
+        return None  # path already setup
+    except ModuleNotFoundError:
+        pass
+
+    oc_linter_dir = os.getenv("OC_LINTER_DIR")
+    if not oc_linter_dir:
+        oc_linter_dir = yangtools.getpath("build/oc-community-linter")
+    oc_plugin_dir = oc_linter_dir + "/openconfig_pyang/plugins"
+
+    if os.path.exists(oc_plugin_dir):
+        return oc_plugin_dir
+
+    log(f"Downloading oc-pyang tools into {oc_linter_dir} ...\n")
+    if os.path.exists(oc_linter_dir):
+        import shutil
+        shutil.rmtree(oc_linter_dir)
+    check_call(
+        f"git clone https://github.com/openconfig/oc-pyang.git {oc_linter_dir}",
+        shell=True)
+    check_call(
+        "git reset --hard 4607fd1987d4f586aba03b40f222015cb3ef8161",
+        shell=True, cwd=oc_linter_dir)
+    return oc_plugin_dir
+
+
+@yangtools.profile
+def load_yangs(ctx: Context, yangfiles: List[str]) -> list:
+    if not yangfiles:
+        prefix = ""
+        if ctx.opts.openconfig:
+            prefix = "openconfig-"
+        elif ctx.opts.ietf:
+            prefix = "ietf-"
+        yangfiles = yangtools.list_api_yangs(ctx.opts.yangdir, prefix)
+        log(f"Discovered {len(yangfiles)} {prefix}yangs from {ctx.opts.yangdir}\n")
+    return yangtools.load_yangs(ctx, yangfiles)
+
+
+@yangtools.profile
+def lint(ctx: Context, modules: list, plugins: List[PyangPlugin]):
+    plugin_names = ", ".join([type(p).__name__ for p in plugins])
+    log(f"Validating yangs using {plugin_names}\n")
+    # Fill linter rules into the context
+    yangtools.ensure_plugin_options(ctx, *plugins)
+    for p in plugins:
+        p.setup_ctx(ctx)
+        p.pre_validate(ctx, modules)
+    # Validate the modules
+    ctx.validate()
+    for p in plugins:
+        p.post_validate(ctx, modules)
+    # Collect errors in reporter plugin
+    reporter.post_validate(ctx, modules)
+
+
+@yangtools.profile
+def upcheck(ctx: Context, modules: list):
+    if ctx.opts.sonic:
+        return
+    from pyang_plugins.validate_update import CheckDeviationPlugin
+    plugin = CheckDeviationPlugin()
+    log(f"Verifying yang upgrade guidelines using {type(plugin).__name__}\n")
+    plugin.setup_ctx(ctx)
+    plugin.validate(ctx, modules)
+    reporter.collect_errors(ctx)
+
+
+if __name__ == "__main__":
+    main()

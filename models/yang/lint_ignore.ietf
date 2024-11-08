@@ -1,0 +1,4 @@
+# Sample file, commented lines will be ignored
+#module-name line-number(optional)
+#ietf-interfaces #ignores all errors in the specified module
+#ietf-interfaces 1 10 20 #ignores errors at specificied line numbers alone

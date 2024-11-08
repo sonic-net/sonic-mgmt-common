@@ -1,0 +1,678 @@
+module openconfig-test-xfmr {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/test-xmfr";
+
+  prefix "oc-test-xfmr";
+
+  import openconfig-extensions { prefix oc-ext; }
+
+  // meta
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group www.openconfig.net";
+
+  description
+    "Data model which creates the configuration to exercise
+     and test transformer infrastructure that does yang-model
+     to/from Redis/ABNF schema data-translation.";
+
+  oc-ext:openconfig-version "0.2.0";
+
+  revision "2023-04-30" {
+    description
+      "OpenConfig public release";
+    reference "0.2.0";
+  }
+
+  // OpenConfig specific extensions for module metadata.
+  oc-ext:regexp-posix;
+  oc-ext:catalog-organization "openconfig";
+  oc-ext:origin "openconfig";
+
+  identity TEST_SET_TYPE {
+    description
+      "Base identity for types of ACL sets";
+  }
+
+  identity TEST_SET_IPV4 {
+    base TEST_SET_TYPE;
+    description
+      "IP-layer test set with IPv4 addresses";
+  }
+
+  identity TEST_SET_IPV6 {
+    base TEST_SET_TYPE;
+    description
+      "IP-layer test set with IPv6 addresses";
+  }
+
+  grouping test-sensor-group-top {
+    description
+      "Top level grouping for test-sensor-group configuration and operational
+      state data";
+
+      container test-sensor-groups {
+        description
+          "Top level container for test-sensor-groups.";
+
+        list test-sensor-group {
+          key "id";
+          description
+            "List of test sensory groups on the local
+             system, where a sensor grouping represents a resuable
+             grouping of multiple types and exclude filters.";
+
+          leaf id {
+            type leafref {
+              path "../config/id";
+            }
+            description
+              "Reference to the name or identifier of the
+               test sensor grouping";
+          }
+
+          container config {
+            description
+              "Configuration parameters relating to the
+               test sensor grouping";
+            uses test-sensor-group-config;
+          }
+
+          container state {
+            config false;
+            description
+              "State information relating to the test
+               sensor group";
+            uses test-sensor-group-config;
+            uses test-sensor-group-counters;
+          }
+
+          container test-sensor-types {
+            description
+              "Top level container to hold a set of sensor
+               types grouped together";
+
+            list test-sensor-type {
+              key "type";
+              description
+                "List of types of sensors which together
+                 comprise a test sensor grouping. Filters for each type
+                 to exclude items are also provided.";
+
+              leaf type {
+                type leafref {
+                  path "../config/type";
+                }
+                description
+                  "Reference to the type of interest";
+              }
+
+              container config {
+                description
+                  "Configuration parameters to configure a set
+                   of sensor types as a sensor grouping";
+                uses test-sensor-type-config;
+              }
+
+              container state {
+                config false;
+                description
+                  "Configuration parameters to configure a set
+                   of sensor types as a sensor grouping";
+                uses test-sensor-type-config;
+              }
+
+              container sensor-a-light-sensors {
+                description
+                  "Top level container to hold a set of sensor
+                   a type light sensors grouped together";
+
+                list sensor-a-light-sensor {
+                  key "tag";
+                  description
+                    "List of sensor a type light sensors together
+                     comprise a test sensor a grouping.";
+
+                  leaf tag {
+                    type leafref {
+                      path "../config/tag";
+                    }
+                    description
+                      "Reference to the id of interest";
+                  }
+
+                  container config {
+                    description
+                      "Configuration parameters to configure a set
+                       of ligt sensors as a sensor a grouping";
+                    uses sensor-a-light-sensor-config;
+                  }
+
+                  container state {
+                    config false;
+                    description
+                      "Parameters of a set ligt sensors
+                       as a sensor a grouping";
+                    uses sensor-a-light-sensor-config;
+                  }
+                }
+              }
+            }
+          }
+          uses test-sensor-components-top;
+	  uses test-sensor-zones-top;
+        }
+      }
+  }
+  // identity statements
+
+  // typedef statements
+
+  // grouping statements
+
+  grouping test-set-top {
+    description
+      "Access list entries variables top level container";
+
+    container test-sets {
+      description
+        "Access list entries variables enclosing container";
+
+      list test-set {
+        key "name type";
+        description
+          "List of test sets";
+
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+          description
+            "Reference to the name list key";
+        }
+
+        leaf type {
+          type leafref {
+            path "../config/type";
+          }
+          description
+            "Reference to the type list key";
+        }
+
+        container config {
+          description
+            "Test set config";
+          uses test-set-config;
+        }
+
+        container state {
+          config false;
+          description
+            "Test set  state information";
+          uses test-set-config;
+        }
+       }
+    }
+  } 
+
+  grouping interfaces-top {
+    description
+      "Top-level grouping for interface-specific  test set data";
+
+    container interfaces {
+      description
+        "Enclosing container for the list of interfaces on which
+        test set exists";
+
+      list interface {
+        key "id";
+        description
+          "List of interfaces on which test set exists";
+
+        leaf id {
+          type leafref {
+            path "../config/id";
+          }
+          description
+            "Reference to the interface id list key";
+        }
+
+        container config {
+          description
+            "Configuration for test-set per-interface data";
+
+          uses interfaces-config;
+        }
+
+        container state {
+
+          config false;
+
+          description
+            "Operational state for test-set per-interface data";
+
+          uses interfaces-config;
+        }
+
+        uses interface-ingress-test-set-top;
+      }
+    }
+   }
+
+    grouping interface-ingress-test-set-top {
+    description
+      "Top-level grouping for per-interface ingress test set data";
+
+    container ingress-test-sets {
+      description
+        "Enclosing container the list of ingress test sets on the interface";
+
+      list ingress-test-set {
+        key "set-name type";
+        description
+          "List of ingress test set on the interface";
+
+        leaf set-name {
+          type leafref {
+            path "../config/set-name";
+          }
+          description
+            "Reference to set name list key";
+        }
+
+        leaf type {
+          type leafref {
+            path "../config/type";
+          }
+          description
+            "Reference to type list key";
+        }
+
+        container config {
+          description
+            "Configuration data ";
+
+          uses interface-ingress-test-set-config;
+        }
+        
+        container state {
+
+          config false;
+
+          description
+            "Operational state data for interface ingress test sets";
+
+          uses interface-ingress-test-set-config;
+        }
+
+      }
+    }
+  }
+
+  ////////////////////////////
+
+  grouping test-sensor-group-config {
+    description
+      "Config parameters related to the test sensor groups";
+    leaf id {
+      type string;
+      description
+        "Name or identifier for the test sensor group itself.
+         Will be referenced by other configuration specifying a
+         sensor group";
+    }
+
+   leaf-list group-colors {
+      type string;
+      description
+        "Colors thta can be applied to a test sensor group.";
+    }
+
+   leaf color-hold-time {
+      type uint32;
+      units seconds;
+      default 10;
+      description
+        "Number of seconds a color can be held on a test sonsor group.";
+    }
+
+  }
+
+  grouping test-sensor-group-counters {
+    description
+      "Definition of test sensor group counters";
+
+    container counters {
+      description
+        "Test sensor group counters";
+
+      leaf frame-in {
+        type uint32;
+        description
+          "The number frames received.";
+      }
+
+      leaf frame-out {
+        type uint32;
+        description
+          "The number of frames transmitted out.";
+      }
+   }
+  }
+
+  grouping test-sensor-type-config {
+    description
+      "Configuration parameters relating to the
+       grouping of sensor types comprising a
+       sensor grouping";
+      leaf type {
+        type string {
+          pattern "sensora_[a-zA-Z0-9]*|sensorb_[a-zA-Z0-9]*";
+        }
+        description
+          "Sensor type name";
+      }
+
+      leaf exclude-filter {
+        type string;
+        description
+          "Filter to exclude certain values out of the state values";
+      }
+  }
+
+  grouping sensor-a-light-sensor-config {
+    description
+      "Configuration parameters relating to the
+       grouping of sensor a light sensors";
+      leaf tag {
+        type string {
+          pattern "lightsensor_[0-9]*";
+        }
+        description
+          "light sensor tag-id";
+      }
+
+      leaf light-intensity-measure {
+        type uint32;
+        default 5;
+        description
+          "Light intenity needed for sensing";
+      }
+  }
+
+  grouping test-set-config { 
+    description 
+      "Test set config"; 
+ 
+    leaf name { 
+      type string; 
+      description 
+        "The name of the test set"; 
+    } 
+ 
+    leaf type { 
+      type identityref { 
+        base TEST_SET_TYPE; 
+      } 
+      description 
+        "The type determines the type test set"; 
+    } 
+ 
+    leaf description { 
+      type string; 
+      description 
+        "Description, or comment, for the test set"; 
+    } 
+ 
+  } 
+ 
+  ///////////////////
+  grouping test-sensor-component-config {
+    description
+      "Configuration data for sensor-components";
+
+    leaf name {
+      type string;
+      description
+        "Device name for the sensor component. ";
+    }
+    leaf type {
+      type enumeration {
+        enum TYPE1 {
+          description
+            "Component Type 1.";
+        }
+        enum TYPE2 {
+          description
+            "Component Type 2.";
+        }
+        enum TYPE3 {
+          description
+            "Component Type 3.";
+        }
+      }
+    }
+    leaf version {
+      type string;
+      description
+        "Version of the Component. ";
+    }
+    leaf description {
+      type string;
+      description
+        "Description, or comment, for the test sensor component";
+    }
+  }
+
+  grouping test-sensor-component-state {
+    description
+      "Operational State data for sensor components";
+	  leaf mfg-name {
+	     type string;
+	     description
+	       "System-supplied identifier for the manufacturer of the component.";
+	   }
+
+	   leaf mfg-date {
+	     type string;
+	     description
+	       "System-supplied representation of the component's
+	       manufacturing date.";
+	   }
+
+	   leaf hardware-version {
+	     type string;
+	      description
+                "For hardware components, this is the hardware revision of
+	        the component.";
+	   }
+
+	   leaf firmware-version {
+	      type string;
+	      description
+	        "For hardware components, this is the version of associated
+	        firmware that is running on the component, if applicable.";
+	   }
+  }
+
+  grouping test-sensor-components-top {
+      container test-sensor-components {
+        description
+          "Enclosing container for test sensor component references";
+
+        list test-sensor-component {
+          key "name type version";
+          description
+            "List of sensor component references";
+
+            leaf name {
+              type leafref {
+                path "../config/name";
+              }
+              description
+                "Reference to the name of component";
+            }
+
+            leaf type {
+              type leafref {
+                path "../config/type";
+              }
+              description
+                "Reference to the type of component";
+            }
+
+            leaf version {
+              type leafref {
+                path "../config/version";
+              }
+              description
+                "Reference to the version of component";
+            }
+
+            container config {
+                description
+                  "Configuration parameters to configure a sensor component";
+                uses test-sensor-component-config;
+            }
+
+            container state {
+                config false;
+                description
+                  "Operational state parameters of a sensor component";
+                uses test-sensor-component-config;
+		uses test-sensor-component-state;
+            }
+        }
+      }
+  }
+
+  grouping test-sensor-zones-top {
+      container test-sensor-zones {
+          description
+              "Top level container to hold a set of sensor
+               zones grouped together";
+
+          list test-sensor-zone {
+              key "zone";
+              description
+                "List of zones of sensors which together
+                 comprise a test sensor grouping.";
+
+              leaf zone {
+                type leafref {
+                  path "../config/zone";
+                }
+                description
+                  "Reference to the sensor zone";
+              }
+
+              container config {
+                description
+                  "Configuration parameters to configure zone of a sensor grouping";
+		  leaf zone {
+                    type string;
+                    description
+                      "Reference to the sensor zone";
+                  }
+                 leaf description {
+                   type string;
+                   description
+                    "global sensor description";
+                 }
+              }
+
+              container state {
+                config false;
+                description
+                  "State data of the configured zones of a sensor grouping";
+		leaf zone {
+                  type string;
+                  description
+                    "Reference to the sensor zone";
+                }
+              }
+          }
+      }
+  }
+
+
+
+  grouping interfaces-config {
+    description
+      "Configuration data for interface references";
+
+    leaf id {
+      type string {
+          pattern "Eth_" + ".*";
+      }
+      description
+        "identifier for the interface";
+    }
+  }
+
+  grouping interface-ingress-test-set-config {
+    description
+      "Configuration data for per-interface ingress test-set";
+
+    leaf set-name {
+      type leafref {
+        path "../../../../../../test-sets/test-set/config/name";
+      }
+      description
+        "Reference to the test set name applied on ingress";
+    }
+
+    leaf type {
+      type leafref {
+        path "../../../../../../test-sets/test-set[name=current()/../set-name]" +
+          "/config/type";
+      }
+      description
+        "Reference to the test set type applied on ingress";
+    }
+
+  }
+
+  grouping test-global-sensor-config {
+    container global-sensor {
+          description
+            "Configuration data for global sensor.";
+ 
+          leaf mode {
+            type string;
+            description
+              "global sensor mode";
+          }
+
+          leaf description {
+            type string;
+            description
+              "global sensor description";
+          }
+    }
+  }
+  ///////////////////
+
+  // data definition statements
+
+  container test-xfmr {
+    description
+      "Top level configuration and state for the test-xfmr system.";
+
+    uses test-sensor-group-top;
+    uses test-set-top;
+    uses interfaces-top;
+    uses test-global-sensor-config;
+  }
+  // augment statements
+
+  // rpc statements
+
+  // notification statements
+
+}
+

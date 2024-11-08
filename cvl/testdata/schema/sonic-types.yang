@@ -1,0 +1,353 @@
+module sonic-types {
+  yang-version 1.1;
+  namespace "http://github.com/sonic-net/sonic-head";
+  prefix sonic-types;
+
+  description
+    "SONiC type for yang Models of SONiC OS";
+
+  revision 2019-07-01 {
+    description
+      "First Revision";
+  }
+
+  typedef ip-family {
+    type enumeration {
+      enum IPv4;
+      enum IPv6;
+    }
+  }
+
+  typedef sonic-ip4-prefix {
+    type string {
+      pattern '(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))';
+    }
+  }
+
+  typedef sonic-ip6-prefix {
+    type string {
+      pattern '((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(/(([0-9])|([0-9]{2})|(1[0-1][0-9])|(12[0-8])))';
+      pattern '(([^:]+:){6}(([^:]+:[^:]+)|(.*\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(/.+)';
+    }
+  }
+
+  typedef sonic-ip-prefix {
+    type union {
+      type sonic-ip4-prefix;
+      type sonic-ip6-prefix;
+    }
+  }
+
+  typedef admin_status {
+    type enumeration {
+      enum up;
+      enum down;
+    }
+  }
+
+  typedef packet_action {
+    type enumeration {
+      enum DROP;
+      enum ACCEPT;
+      enum FORWARD;
+      enum REDIRECT;
+      enum DO_NOT_NAT;
+    }
+  }
+
+  typedef ip_type {
+    type enumeration {
+      enum ANY;
+      enum IP;
+      enum NON_IP;
+      enum IPV4;
+      enum IPV6;
+      enum IPv4ANY;
+      enum NON_IP4;
+      enum IPv6ANY;
+      enum NON_IPv6;
+      enum ARP;
+    }
+  }
+
+  typedef acl_table_type {
+    type enumeration {
+      enum L2;
+      enum L3;
+      enum L3V6;
+      enum L3V4V6;
+      enum MIRROR;
+      enum MIRRORV6;
+      enum MIRROR_DSCP;
+      enum CTRLPLANE;
+    }
+  }
+
+  typedef hwsku {
+    type string {
+      length "1..255";
+    }
+  }
+
+  typedef vlan_tagging_mode {
+    type enumeration {
+      enum tagged;
+      enum untagged;
+      enum priority_tagged;
+    }
+  }
+
+  typedef crm_threshold_type {
+    type string {
+      length "1..64";
+      pattern 'percentage|used|free|PERCENTAGE|USED|FREE';
+    }
+  }
+
+  typedef loopback_action {
+    type string {
+      pattern 'drop|forward';
+    }
+  }
+
+  typedef admin_mode {
+    type enumeration {
+      enum enabled;
+      enum disabled;
+    }
+  }
+
+  typedef ip-protocol-type {
+    type enumeration {
+      enum TCP;
+      enum UDP;
+    }
+  }
+
+  typedef interface_type {
+    type enumeration {
+      enum CR;
+      enum CR2;
+      enum CR4;
+      enum CR8;
+      enum SR;
+      enum SR2;
+      enum SR4;
+      enum SR8;
+      enum LR;
+      enum LR4;
+      enum LR8;
+      enum KR;
+      enum KR4;
+      enum KR8;
+      enum CAUI;
+      enum GMII;
+      enum SFI;
+      enum XLAUI;
+      enum KR2;
+      enum CAUI4;
+      enum XAUI;
+      enum XFI;
+      enum XGMII;
+      enum none;
+    }
+  }
+
+  typedef oper-status {
+    type enumeration {
+      enum unknown;
+      enum up;
+      enum down;
+    }
+    description
+      "Operational status of an entity such as Port, MCLAG etc";
+  }
+
+  typedef mode-status {
+    type enumeration {
+      enum enable;
+      enum disable;
+    }
+    description
+      "This type can be used where toggle functionality required.
+       For ex. IPv6-link-local-only, Dhcp-replay-link-select, SNMP traps etc";
+  }
+
+  typedef dhcp-relay-policy-action {
+    type enumeration {
+      enum discard;
+      enum append;
+      enum replace;
+    }
+    description
+      "DHCP relay policy action value";
+  }
+
+  typedef percentage {
+    type uint8 {
+      range "0..100";
+    }
+    description
+      "Integer indicating a percentage value";
+  }
+
+  typedef tpid_type {
+    type string {
+      pattern '0x8100|0x9100|0x9200|0x88a8|0x88A8';
+    }
+  }
+
+  typedef meter_type {
+    type enumeration {
+      enum packets;
+      enum bytes;
+    }
+  }
+
+  typedef policer_mode {
+    type enumeration {
+      enum sr_tcm;
+      enum tr_tcm;
+      enum storm;
+    }
+  }
+
+  typedef policer_color_source {
+    type enumeration {
+      enum aware;
+      enum blind;
+    }
+  }
+
+  typedef policer_packet_action {
+    type enumeration {
+      enum drop;
+      enum forward;
+      enum copy;
+      enum copy_cancel;
+      enum trap;
+      enum log;
+      enum deny;
+      enum transit;
+    }
+  }
+
+  typedef boolean_type {
+    type string {
+      pattern 'false|true|False|True';
+    }
+  }
+
+  typedef mac-addr-and-mask {
+    type string {
+      pattern '[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}|[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}/[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}';
+    }
+  }
+
+  typedef hostname {
+    type string {
+      length "1..63";
+    }
+  }
+
+  typedef vnid_type {
+    type uint32 {
+      range "1..16777215";
+    }
+    description
+      "VXLAN Network Identifier";
+  }
+
+  typedef tc_type {
+    type uint8 {
+      range "0..15" {
+        error-message "Invalid Traffic Class";
+        error-app-tag "tc-invalid";
+      }
+    }
+  }
+
+  typedef process_name {
+    type string {
+      pattern '[a-zA-Z0-9]{1}([-a-zA-Z0-9_]{0,31})' {
+        error-message "Invalid process_name.";
+        error-app-tag "invalid-process-name";
+      }
+      length "1..32" {
+        error-message "Invalid length for process_name.";
+        error-app-tag "invalid-process-name-length";
+      }
+    }
+  }
+
+  typedef ctr_name {
+    type string {
+      pattern '[a-zA-Z0-9]{1}([-a-zA-Z0-9_]{0,31})' {
+        error-message "Invalid ctr_name.";
+        error-app-tag "invalid-ctr-name";
+      }
+      length "1..32" {
+        error-message "Invalid length for ctr_name.";
+        error-app-tag "invalid-ctr-name-length";
+      }
+    }
+  }
+
+  typedef hash-field {
+    description
+      "Represents native hash field";
+    type enumeration {
+      enum IN_PORT;
+      enum DST_MAC;
+      enum SRC_MAC;
+      enum ETHERTYPE;
+      enum VLAN_ID;
+      enum IP_PROTOCOL;
+      enum DST_IP;
+      enum SRC_IP;
+      enum L4_DST_PORT;
+      enum L4_SRC_PORT;
+      enum INNER_DST_MAC;
+      enum INNER_SRC_MAC;
+      enum INNER_ETHERTYPE;
+      enum INNER_IP_PROTOCOL;
+      enum INNER_DST_IP;
+      enum INNER_DST_IPV4;
+      enum INNER_DST_IPV6;
+      enum INNER_SRC_IP;
+      enum INNER_SRC_IPV4;
+      enum INNER_SRC_IPV6;
+      enum INNER_L4_DST_PORT;
+      enum INNER_L4_SRC_PORT;
+    }
+  }
+
+  typedef timezone-name-type {
+    type string;
+    description
+      "A time zone name as used by the Time Zone Database,
+       sometimes referred to as the 'Olson Database'.
+
+       The exact set of valid values is an implementation-specific
+       matter.  Client discovery of the exact set of time zone names
+       for a particular server is out of scope.";
+    reference
+      "BCP 175: Procedures for Maintaining the Time Zone Database";
+  }
+
+  container operation {
+    description
+      "This definition is used internally by CVL and
+       is not exposed in NBI. Leaf 'operation' allows
+       evaluation of must expression for
+       CREATE/UPDATE/DELETE operation.";
+    leaf operation {
+      type enumeration {
+        enum NOP;
+        enum CREATE;
+        enum UPDATE;
+        enum DELETE;
+      }
+    }
+  }
+}

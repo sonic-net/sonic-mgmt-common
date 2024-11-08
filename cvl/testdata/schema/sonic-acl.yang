@@ -149,6 +149,7 @@ module sonic-acl {
 						enum IPV4;
 						enum IPV4ANY;
 						enum NON_IPV4;
+						enum IPV6;
 						enum IPV6ANY;
 						enum NON_IPV6;
 					}

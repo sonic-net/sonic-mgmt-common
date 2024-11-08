@@ -21,11 +21,13 @@ package main
 
 import (
 	"fmt"
-	"time"
 	"os"
-	"github.com/Azure/sonic-mgmt-common/cvl"
-	"github.com/go-redis/redis"
 	"strconv"
+	"time"
+
+	"github.com/Azure/sonic-mgmt-common/cvl"
+	"github.com/go-redis/redis/v7"
+	"github.com/pkg/profile"
 )
 
 func getConfigDbClient() *redis.Client {
@@ -55,9 +57,9 @@ func unloadConfigDB(rclient *redis.Client, key string, data map[string]string) {
 /* Loads the Config DB based on JSON File. */
 func loadConfigDB(rclient *redis.Client, key string, data map[string]string) {
 
-	dataTmp  := make(map[string]interface{})
+	dataTmp := make(map[string]interface{})
 
-	for k, v :=  range data {
+	for k, v := range data {
 		dataTmp[k] = v
 	}
 
@@ -73,70 +75,76 @@ func main() {
 	start := time.Now()
 	count := 0
 
+	prof := profile.Start()
+	defer prof.Stop()
+
 	cvl.Initialize()
 
-	if ((len(os.Args) > 1) && (os.Args[1] == "debug")) {
+	if (len(os.Args) > 1) && (os.Args[1] == "debug") {
 		cvl.Debug(true)
 	}
 
 	rclient := getConfigDbClient()
 
-	if ((len(os.Args) > 1) && (os.Args[1] == "add")) {
+	if (len(os.Args) > 1) && (os.Args[1] == "add") {
 
 		//Add  ACL
 		aclNoStart, _ := strconv.Atoi(os.Args[2])
 		aclNoEnd, _ := strconv.Atoi(os.Args[3])
-		for aclNum:= aclNoStart ;aclNum <= aclNoEnd; aclNum++ {
+		for aclNum := aclNoStart; aclNum <= aclNoEnd; aclNum++ {
 			aclNo := fmt.Sprintf("%d", aclNum)
 
 			cvSess, _ := cvl.ValidationSessOpen()
 
-			cfgDataAclRule := []cvl.CVLEditConfigData {
-				cvl.CVLEditConfigData {
+			cfgDataAclRule := []cvl.CVLEditConfigData{
+				cvl.CVLEditConfigData{
 					cvl.VALIDATE_ALL,
 					cvl.OP_CREATE,
 					fmt.Sprintf("ACL_TABLE|TestACL%s", aclNo),
-					map[string]string {
+					map[string]string{
 						"stage": "INGRESS",
-						"type": "L3",
+						"type":  "L3",
 						//"ports@": "Ethernet0",
 					},
+					false,
 				},
 			}
 
 			_, ret := cvSess.ValidateEditConfig(cfgDataAclRule)
 
-			if (ret != cvl.CVL_SUCCESS) {
-				fmt.Printf("Validation failure\n")
+			if ret != cvl.CVL_SUCCESS {
+				fmt.Printf("ACL_TABLE Create: Validation failure\n")
 				return
 			}
 
 			cfgDataAclRule[0].VType = cvl.VALIDATE_NONE
 
 			//Create 7 ACL rules
-			for i:=0; i<7; i++ {
-				cfgDataAclRule = append(cfgDataAclRule, cvl.CVLEditConfigData {
+			for i := 0; i < 5; i++ {
+				cfgDataAclRule = append(cfgDataAclRule, cvl.CVLEditConfigData{
 					cvl.VALIDATE_ALL,
 					cvl.OP_CREATE,
 					fmt.Sprintf("ACL_RULE|TestACL%s|Rule%d", aclNo, i+1),
-					map[string]string {
-						"PACKET_ACTION":     "FORWARD",
-						"IP_TYPE": "IPV4",
-						"SRC_IP":            "10.1.1.1/32",
-						"L4_SRC_PORT":       fmt.Sprintf("%d", 201 + i),
-						"IP_PROTOCOL":       "103",
-						"DST_IP":            "20.2.2.2/32",
-						"L4_DST_PORT":       fmt.Sprintf("%d", 701 + i),
+					map[string]string{
+						"PACKET_ACTION": "FORWARD",
+						"IP_TYPE":       "IPV4",
+						"SRC_IP":        "10.1.1.1/32",
+						"L4_SRC_PORT":   fmt.Sprintf("%d", 201+i),
+						"IP_PROTOCOL":   "103",
+						"DST_IP":        "20.2.2.2/32",
+						"L4_DST_PORT":   fmt.Sprintf("%d", 701+i),
 					},
+					false,
 				})
+				//"DST_IPV6": "2001:db8:3c4d::/48",
 
 				_, ret1 := cvSess.ValidateEditConfig(cfgDataAclRule)
-				if (ret1 != cvl.CVL_SUCCESS) {
-					fmt.Printf("Validation failure\n")
+				if ret1 != cvl.CVL_SUCCESS {
+					fmt.Printf("ACL_RULE Create: Validation failure\n")
 					return
 				}
 
-				cfgDataAclRule[1 + i].VType = cvl.VALIDATE_NONE
+				cfgDataAclRule[1+i].VType = cvl.VALIDATE_NONE
 			}
 
 			//Write to DB
@@ -148,47 +156,47 @@ func main() {
 		}
 
 		return
-	} else if ((len(os.Args) > 1) && (os.Args[1] == "del")) {
+	} else if (len(os.Args) > 1) && (os.Args[1] == "del") {
 		aclNoStart, _ := strconv.Atoi(os.Args[2])
 		aclNoEnd, _ := strconv.Atoi(os.Args[3])
-		for aclNum:= aclNoStart ;aclNum <= aclNoEnd; aclNum++ {
+		for aclNum := aclNoStart; aclNum <= aclNoEnd; aclNum++ {
 			aclNo := fmt.Sprintf("%d", aclNum)
-			cvSess,_ := cvl.ValidationSessOpen()
+			cvSess, _ := cvl.ValidationSessOpen()
 
 			//Delete ACL
 
 			cfgDataAclRule := []cvl.CVLEditConfigData{}
 
 			//Create 7 ACL rules
-			for i:=0; i<7; i++ {
-				cfgDataAclRule = append(cfgDataAclRule, cvl.CVLEditConfigData {
+			for i := 0; i < 5; i++ {
+				cfgDataAclRule = append(cfgDataAclRule, cvl.CVLEditConfigData{
 					cvl.VALIDATE_ALL,
 					cvl.OP_DELETE,
 					fmt.Sprintf("ACL_RULE|TestACL%s|Rule%d", aclNo, i+1),
-					map[string]string {
-					},
+					map[string]string{},
+					false,
 				})
 
 				_, ret := cvSess.ValidateEditConfig(cfgDataAclRule)
-				if (ret != cvl.CVL_SUCCESS) {
-					fmt.Printf("Validation failure\n")
+				if ret != cvl.CVL_SUCCESS {
+					fmt.Printf("ACL_RULE Delete: Validation failure\n")
 					return
 				}
 
 				cfgDataAclRule[i].VType = cvl.VALIDATE_NONE
 			}
 
-			cfgDataAclRule = append(cfgDataAclRule,	cvl.CVLEditConfigData {
+			cfgDataAclRule = append(cfgDataAclRule, cvl.CVLEditConfigData{
 				cvl.VALIDATE_ALL,
 				cvl.OP_DELETE,
 				fmt.Sprintf("ACL_TABLE|TestACL%s", aclNo),
-				map[string]string {
-				},
+				map[string]string{},
+				false,
 			})
 
 			_, ret := cvSess.ValidateEditConfig(cfgDataAclRule)
-			if (ret != cvl.CVL_SUCCESS) {
-				fmt.Printf("Validation failure\n")
+			if ret != cvl.CVL_SUCCESS {
+				fmt.Printf("ACL_TABLE Delete: Validation failure\n")
 				return
 			}
 
@@ -204,14 +212,14 @@ func main() {
 	}
 
 	cv, ret := cvl.ValidationSessOpen()
-	if (ret != cvl.CVL_SUCCESS) {
+	if ret != cvl.CVL_SUCCESS {
 		fmt.Printf("Could not create CVL session")
 		return
 	}
 
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"ACL_TABLE": {
 				"TestACL1": {
 					"stage": "INGRESS",
@@ -224,19 +232,19 @@ func main() {
 			}
 		}`
 
-		fmt.Printf("\nValidating data = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data = %v\n\n", jsonData)
 
 		err := cv.ValidateConfig(jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"ACL_TABLE": {
 				"TestACL2": {
 					"stage": "EGRESS",
@@ -245,20 +253,19 @@ func main() {
 			}
 		}`
 
-
-		fmt.Printf("\nValidating data for external dependency check = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for external dependency check = %v\n\n", jsonData)
 
 		err := cv.ValidateConfig(jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"ACL_TABLE": {
 				"TestACL1": {
 					"type": "L3"
@@ -266,20 +273,19 @@ func main() {
 			}
 		}`
 
-
-		fmt.Printf("\nValidating data for mandatory element misssing = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for mandatory element misssing = %v\n\n", jsonData)
 
 		err := cv.ValidateConfig(jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"ACL_TABLE": {
 				"TestACL1": {
 					"stage": "INGRESS",
@@ -296,21 +302,19 @@ func main() {
 			}
 		}`
 
-
-
-		fmt.Printf("\nValidating data for internal dependency check = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for internal dependency check = %v\n\n", jsonData)
 
 		err := cv.ValidateConfig(jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"ACL_TABLE": {
 				"TestACL1": {
 					"stage": "INGRESS",
@@ -325,21 +329,19 @@ func main() {
 			}
 		}`
 
-
-
-		fmt.Printf("\nValidating data for mandatory element check = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for mandatory element check = %v\n\n", jsonData)
 
 		err := cv.ValidateConfig(jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"ACL_TABLE": {
 				"TestACL1": {
 					"stage": "INGRESS",
@@ -355,21 +357,19 @@ func main() {
 			}
 		}`
 
-
-
-		fmt.Printf("\nValidating data for mandatory element check = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for mandatory element check = %v\n\n", jsonData)
 
 		err := cv.ValidateConfig(jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"ACL_TABLE": {
 				"TestACL1": {
 					"stage": "INGRESS",
@@ -389,21 +389,19 @@ func main() {
 			}
 		}`
 
-
-
-		fmt.Printf("\nValidating data for pattern check = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for pattern check = %v\n\n", jsonData)
 
 		err := cv.ValidateConfig(jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 	{
 		count++
-		jsonData :=`{
+		jsonData := `{
 			"ACL_TABLE": {
 				"TestACL1": {
 					"stage": "INGRESS",
@@ -422,16 +420,14 @@ func main() {
 			}
 		}`
 
-
-
-		fmt.Printf("\nValidating data for type check = %v\n\n", jsonData);
+		fmt.Printf("\nValidating data for type check = %v\n\n", jsonData)
 
 		err := cv.ValidateConfig(jsonData)
 
-		if (err == cvl.CVL_SUCCESS) {
-			fmt.Printf("\nConfig Validation succeeded.\n\n");
+		if err == cvl.CVL_SUCCESS {
+			fmt.Printf("\nConfig Validation succeeded.\n\n")
 		} else {
-			fmt.Printf("\nConfig Validation failed.\n\n");
+			fmt.Printf("\nConfig Validation failed.\n\n")
 		}
 	}
 

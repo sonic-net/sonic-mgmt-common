@@ -1,0 +1,199 @@
+module openconfig-interfaces-annot {
+
+    yang-version "1";
+
+    namespace "http://openconfig.net/yang/annotation/openconfig-interfaces-annot";
+    prefix "oc-interfaces-annot";
+
+    import sonic-extensions { prefix sonic-ext; }
+    import openconfig-interfaces { prefix oc-intf; }
+    import openconfig-if-ip {prefix oc-ip; }
+
+    deviation /oc-intf:interfaces/oc-intf:interface {
+        deviate add {
+            sonic-ext:key-transformer "intf_tbl_key_xfmr";
+            sonic-ext:table-transformer "intf_table_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:config {
+        deviate add {
+            sonic-ext:subtree-transformer "intf_eth_port_config_xfmr";
+            sonic-ext:path-transformer "intf_eth_port_config_path_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state {
+        deviate add {
+            sonic-ext:db-name "APPL_DB";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:auto-negotiate {
+        deviate add {
+            sonic-ext:field-transformer "intf_eth_auto_neg_xfmr";
+            sonic-ext:field-name "autoneg";
+        }
+    }
+    
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:port-speed {
+        deviate add {
+            sonic-ext:field-transformer "intf_eth_port_speed_xfmr";
+            sonic-ext:field-name "speed";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-lag:aggregate-id {
+        deviate add {
+            sonic-ext:field-transformer "intf_eth_aggr_id_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state {
+        deviate add {
+            sonic-ext:db-name "APPL_DB";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:mtu {
+        deviate add {
+            sonic-ext:field-transformer "intf_mtu_xfmr";
+        }
+    }
+
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:admin-status {
+        deviate add {
+            sonic-ext:field-transformer "intf_admin_status_xfmr";
+            sonic-ext:field-name "admin_status";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:enabled {
+        deviate add {
+            sonic-ext:field-transformer "intf_enabled_xfmr";
+            sonic-ext:field-name "admin_status";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:min-links {
+        deviate add {
+            sonic-ext:field-transformer "lag_min_links_xfmr";
+            sonic-ext:field-name "min_links";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state {
+      deviate add {
+            sonic-ext:subtree-transformer "intf_lag_state_xfmr";
+            sonic-ext:path-transformer "intf_lag_state_path_xfmr";
+      }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:enabled {
+        deviate add {
+            sonic-ext:field-transformer "intf_enabled_xfmr";
+            sonic-ext:field-name "admin_status";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters {
+        deviate add {
+            sonic-ext:subtree-transformer "intf_get_counters_xfmr";
+            sonic-ext:db-name "COUNTERS_DB";
+            sonic-ext:subscribe-on-change "disable";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters {
+        deviate add {
+            sonic-ext:db-name "COUNTERS_DB";
+            sonic-ext:subtree-transformer "intf_get_ether_counters_xfmr";
+            sonic-ext:subscribe-on-change "disable";
+        }
+    }
+    
+    deviation /oc-intf:interfaces {
+      deviate add {
+        sonic-ext:pre-transformer "intf_pre_xfmr";
+        sonic-ext:post-transformer "intf_post_xfmr";
+      }
+    }
+    
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces {
+        deviate add {
+            sonic-ext:table-name "NONE";
+        }
+    }
+    
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface {
+        deviate add {
+            sonic-ext:table-transformer "intf_subintfs_table_xfmr";
+            sonic-ext:virtual-table "true";
+            sonic-ext:key-transformer "intf_subintfs_xfmr";
+            sonic-ext:path-transformer "intf_ip_path_xfmr";
+        }
+    }
+    
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:config/oc-intf:index {
+        deviate add {
+            sonic-ext:field-transformer "subif_index_xfmr";
+        }
+    }
+    
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:index {
+        deviate add {
+            sonic-ext:field-transformer "subif_index_xfmr";
+        }
+    }
+    
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "intf_ip_addr_xfmr";
+        }
+    }
+    
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "intf_ip_addr_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address {
+        deviate add {
+            sonic-ext:key-transformer "subintf_ip_addr_key_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address {
+        deviate add {
+            sonic-ext:key-transformer "subintf_ip_addr_key_xfmr";
+        }
+    }
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4 {
+        deviate add {
+            sonic-ext:table-transformer "intf_table_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6 {
+        deviate add {
+            sonic-ext:key-transformer "subintf_ipv6_tbl_key_xfmr";
+            sonic-ext:table-transformer "intf_table_xfmr";
+        }
+    }
+    
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:enabled {
+        deviate add {
+            sonic-ext:field-transformer "ipv6_enabled_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:enabled {
+        deviate add {
+            sonic-ext:field-transformer "ipv6_enabled_xfmr";
+        }
+    }
+}

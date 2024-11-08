@@ -54,6 +54,15 @@ func (p *PathInfo) Var(name string) string {
 	return p.Vars[name]
 }
 
+// StringVar returns the string value for a path variable if
+// it exists; otherwise returns the specified default value.
+func (p *PathInfo) StringVar(name, defalt string) string {
+	if v, ok := p.Vars[name]; ok {
+		return v
+	}
+	return defalt
+}
+
 // IntVar returns the value for a path variable as an int.
 // Returns 0 if no such variable exists. Returns an error
 // if the value is not an integer.

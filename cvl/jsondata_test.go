@@ -25,7 +25,7 @@ var json_edit_config_create_acl_table_dependent_data = []string{`{
 						}`}
 
 var json_edit_config_create_acl_rule_config_data = []string{
-						`{
+	`{
         						"PACKET_ACTION": "FORWARD",
 							"IP_TYPE":	"IPV4",
                						 "SRC_IP": "10.1.1.1/32",
@@ -44,7 +44,7 @@ var json_validate_config_data = []string{`{
 					"Ethernet16|10.0.0.4/31": {}
 					}
 				}`,
-				`{
+	`{
 					"DEVICE_METADATA": {
 						"localhost": {
 						"hwsku": "Force10-S6100",
@@ -59,12 +59,12 @@ var json_validate_config_data = []string{`{
 						}
 					}
 				}`,
-                                 `{
+	`{
 					"CABLE_LENGTH": {
 					    "AZURE": {
 						"Ethernet8": "5m",
 						"Ethernet12": "5m",
-						"Ethernet16": "5m",
+						"Ethernet16": "5m"
 					    }
 					  }
 					}`}

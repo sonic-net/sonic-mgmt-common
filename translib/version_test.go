@@ -22,7 +22,9 @@ package translib
 import (
 	"fmt"
 	"testing"
+
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"github.com/Workiva/go-datastructures/queue"
 )
 
 func ver(major, minor, patch uint32) Version {
@@ -136,28 +138,28 @@ var (
 
 func vCreate(v Version, expSuccess bool) func(*testing.T) {
 	return func(t *testing.T) {
-		_, err := Create(SetRequest{Path:tPath, Payload:tBody, ClientVersion: v})
+		_, err := Create(SetRequest{Path: tPath, Payload: tBody, ClientVersion: v})
 		checkErr(t, err, expSuccess)
 	}
 }
 
 func vUpdate(v Version, expSuccess bool) func(*testing.T) {
 	return func(t *testing.T) {
-		_, err := Update(SetRequest{Path:tPath, Payload:tBody, ClientVersion: v})
+		_, err := Update(SetRequest{Path: tPath, Payload: tBody, ClientVersion: v})
 		checkErr(t, err, expSuccess)
 	}
 }
 
 func vReplace(v Version, expSuccess bool) func(*testing.T) {
 	return func(t *testing.T) {
-		_, err := Replace(SetRequest{Path:tPath, Payload:tBody, ClientVersion: v})
+		_, err := Replace(SetRequest{Path: tPath, Payload: tBody, ClientVersion: v})
 		checkErr(t, err, expSuccess)
 	}
 }
 
 func vDelete(v Version, expSuccess bool) func(*testing.T) {
 	return func(t *testing.T) {
-		_, err := Delete(SetRequest{Path:tPath, ClientVersion: v})
+		_, err := Delete(SetRequest{Path: tPath, ClientVersion: v})
 		checkErr(t, err, expSuccess)
 	}
 }
@@ -178,14 +180,23 @@ func vAction(v Version, expSuccess bool) func(*testing.T) {
 
 func vSubscribe(v Version, expSuccess bool) func(*testing.T) {
 	return func(t *testing.T) {
-		_, err := Subscribe(SubscribeRequest{Paths: []string{tPath}, ClientVersion: v})
+		stopChan := make(chan struct{})
+		defer close(stopChan)
+		req := SubscribeRequest{
+			Paths:         []string{tPath},
+			ClientVersion: v,
+			Q:             queue.NewPriorityQueue(10, true),
+			Stop:          stopChan,
+		}
+		err := Subscribe(req)
 		checkErr(t, ignoreNotImpl(err), expSuccess)
 	}
 }
 
 func vIsSubscribe(v Version, expSuccess bool) func(*testing.T) {
 	return func(t *testing.T) {
-		req := IsSubscribeRequest{Paths: []string{tPath}, ClientVersion: v}
+		p := IsSubscribePath{Path: tPath}
+		req := IsSubscribeRequest{Paths: []IsSubscribePath{p}, ClientVersion: v}
 		resp, err := IsSubscribeSupported(req)
 		if err == nil && len(resp) == 1 && resp[0].Err != nil {
 			err = resp[0].Err

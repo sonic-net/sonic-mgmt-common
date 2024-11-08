@@ -21,127 +21,104 @@ package cvl_test
 
 import (
 	"testing"
-	"github.com/Azure/sonic-mgmt-common/cvl"
+
+	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 )
 
 func TestValidateEditConfig_When_Exp_In_Choice_Negative(t *testing.T) {
 
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"ACL_TABLE": map[string]interface{}{
 			"TestACL1": map[string]interface{}{
 				"stage": "INGRESS",
 				"type":  "MIRROR",
 			},
 		},
-	}
+	})
 
-	loadConfigDB(rclient, depDataMap)
-
-	cvSess, _ := cvl.ValidationSessOpen()
-	cfgDataRule := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgDataRule := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"ACL_RULE|TestACL1|Rule1",
 			map[string]string{
 				"PACKET_ACTION":     "FORWARD",
-				"IP_TYPE":	     "IPV6",
+				"IP_TYPE":           "IPV6",
 				"SRC_IP":            "10.1.1.1/32", //Invalid field
 				"L4_SRC_PORT":       "1909",
 				"IP_PROTOCOL":       "103",
-				"DST_IP":            "20.2.2.2/32", //Invalid field
 				"L4_DST_PORT_RANGE": "9000-12000",
 			},
+			false,
 		},
 	}
 
-
-	cvlErrInfo, err := cvSess.ValidateEditConfig(cfgDataRule)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err == cvl.CVL_SUCCESS {
-		//Should fail
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgDataRule, CVLErrorInfo{
+		ErrCode:   CVL_SEMANTIC_ERROR,
+		TableName: "ACL_RULE",
+		//Keys:      []string{"TestACL1", "Rule1"},  <<< BUG: cvl is not populating the key
+		Field: "SRC_IP",
+		Value: "10.1.1.1/32",
+		Msg:   whenExpressionErrMessage,
+	})
 }
 
 func TestValidateEditConfig_When_Exp_In_Leaf_Positive(t *testing.T) {
 
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"STP": map[string]interface{}{
 			"GLOBAL": map[string]interface{}{
 				"mode": "rpvst",
 			},
 		},
-	}
+	})
 
-	loadConfigDB(rclient, depDataMap)
-	cvSess, _ := cvl.ValidationSessOpen()
-
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
-			"STP_PORT|Ethernet4",
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
+			"STP_PORT|Ethernet100",
 			map[string]string{
-				"enabled": "true",
+				"enabled":   "true",
 				"edge_port": "true",
 				"link_type": "shared",
 			},
+			false,
 		},
 	}
 
-
-	cvlErrInfo, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err != cvl.CVL_SUCCESS {
-		//Should succeed
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, Success)
 }
 
 func TestValidateEditConfig_When_Exp_In_Leaf_Negative(t *testing.T) {
 
-	depDataMap := map[string]interface{}{
+	setupTestData(t, map[string]interface{}{
 		"STP": map[string]interface{}{
 			"GLOBAL": map[string]interface{}{
 				"mode": "mstp",
 			},
 		},
-	}
+	})
 
-	loadConfigDB(rclient, depDataMap)
-	cvSess, _ := cvl.ValidationSessOpen()
-
-	cfgData := []cvl.CVLEditConfigData{
-		cvl.CVLEditConfigData{
-			cvl.VALIDATE_ALL,
-			cvl.OP_CREATE,
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
 			"STP_PORT|Ethernet4",
 			map[string]string{
-				"enabled": "true",
-				"edge_port": "true",
+				"enabled":   "true",
 				"link_type": "shared",
 			},
+			false,
 		},
 	}
 
-
-	cvlErrInfo, err := cvSess.ValidateEditConfig(cfgData)
-
-	cvl.ValidationSessClose(cvSess)
-
-	if err == cvl.CVL_SUCCESS {
-		//Should succeed
-		t.Errorf("Config Validation failed -- error details %v", cvlErrInfo)
-	}
-
-	unloadConfigDB(rclient, depDataMap)
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:   CVL_SEMANTIC_ERROR,
+		TableName: "STP_PORT",
+		Keys:      []string{"Ethernet4"},
+		Field:     "link_type",
+		Value:     "shared",
+		Msg:       whenExpressionErrMessage,
+	})
 }

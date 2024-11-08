@@ -1,0 +1,66 @@
+module sonic-telemetry {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/sonic-telemetry";
+    prefix telemetry;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description "TELEMETRY YANG Module for SONiC OS";
+
+    revision 2022-05-13 {
+        description "First Revision";
+    }
+
+    container sonic-telemetry {
+
+        container TELEMETRY {
+
+            description "TELEMETRY TABLE part of config_db.json";
+
+            container certs {
+
+                leaf ca_crt {
+                    type string {
+                        pattern '(/[a-zA-Z0-9_-]+)*/([a-zA-Z0-9_-]+).cer';
+                    }
+                    description "Local path for ca_crt.";
+                }
+
+                leaf-list crts {
+                    type string;
+                    max-elements 1;
+                    description
+                        "Just a sample to test leaf-list";
+                }
+
+            }
+
+            container gnmi {
+
+                leaf ca_crt {
+                    type string;
+                    when "../../certs/ca_crt = '/someDirectory/subDirectory/myCertFile.cer'";
+                }
+
+                leaf client_auth {
+                    type boolean;
+                    description "Flag for requiring client auth.";
+                    must "count(../../certs/crts) > 0" {
+                        error-message "No certs configured";
+                        error-app-tag no-cert-configured;
+                    }
+                }
+            }
+        }
+    }
+}

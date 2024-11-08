@@ -19,91 +19,157 @@
 package transformer
 
 import (
-    "github.com/Azure/sonic-mgmt-common/translib/db"
-    "github.com/openconfig/ygot/ygot"
-    "regexp"
+	"context"
+	"regexp"
+
+	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/openconfig/goyang/pkg/yang"
+	"github.com/openconfig/ygot/ygot"
 )
 
-var rgpIpv6, rgpMac, rgpIsMac, rgpKeyExtract, rgpSncKeyExtract *regexp.Regexp
+var rgpIpv6, rgpMac *regexp.Regexp
+
+type yangElementType uint8
 
 type tblKeyCache struct {
-	dbKey string
-	dbTblList []string
+	dbKey                string
+	dbTblList            []string
+	ygXpathInfo          *yangXpathInfo
+	pathIdx              int // path index of the key transformer defined in the path
+	childListNodePathIdx int // child list node path index
 }
 
 type KeySpec struct {
-        DbNum db.DBNum
-        Ts    db.TableSpec
-        Key   db.Key
-        Child []KeySpec
-        IgnoreParentKey bool
+	DbNum           db.DBNum
+	Ts              db.TableSpec
+	Key             db.Key
+	Child           []KeySpec
+	IgnoreParentKey bool
+	IsPartialKey    bool
 }
 
 type NotificationType int
+
 const (
-    Sample NotificationType = iota
-    OnChange
+	TargetDefined NotificationType = iota
+	Sample
+	OnChange
 )
 
+// KEY_COMP_CNT - To specify the number of key components for the given key in the RedisDbSubscribeMap map
+const KEY_COMP_CNT = "@KEY_COMP_CNT"
+
+const DEL_AS_UPDATE = "@DEL_AS_UPDATE"
+
+const FIELD_CURSOR = "@FIELD_CURSOR"
+
 type XfmrTranslateSubscribeInfo struct {
-    DbDataMap RedisDbMap
-    MinInterval int
-    NeedCache bool
-    PType NotificationType
-    OnChange bool
+	DbDataMap   RedisDbMap
+	MinInterval int
+	NeedCache   bool
+	PType       NotificationType
+	OnChange    bool
 }
 
 type xpathTblKeyExtractRet struct {
-    xpath string
-    tableName string
-    dbKey string
-    isVirtualTbl bool
+	xpath        string
+	tableName    string
+	dbKey        string
+	isVirtualTbl bool
 }
 
 type xlateFromDbParams struct {
-	d *db.DB //current db
-	dbs [db.MaxDB]*db.DB
-	curDb db.DBNum
-	ygRoot *ygot.GoStruct
-	uri string
+	d          *db.DB //current db
+	dbs        [db.MaxDB]*db.DB
+	curDb      db.DBNum
+	ygRoot     *ygot.GoStruct
+	uri        string
 	requestUri string //original uri using which a curl/NBI request is made
-	oper int
-	dbDataMap *map[db.DBNum]map[string]map[string]db.Value
+	oper       Operation
+	dbDataMap  *map[db.DBNum]map[string]map[string]db.Value
 	// subOpDataMap map[int]*RedisDbMap // used to add an in-flight data with a sub-op
 	// param interface{}
 	txCache interface{}
 	//  skipOrdTblChk *bool
 	//  pCascadeDelTbl *[] string //used to populate list of tables needed cascade delete by subtree overloaded methods
-	xpath string //curr uri xpath
-	tbl string
-	tblKey string
-	resultMap map[string]interface{}
-	validate bool
+	xpath             string //curr uri xpath
+	tbl               string
+	tblKey            string
+	resultMap         map[string]interface{}
+	validate          bool
 	xfmrDbTblKeyCache map[string]tblKeyCache
-	dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool
+	queryParams       QueryParams
+	dbTblKeyGetCache  map[db.DBNum]map[string]map[string]bool
+	reqCtxt           context.Context
+	listKeysMap       map[string]interface{}
+	ygParentObj       *ygot.GoStruct
+	relUri            string
+	ygSchema          *yang.Entry
 }
 
 type xlateToParams struct {
-        d *db.DB
-        ygRoot *ygot.GoStruct
-        oper int
-        uri string
-        requestUri string
-        xpath string
-        keyName string
-        jsonData interface{}
-        resultMap map[int]RedisDbMap
-        result map[string]map[string]db.Value
-        txCache interface{}
-        tblXpathMap map[string]map[string]map[string]bool
-        subOpDataMap map[int]*RedisDbMap
-        pCascadeDelTbl *[]string
-        xfmrErr *error
-        name string
-        value interface{}
-        tableName string
-        yangDefValMap map[string]map[string]db.Value
-        yangAuxValMap map[string]map[string]db.Value
-	xfmrDbTblKeyCache map[string]tblKeyCache
-	dbTblKeyGetCache map[db.DBNum]map[string]map[string]bool
+	d                       *db.DB
+	ygRoot                  *ygot.GoStruct
+	oper                    Operation
+	uri                     string
+	requestUri              string
+	xpath                   string
+	keyName                 string
+	jsonData                interface{}
+	resultMap               map[Operation]RedisDbMap
+	result                  map[string]map[string]db.Value
+	txCache                 interface{}
+	tblXpathMap             map[string]map[string]map[string]bool
+	subOpDataMap            map[Operation]*RedisDbMap
+	pCascadeDelTbl          *[]string
+	xfmrErr                 *error
+	name                    string
+	value                   interface{}
+	tableName               string
+	yangDefValMap           map[string]map[string]db.Value
+	yangAuxValMap           map[string]map[string]db.Value
+	xfmrDbTblKeyCache       map[string]tblKeyCache
+	dbTblKeyGetCache        map[db.DBNum]map[string]map[string]bool
+	invokeCRUSubtreeOnceMap map[string]map[string]bool
+}
+
+type contentQPSpecMapInfo struct {
+	yangType              yangElementType
+	yangName              string
+	isReadOnly            bool
+	isOperationalNd       bool
+	hasNonTerminalNd      bool
+	hasChildOperationalNd bool
+	isOcMdl               bool
+}
+
+type qpSubtreePruningErr struct {
+	subtreePath string
+}
+
+type Operation int
+
+type ContentType uint8
+
+type QueryParams struct {
+	depthEnabled      bool
+	curDepth          uint
+	content           ContentType
+	fields            []string
+	fieldsFillAll     bool
+	allowFieldsXpath  map[string]bool
+	tgtFieldsXpathMap map[string][]string
+}
+
+type ygotUnMarshalCtx struct {
+	ygParentObj  *ygot.GoStruct
+	relUri       string
+	ygSchema     *yang.Entry
+	trgtYgObj    *ygot.GoStruct
+	trgtYgSchema *yang.Entry
+	err          error
+}
+
+type ygotXlator struct {
+	ygotCtx *ygotUnMarshalCtx
 }

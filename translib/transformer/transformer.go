@@ -19,74 +19,82 @@
 package transformer
 
 import (
-	"fmt"
-	"github.com/openconfig/goyang/pkg/yang"
+	"bufio"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"runtime/debug"
 	"strings"
-        "bufio"
-        "path/filepath"
-        "io/ioutil"
+
+	log "github.com/golang/glog"
+
+	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/openconfig/goyang/pkg/yang"
 )
 
 var YangPath = "/usr/models/yang/" // OpenConfig-*.yang and sonic yang models path
-var ModelsListFile  = "models_list"
+var ModelsListFile = "models_list"
 var TblInfoJsonFile = "sonic_table_info.json"
 
-func reportIfError(errs []error) {
-	if len(errs) > 0 {
-		for _, err := range errs {
-			fmt.Fprintln(os.Stderr, err)
+func getModelsList() ([]string, map[string]bool) {
+	var fileList []string
+	excludeSonicList := make(map[string]bool)
+	file, err := os.Open(YangPath + ModelsListFile)
+	if err != nil {
+		return fileList, excludeSonicList
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		fileEntry := scanner.Text()
+		if strings.HasPrefix(fileEntry, "-sonic") {
+			_, err := os.Stat(YangPath + fileEntry[1:])
+			if err != nil {
+				continue
+			}
+			excludeSonicList[fileEntry[1:]] = true
+			continue
+		}
+		if !strings.HasPrefix(fileEntry, "#") {
+			_, err := os.Stat(YangPath + fileEntry)
+			if err != nil {
+				continue
+			}
+			fileList = append(fileList, fileEntry)
 		}
 	}
+	return fileList, excludeSonicList
 }
 
-func getOcModelsList () ([]string) {
-    var fileList []string
-    file, err := os.Open(YangPath + ModelsListFile)
-    if err != nil {
-        return fileList
-    }
-    defer file.Close()
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        fileEntry := scanner.Text()
-        if !strings.HasPrefix(fileEntry, "#") {
-            _, err := os.Stat(YangPath + fileEntry)
-            if err != nil {
-                continue
-            }
-            fileList = append(fileList, fileEntry)
-        }
-    }
-    return fileList
-}
+func getDefaultModelsList(excludeList map[string]bool) []string {
+	var files []string
+	fileInfo, err := ioutil.ReadDir(YangPath)
+	if err != nil {
+		return files
+	}
 
-func getDefaultModelsList () ([]string) {
-    var files []string
-    fileInfo, err := ioutil.ReadDir(YangPath)
-    if err != nil {
-        return files
-    }
-
-    for _, file := range fileInfo {
-        if strings.HasPrefix(file.Name(), "sonic-") && !strings.HasSuffix(file.Name(), "-dev.yang") &&  filepath.Ext(file.Name()) == ".yang" {
-            files = append(files, file.Name())
-        }
-    }
-    return files
+	for _, file := range fileInfo {
+		if strings.HasPrefix(file.Name(), "sonic-") && !strings.HasSuffix(file.Name(), "-dev.yang") && filepath.Ext(file.Name()) == ".yang" {
+			if _, ok := excludeList[file.Name()]; !ok {
+				files = append(files, file.Name())
+			}
+		}
+	}
+	return files
 }
 
 func init() {
 	initYangModelsPath()
 	initRegex()
-        ocList := getOcModelsList()
-	yangFiles := getDefaultModelsList()
-        yangFiles = append(yangFiles, ocList...)
-        fmt.Println("Yang model List:", yangFiles)
+	modelsList, excludeSncList := getModelsList()
+	yangFiles := getDefaultModelsList(excludeSncList)
+	yangFiles = append(yangFiles, modelsList...)
+	xfmrLogInfo("Yang model List: %v", yangFiles)
 	err := loadYangModules(yangFiles...)
-    if err != nil {
-	    fmt.Fprintln(os.Stderr, err)
-    }
+	if err != nil {
+		log.Error(err)
+	}
+	debug.FreeOSMemory()
 }
 
 func initYangModelsPath() {
@@ -97,11 +105,12 @@ func initYangModelsPath() {
 		YangPath = path
 	}
 
-	fmt.Println("Yang modles path:", YangPath)
+	xfmrLogDebug("Yang modles path: %v", YangPath)
 }
 
-func loadYangModules(files ...string) error {
+type ModProfile map[string]interface{}
 
+func loadYangModules(files ...string) error {
 	var err error
 
 	paths := []string{YangPath}
@@ -109,64 +118,79 @@ func loadYangModules(files ...string) error {
 	for _, path := range paths {
 		expanded, err := yang.PathsWithModules(path)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			xfmrLogInfo("Couldn't load yang module %v due to %v ", path, err)
 			continue
 		}
 		yang.AddPath(expanded...)
 	}
 
-	ms := yang.NewModules()
+	ygSchema, err := ocbinds.Schema()
+	if err != nil {
+		return err
+	}
 
+	modProfiles := make(map[string]ModProfile)
+	rootSchema := ygSchema.RootSchema()
+	for _, schema := range rootSchema.Dir {
+		if _, found := schema.Annotation["modulename"]; found {
+			m := schema.Annotation["modulename"].(string)
+			for _, fn := range files {
+				f := strings.Split(fn, ".yang")
+				if m == f[0] {
+					modProfiles[m] = schema.Annotation
+					break
+				}
+			}
+		}
+	}
+
+	annotMs := yang.NewModules()
 	for _, name := range files {
-		if err := ms.Read(name); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			continue
+		if strings.Contains(name, "-annot") {
+			if err := annotMs.Read(name); err != nil {
+				xfmrLogInfo("Couldn't read yang annotation %v due to %v", name, err)
+				continue
+			}
 		}
 	}
 
-	// Process the Yang files
-	reportIfError(ms.Process())
-
-	// Keep track of the top level modules we read in.
-	// Those are the only modules we want to print below.
-	mods := map[string]*yang.Module{}
-	var names []string
-
-	for _, m := range ms.Modules {
-		if mods[m.Name] == nil {
-			mods[m.Name] = m
-			names = append(names, m.Name)
-		}
-	}
-
-	sonic_entries       := make([]*yang.Entry, 0)
-	oc_entries          := make(map[string]*yang.Entry)
-	oc_annot_entries    := make([]*yang.Entry, 0)
+	oc_annot_entries := make([]*yang.Entry, 0)
 	sonic_annot_entries := make([]*yang.Entry, 0)
 
-	for _, n := range names {
-		if strings.Contains(n, "annot") && strings.Contains(n, "sonic") {
-			sonic_annot_entries = append(sonic_annot_entries, yang.ToEntry(mods[n]))
-		} else if strings.Contains(n, "annot") {
-			yangMdlNmDt := strings.Split(n, "-annot")
+	for _, m := range annotMs.Modules {
+		if strings.Contains(m.Name, "sonic") {
+			sonic_annot_entries = append(sonic_annot_entries, yang.ToEntry(m))
+		} else {
+			yangMdlNmDt := strings.Split(m.Name, "-annot")
 			if len(yangMdlNmDt) > 0 {
 				addMdlCpbltEntry(yangMdlNmDt[0])
 			}
-			oc_annot_entries = append(oc_annot_entries, yang.ToEntry(mods[n]))
-		} else if strings.Contains(n, "sonic") {
-			sonic_entries = append(sonic_entries, yang.ToEntry(mods[n]))
-		} else if oc_entries[n] == nil {
-			oc_entries[n] = yang.ToEntry(mods[n])
+			oc_annot_entries = append(oc_annot_entries, yang.ToEntry(m))
+		}
+	}
+
+	sonic_entries := make([]*yang.Entry, 0)
+	oc_entries := make(map[string]*yang.Entry)
+
+	// Iterate over SchemaTree
+	for k, v := range ygSchema.SchemaTree["Device"].Dir {
+		mod := strings.Split(v.Annotation["schemapath"].(string), "/")
+		if _, found := modProfiles[mod[1]]; found {
+			if strings.Contains(k, "sonic-") {
+				sonic_entries = append(sonic_entries, v)
+			} else if oc_entries[k] == nil {
+				oc_entries[k] = v
+			}
 		}
 	}
 
 	// populate model capabilities data
-	for yngMdlNm := range(xMdlCpbltMap) {
+	for yngMdlNm := range xMdlCpbltMap {
 		org := ""
 		ver := ""
 		ocVerSet := false
 		yngEntry := oc_entries[yngMdlNm]
-		if (yngEntry != nil) {
+		if yngEntry != nil {
 			// OC yang has version in standard extension oc-ext:openconfig-version
 			if strings.HasPrefix(yngMdlNm, "openconfig-") {
 				for _, ext := range yngEntry.Exts {
@@ -174,23 +198,28 @@ func loadYangModules(files ...string) error {
 					tagType := dataTagArr[len(dataTagArr)-1]
 					if tagType == "openconfig-version" {
 						ver = ext.NName()
-						fmt.Printf("Found version %v for yang module %v", ver, yngMdlNm)
+						xfmrLogDebug("Found version %v for yang module %v", ver, yngMdlNm)
 						if len(strings.TrimSpace(ver)) > 0 {
 							ocVerSet = true
 						}
-					break
+						break
 					}
 
 				}
 			}
 		}
-		if ((strings.HasPrefix(yngMdlNm, "ietf-")) || (!ocVerSet)) {
+		if (strings.HasPrefix(yngMdlNm, "ietf-")) || (!ocVerSet) {
 			// as per RFC7895 revision date to be used as version
-			ver = mods[yngMdlNm].Current() //gives the most recent revision date for yang module
+			if value, found := modProfiles[yngMdlNm]["revison"]; found {
+				ver = value.(string)
+			}
 		}
-		org = mods[yngMdlNm].Organization.Name
+		if value, found := modProfiles[yngMdlNm]["organization"]; found {
+			org = value.(string)
+		}
 		addMdlCpbltData(yngMdlNm, ver, org)
 	}
+
 	dbMapBuild(sonic_entries)
 	annotDbSpecMap(sonic_annot_entries)
 	annotToDbMapBuild(oc_annot_entries)
