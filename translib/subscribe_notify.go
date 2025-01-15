@@ -482,6 +482,10 @@ func (ne *notificationEvent) createYangPathInfos(nInfo *notificationInfo, fields
 					leafName:     leaf,
 					deleted:      isDelete,
 				})
+				// If nInfo is for a leaf path, do not add multiple updates.
+				if nInfo.flags.Has(niLeafPath) {
+					return yInfos
+				}
 				continue
 			}
 			// DB field mapped to multiple leaf nodes -- a comma separated value
