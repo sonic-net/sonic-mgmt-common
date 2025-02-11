@@ -95,7 +95,8 @@ module sonic-spanning-tree {
 
         container STP {
             list STP_LIST {
-		max-elements 1;
+                sonic-ext:custom-validation ValidateStpFeatureEnabled;
+                max-elements 1;
                 key "keyleaf";
 
                 leaf keyleaf {

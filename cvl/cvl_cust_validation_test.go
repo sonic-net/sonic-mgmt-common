@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright 2019 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
+//  Copyright 2025 Broadcom. The term Broadcom refers to Broadcom Inc. and/or //
 //  its subsidiaries.                                                         //
 //                                                                            //
 //  Licensed under the Apache License, Version 2.0 (the "License");           //
@@ -17,50 +17,60 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-//go:build test
-// +build test
-
-package custom_validation
+package cvl_test
 
 import (
-	"strings"
+	"strconv"
+	"testing"
 
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 )
 
-func (t *CustomValidation) ValidateIfExtraFieldValidationCalled(
-	vc *CustValidationCtxt) CVLErrorInfo {
-	vc.SessCache.Hint["ExtraFieldValidationCalled"] = true
-	return CVLErrorInfo{ErrCode: CVL_SUCCESS}
-
-}
-
-func (t *CustomValidation) ValidateIfListLevelValidationCalled(
-	vc *CustValidationCtxt) CVLErrorInfo {
-	vc.SessCache.Hint["ListLevelValidationCalled"] = true
-	return CVLErrorInfo{ErrCode: CVL_SUCCESS}
-
-}
-
-func (t *CustomValidation) ValidateStpFeatureEnabled(vc *CustValidationCtxt) CVLErrorInfo {
-	if vc.CurCfg.VOp == OP_DELETE {
-		return CVLErrorInfo{}
-	}
+func mockStpFeatureEnabled(t *testing.T, v bool) {
+	t.Helper()
 	applDb := util.NewDbClient("APPL_DB")
 	if applDb == nil {
-		return CVLErrorInfo{
-			ErrCode:       CVL_INTERNAL_UNKNOWN,
-			CVLErrDetails: "Database access failure",
-		}
+		t.Fatal("Failed to open APPL_DB client")
 	}
-	if enabled, _ := applDb.HGet("SWITCH_TABLE:switch", "stp_supported").Result(); enabled != "true" {
-		keys := strings.Split(vc.CurCfg.Key, "|")
-		return CVLErrorInfo{
-			ErrCode:          CVL_SEMANTIC_ERROR,
-			TableName:        keys[0],
-			Keys:             keys,
-			ConstraintErrMsg: "Spanning-tree feature not enabled",
-		}
+	defer applDb.Close()
+	res := applDb.HSet("SWITCH_TABLE:switch", "stp_supported", strconv.FormatBool(v))
+	if res.Err() != nil {
+		t.Fatalf("Failed to set stp_supported=%v in APPL_DB, err=%v", v, res.Err())
 	}
-	return CVLErrorInfo{}
+}
+
+func TestCustomValidation_success(t *testing.T) {
+	mockStpFeatureEnabled(t, true)
+
+	cfgData := []CVLEditConfigData{
+		{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "STP|GLOBAL",
+			Data:  map[string]string{"mode": "pvst"},
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, Success)
+}
+
+func TestCustomValidation_error(t *testing.T) {
+	mockStpFeatureEnabled(t, false)
+	defer mockStpFeatureEnabled(t, true)
+
+	cfgData := []CVLEditConfigData{
+		{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "STP|GLOBAL",
+			Data:  map[string]string{"mode": "pvst"},
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:          CVL_SEMANTIC_ERROR,
+		TableName:        "STP",
+		Keys:             []string{"STP", "GLOBAL"},
+		ConstraintErrMsg: "Spanning-tree feature not enabled",
+	})
 }
