@@ -885,6 +885,7 @@ func (c *CVL) generateYangParserData(jsonNode *jsonquery.Node, root **yparser.YP
 		if *root, errObj = c.yp.MergeSubtree(*root, topNode); errObj.ErrCode != yparser.YP_SUCCESS {
 			CVL_LOG(WARNING, "Unable to merge translated YANG data(libyang) "+
 				"while translating from request data to YANG format")
+			defer c.yp.FreeNode(topNode)
 			cvlErrObj.ErrCode = CVL_SYNTAX_ERROR
 			return cvlErrObj
 		}
@@ -945,6 +946,7 @@ func (c *CVL) translateToYang(jsonMap *map[string]interface{}, buildSyntaxDOM bo
 			//Visit each top level list in a loop for creating table data
 			cvlError = c.generateYangParserData(jsonNode, &root)
 			if cvlError.ErrCode != CVL_SUCCESS {
+				defer c.yp.FreeNode(root)
 				return nil, cvlError
 			}
 		}
@@ -961,9 +963,10 @@ func (c *CVL) validate(data *yparser.YParserNode) CVLRetCode {
 	if IsTraceAllowed(TRACE_LIBYANG) {
 		TRACE_LOG(TRACE_LIBYANG, "\nValidate1 data=%v\n", c.yp.NodeDump(data))
 	}
-	errObj := c.yp.ValidateSyntax(data, depData)
-	if yparser.YP_SUCCESS != errObj.ErrCode {
-		return CVL_FAILURE
+
+	errObj, _ := c.validateSyntax(data, depData)
+	if CVL_SUCCESS != errObj.ErrCode {
+		return errObj.ErrCode
 	}
 
 	cvlErrObj := c.validateCfgSemantics(c.yv.root)
@@ -1041,6 +1044,7 @@ func (c *CVL) addCfgDataItem(configData *map[string]interface{},
 	var cfgData map[string]interface{} = *configData
 
 	tblName, key := splitRedisKey(cfgDataItem.Key)
+	CVL_LOG(WARNING, "addCfgDataItem(): table: %s, key: %s", tblName, key)
 	if tblName == "" || key == "" {
 		//Bad redis key
 		return "", ""
