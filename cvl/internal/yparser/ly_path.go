@@ -22,7 +22,37 @@ package yparser
 import (
 	"regexp"
 	"strings"
+	"unsafe"
 )
+
+/*
+#cgo LDFLAGS: -lyang
+#include <libyang/libyang.h>
+#include <libyang/tree_data.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+const char *golys_module_from_prefix(const struct lys_module *module, const char *prefix)
+{
+	const struct lysp_module *mod;
+	LY_ARRAY_COUNT_TYPE u;
+
+	if (module == NULL || prefix == NULL) {
+			return NULL;
+	}
+
+	mod = module->parsed;
+	LY_ARRAY_FOR(mod->imports, u) {
+		if (strcmp(mod->imports[u].prefix, prefix) == 0) {
+			return mod->imports[u].name;
+		}
+	}
+
+	return NULL;
+}
+*/
+import "C"
 
 // parseLyPath parses a libyang formatted path; extracts table name, key components
 // and field name from it. Path should represent a sonic yang node. Path elements
@@ -129,4 +159,61 @@ func parseLyMessage(s string, regex ...*regexp.Regexp) string {
 		}
 	}
 	return ""
+
+// This function takes a when, must, or leafref path in its original form as
+// written in the YANG schema files, and converts it into its fully qualified
+// format.  The format in the YANG schema uses import prefixes, so we have to
+// replace each import prefix with the fully qualified module name.
+//
+// Libyang1 would do this for us automatically, but in Libyang3 we have to do
+// this conversion ourselves.
+//
+// In this implementation we are cheating a bit.  It would be quite a bit of
+// effort to tokenize everything, especially when and must clauses, so we rely
+// on the fact that the namespace can only contain alphanumeric or hypen
+// characters and will always begin with either "/" or "[" and end with ":".
+// So we extract each prefix using a regex, perform a lookup to determine the
+// module name then replace each instance of the prefix with the module name,
+// in a loop until all matched prefixes have been processed.
+//
+// Examples:
+//
+//	Leafref:
+//	  /po:sonic-portchannel/po:PORTCHANNEL/po:PORTCHANNEL_LIST/po:name
+//	     ->
+//	  /sonic-portchannel:sonic-portchannel/sonic-portchannel:PORTCHANNEL/sonic-portchannel:PORTCHANNEL_LIST/sonic-portchannel:name
+//
+//	Must:
+//	  (/cmn:operation/cmn:operation != 'CREATE') or
+//	  (count(/si:sonic-interface/si:INTERFACE/si:INTERFACE_IPADDR_LIST[si:ip_prefix=current()/../ip_prefix] [si:portname=(/svl:sonic-vlan/svl:VLAN_MEMBER/svl:VLAN_MEMBER_LIST[svl:name=current()]/svl:ifname)]) = 0)
+//	     ->
+//	  (/sonic-common:operation/sonic-common:operation != 'CREATE') or
+//	  (count(/sonic-interface:sonic-interface/sonic-interface:INTERFACE/sonic-interface:INTERFACE_IPADDR_LIST[sonic-interface:ip_prefix=current()/../ip_prefix] [sonic-interface:portname=(/sonic-vlan:sonic-vlan/sonic-vlan:VLAN_MEMBER/sonic-vlan:VLAN_MEMBER_LIST[sonic-vlan:name=current()]/sonic-vlan:ifname)]) = 0)
+var lyXPathPrefix = regexp.MustCompile("[[/][A-Za-z0-9_-]+:")
+
+func rewriteXPathPrefix(module *YParserModule, xpath string) string {
+	hasPrefix := make(map[string]bool)
+	prefixes := lyXPathPrefix.FindAllString(xpath, -1)
+
+	for _, prefix := range prefixes {
+		if _, ok := hasPrefix[prefix]; ok {
+			continue
+		}
+		hasPrefix[prefix] = true
+
+		// strip / and : surrounding prefix
+		prefix = prefix[1 : len(prefix)-1]
+
+		// Dereference it
+		Cprefix := C.CString(prefix)
+		defer C.free(unsafe.Pointer(Cprefix))
+		module_name := C.golys_module_from_prefix((*C.struct_lys_module)(module), Cprefix)
+		if module_name == nil {
+			continue
+		}
+		xpath = strings.ReplaceAll(xpath, "/"+prefix+":", "/"+C.GoString(module_name)+":")
+		xpath = strings.ReplaceAll(xpath, "["+prefix+":", "["+C.GoString(module_name)+":")
+	}
+
+	return xpath
 }

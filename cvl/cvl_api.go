@@ -200,7 +200,6 @@ func ValidationSessOpen(dbAccess cmn.DBAccess) (*CVL, CVLRetCode) {
 }
 
 func ValidationSessClose(c *CVL) CVLRetCode {
-	c.yp.DestroyCache()
 	c = nil
 
 	return CVL_SUCCESS
@@ -233,12 +232,11 @@ func (c *CVL) ValidateIncrementalConfig(jsonData string) CVLRetCode {
 	defer c.yp.FreeNode(root)
 	if root == nil {
 		return CVL_SYNTAX_ERROR
-
 	}
 
-	errObj := c.yp.ValidateSyntax(root, nil)
-	if yparser.YP_SUCCESS != errObj.ErrCode {
-		return CVL_FAILURE
+	errObj, _ := c.validateSyntax(root, nil)
+	if CVL_SUCCESS != errObj.ErrCode {
+		return errObj.ErrCode
 	}
 
 	//Add and fetch entries if already exists in Redis
@@ -252,7 +250,7 @@ func (c *CVL) ValidateIncrementalConfig(jsonData string) CVLRetCode {
 
 	//Merge existing data for update syntax or checking duplicate entries
 	if existingData != nil {
-		if _, errObj = c.yp.MergeSubtree(root, existingData); errObj.ErrCode != yparser.YP_SUCCESS {
+		if _, err := c.yp.MergeSubtree(root, existingData); err.ErrCode != yparser.YP_SUCCESS {
 			return CVL_ERROR
 		}
 	}
@@ -313,7 +311,6 @@ func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErr
 		c.clearTmpDbCache()
 		c.yv.root = &xmlquery.Node{Type: xmlquery.DocumentNode}
 		c.depDataCache = make(DepDataCacheType)
-		c.yp.DestroyCache()
 	}()
 
 	var cvlErrObj CVLErrorInfo
@@ -517,8 +514,6 @@ func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErr
 				CVL_LOG(WARNING, "\nValidateEditConfig(): OP_CREATE - Err = %v ", err1)
 			}
 
-			c.yp.SetOperation("CREATE")
-
 		case cmn.OP_UPDATE:
 			n, err1 := c.dbAccess.Exists(cfgData[i].Key).Result()
 			if err1 != nil || n == 0 { //key must exists
@@ -537,8 +532,6 @@ func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErr
 				continue
 			}
 
-			c.yp.SetOperation("UPDATE")
-
 		case cmn.OP_DELETE:
 			n, err1 := c.dbAccess.Exists(cfgData[i].Key).Result()
 			if err1 != nil || n == 0 { //key must exists
@@ -550,8 +543,6 @@ func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErr
 				cvlErrObj.Keys = splitKeyComponents(tbl, key)
 				return cvlErrObj, CVL_SEMANTIC_KEY_NOT_EXIST
 			}
-
-			c.yp.SetOperation("DELETE")
 		}
 
 		yangListName := getRedisTblToYangList(tbl, key)

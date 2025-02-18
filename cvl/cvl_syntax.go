@@ -99,13 +99,12 @@ func (c *CVL) checkMaxElemConstraint(op cmn.CVLOperation, tableName string, key 
 }
 
 // Add child node to a parent node
-func (c *CVL) addChildNode(tableName string, parent *yparser.YParserNode, name string) *yparser.YParserNode {
+func (c *CVL) addListNode(tableName string, parent *yparser.YParserNode, name string, keys []*yparser.YParserLeafValue) (*yparser.YParserNode, yparser.YParserError) {
 
-	//return C.lyd_new(parent, modelInfo.tableInfo[tableName].module, C.CString(name))
-	return c.yp.AddChildNode(modelInfo.tableInfo[tableName].module, parent, name)
+	return c.yp.AddListNode(modelInfo.tableInfo[tableName].module, parent, name, keys)
 }
 
-func (c *CVL) addChildLeaf(config bool, tableName string, parent *yparser.YParserNode, name string, value string, multileaf *[]*yparser.YParserLeafValue) {
+func (c *CVL) appendLeafValue(name string, value string, multileaf *[]*yparser.YParserLeafValue) {
 
 	/* If there is no value then assign default space string. */
 	if len(value) == 0 {
@@ -127,21 +126,23 @@ func (c *CVL) generateTableFieldsData(config bool, tableName string, jsonNode *j
 			jsonFieldNode.FirstChild != nil &&
 			jsonFieldNode.FirstChild.Type == jsonquery.TextNode {
 
-			if len(modelInfo.tableInfo[tableName].mapLeaf) == 2 { //mapping should have two leaf always
-				batchInnerListLeaf := make([]*yparser.YParserLeafValue, 0)
+			if len(modelInfo.tableInfo[tableName].mapLeaf) == 2 { //mapping should have two leaf always, first is key
+				batchInnerListLeafKeys := make([]*yparser.YParserLeafValue, 0)
+				batchInnerListLeafNonKeys := make([]*yparser.YParserLeafValue, 0)
+
 				//Values should be stored inside another list as map table
-				listNode := c.addChildNode(tableName, parent, tableName) //Add the list to the top node
-				c.addChildLeaf(config, tableName,
-					listNode, modelInfo.tableInfo[tableName].mapLeaf[0],
-					jsonFieldNode.Data, &batchInnerListLeaf)
 
-				c.addChildLeaf(config, tableName,
-					listNode, modelInfo.tableInfo[tableName].mapLeaf[1],
-					jsonFieldNode.FirstChild.Data, &batchInnerListLeaf)
+				c.appendLeafValue(modelInfo.tableInfo[tableName].mapLeaf[0], jsonFieldNode.Data, &batchInnerListLeafKeys)
+				c.appendLeafValue(modelInfo.tableInfo[tableName].mapLeaf[1], jsonFieldNode.FirstChild.Data, &batchInnerListLeafNonKeys)
 
-				if errObj := c.yp.AddMultiLeafNodes(modelInfo.tableInfo[tableName].module, listNode, batchInnerListLeaf); errObj.ErrCode != yparser.YP_SUCCESS {
+				listNode, err := c.addListNode(tableName, parent, tableName, batchInnerListLeafKeys)
+				if err.ErrCode != yparser.YP_SUCCESS {
+					cvlErrObj = createCVLErrObj(err, jsonNode)
+					return cvlErrObj
+				}
+
+				if errObj := c.yp.AddMultiLeafNodes(modelInfo.tableInfo[tableName].module, listNode, batchInnerListLeafNonKeys); errObj.ErrCode != yparser.YP_SUCCESS {
 					cvlErrObj = createCVLErrObj(errObj, jsonNode)
-					CVL_LOG(WARNING, "Failed to create innner list leaf nodes, data = %v", batchInnerListLeaf)
 					return cvlErrObj
 				}
 			} else {
@@ -150,12 +151,10 @@ func (c *CVL) generateTableFieldsData(config bool, tableName string, jsonNode *j
 
 				if len(hashRefMatch) == 3 {
 
-					c.addChildLeaf(config, tableName,
-						parent, jsonFieldNode.Data,
+					c.appendLeafValue(jsonFieldNode.Data,
 						hashRefMatch[2], multileaf) //take hashref key value
 				} else {
-					c.addChildLeaf(config, tableName,
-						parent, jsonFieldNode.Data,
+					c.appendLeafValue(jsonFieldNode.Data,
 						jsonFieldNode.FirstChild.Data, multileaf)
 				}
 			}
@@ -165,8 +164,7 @@ func (c *CVL) generateTableFieldsData(config bool, tableName string, jsonNode *j
 			jsonFieldNode.FirstChild.Type == jsonquery.ElementNode {
 			//Array data e.g. VLAN members
 			for arrayNode := jsonFieldNode.FirstChild; arrayNode != nil; arrayNode = arrayNode.NextSibling {
-				c.addChildLeaf(config, tableName,
-					parent, jsonFieldNode.Data,
+				c.appendLeafValue(jsonFieldNode.Data,
 					arrayNode.FirstChild.Data, multileaf)
 			}
 		}
@@ -189,17 +187,18 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node) (*yparser
 	//E.g. ACL_RULE is mapped as
 	// container ACL_RULE { list ACL_RULE_LIST {} }
 	var topNode *yparser.YParserNode
-	var listConatinerNode *yparser.YParserNode
+	var listContainerNode *yparser.YParserNode
+	var err yparser.YParserError
 
 	//Traverse each key instance
 	for jsonNode = jsonNode.FirstChild; jsonNode != nil; jsonNode = jsonNode.NextSibling {
-
 		//For each field check if is key
 		//If it is key, create list as child of top container
 		// Get all key name/value pairs
 		if yangListName := getRedisTblToYangList(origTableName, jsonNode.Data); yangListName != "" {
 			tableName = yangListName
 		}
+
 		if _, exists := modelInfo.tableInfo[tableName]; !exists {
 			CVL_LOG(WARNING, "Schema details not found for %s", tableName)
 			cvlErrObj.ErrCode = CVL_SYNTAX_ERROR
@@ -209,13 +208,21 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node) (*yparser
 		}
 		if !topNodesAdded {
 			// Add top most conatiner e.g. 'container sonic-acl {...}'
-			topNode = c.yp.AddChildNode(modelInfo.tableInfo[tableName].module,
+			topNode, err = c.yp.AddContainerNode(modelInfo.tableInfo[tableName].module,
 				nil, modelInfo.tableInfo[tableName].modelName)
+			if err.ErrCode != yparser.YP_SUCCESS {
+				cvlErrObj = createCVLErrObj(err, jsonNode)
+				return nil, cvlErrObj
+			}
 
 			//Add the container node for each list
 			//e.g. 'container ACL_TABLE { list ACL_TABLE_LIST ...}
-			listConatinerNode = c.yp.AddChildNode(modelInfo.tableInfo[tableName].module,
+			listContainerNode, err = c.yp.AddContainerNode(modelInfo.tableInfo[tableName].module,
 				topNode, origTableName)
+			if err.ErrCode != yparser.YP_SUCCESS {
+				cvlErrObj = createCVLErrObj(err, jsonNode)
+				return nil, cvlErrObj
+			}
 			topNodesAdded = true
 		}
 		keyValuePair := getRedisToYangKeys(tableName, jsonNode.Data)
@@ -236,15 +243,17 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node) (*yparser
 			//Ideally they are same except when one Redis table is split
 			//into multiple YANG lists
 
-			//Add table i.e. create list element
-			listNode := c.addChildNode(tableName, listConatinerNode, tableName+"_LIST") //Add the list to the top node
-
 			//For each key combination
 			//Add keys as leaf to the list
+			keyList := make([]*yparser.YParserLeafValue, 0)
 			for idx = 0; idx < keyCompCount; idx++ {
-				c.addChildLeaf(config, tableName,
-					listNode, keyValuePair[idx].key,
-					keyValuePair[idx].values[keyIndices[idx]], &c.batchLeaf)
+				c.appendLeafValue(keyValuePair[idx].key,
+					keyValuePair[idx].values[keyIndices[idx]], &keyList)
+			}
+			listNode, err := c.addListNode(tableName, listContainerNode, tableName+"_LIST", keyList) //Add the list to the top node
+			if err.ErrCode != yparser.YP_SUCCESS {
+				cvlErrObj = createCVLErrObj(err, jsonNode)
+				return nil, cvlErrObj
 			}
 
 			//Get all fields under the key field and add them as children of the list
@@ -273,7 +282,6 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node) (*yparser
 			//process batch leaf creation
 			if errObj := c.yp.AddMultiLeafNodes(modelInfo.tableInfo[tableName].module, listNode, c.batchLeaf); errObj.ErrCode != yparser.YP_SUCCESS {
 				cvlErrObj = createCVLErrObj(errObj, jsonNode)
-				CVL_LOG(WARNING, "Failed to create leaf nodes, data = %v", c.batchLeaf)
 				return nil, cvlErrObj
 			}
 

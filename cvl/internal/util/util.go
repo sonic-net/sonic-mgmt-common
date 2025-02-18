@@ -25,16 +25,17 @@ package util
 
 extern void customLogCallback(LY_LOG_LEVEL, char* msg, char* path);
 
-static void customLogCb(LY_LOG_LEVEL level, const char* msg, const char* path) {
-	customLogCallback(level, (char*)msg, (char*)path);
+static void customLogCb(LY_LOG_LEVEL level, const char* msg, const char* data_path, const char * schema_path, uint64_t line) {
+	(void)line;
+	customLogCallback(level, (char*)msg, (char*)data_path?data_path:schema_path);
 }
 
 static void ly_set_log_callback(int enable) {
-	ly_set_log_clb(customLogCb, 1);
+	ly_set_log_clb(customLogCb);
 	if (enable == 1) {
-		ly_verb(LY_LLDBG);
+		ly_log_level(LY_LLDBG);
 	} else {
-		ly_verb(LY_LLERR);
+		ly_log_level(LY_LLERR);
 	}
 }
 
