@@ -638,8 +638,27 @@ func (yp *YParser) FreeNode(node *YParserNode) YParserError {
 }
 
 /* This function translates LIBYANG error code to valid YPARSER error code. */
-func translateLYErrToYParserErr(LYErrcode int) YParserRetCode {
+func translateLYErrToYParserErr(LYErrcode int, apptag string, msg string) YParserRetCode {
 	var ypErrCode YParserRetCode
+
+	// YP_SYNTAX_MISSING_FIELD
+	// YP_SYNTAX_INVALID_FIELD            /* Invalid Field  */
+	// YP_SYNTAX_INVALID_INPUT_DATA       /* Invalid Input Data */
+	// YP_SYNTAX_MULTIPLE_INSTANCE        /* Multiple Field Instances */
+	// YP_SYNTAX_DUPLICATE                /* Duplicate Fields  */
+	// YP_SYNTAX_ENUM_INVALID             /* Invalid enum value */
+	// YP_SYNTAX_ENUM_INVALID_NAME        /* Invalid enum name  */
+	// YP_SYNTAX_ENUM_WHITESPACE          /* Enum name with leading/trailing whitespaces */
+	// YP_SYNTAX_OUT_OF_RANGE             /* Value out of range/length/pattern (data) */
+	// YP_SYNTAX_MINIMUM_INVALID          /* min-elements constraint not honored  */
+	// YP_SYNTAX_MAXIMUM_INVALID          /* max-elements constraint not honored */
+	// YP_SEMANTIC_DEPENDENT_DATA_MISSING /* Dependent Data is missing */
+	// YP_SEMANTIC_MANDATORY_DATA_MISSING /* Mandatory Data is missing */
+	// YP_SEMANTIC_KEY_ALREADY_EXIST      /* Key already existing */
+	// YP_SEMANTIC_KEY_NOT_EXIST          /* Key is missing */
+	// YP_SEMANTIC_KEY_DUPLICATE          /* Duplicate key */
+	// YP_SEMANTIC_KEY_INVALID            /* Invalid key */
+	// YP_INTERNAL_UNKNOWN
 
 	switch LYErrcode {
 	case C.LYVE_SUCCESS: /**< no error */
@@ -661,7 +680,19 @@ func translateLYErrToYParserErr(LYErrcode int) YParserRetCode {
 	case C.LYVE_SYNTAX_JSON: /**< JSON-related syntax error */
 		ypErrCode = YP_SYNTAX_INVALID_FIELD
 	case C.LYVE_DATA: /**< YANG data does not reflect some of the module restrictions */
-		ypErrCode = YP_SEMANTIC_DEPENDENT_DATA_MISSING
+		if apptag == "too-few-elements" {
+			ypErrCode = YP_SYNTAX_MINIMUM_INVALID
+		} else if apptag == "too-many-elements" {
+			ypErrCode = YP_SYNTAX_MAXIMUM_INVALID
+		} else if strings.HasPrefix(msg, "Invalid enumeration value") {
+			ypErrCode = YP_SYNTAX_ENUM_INVALID
+		} else if strings.HasPrefix(msg, "Unsatisfied") {
+			ypErrCode = YP_SYNTAX_OUT_OF_RANGE
+		} else if strings.HasPrefix(msg, "Mandatory") {
+			ypErrCode = YP_SYNTAX_MISSING_FIELD
+		} else {
+			ypErrCode = YP_SYNTAX_INVALID_INPUT_DATA
+		}
 	case C.LYVE_OTHER:
 		ypErrCode = YP_INTERNAL_UNKNOWN
 	default:
@@ -709,9 +740,9 @@ func getErrorDetails() YParserError {
 
 	if !strings.HasPrefix(errMsg, customErrorPrefix) {
 		// libyang generated error message.. try to extract the field value & name
-		ElemVal = parseLyMessage(errMsg, lyBadValue)
+		ElemVal = parseLyMessage(errMsg, lyBadValue, lyUnsatisfied)
 		if len(ElemName) == 0 { // if not resolved from path
-			ElemName = parseLyMessage(errMsg, lyElemPrefix, lyElemSuffix)
+			ElemName = parseLyMessage(errMsg, lyMandatory)
 		}
 	} else {
 		/* Custom contraint error message like in must statement.
@@ -723,7 +754,7 @@ func getErrorDetails() YParserError {
 	switch ypErrLast.err {
 	case C.LY_EVALID:
 		// validation failure
-		ypErrCode = translateLYErrToYParserErr(int(ypErrLast.vecode))
+		ypErrCode = translateLYErrToYParserErr(int(ypErrLast.vecode), errAppTag, errMsg)
 		if len(ElemName) != 0 {
 			errMessage = "Field \"" + ElemName + "\" has invalid value"
 			if len(ElemVal) != 0 {
