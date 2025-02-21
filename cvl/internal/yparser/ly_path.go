@@ -136,18 +136,92 @@ type lyPathElem struct {
 // Such predicates cannot be parsed.
 var lyPredicatePattern = regexp.MustCompile(`^\[([^=]*)=('[^']*'|"[^"]*")]`)
 
+/* Extracting error details requires knowledge of text strings within libyang.
+ * Enumeration of known text strings (extracted from libyang 3.7.8) below:
+ *
+ * apptag:
+ *  - missing-choice
+ *  - too-few-elements
+ *  - too-many-elements
+ *  - data-not-unique
+ *  - must-violation
+ *  - not-left
+ *  - instance-required
+ *
+ * error messages:
+ *  NOTE: Mappings not listed here are in ly_common.h as defines prefixed with LY_VCODE_
+ *  - "Invalid non-empty-encoded %s value \"%.*s\"."
+ *  - "Invalid non-boolean-encoded %s value \"%.*s\"."
+ *  - "Invalid non-string-encoded %s value \"%.*s\"."
+ *  - "Invalid non-num64-encoded %s value \"%.*s\"."
+ *  - "Invalid non-number-encoded %s value \"%.*s\"."
+ *  - "Invalid %zu. character of decimal64 value \"%.*s\"."
+ *  - "Invalid empty decimal64 value."
+ *  - "Invalid empty value length %zu."
+ *  - "Invalid type %s empty value."
+ *  - "Invalid type %s value \"%.*s\"."
+ *  - "Invalid %" PRIu64 ". character of decimal64 value \"%.*s\"."
+ *  - "Invalid type %s value \"%.*s\"."
+ *  - "Invalid enumeration value \"%.*s\"."
+ *  - "Invalid enumeration value % " PRIi32 "."
+ *  - "Invalid boolean value \"%.*s\"."
+ *  - "Invalid bit \"%.*s\"."
+ *  - "Invalid Base64 character 0x%x."
+ *  - "Invalid Base64 character '%c'."
+ *  - "Invalid character 0x%hhx."
+ *  - "Invalid node-instance-identifier \"%.*s\" value - semantic error."
+ *  - "Invalid node-instance-identifier \"%.*s\" value - syntax error."
+ *  - "Invalid first character '%c', list key predicates expected."
+ *  - "Invalid LYB boolean value size %zu (expected 1)."
+ *  - "Invalid LYB date-and-time character '%c' (expected a digit)."
+ *  - "Invalid LYB date-and-time value size %zu (expected at least 8)."
+ *  - "Invalid LYB bits value size %zu (expected %zu)."
+ *  - "Invalid LYB union value size %zu (expected at least 4)."
+ *  - "Invalid LYB union type index %" PRIu64 " (type count %" LY_PRI_ARRAY_COUNT_TYPE ")."
+ *  - "Invalid LYB signed integer value size %zu (expected %zu)."
+ *  - "Invalid LYB unsigned integer value size %zu (expected %zu)."
+ *  - "Invalid LYB enumeration value size %zu (expected 4)."
+ *  - "Invalid LYB decimal64 value size %zu (expected 8)."
+ *  - "Invalid LYB ipv6-address-no-zone value size %zu (expected 16)."
+ *  - "Invalid LYB ipv6-address zone character 0x%x."
+ *  - "Invalid LYB ipv6-address value size %zu (expected at least 16)."
+ *  - "Invalid LYB ipv6-prefix value size %zu (expected %d)."
+ *  - "Invalid LYB ipv6-prefix prefix length %" PRIu8 "."
+ *  - "Invalid LYB ipv4-address value size %zu (expected at least 4)."
+ *  - "Invalid LYB ipv4-address zone character 0x%x."
+ *  - "Invalid LYB ipv4-address-no-zone value size %zu (expected 4)."
+ *  - "Invalid LYB ipv4-prefix value size %zu (expected %d)."
+ *  - "Invalid identityref \"%.*s\" value - identity is disabled by if-feature."
+ *  - "Invalid identityref \"%.*s\" value - identity found in non-implemented module \"%s\"."
+ *  - "Invalid identityref \"%.*s\" value - identity not derived from all the bases %s."
+ *  - "Invalid identityref \"%.*s\" value - identity not derived from the base %s."
+ *  - "Invalid identityref \"%.*s\" value - identity not found in module \"%s\"."
+ *  - "Invalid identityref \"%.*s\" value - unable to map prefix to YANG schema."
+ *  - "Invalid empty identityref value."
+ *  - "Unsatisfied range - value \"%.*s\" is out of the allowed range."
+ *  - "Unsatisfied length - string \"%.*s\" length is not allowed."
+ *  - "Unsatisfied pattern - \"%.*s\" does not conform to %s\"%s\"."
+ *  - "Value \"%.*s\" of decimal64 type exceeds defined number (%u) of fraction digits."
+ *  - "Value \"%.*s\" is out of type %s min/max bounds."
+ *  - "A %s definition \"%s\" is not allowed to reference %s value \"%s\"."
+ *  - "Failed to convert IPv6 address \"%s\"."
+ *  - "Failed to convert IPv4 address \"%s\"."
+ *  - "Failed to resolve prefix \"%.*s\"."
+ *  - "Failed to convert IPv4 address \"%s\"."
+ *  - "Duplicate bit \"%s\"."
+ *  - "Newlines are expected every 64 Base64 characters."
+ *  - "Base64 encoded value length must be divisible by 4."
+ *  - "No memory."
+ */
+
 // Regex patterns to extract target node name and value from libyang error message.
-// Example messages:
-// - Invalid value "9999999" in "vlanid" element
-// - Missing required element "vlanid" in "VLAN_LIST"
-// - Value "xyz" does not satisfy the constraint "Ethernet([1-3][0-9]{3}|[1-9][0-9]{2}|[1-9][0-9]|[0-9])" (range, length, or pattern)
-// - Leafref "/sonic-port:sonic-port/sonic-port:PORT/sonic-port:ifname" of value "Ethernet668" points to a non-existing leaf
-// - Failed to find "extra" as a sibling to "sonic-acl:aclname"
 var (
-	lyBadValue    = regexp.MustCompile(`[Vv]alue "([^"]*)" `)
+	lyBadValue    = regexp.MustCompile(`[Vv]alue "([^"]*)"[ \.]`)
+	lyUnsatisfied = regexp.MustCompile(`Unsatisfied (?:pattern|range|length) - (?:value |string |)"([^"]*)" `)
 	lyElemPrefix  = regexp.MustCompile(`[Ee]lement "([^"]*)"`)
 	lyElemSuffix  = regexp.MustCompile(`"([^"]*)" element`)
-	lyUnknownElem = regexp.MustCompile(`Failed to find "([^"]*)" `)
+	lyUnknownElem = regexp.MustCompile(`Term node "([^"]*)" not found\.`)
+	lyMandatory   = regexp.MustCompile(`Mandatory node "([^"]*)" instance does not exist\.`)
 )
 
 // parseLyMessage matches a libyang returned log message using given
@@ -159,6 +233,7 @@ func parseLyMessage(s string, regex ...*regexp.Regexp) string {
 		}
 	}
 	return ""
+}
 
 // This function takes a when, must, or leafref path in its original form as
 // written in the YANG schema files, and converts it into its fully qualified
