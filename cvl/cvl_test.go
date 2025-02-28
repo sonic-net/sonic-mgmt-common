@@ -1559,10 +1559,10 @@ func TestValidateEditConfig_Create_Syntax_IncompleteKey_Negative(t *testing.T) {
 	}
 
 	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
-		ErrCode:   cvl.CVL_SYNTAX_MISSING_FIELD,
+		ErrCode:   CVL_SYNTAX_ERROR,
 		TableName: "ACL_RULE",
-		Field:     "aclname",
-		Msg:       invalidValueErrMessage,
+		Field:     "rulename",
+		Msg:       missingKeyErrMessage,
 	})
 }
 
@@ -1783,10 +1783,10 @@ func TestValidateEditConfig_Delete_InvalidKey_Negative(t *testing.T) {
 	}
 
 	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
-		ErrCode:   cvl.CVL_SYNTAX_MISSING_FIELD,
+		ErrCode:   CVL_SYNTAX_ERROR,
 		TableName: "ACL_RULE",
-		Field:     "aclname",
-		Msg:       invalidValueErrMessage,
+		Field:     "rulename",
+		Msg:       missingKeyErrMessage,
 	})
 }
 
@@ -1811,10 +1811,10 @@ func TestValidateEditConfig_Update_Semantic_Invalid_Key_Negative(t *testing.T) {
 	}
 
 	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
-		ErrCode:   cvl.CVL_SYNTAX_MISSING_FIELD,
+		ErrCode:   CVL_SYNTAX_ERROR,
 		TableName: "ACL_RULE",
-		Field:     "aclname",
-		Msg:       invalidValueErrMessage,
+		Field:     "rulename",
+		Msg:       missingKeyErrMessage,
 	})
 }
 
