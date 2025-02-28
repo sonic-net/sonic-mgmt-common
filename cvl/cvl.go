@@ -800,7 +800,9 @@ func getRedisTblToYangList(tableName, key string) (yangList string) {
 
 // Convert Redis key to Yang keys, if multiple key components are there,
 // they are separated based on Yang schema
-func getRedisToYangKeys(tableName string, redisKey string) []keyValuePairStruct {
+func getRedisToYangKeys(tableName string, redisKey string) ([]keyValuePairStruct, CVLErrorInfo) {
+	var cvlErrObj CVLErrorInfo
+
 	keyNames := modelInfo.tableInfo[tableName].keys
 	//First split all the keys components
 	keyVals := strings.Split(redisKey, modelInfo.tableInfo[tableName].redisKeyDelim) //split by DB separator
@@ -809,7 +811,16 @@ func getRedisToYangKeys(tableName string, redisKey string) []keyValuePairStruct 
 		modelInfo.tableInfo[tableName].redisKeyDelim) //split by DB separator
 
 	if len(keyNames) != len(keyVals) {
-		return nil //number key names and values does not match
+		cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_INVALID
+		cvlErrObj.TableName = tableName
+		cvlErrObj.Keys = keyNames
+		if len(keyNames) < len(keyVals) {
+			cvlErrObj.Msg = "Too many keys specified."
+		} else {
+			cvlErrObj.Msg = "Missing Key \"" + keyNames[len(keyVals)] + "\"."
+			cvlErrObj.Field = keyNames[len(keyVals)]
+		}
+		return nil, cvlErrObj //number key names and values does not match
 	}
 
 	mkeys := []keyValuePairStruct{}
@@ -829,7 +840,7 @@ func getRedisToYangKeys(tableName string, redisKey string) []keyValuePairStruct 
 	TRACE_LOG(TRACE_SYNTAX, "getRedisToYangKeys() returns %v "+
 		"from Redis Table '%s', Key '%s'", mkeys, tableName, redisKey)
 
-	return mkeys
+	return mkeys, cvlErrObj
 }
 
 // Checks field map values and removes "NULL" entry, create array for leaf-list
