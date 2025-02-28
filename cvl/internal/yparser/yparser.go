@@ -600,10 +600,6 @@ func (yp *YParser) mergeDepData(data *(*C.struct_lyd_node), depData *YParserNode
 
 // ValidateSyntax Perform syntax checks
 func (yp *YParser) ValidateSyntax(data *YParserNode, depData *YParserNode) YParserError {
-	if data == nil {
-		return YParserError{ErrCode: YP_INTERNAL_UNKNOWN}
-	}
-
 	dataPtr := (*C.struct_lyd_node)(data)
 
 	if depData != nil {
