@@ -225,7 +225,10 @@ func (c *CVL) generateTableData(config bool, jsonNode *jsonquery.Node) (*yparser
 			}
 			topNodesAdded = true
 		}
-		keyValuePair := getRedisToYangKeys(tableName, jsonNode.Data)
+		keyValuePair, cvlErrObj := getRedisToYangKeys(tableName, jsonNode.Data)
+		if cvlErrObj.ErrCode != CVL_SUCCESS {
+			return nil, cvlErrObj
+		}
 		keyCompCount := len(keyValuePair)
 		totalKeyComb := 1
 		var keyIndices []int
