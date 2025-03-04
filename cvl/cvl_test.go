@@ -307,13 +307,16 @@ func clearDb() {
 		"DSCP_TO_TC_MAP",
 	}
 
-	for _, tbl := range tblList {
-		_, err := exec.Command("/bin/sh", "-c",
-			"sonic-db-cli CONFIG_DB del `sonic-db-cli CONFIG_DB keys '"+
-				tbl+"|*' | cut -d ' ' -f 2`").Output()
+	rc := getConfigDbClient()
+	defer rc.Close()
 
+	for _, tbl := range tblList {
+		keys, err := rc.Keys(tbl + "|*").Result()
+		if err == nil && len(keys) != 0 {
+			_, err = rc.Del(keys...).Result()
+		}
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Printf("Failed to clean %s: %s\n", tbl, err)
 		}
 	}
 }
