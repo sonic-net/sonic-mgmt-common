@@ -38,28 +38,6 @@ module openconfig-mclag {
   oc-ext:catalog-organization "openconfig";
   oc-ext:origin "openconfig";
 
-  typedef mclag-peer-ip-option {
-      type enumeration {
-          enum USE_LINK_LOCAL {
-              description
-                  "Indicates the usage of link-local address to communicate 
-                  to MCLAG peer";
-          }
-      }
-      description
-         "MCLAG Peer IP options other than configuring peer ip address";
-  }
-
-  typedef mclag-peer {
-      type union {
-          type oc-inet:ip-address;
-          type mclag-peer-ip-option;
-      }
-      description
-        "MCLAG peer address can be a configurable IP address or 
-        a link-local address"; 
-  }
-
   // grouping statements
 
   grouping mclag-domain-config {
@@ -82,7 +60,7 @@ module openconfig-mclag {
     }
 
     leaf peer-address {
-      type mclag-peer;
+      type oc-inet:ip-address;
       description
         "peer address of MCLAG Domain";
     }
@@ -207,16 +185,6 @@ module openconfig-mclag {
           description
             "Reference to MCLAG domain list key";
     }
-
-    leaf mclag-id {
-      type uint16 {
-          range 1..256;
-      }
-      description
-        "Groups the mclag interfaces among the mclag peers, which 
-        are bundled together to connect to the same attached device. 
-        mclag-id has to be same on all these interfaces.";
-    } 
   }
 
   grouping mclag-interface-state {
@@ -444,11 +412,4 @@ module openconfig-mclag {
 
   // augment statements
 
-  deviation
-  /oc-mclag:mclag/oc-mclag:mclag-domains/oc-mclag:mclag-domain/oc-mclag:config/oc-mclag:peer-address
-   {
-        deviate replace {
-            type oc-inet:ip-address;
-        }
-    }
 }
