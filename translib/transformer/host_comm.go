@@ -1,6 +1,7 @@
 package transformer
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/godbus/dbus/v5"
@@ -12,6 +13,26 @@ import (
 type HostResult struct {
 	Body []interface{}
 	Err  error
+}
+
+// checkQueryOutput checks if the host query output has errors.
+func checkQueryOutput(r HostResult) (string, error) {
+	if r.Err != nil {
+		return "", errors.New("Internal SONiC HostService failure: " + r.Err.Error())
+	}
+	if len(r.Body) < 2 {
+		return "", errors.New("Internal SONiC HostService failure: the response is too short.")
+	}
+	if _, ok := r.Body[0].(int32); !ok {
+		return "", errors.New("Internal SONiC HostService failure: the first element is not int32.")
+	}
+	if _, ok := r.Body[1].(string); !ok {
+		return "", errors.New("Internal SONiC HostService failure: second element is not string.")
+	}
+	if r.Body[0].(int32) != 0 {
+		return "", errors.New("Internal SONiC HostService failure: " + r.Body[1].(string))
+	}
+	return r.Body[1].(string), nil
 }
 
 // HostQuery calls the corresponding D-Bus endpoint on the host and returns
