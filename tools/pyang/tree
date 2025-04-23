@@ -143,25 +143,20 @@ def validate_context(ctx: Context):
 def prepare_markdown_tree_ctx(ctx: Context):
     # Guess base & extensions directory
     is_sonic_yangdir = yangtools.is_sonic_yangdir(ctx.opts.yangdir)
-    basedir = ctx.opts.yangdir
-    extndir = None
+    basedir = ctx.opts.yangdir    
     if not basedir:
         if is_sonic_yangdir:
             basedir = yangtools.getpath("models/yang/sonic")
         else:
             basedir = yangtools.getpath("models/yang")
-    if not is_sonic_yangdir:
-        extndir = os.path.join(ctx.opts.yangdir,"extensions")
     # Set ctx.opts as pyang would have set
     def f(x): return f"{x}/common:{x}:{x}/extensions" if x else None
     def f_without_ext(x): return f"{x}/common:{x}" if x else None
     setattr(ctx.opts, "path", [f(ctx.opts.yangdir)])
     setattr(ctx.opts, "basepaths", f_without_ext(basedir))
-    setattr(ctx.opts, "extdir", extndir)
     if ctx.opts.verbose:
         log(f"markdown_ctx.path      = {ctx.opts.path}\n")
         log(f"markdown_ctx.basepaths = {ctx.opts.basepaths}\n")
-        log(f"markdown_ctx.extdir    = {ctx.opts.extdir}\n")
 
 @ yangtools.profile
 def write_tree(ctx, kind, outfile):
