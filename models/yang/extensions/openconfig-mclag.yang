@@ -7,11 +7,9 @@ module openconfig-mclag {
 
   prefix "oc-mclag";
 
-  import openconfig-yang-types { prefix oc-yang; }
   import openconfig-inet-types { prefix oc-inet; }
   import openconfig-interfaces { prefix oc-if; }
   import openconfig-extensions { prefix oc-ext; }
-  import openconfig-types { prefix oc-types; }
 
   // meta
   organization "OpenConfig working group";
@@ -25,12 +23,12 @@ module openconfig-mclag {
     MCLAG information are organized as MCLAG Domains.Each MCLAG Domain would contain
     config and state inforamtion of domain, it would contain mclag interfaces for that given domain";
 
-  oc-ext:openconfig-version "1.0.2";
+  oc-ext:openconfig-version "1.0.0";
 
   revision "2019-12-02" {
     description
       "Initial revision";
-    reference "TBD";
+    reference "1.0.0";
   }
 
   // OpenConfig specific extensions for module metadata.
