@@ -19,12 +19,12 @@
 package transformer
 
 import (
+	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	log "github.com/golang/glog"
 	"github.com/openconfig/ygot/ygot"
 	"strconv"
 	"strings"
-	"translib/db"
-	"translib/ocbinds"
 )
 
 func init() {
