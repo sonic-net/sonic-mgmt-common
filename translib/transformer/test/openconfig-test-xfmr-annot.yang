@@ -242,46 +242,40 @@ module openconfig-test-xfmr-annot {
       }
     }
 
-    deviation "/oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/" +
-              "oc-test-xfmr:test-protocol/oc-test-xfmr:bgp" {
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:bgp {
       deviate add {
 	      sonic-ext:validate-xfmr "validate_bgp_proto";
       }
     }
 
-    deviation "/oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/" +
-              "oc-test-xfmr:test-protocol/oc-test-xfmr:bgp/oc-test-xfmr:network-cfgs/oc-test-xfmr:network-cfg" {
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:bgp/oc-test-xfmr:network-cfgs/oc-test-xfmr:network-cfg {
       deviate add {
 	      sonic-ext:table-name "TEST_BGP_NETWORK_CFG";
         sonic-ext:key-transformer "test_bgp_network_cfg_key_xfmr";
       }
     }
 
-    deviation "/oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/" +
-              "oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2" {
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2 {
       deviate add {
 	      sonic-ext:validate-xfmr "validate_ospfv2_proto";
       }
     }
 
-    deviation "/oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/" +
-              "oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global" {
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global {
       deviate add {
         sonic-ext:table-name "TEST_OSPFV2_ROUTER";
         sonic-ext:key-transformer "test_ospfv2_router_key_xfmr";
       }
     }
 
-    deviation "/oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/" +
-              "oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global/oc-test-xfmr:route-distribution-lists" {
-      devitae add {
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global/oc-test-xfmr:route-distribution-lists {
+      deviate add {
         sonic-ext:table-name "NONE";
       }
     }
 
-    deviation "/oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/" +
-              "oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global/oc-test-xfmr:route-distribution-lists/oc-test-xfmr:route-distribution-list" {
-      devitae add {
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global/oc-test-xfmr:route-distribution-lists/oc-test-xfmr:route-distribution-list {
+      deviate add {
         sonic-ext:table-name "TEST_OSPFV2_ROUTER_DISTRIBUTION";
         sonic-ext:key-transformer "test_ospfv2_router_distribution_key_xfmr;
       }
