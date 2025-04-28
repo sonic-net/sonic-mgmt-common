@@ -277,7 +277,7 @@ module openconfig-test-xfmr-annot {
     deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global/oc-test-xfmr:route-distribution-lists/oc-test-xfmr:route-distribution-list {
       deviate add {
         sonic-ext:table-name "TEST_OSPFV2_ROUTER_DISTRIBUTION";
-        sonic-ext:key-transformer "test_ospfv2_router_distribution_key_xfmr;
+        sonic-ext:key-transformer "test_ospfv2_router_distribution_key_xfmr";
       }
     }
 }
