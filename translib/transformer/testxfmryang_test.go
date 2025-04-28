@@ -16,9 +16,6 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-//go:build xfmrtest
-// +build xfmrtest
-
 package transformer_test
 
 import (
@@ -143,11 +140,10 @@ func Test_node_exercising_pre_xfmr_node(t *testing.T) {
 	err_str := "REPLACE not supported at this node."
 	expected_err := tlerr.NotSupportedError{Format: err_str}
 	//expected_err := tlerr.NotSupported("REPLACE not supported at this node.")
-	url := "/openconfig-test-xfmr:test-xfmr"
-	url_body_json := "{\"openconfig-test-xfmr:test-xfmr\":{ \"test-sets\": { \"test-set\": [ { \"name\": \"TestSet_03\", \"type\": \"TEST_SET_IPV4\", \"config\": { \"name\": \"TestSet_03\", \"type\": \"TEST_SET_IPV4\", \"description\": \"testSet_03 description\" } } ] }}}"
+	url := "/openconfig-test-xfmr:test-xfmr/test-sets"
+	url_body_json := "{ \"openconfig-test-xfmr:test-sets\": { \"test-set\": [ { \"name\": \"TestSet_03\", \"type\": \"TEST_SET_IPV4\", \"config\": { \"name\": \"TestSet_03\", \"type\": \"TEST_SET_IPV4\", \"description\": \"testSet_03 description\" } } ] }}"
 	t.Run("Test set on node exercising pre-xfmr.", processSetRequest(url, url_body_json, "PUT", true, expected_err))
 	t.Log("\n\n+++++++++++++ Done Performing set on node exercising pre-xfmr ++++++++++++")
-
 }
 
 func Test_node_with_child_tableXfmr_keyXfmr_fieldNameXfmrs_nonConfigDB_data(t *testing.T) {
