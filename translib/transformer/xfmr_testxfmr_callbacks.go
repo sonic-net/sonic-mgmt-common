@@ -902,21 +902,17 @@ var test_ni_instance_protocol_table_xfmr TableXfmrFunc = func(inParams XfmrParam
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"] = db.Value{Field: make(map[string]string)}
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"].Field["NULL"] = "NULL"
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"] = db.Value{Field: make(map[string]string)}
-					(*inParams.dbDataMap)[db.ConfigDB]["TTEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
 					cfg_tbl_updated = true
 				} else if proto_name == "bgp" {
-					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
-					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"] = db.Value{Field: make(map[string]string)}
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"].Field["NULL"] = "NULL"
 					cfg_tbl_updated = true
 				} else if proto_name == "ospfv2" {
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
-					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
-					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"] = db.Value{Field: make(map[string]string)}
-					(*inParams.dbDataMap)[db.ConfigDB]["TTEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
 					cfg_tbl_updated = true
 				} else {
 					err_str := "Invalid protocol key. Key not supported."
