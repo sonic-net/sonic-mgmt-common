@@ -187,7 +187,7 @@ module openconfig-test-xfmr-annot {
     deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ntp {
       deviate add {
 	      sonic-ext:table-name "TEST_NTP";
-        sonic-ext:key-name "global"
+        sonic-ext:key-name "global";
       }
     }
 
