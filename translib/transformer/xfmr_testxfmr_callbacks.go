@@ -904,16 +904,19 @@ var test_ni_instance_protocol_table_xfmr TableXfmrFunc = func(inParams XfmrParam
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"] = db.Value{Field: make(map[string]string)}
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
 					cfg_tbl_updated = true
+					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB]", (*inParams.dbDataMap)[db.ConfigDB])
 				} else if proto_name == "bgp" {
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"] = db.Value{Field: make(map[string]string)}
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"].Field["NULL"] = "NULL"
 					cfg_tbl_updated = true
+					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB]", (*inParams.dbDataMap)[db.ConfigDB])
 				} else if proto_name == "ospfv2" {
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"] = db.Value{Field: make(map[string]string)}
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
 					cfg_tbl_updated = true
+					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB]", (*inParams.dbDataMap)[db.ConfigDB])
 				} else {
 					err_str := "Invalid protocol key. Key not supported."
 					err = tlerr.NotSupported(err_str)
@@ -927,6 +930,7 @@ var test_ni_instance_protocol_table_xfmr TableXfmrFunc = func(inParams XfmrParam
 			tblList = append(tblList, "CFG_PROTO_TBL")
 		}
 	}
+	log.Info("test_ni_instance_protocol_table_xfmr returning tblList ", tblList, " error", err)
 	return tblList, err
 }
 
@@ -938,6 +942,7 @@ var YangToDb_test_ni_instance_protocol_key_xfmr KeyXfmrYangToDb = func(inParams 
 		pathInfo := NewPathInfo(inParams.uri)
 		ni_name := pathInfo.Var("ni-name")
 		proto_name := pathInfo.Var("name")
+		log.Info("YangToDb_test_ni_instance_protocol_key_xfmr received ni-instance ", ni_name, " protocol name ", name)
 		if (ni_name == "default") || (strings.HasPrefix(ni_name, "vrf-")) {
 			if proto_name == "bgp" {
 				key = "bgp"
