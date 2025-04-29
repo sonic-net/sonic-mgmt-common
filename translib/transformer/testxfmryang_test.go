@@ -211,7 +211,7 @@ func Test_node_exercising_tableXfmr_virtual_table_and_validate_handler(t *testin
 	/* verify if get like traversal happens correctly when deleting a node having table-xfmr, virtual-table and validate handler annotation in child yang hierachy */
 	t.Log("+++++++++++++++++ Test delete in yang hierachy involing table-xfmr, virtual-table and validate handler annotations +++++++++++++++")
 	prereq_ni_instance := map[string]interface{}{"TEST_VRF": map[string]interface{}{"default": map[string]interface{}{"enabled": "true"},
-		"Vrf_01": map[string]interface{}{"enabled": "false"}, "Vrf_02": map[string]interface{}{"enabled": "false", "description": "Vrf_02 descrip"}}}
+		"Vrf_01": map[string]interface{}{"enabled": "false"}, "Vrf_02": map[string]interface{}{"enabled": "true"}}}
 	prereq_bgp := map[string]interface{}{"TEST_BGP_NETWORK_CFG": map[string]interface{}{"Vrf_01|22": map[string]interface{}{"backdoor": "true", "policy-name": "abcd"},
 		"Vrf_01|33": map[string]interface{}{"policy-name": "fgh"}, "Vrf_02|55": map[string]interface{}{"backdoor": "false"}}}
 	prereq_ospfv2_router := map[string]interface{}{"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "true", "write-multiplier": "2"},
@@ -227,7 +227,8 @@ func Test_node_exercising_tableXfmr_virtual_table_and_validate_handler(t *testin
 	loadDB(db.ConfigDB, prereq_bgp)
 	loadDB(db.ConfigDB, prereq_ospfv2_router)
 	loadDB(db.ConfigDB, prereq_ospfv2_router_distribution)
-	url := "/openconfig-test-xfmr:test-xfmr/test-ni-instances/test-ni-instance[ni-name=vrf-01]/test-protocols/test-protocol"
+	url := "/openconfig-test-xfmr:test-xfmr/test-ni-instances/test-ni-instance[ni-name=vrf-01]/test-protocols"
+	expected_ni_instance_vrf_01 := map[string]interface{}{"TEST_VRF": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "false"}}}
 	expected_ni_instance_default := map[string]interface{}{"TEST_VRF": map[string]interface{}{"default": map[string]interface{}{"enabled": "true"}}}
 	expected_ni_instance_vrf_02 := map[string]interface{}{"TEST_VRF": map[string]interface{}{"Vrf_02": map[string]interface{}{"enabled": "true"}}}
 	expected_bgp := map[string]interface{}{"TEST_BGP_NETWORK_CFG": map[string]interface{}{"Vrf_02|55": map[string]interface{}{"backdoor": "false"}}}
@@ -237,7 +238,7 @@ func Test_node_exercising_tableXfmr_virtual_table_and_validate_handler(t *testin
 	t.Run("Delete in yang hierachy involing table-xfmr, virtual-table and validate handler annotations.", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 	verifyDbResultList := [11]verifyDbResultData{
-		{test: "Verify delete of ni-instance in request URL(vrf-01) is deleted from db.", db_key: "TEST_VRF|Vrf_01", db_result: empty_expected},
+		{test: "Verify ni-instance in request URL(vrf-01) is not deleted from db since URL points to child node.", db_key: "TEST_VRF|Vrf_01", db_result: expected_ni_instance_vrf_01},
 		{test: "Verify default ni-instance not assocaited with ni-instance in request URL is retained in db.", db_key: "TEST_VRF|default", db_result: expected_ni_instance_default},
 		{test: "Verify Vrf_02 ni-instance not assocaited with ni-instance in request URL is retained in db.", db_key: "TEST_VRF|Vrf_02", db_result: expected_ni_instance_vrf_02},
 		{test: "Verify delete of bgp instance(vrf-01|22) assocaited with ni-instance in request URL is deleted from db.", db_key: "TEST_BGP_NETWORK_CFG|Vrf_01|22", db_result: empty_expected},
@@ -298,7 +299,7 @@ func Test_node_exercising_subset_of_fields_in_mapped_table(t *testing.T) {
 	cleanuptbl = map[string]interface{}{"TEST_VRF": map[string]interface{}{"Vrf_01": ""},
 		"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": ""}}
 	expected_ospfv2_router = map[string]interface{}{"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "true", "write-multiplier": "2"}}}
-	url = "/openconfig-test-xfmr:test-xfmr/test-ni-instances/ni-instance[ni-name=vrf-01]/test-protocols/test-protocol[name=ospfv2]/ospfv2/" +
+	url = "/openconfig-test-xfmr:test-xfmr/test-ni-instances/test-ni-instance[ni-name=vrf-01]/test-protocols/test-protocol[name=ospfv2]/ospfv2/" +
 		"global/timers/config"
 	// Setup
 	loadDB(db.ConfigDB, prereq_ni_instance)

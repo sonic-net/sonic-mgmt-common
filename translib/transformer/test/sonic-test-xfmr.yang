@@ -439,7 +439,6 @@ module sonic-test-xfmr {
 
                                 leaf test-vrf-name {
                                         type string {
-                                                length "7..15";
                                                 pattern "default|Vrf_[a-zA-Z0-9]+" {
                                                         error-message "Invalid VRF name";
                                                         error-app-tag vrf-name-invalid;

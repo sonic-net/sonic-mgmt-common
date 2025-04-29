@@ -740,6 +740,7 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						A leaf-list field in redis has "@" suffix as per swsssdk convention.
 						*/
 						resTblRw := db.Value{Field: map[string]string{}}
+						resTblRw = checkAndProcessLeafList(existingEntry, tblRw, UPDATE, d, tblNm, tblKey)
 						log.Info("Processing Table row ", resTblRw)
 						err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, resTblRw)
 						if err != nil {
@@ -772,6 +773,7 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						A leaf-list field in redis has "@" suffix as per swsssdk convention.
 						*/
 						resTblRw := db.Value{Field: map[string]string{}}
+						resTblRw = checkAndProcessLeafList(existingEntry, tblRw, UPDATE, d, tblNm, tblKey)
 						err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, resTblRw)
 						if err != nil {
 							log.Warning("UPDATE case - d.ModEntry() failure")

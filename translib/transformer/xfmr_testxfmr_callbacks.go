@@ -58,6 +58,11 @@ func init() {
 	XlateFuncBind("DbToYang_test_ni_instance_key_xfmr", DbToYang_test_ni_instance_key_xfmr)
 	XlateFuncBind("YangToDb_test_ni_instance_protocol_key_xfmr", YangToDb_test_ni_instance_protocol_key_xfmr)
 	XlateFuncBind("DbToYang_test_ni_instance_protocol_key_xfmr", DbToYang_test_ni_instance_protocol_key_xfmr)
+	XlateFuncBind("YangToDb_test_bgp_network_cfg_key_xfmr", YangToDb_test_bgp_network_cfg_key_xfmr)
+	XlateFuncBind("DbToYang_test_bgp_network_cfg_key_xfmr", DbToYang_test_bgp_network_cfg_key_xfmr)
+	XlateFuncBind("YangToDb_test_ospfv2_router_distribution_key_xfmr", YangToDb_test_ospfv2_router_distribution_key_xfmr)
+	XlateFuncBind("DbToYang_test_ospfv2_router_distribution_key_xfmr", DbToYang_test_ospfv2_router_distribution_key_xfmr)
+	XlateFuncBind("YangToDb_test_ospfv2_router_key_xfmr", YangToDb_test_ospfv2_router_key_xfmr)
 
 	// Key leafrefed Field transformer functions
 	XlateFuncBind("DbToYang_test_sensor_type_field_xfmr", DbToYang_test_sensor_type_field_xfmr)
@@ -864,7 +869,7 @@ var YangToDb_test_ni_instance_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParam
 		err_str := "Invalid key. Key not supported."
 		err = tlerr.NotSupported(err_str)
 	}
-	log.Info("YangToDb_test_ni_instance_key_xfmr returning", db_ni_name, err)
+	log.Info("YangToDb_test_ni_instance_key_xfmr returning db_ni_name ", db_ni_name, " error ", err)
 	return db_ni_name, err
 }
 
@@ -894,8 +899,10 @@ var test_ni_instance_protocol_table_xfmr TableXfmrFunc = func(inParams XfmrParam
 		pathInfo := NewPathInfo(inParams.uri)
 		ni_name := pathInfo.Var("ni-name")
 		proto_name := pathInfo.Var("name")
+		log.Info("test_ni_instance_protocol_table_xfmr ni-inatnce ", ni_name, " proto name ", proto_name)
 		cfg_tbl_updated := false
 		if inParams.dbDataMap != nil {
+			log.Info("test_ni_instance_protocol_table_xfmr  tblList dbDataMap ", (*inParams.dbDataMap)[db.ConfigDB])
 			if (ni_name == "default") || (strings.HasPrefix(ni_name, "vrf-")) {
 				if proto_name == "" { // inParams.uri at whole list level, hence add all child instances to be traversed
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
@@ -904,19 +911,19 @@ var test_ni_instance_protocol_table_xfmr TableXfmrFunc = func(inParams XfmrParam
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"] = db.Value{Field: make(map[string]string)}
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
 					cfg_tbl_updated = true
-					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB]", (*inParams.dbDataMap)[db.ConfigDB])
+					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB] ", (*inParams.dbDataMap)[db.ConfigDB])
 				} else if proto_name == "bgp" {
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"] = db.Value{Field: make(map[string]string)}
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"].Field["NULL"] = "NULL"
 					cfg_tbl_updated = true
-					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB]", (*inParams.dbDataMap)[db.ConfigDB])
+					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB] ", (*inParams.dbDataMap)[db.ConfigDB])
 				} else if proto_name == "ospfv2" {
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"] = db.Value{Field: make(map[string]string)}
 					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
 					cfg_tbl_updated = true
-					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB]", (*inParams.dbDataMap)[db.ConfigDB])
+					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB] ", (*inParams.dbDataMap)[db.ConfigDB])
 				} else {
 					err_str := "Invalid protocol key. Key not supported."
 					err = tlerr.NotSupported(err_str)
@@ -927,10 +934,11 @@ var test_ni_instance_protocol_table_xfmr TableXfmrFunc = func(inParams XfmrParam
 			}
 		}
 		if cfg_tbl_updated {
-			tblList = append(tblList, "CFG_PROTO_TBL")
+			tblList = append(tblList, "TEST_CFG_PROTO_TBL")
 		}
 	}
-	log.Info("test_ni_instance_protocol_table_xfmr returning tblList ", tblList, " error", err)
+	*inParams.isVirtualTbl = true
+	log.Info("test_ni_instance_protocol_table_xfmr returning tblList ", tblList, " error ", err)
 	return tblList, err
 }
 
@@ -1043,5 +1051,49 @@ var DbToYang_test_ospfv2_router_distribution_key_xfmr KeyXfmrDbToYang = func(inP
 		}
 	}
 	log.Info("DbToYang_test_ospfv2_router_distribution_key_xfmr returning ", rmap)
+	return rmap, nil
+}
+
+var YangToDb_test_bgp_network_cfg_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var db_ni_name, bgp_cfg_db_key string
+	var err error
+	log.Info("YangToDb_test_bgp_network_cfg_key_xfmr ", inParams.uri)
+	pathInfo := NewPathInfo(inParams.uri)
+	ni_name := pathInfo.Var("ni-name")
+	network_id := pathInfo.Var("network-id")
+
+	if strings.HasPrefix(ni_name, "vrf-") {
+		db_ni_name = strings.Replace(ni_name, "vrf-", "Vrf_", 1)
+	} else if strings.HasPrefix(ni_name, "default") {
+		db_ni_name = ni_name
+	} else if ni_name != "" {
+		err_str := "Invalid key. Key not supported."
+		err = tlerr.NotSupported(err_str)
+	}
+
+	if network_id != "" {
+		bgp_cfg_db_key = db_ni_name + "|" + network_id
+	} else {
+		bgp_cfg_db_key = db_ni_name
+	}
+
+	log.Info("YangToDb_test_bgp_network_cfg_key_xfmr returning ", bgp_cfg_db_key, " error ", err)
+	return bgp_cfg_db_key, err
+}
+
+var DbToYang_test_bgp_network_cfg_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	log.Info("DbToYang_test_bgp_network_cfg_key_xfmr ", inParams.uri)
+	var rmap map[string]interface{}
+	var network_id string
+
+	if strings.Contains(inParams.key, "|") {
+		key_split := strings.SplitN(inParams.key, "|", 2)
+		if len(key_split) == 2 {
+			network_id = key_split[1]
+			rmap = make(map[string]interface{})
+			rmap["network-id"] = network_id
+		}
+	}
+	log.Info("DbToYang_test_bgp_network_cfg_key_xfmr returning ", rmap)
 	return rmap, nil
 }

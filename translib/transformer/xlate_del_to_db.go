@@ -159,6 +159,8 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 	xfmrLogDebug("tblList(%v), tbl(%v), key(%v)  for URI (\"%v\")", tblList, xlateParams.tableName, xlateParams.keyName, xlateParams.uri)
 	for _, tbl := range tblList {
 		curDbDataMap, ferr := fillDbDataMapForTbl(xlateParams.uri, xlateParams.xpath, tbl, keyName, cdb, dbs, xlateParams.dbTblKeyGetCache, nil)
+		log.Info("********************************** ferr ", ferr, " curDbData ", curDbDataMap)
+		log.Info("*****************************  ", (*dbDataMap)[cdb])
 		if (ferr == nil) && len(curDbDataMap) > 0 {
 			mapCopy((*dbDataMap)[cdb], curDbDataMap[cdb])
 		}
@@ -202,7 +204,7 @@ func yangListDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map[stri
 					continue
 				}
 
-				//Not required to check for table inheritence case here as we have a subtree and subtree is already processed before we get here
+				// Not required to check for table inheritence case here as we have a subtree and subtree is already processed before we get here
 				// We only need to traverse nested subtrees here
 				if len(spec.xfmrFunc) == 0 {
 					if spec.virtualTbl == nil && xpathKeyExtRet.isVirtualTbl {

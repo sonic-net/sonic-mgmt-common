@@ -1234,7 +1234,7 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 				dbSpecField := table + "/" + pathElement
 				_, ok := xDbSpecMap[dbSpecField]
 				if !ok && pathElement != "" {
-					if nestedListErr := sonicNestedListRequestResourceCheck(uri, table, dbKey, pathList[SONIC_TBL_CHILD_INDEX-1], pathElement, d, oper); nestedListErr != nil && oper != DELETE {
+					if nestedListErr := sonicNestedListRequestResourceCheck(uri, table, dbKey, pathList[SONIC_TBL_CHILD_INDEX-1], pathElement, d, oper); nestedListErr != nil {
 						return false, nestedListErr
 					}
 				}

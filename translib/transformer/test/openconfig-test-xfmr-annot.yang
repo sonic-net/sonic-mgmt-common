@@ -81,7 +81,7 @@ module openconfig-test-xfmr-annot {
     deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:sensor-a-light-sensors {
       deviate add {
 	sonic-ext:table-name "NONE";
-        sonic-ext:get-validate "light_sensor_validate";
+        sonic-ext:validate-xfmr "light_sensor_validate";
       }
     }
 
