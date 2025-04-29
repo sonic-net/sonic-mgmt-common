@@ -942,7 +942,7 @@ var YangToDb_test_ni_instance_protocol_key_xfmr KeyXfmrYangToDb = func(inParams 
 		pathInfo := NewPathInfo(inParams.uri)
 		ni_name := pathInfo.Var("ni-name")
 		proto_name := pathInfo.Var("name")
-		log.Info("YangToDb_test_ni_instance_protocol_key_xfmr received ni-instance ", ni_name, " protocol name ", name)
+		log.Info("YangToDb_test_ni_instance_protocol_key_xfmr received ni-instance ", ni_name, " protocol name ", proto_name)
 		if (ni_name == "default") || (strings.HasPrefix(ni_name, "vrf-")) {
 			if proto_name == "bgp" {
 				key = "bgp"
