@@ -118,7 +118,7 @@ stages:
 
         ./translib.test -test.v -logtostderr || STATUS=1
 
-        ./transformer.test -test.v -logtostderr -v=5 || STATUS=1
+        ./transformer.test -test.v -logtostderr || STATUS=1
 
         ./testapp.test -test.v -logtostderr || STATUS=1
 
