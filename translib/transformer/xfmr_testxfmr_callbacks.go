@@ -971,6 +971,7 @@ var DbToYang_test_ni_instance_protocol_key_xfmr KeyXfmrDbToYang = func(inParams 
 func checkNwInstanceProtocol(inParams XfmrParams, protoNm string) bool {
 	pathInfo := NewPathInfo(inParams.uri)
 	proto_name := pathInfo.Var("name")
+	og.Info("checkNwInstanceProtocol() through validate handler ", proto_name)
 	return proto_name == protoNm
 }
 
