@@ -77,6 +77,13 @@ module openconfig-mclag-annot {
         }
     }
 
+    deviation /oc-mclag:mclag/oc-mclag:mclag-domains/oc-mclag:mclag-domain/oc-mclag:state {
+        deviate add {
+            sonic-ext:table-name "MCLAG_DOMAIN";
+            sonic-ext:db-name "STATE_DB";
+        }
+    }
+
     deviation /oc-mclag:mclag/oc-mclag:mclag-domains/oc-mclag:mclag-domain/oc-mclag:state/oc-mclag:domain-id {
         deviate add {
             sonic-ext:field-name "domain_id";
