@@ -15,7 +15,7 @@ module openconfig-mclag-annot {
         "SONiC";
 
     description
-        "Openconfig MCLAG yang Annotations";
+        "SONIC VLAN";
 
     revision 2020-01-20 {
         description
@@ -30,7 +30,6 @@ module openconfig-mclag-annot {
 
     deviation /oc-mclag:mclag/oc-mclag:interfaces/oc-mclag:interface {
         deviate add {
-            sonic-ext:table-name "MCLAG_INTERFACE";
             sonic-ext:subtree-transformer "mclag_interface_subtree_xfmr";
         }
     }
