@@ -15,7 +15,7 @@ module openconfig-mclag-annot {
         "SONiC";
 
     description
-        "SONIC VLAN";
+        "openconfig MCLAG yang annotations";
 
     revision 2020-01-20 {
         description
