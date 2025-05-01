@@ -612,7 +612,7 @@ func XlateFromDb(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, data R
 	qparams := inParamsForGet.queryParams
 	ygSchema := inParamsForGet.ygSchema
 	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "",
-		&dbData, txCache, nil, false, qparams, inParamsForGet.reqCtxt, nil)
+		&dbData, txCache, nil, qparams, inParamsForGet.reqCtxt, nil)
 	inParamsForGet.dbTblKeyGetCache = dbTblKeyGetCache
 	inParamsForGet.xfmrDbTblKeyCache = tblXfmrCache
 	inParamsForGet.ygSchema = ygSchema

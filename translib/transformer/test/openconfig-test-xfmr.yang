@@ -50,6 +50,23 @@ module openconfig-test-xfmr {
       "IP-layer test set with IPv6 addresses";
   }
 
+  identity TEST_NTP_AUTH_TYPE {
+    description
+      "Base identity for encryption schemes supported for NTP authentication keys";
+  }
+
+  identity TEST_NTP_AUTH_MD5 {
+    base TEST_NTP_AUTH_TYPE;
+    description
+      "MD5 encryption method";
+  }
+
+  identity TEST_NTP_AUTH_SHA {
+    base TEST_NTP_AUTH_TYPE;
+    description
+      "SHA encryption method";
+  }
+
   grouping test-sensor-group-top {
     description
       "Top level grouping for test-sensor-group configuration and operational
@@ -174,6 +191,59 @@ module openconfig-test-xfmr {
 
   // grouping statements
 
+  grouping system-zone {
+    description
+      "system-zone related data for test-sets";
+    container system-zone-device-data {  
+      container config {
+        leaf metric {
+          type uint32;
+        }
+        leaf hold-interval {
+          type uint32;
+        }
+      }
+      container state {
+        config false;
+        leaf metric {
+          type uint32;
+        }
+        leaf hold-interval {
+          type uint32;
+        }
+      }
+    }
+  }
+
+  grouping transport-zone-data {
+    container transport-zone {
+      container config {
+        leaf transport-keepalive-interval {
+          type uint32;
+        }
+        leaf restart-time {
+          type uint32;
+        }
+        leaf delay-time {
+          type uint32;
+          default 5;
+        }
+      }
+      container state {
+        config false;
+        leaf transport-keepalive-interval {
+          type uint32;
+        }
+        leaf restart-time {
+          type uint32;
+        }
+        leaf delay-time {
+          type uint32;
+        }
+      }
+    }
+  }
+
   grouping test-set-top {
     description
       "Access list entries variables top level container";
@@ -215,7 +285,9 @@ module openconfig-test-xfmr {
             "Test set  state information";
           uses test-set-config;
         }
-       }
+      }
+       uses system-zone;
+       uses transport-zone-data;
     }
   } 
 
@@ -655,6 +727,294 @@ module openconfig-test-xfmr {
           }
     }
   }
+
+  grouping bgp-data {
+    container bgp {
+      container network-cfgs {
+        list network-cfg {
+          key "network-id";
+          leaf network-id {
+            type leafref {
+              path "../config/network-id";
+            }
+          }
+          container config {
+            leaf network-id {
+              type uint32;
+            }
+            leaf policy-name {
+              type string;
+            }
+            leaf backdoor {
+              type boolean;
+            }
+          }
+          container state {
+            config false;
+            leaf network-id {
+              type uint32;
+            }
+            leaf policy-name {
+              type string;
+            }
+            leaf backdoor {
+              type boolean;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping ospfv2-data {
+    container ospfv2 {
+      container global {
+        container config {
+          leaf enabled {
+            type boolean;
+          }
+          leaf write-multiplier {
+            type uint32;
+          }
+          leaf maximum-paths {
+            type uint32;
+          }
+        }
+        container state {
+          config false;
+          leaf enable {
+            type boolean;
+          }
+          leaf write-multiplier {
+            type uint32;
+          }
+          leaf maximum-paths {
+            type uint32;
+          }
+        } 
+        container timers {
+          container config {
+            leaf initial-delay {
+              type uint32;
+            }
+            leaf max-delay {
+              type uint32;
+            }
+          }
+          container state {
+            config false;
+            leaf initial-delay {
+              type uint32;
+            }
+            leaf max-delay {
+              type uint32;
+            }
+          }
+        }
+        container route-distribution-lists {
+          list route-distribution-list {
+            key "distribution-id";
+            leaf distribution-id {
+              type leafref {
+                path "../config/distribution-id";
+              }
+            }
+            container config {
+              leaf distribution-id {
+                type uint32;
+              }
+              leaf priority {
+                type uint32;
+              }
+              leaf table-id {
+                type uint32;
+              }
+            }
+            container state {
+              config false;
+              leaf distribution-id {
+                type uint32;
+              }
+              leaf priority {
+                type uint32;
+              }
+              leaf table-id {
+                type uint32;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  grouping test-protocols-data {
+    container test-protocols {
+      list test-protocol {
+        key "name";
+        leaf name {
+          type leafref {
+            path "../config/name";
+          }
+        }
+        container config {
+          leaf name {
+            type string;
+          }
+        }
+        container state {
+          config false;
+          leaf name {
+            type string;
+          }
+        }
+
+        uses bgp-data;
+        uses ospfv2-data;
+      }
+    }
+  }
+
+  grouping test-ni-instance-data {
+    container test-ni-instances {
+      list test-ni-instance {
+        key "ni-name";
+        leaf ni-name {
+          type leafref {
+            path "../config/ni-name";
+          }
+          description
+            "Name of the test ni instance";
+        }
+        container config {
+          description
+            "Configuration parameters for the test ni instance";
+          leaf ni-name {
+            type string {
+              pattern "default|vrf-[a-zA-Z0-9]*";
+            }
+          }
+          leaf enabled {
+            type boolean;
+          }
+          leaf description {
+            type string;
+          }
+        }
+        container state {
+          config false;
+          leaf ni-name {
+            type string;
+          }
+          leaf enabled {
+            type boolean;
+          }
+          leaf description {
+            type string;
+          }
+        }
+        uses test-protocols-data;
+      }
+    }
+  }
+
+  grouping test-ntp-data {
+    container test-ntp {
+      container config {
+        leaf enable-ntp-auth {
+          type boolean;
+        }
+        leaf-list trusted-key {
+          type uint32;
+        }
+        leaf ni-name {
+          type string;
+        }
+      }
+      container state {
+        config false;
+        leaf enable-ntp-auth {
+          type boolean;
+        }
+        leaf-list trusted-key {
+          type uint32;
+        }
+        leaf ni-name {
+          type string;
+        }
+      }
+
+      container test-ntp-keys {
+        list test-ntp-key {
+          key "key-id";
+          leaf key-id {
+            type leafref {
+              path "../config/key-id";
+            }
+          }
+          container config {
+            leaf key-id {
+              type uint32;
+            }
+            leaf key-type {
+              type identityref {
+                base TEST_NTP_AUTH_TYPE;
+              }
+            }
+            leaf key-value {
+              type string;
+            }
+          }
+          container state {
+            config false;
+            leaf key-id {
+              type uint32;
+            }
+            leaf key-type {
+              type identityref {
+                base TEST_NTP_AUTH_TYPE;
+              }
+            }
+            leaf key-value {
+              type string;
+            }
+          }
+        }
+      }
+      container test-ntp-server {
+        list test-ntp-server {
+          key "server-id";
+          leaf server-id {
+            type leafref {
+              path "../config/server-id";
+            }
+          }
+          container config {
+            leaf server-id {
+              type uint32;
+            }
+            leaf key-id {
+              type uint32;
+            }
+            leaf min-poll {
+              type uint8;
+            }
+          }
+          container state {
+            config false;
+            leaf server-id {
+              type uint32;
+            }
+            leaf key-id {
+              type uint32;
+            }
+            leaf min-poll {
+              type uint8;
+            }
+          }
+        }
+      }
+    }
+  }
   ///////////////////
 
   // data definition statements
@@ -667,6 +1027,8 @@ module openconfig-test-xfmr {
     uses test-set-top;
     uses interfaces-top;
     uses test-global-sensor-config;
+    uses test-ni-instance-data;
+    uses test-ntp-data;
   }
   // augment statements
 

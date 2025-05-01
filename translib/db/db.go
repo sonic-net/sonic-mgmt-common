@@ -333,6 +333,10 @@ func (d *DB) IsDirtified() bool {
 	return (len(d.txCmds) > 0)
 }
 
+func GetDBInstName(dbNo DBNum) string {
+	return getDBInstName(dbNo)
+}
+
 func getDBInstName(dbNo DBNum) string {
 	switch dbNo {
 	case ApplDB:
