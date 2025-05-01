@@ -9,3 +9,6 @@ SONICYANG_IMPORTS += sonic-sflow.yang
 SONICYANG_IMPORTS += sonic-interface.yang
 SONICYANG_IMPORTS += sonic-port.yang
 SONICYANG_IMPORTS += sonic-portchannel.yang
+SONICYANG_IMPORTS += sonic-mclag.yang
+SONICYANG_IMPORTS += sonic-types.yang
+SONICYANG_IMPORTS += sonic-vrf.yang
