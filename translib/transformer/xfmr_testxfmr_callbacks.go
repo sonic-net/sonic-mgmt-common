@@ -833,27 +833,6 @@ func light_sensor_validate(inParams XfmrParams) bool {
 	return traversal_valid
 }
 
-/*
-var YangToDb_test_ntp_authentication_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
-	log.Info("YangToDb_test_ntp_authentication_key_xfmr", inParams.uri)
-	pathInfo := NewPathInfo(inParams.uri)
-	auth_key := pathInfo.Var("key-id")
-	return auth_key, nil
-
-}
-
-var DbToYang_test_ntp_authentication_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
-	log.Info("DbToYang_test_ntp_authentication_key_xfmr", inParams.uri)
-	var rmap map[string]interface{}
-	if inParams.key != "" {
-		rmap := make(map[string]interface{})
-		rmap["key-id"] = inParams.key
-	}
-	log.Info("DbToYang_test_ntp_authentication_key_xfmr returning ", rmap)
-	return rmap, nil
-}
-*/
-
 var YangToDb_test_ni_instance_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
 	var db_ni_name string
 	var err error

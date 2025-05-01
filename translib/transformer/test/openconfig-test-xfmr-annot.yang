@@ -206,7 +206,6 @@ module openconfig-test-xfmr-annot {
     deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ntp/oc-test-xfmr:test-ntp-keys/oc-test-xfmr:test-ntp-key {
       deviate add {
             sonic-ext:table-name "TEST_NTP_AUTHENTICATION_KEY";
-            //sonic-ext:key-transformer "test_ntp_authentication_key_xfmr";
       }
     }
 
