@@ -145,7 +145,6 @@ func Test_openconfig_loopback_interfaces(t *testing.T) {
 	t.Run("Test GET on interface config", processGetRequest(url, nil, expected_get_json, true, expected_err_invalid))
 	time.Sleep(1 * time.Second)
 
-
 	cleanuptbl := map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet0": ""}}
 	unloadDB(db.ApplDB, cleanuptbl)
 
