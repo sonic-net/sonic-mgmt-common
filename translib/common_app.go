@@ -911,7 +911,7 @@ func deleteFields(existingEntry db.Value, d *db.DB, cmnAppTs *db.TableSpec, tblK
 			}
 			if deleteCount == len(existingEntry.Field) {
 				nullTblRw := db.Value{Field: map[string]string{"NULL": "NULL"}}
-				log.Info("Last field gets deleted, add NULL field to keep an db entry")
+				log.V(4).Infof("All existing fields(%v) getting deleted, add NULL field to keep the db entry/instance(%v)", existingEntry.Field, tblNm + "|" + tblKey)
 				err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, nullTblRw)
 				if err != nil {
 					log.Warning("UPDATE case - d.ModEntry() failure")
