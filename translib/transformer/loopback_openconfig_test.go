@@ -285,7 +285,7 @@ func Test_openconfig_loopback_ipv6_ipv4_addresses(t *testing.T) {
 
 	t.Log("\n\n--- Verify Loopback Creation ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Loopback14]/config"
-	expected_get_json := "{\"openconfig-interfaces:config\": {\"name\": \"Loopback14\", \"type\": \"iana-if-type:softwareLoopback\", \"enabled\": true}}"
+	expected_get_json := "{\"openconfig-interfaces:config\": {\"name\": \"Loopback14\", \"enabled\": true}}"
 	t.Run("Test GET Loopback interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -297,7 +297,7 @@ func Test_openconfig_loopback_ipv6_ipv4_addresses(t *testing.T) {
 
 	t.Log("\n\n--- Verify Loopback Creation ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Loopback15]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"name\": \"Loopback15\", \"type\": \"iana-if-type:softwareLoopback\", \"enabled\": true}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"name\": \"Loopback15\", \"enabled\": true}}"
 	t.Run("Test GET Loopback interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -309,7 +309,7 @@ func Test_openconfig_loopback_ipv6_ipv4_addresses(t *testing.T) {
 
 	t.Log("\n\n--- Verify Loopback Creation ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Loopback21]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"name\": \"Loopback21\", \"type\": \"iana-if-type:softwareLoopback\", \"enabled\": true}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"name\": \"Loopback21\", \"enabled\": true}}"
 	t.Run("Test GET Loopback interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
