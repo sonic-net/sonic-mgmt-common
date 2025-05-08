@@ -5,6 +5,11 @@
 # or glob patterns of basenames (like sonic-telemetry*.yang) can be specified.
 # Other sonic yangs referred by these will also be copied.
 #
+
+ifneq ($(SONIC_YANG_IMPORTS),)
+SONICYANG_IMPORTS = $(shell echo $(SONIC_YANG_IMPORTS))
+endif
+
 SONICYANG_IMPORTS += sonic-sflow.yang
 SONICYANG_IMPORTS += sonic-interface.yang
 SONICYANG_IMPORTS += sonic-port.yang

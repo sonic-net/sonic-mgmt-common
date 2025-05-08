@@ -1,0 +1,56 @@
+TOPDIR := $(abspath .)
+
+.PHONY: test
+
+LIBYANG_VER ?= 1.0.73
+LIBYANG_DEBS := libyang_$(LIBYANG_VER)_amd64.deb \
+	libyang-dev_$(LIBYANG_VER)_amd64.deb \
+	libyang-dbgsym_$(LIBYANG_VER)_amd64.deb \
+	libyang-cpp_$(LIBYANG_VER)_amd64.deb
+
+YANG_MODELS := sonic_yang_models-1.0-py3-none-any.whl
+
+SONIC_WS ?= $(TOPDIR)/../..
+SONIC_TARGET_DEBS ?= $(SONIC_WS)/target/debs/bookworm/
+SONIC_TARGET_WHL ?= $(SONIC_WS)/target/python-wheels/bookworm/
+
+CONTAINER_IMG = sonic-mgmt-common-test:$(USER)
+
+DOCKER_RUN := docker run -it -v $(TOPDIR):$(TOPDIR):rw -v $(SONIC_WS):$(SONIC_WS):rw \
+	-e no_proxy=$(no_proxy) \
+	-e http_proxy=$(http_proxy) \
+	-e https_proxy=$(https_proxy) \
+	-e ftp_proxy=$(ftp_proxy) \
+	$(CONTAINER_IMG)
+
+test: container
+	$(DOCKER_RUN) bash -c "cd $(TOPDIR) && ./run_test.sh && exit 0"
+
+dev: container
+	$(DOCKER_RUN) bash
+
+container: $(addprefix test/bookworm/, $(LIBYANG_DEBS)) \
+	test/bookworm/$(YANG_MODELS)
+	docker build --build-arg no_proxy=$(no_proxy) \
+		--build-arg http_proxy=$(http_proxy) \
+		--build-arg https_proxy=$(https_proxy) \
+		--build-arg ftp_proxy=$(ftp_proxy) \
+		-t $(CONTAINER_IMG) \
+		test/bookworm
+	docker inspect $(CONTAINER_IMG) > $@
+
+test/bookworm/libyang%$(LIBYANG_VER)_amd64.deb: $(SONIC_TARGET_DEBS)/libyang%$(LIBYANG_VER)_amd64.deb
+	cp $< $(@D)
+
+test/bookworm/$(YANG_MODELS): $(SONIC_TARGET_WHL)/$(YANG_MODELS)
+	cp $< $(@D)
+
+clean: 
+	rm -f container
+	rm -f test/bookworm/libyang*.deb
+	rm -f test/bookworm/$(YANG_MODELS)
+	
+	for id in $(shell docker ps -a -q --filter ancestor=$(CONTAINER_IMG) --format="{{.ID}}"); do \
+		docker rm $$id; \
+	done	
+	docker image rm $(CONTAINER_IMG)
