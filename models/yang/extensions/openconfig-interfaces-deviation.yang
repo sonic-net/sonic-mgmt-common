@@ -15,6 +15,11 @@ module openconfig-interfaces-deviation {
   import openconfig-if-ethernet {prefix oc-eth; }
   import openconfig-if-aggregate {prefix oc-lag; }
   import openconfig-if-tunnel {prefix oc-tun; }
+  import openconfig-if-rates {prefix oc-if-rates; }
+  import openconfig-if-8021x {prefix oc-1x; }
+  import openconfig-if-poe {prefix oc-poe; }
+  import openconfig-if-sdn-ext {prefix oc-if-sdn; }
+  import openconfig-if-ip-ext {prefix oc-ip-ext; }
 
   organization
     "SONiC";
@@ -45,6 +50,10 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }   
 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-if-sdn:forwarding-viable {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:loopback-mode {
     deviate not-supported;
   }    
@@ -69,9 +78,21 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }   
 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:management {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:cpu {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-vlan:tpid {
     deviate not-supported;
   }   
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-if-sdn:forwarding-viable {
+    deviate not-supported;
+  }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters/oc-intf:in-unknown-protos {
     deviate not-supported;
@@ -89,9 +110,37 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters/oc-intf:resets {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters/oc-intf:interface-transitions {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters/oc-intf:link-transitions {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:hold-time {
     deviate not-supported;
   }   
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:config/oc-intf:description {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:config/oc-intf:enabled {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:description {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:enabled {
+    deviate not-supported;
+  }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:ifindex {
     deviate not-supported;
@@ -117,6 +166,14 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:management {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:cpu {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-intf:state/oc-intf:counters {
     deviate not-supported;
   }
@@ -125,6 +182,14 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
   
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:config/oc-ip:type {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:state/oc-ip:type {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:state/oc-ip:origin {
     deviate not-supported;
   }
@@ -153,6 +218,14 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
  
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:config/oc-ip:type {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:state/oc-ip:type {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:state/oc-ip:origin {
     deviate not-supported;
   }
@@ -173,6 +246,10 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
  
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip-ext:autoconf {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:unnumbered {
     deviate not-supported;
   }
@@ -195,6 +272,10 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
  
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:learn-unsolicited {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:mtu {
     deviate not-supported;
   }
@@ -207,6 +288,10 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
   
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:learn-unsolicited {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:counters {
     deviate not-supported;
   }
@@ -220,6 +305,14 @@ module openconfig-interfaces-deviation {
   }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:config/oc-eth:enable-flow-control {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:config/oc-eth:standalone-link-training {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:config/oc-eth:fec-mode {
     deviate not-supported;
   }
 
@@ -247,28 +340,28 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:standalone-link-training {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:fec-mode {
+    deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-vlan:switched-vlan {
     deviate not-supported;
   }
-  
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan {
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-1x:dot1x {
     deviate not-supported;
   }
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:lag-type {
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-1x:authenticated-sessions {
     deviate not-supported;
   }
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-type {
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-poe:poe {
     deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-speed {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:member {
-        deviate not-supported;
   }
   
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-mac-control-frames {
@@ -303,11 +396,71 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-carrier-errors {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-interrupted-tx {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-late-collision {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-mac-errors-rx {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-single-collision {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-symbol-error {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-maxsize-exceeded {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:out-mac-errors-tx {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:lag-type {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-type {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-speed {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:member {
+        deviate not-supported;
+  }
+
   deviation /oc-intf:interfaces/oc-intf:interface/oc-tun:tunnel {
     deviate not-supported;
   }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-if-rates:rates {
+    deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:penalty-based-aied {
     deviate not-supported;
   }
  
