@@ -56,6 +56,7 @@ type XfmrParams struct {
 	pruneDone            *bool
 	invokeCRUSubtreeOnce *bool
 	ctxt                 context.Context
+	isNotTblOwner        *bool
 }
 
 // SubscProcType represents subcription process type identifying the type of subscription request made from translib.
@@ -197,8 +198,8 @@ type RpcCallpoint func(body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error)
 // PostXfmrFunc type is defined to use for handling any default handling operations required as part of the CREATE
 // Transformer function definition.
 // Param: XfmrParams structure having database pointers, current db, operation, DB data in multidimensional map, YgotRoot, uri
-// Return: Multi dimensional map to hold the DB data Map (tblName, key and Fields), error
-type PostXfmrFunc func(inParams XfmrParams) (map[string]map[string]db.Value, error)
+// Return: error
+type PostXfmrFunc func(inParams XfmrParams) error
 
 // TableXfmrFunc type is defined to use for table transformer function for dynamic derviation of redis table.
 // Param: XfmrParams structure having database pointers, current db, operation, DB data in multidimensional map, YgotRoot, uri
