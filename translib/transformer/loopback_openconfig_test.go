@@ -499,4 +499,3 @@ func Test_openconfig_loopback_ipv6_ipv4_addresses(t *testing.T) {
 	t.Run("Test GET on deleted Loopback interface", processGetRequest(url, nil, expected_get_json, true, expected_err))
 	time.Sleep(1 * time.Second)
 }
-
