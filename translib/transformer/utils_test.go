@@ -68,6 +68,10 @@ func processGetRequest(url string, qparams *queryParamsUT, expectedRespJson stri
 				checkErr(t, err, expErr[0])
 			}
 			return
+		} else if errorCase {
+			// Testcase expected an error, but no error recvd
+			t.Fatalf("Error expected but no error received for Url: %s", url)
+			return
 		}
 
 		err = json.Unmarshal([]byte(expectedRespJson), &expectedMap)
@@ -109,6 +113,10 @@ func processGetRequestWithFile(url string, expectedJsonFile string, errorCase bo
 				checkErr(t, err, expErr[0])
 			}
 			return
+		} else if errorCase {
+			// Testcase expected an error, but no error recvd
+			t.Fatalf("Error expected but no error received for Url: %s", url)
+			return
 		}
 
 		respJson := response.Payload
@@ -142,6 +150,9 @@ func processSetRequest(url string, jsonPayload string, oper string, errorCase bo
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
+		} else if errorCase {
+			// Testcase expected an error, but no error recvd
+			t.Fatalf("Error expected but no error received for Url: %s", url)
 		}
 	}
 }
@@ -168,6 +179,9 @@ func processSetRequestFromFile(url string, jsonFile string, oper string, errorCa
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
+		} else if errorCase {
+			// Testcase expected an error, but no error recvd
+			t.Fatalf("Error expected but no error received for Url: %s", url)
 		}
 	}
 }
@@ -181,6 +195,9 @@ func processDeleteRequest(url string, errorCase bool, expErr ...error) func(*tes
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
+		} else if errorCase {
+			// Testcase expected an error, but no error recvd
+			t.Fatalf("Error expected but no error received for Url: %s", url)
 		}
 	}
 }
@@ -201,6 +218,9 @@ func processActionRequest(url string, jsonPayload string, oper string, user stri
 			} else if expErr != nil {
 				checkErr(t, err, expErr[0])
 			}
+		} else if errorCase {
+			// Testcase expected an error, but no error recvd
+			t.Fatalf("Error expected but no error received for Url: %s", url)
 		}
 	}
 }
