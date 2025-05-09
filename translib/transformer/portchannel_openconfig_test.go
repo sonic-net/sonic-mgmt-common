@@ -97,7 +97,7 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	t.Log("\n\n--- Verify the added PortChannel Member ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id"
-	expected_get_json = "{\"aggregate-id\": \"PortChannel111\"}"
+	expected_get_json = "{\"openconfig-if-aggregate:aggregate-id\": \"PortChannel111\"}"
 	t.Run("Test GET on portchannel agg-id", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -173,7 +173,7 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	t.Log("\n\n--- Verify PATCH PortChannel config ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config"
-	expected_get_json = "{\"config\": {\"min-links\": 3}}"
+	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"min-links\": 3}}"
 	t.Run("Test GET on portchannel config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -184,7 +184,7 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	t.Log("\n\n--- Verify DELETE PortChannel min-links ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config"
-	expected_get_json = "{\"config\": {\"min-links\": 1}}"
+	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"min-links\": 1}}"
 	t.Run("Test GET on portchannel min-links after DELETE", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
