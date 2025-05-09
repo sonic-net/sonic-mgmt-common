@@ -260,9 +260,9 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 			}
 		}
 		if ifType == IntfTypePortChannel {
-			if (inParams.oper == UPDATE) || (inParams.oper == REPLACE) {
+			if inParams.oper == UPDATE {
 				err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypePortChannel].cfgDb.portTN, *ifName)
-				if err != nil { //No Matching PortChannel to UPDATE/REPLACE
+				if err != nil { //No Matching PortChannel to UPDATE
 					errStr := "PortChannel: " + *ifName + " does not exist"
 					return tlerr.InvalidArgsError{Format: errStr}
 				}

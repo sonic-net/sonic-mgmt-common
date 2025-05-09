@@ -44,6 +44,18 @@ func Test_openconfig_portchannel(t *testing.T) {
 	t.Run("Test GET PortChannel interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
+	t.Log("\n\n--- PUT to Replace/Create PortChannel 123 ---")
+	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel123]"
+	url_input_body_json = "{\"openconfig-interfaces:interface\": [{\"name\": \"PortChannel123\", \"config\": {\"name\": \"PortChannel123\", \"mtu\": 9200, \"description\": \"put_pc_updated\", \"enabled\": true}}]}"
+	t.Run("Test PUT PortChannel123", processSetRequest(url, url_input_body_json, "PUT", false, nil))
+	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n--- Verify PortChannel Replacement/Creation ---")
+	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel123]/config"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"description\": \"put_pc_updated\", \"enabled\": true, \"mtu\": 9200, \"name\": \"PortChannel123\"}}"
+	t.Run("Test GET PortChannel interface after PUT", processGetRequest(url, nil, expected_get_json, false))
+	time.Sleep(1 * time.Second)
+
 	t.Log("\n\n--- Initialize PortChannel Member ---")
 	t.Log("\n\n--- DELETE interface IP Addr ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv4/addresses"
