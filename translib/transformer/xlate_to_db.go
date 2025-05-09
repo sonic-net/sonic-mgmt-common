@@ -352,13 +352,22 @@ func dbMapDataFill(uri string, tableName string, keyName string, d map[string]in
 
 func dbMapDataFillForNestedList(tableName string, key string, nestedListDbEntry *yang.Entry, jsonData interface{}, result map[string]map[string]db.Value) {
 	/*function to process CRU request for nested/child list of list under table level container in sonic yang.*/
-	nestedListData := reflect.ValueOf(jsonData) //nested list slice/array containing its instances
+
 	/*As per current sonic yang structure in community nested list has only one key leaf that
 	  corresponds to dynamic field-name case.
 	*/
 	nestedListYangKeyName := strings.Split(nestedListDbEntry.Key, " ")[0]
-	for idx := 0; idx < nestedListData.Len(); idx++ {
-		nestedListInstance := nestedListData.Index(idx).Interface().(map[string]interface{}) //child/nested list instance
+	nestedListData, ok := jsonData.([]interface{}) //nested list slice/array containing its instances
+	if !ok {
+		log.Warningf("Invalid nested list data.")
+		return
+	}
+	for _, instance := range nestedListData {
+		nestedListInstance, ok := instance.(map[string]interface{}) //child/nested list instance
+		if !ok {
+			xfmrLogInfo("Invalid nested list instance type")
+			continue
+		}
 		fieldXpath := tableName + "/" + nestedListYangKeyName
 		fieldDbEntry := nestedListDbEntry.Dir[nestedListYangKeyName]
 		fieldName, err := unmarshalJsonToDbData(fieldDbEntry, fieldXpath, nestedListYangKeyName, nestedListInstance[nestedListYangKeyName])
@@ -736,7 +745,7 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 				if ok {
 					dbSpecField := tableName + "/" + fldNm
 					dbSpecInfo, dbFldok := xDbSpecMap[dbSpecField]
-					if dbFldok {
+					if dbFldok && dbSpecInfo != nil {
 						if dbSpecInfo.yangType == YANG_LEAF {
 							resultMap[UPDATE] = make(RedisDbMap)
 							resultMap[UPDATE][db.ConfigDB] = result
@@ -746,7 +755,7 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 						} else {
 							log.Warningf("For URI - %v, unrecognized terminal YANG node type", uri)
 						}
-					} else if !dbFldok {
+					} else if !dbFldok { //check for nested list case
 						nestedChildName := fldNm
 						dbSpecPath := tableName + "/" + fldPth[SONIC_TBL_CHILD_INDEX] + "/" + nestedChildName
 						dbSpecNestedChildInfo, ok := xDbSpecMap[dbSpecPath]
@@ -765,7 +774,8 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 						} else {
 							log.Warningf("For URI - %v, no entry found in xDbSpecMap for table(%v)/field(%v)", uri, tableName, fldNm)
 						}
-
+					} else {
+						log.Warningf("For URI - %v, no data found in xDbSpecMap for path - %v", uri, dbSpecField)
 					}
 				} else {
 					log.Warningf("For URI - %v, no entry found in xDbSpecMap with tableName - %v", uri, tableName)
@@ -838,7 +848,7 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 					var dbs [db.MaxDB]*db.DB
 					inParams := formXfmrInputRequest(d, dbs, db.ConfigDB, ygRoot, uri, requestUri, oper, "", &dbDataMap, subOpDataMap, nil, txCache)
 					inParams.yangDefValMap = yangDefValMap
-					result, err = postXfmrHandlerFunc(xfmrPost, inParams)
+					err = postXfmrHandlerFunc(xfmrPost, inParams)
 					if err != nil {
 						return err
 					}
@@ -1161,7 +1171,6 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 
 func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri string, dbData RedisDbMap) (bool, error) {
 	var err error
-	var tableEntryFields db.Value
 
 	xpath, dbKey, table := sonicXpathKeyExtract(uri)
 	xfmrLogDebug("uri: %v xpath: %v table: %v, key: %v", uri, xpath, table, dbKey)
@@ -1188,7 +1197,7 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 			tableExists = dbTableExistsInDbData(cdb, table, dbKey, dbData)
 		} else {
 			// Valid table mapping exists. Read the table entry from DB
-			tableExists, derr, tableEntryFields = dbTableExists(d, table, dbKey, oper)
+			tableExists, derr = dbTableExists(d, table, dbKey, oper)
 			if hasSingletonContainer && oper == DELETE {
 				// Special case when we delete at container that does'nt exist. Return true to skip translation.
 				if !tableExists {
@@ -1216,8 +1225,8 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 		} else {
 			/*For CRUD operations on a nested list-intance or nested-list[intance]/leaf query
 			  check if nested-list instance exists in DB. For GET operation the resource check for
-			  nested list instance will be checked before populating data tinto yang from dbData,
-			  to optimize processing since dbdata will be referenced there anyways using nested list
+			  nested list instance will be done before populating data into yang from DBdata to
+			  optimize processing, since DBdata will be referenced there anyways using nested list
 			  instance key-value */
 			if len(pathList) > SONIC_TBL_CHILD_INDEX && oper != GET {
 				//extract nested-list name from pathList
@@ -1225,14 +1234,7 @@ func verifyParentTableSonic(d *db.DB, dbs [db.MaxDB]*db.DB, oper Operation, uri 
 				dbSpecField := table + "/" + pathElement
 				_, ok := xDbSpecMap[dbSpecField]
 				if !ok && pathElement != "" {
-					var nestedListErr error
-					dbData := map[string]map[string]db.Value{
-						table: {
-							dbKey: tableEntryFields,
-						},
-					}
-					nestedListErr = sonicNestedListRequestResourceCheck(uri, table, dbKey, pathList[SONIC_TBL_CHILD_INDEX-1], pathElement, dbData, oper)
-					if nestedListErr != nil {
+					if nestedListErr := sonicNestedListRequestResourceCheck(uri, table, dbKey, pathList[SONIC_TBL_CHILD_INDEX-1], pathElement, d, oper); nestedListErr != nil {
 						return false, nestedListErr
 					}
 				}
@@ -1307,7 +1309,7 @@ func verifyParentTblSubtree(dbs [db.MaxDB]*db.DB, uri string, xfmrFuncNm string,
 							parentTblExists = false
 							goto Exit
 						}
-						exists, err, _ = dbTableExists(dptr, table, dbKey, oper)
+						exists, err = dbTableExists(dptr, table, dbKey, oper)
 					} else {
 						d := dbs[dbNo]
 						if dbKey == "*" { //dbKey is "*" for GET on entire list
@@ -1320,7 +1322,7 @@ func verifyParentTblSubtree(dbs [db.MaxDB]*db.DB, uri string, xfmrFuncNm string,
 							xfmrLogDebug("Found table instance in dbData")
 							goto Exit
 						}
-						exists, err, _ = dbTableExists(d, table, dbKey, oper)
+						exists, err = dbTableExists(d, table, dbKey, oper)
 					}
 					if !exists || err != nil {
 						log.Warningf("Parent Tbl :%v, dbKey: %v does not exist for URI %v", table, dbKey, uri)
@@ -1346,6 +1348,7 @@ Exit:
 func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, dbData RedisDbMap, txCache interface{}, subOpDataMap map[Operation]*RedisDbMap, dbTblKeyCache map[string]tblKeyCache) (bool, error) {
 	var err error
 	var cdb db.DBNum
+	var parentTable string
 	uriList := splitUri(uri)
 	parentTblExists := true
 	curUri := "/"
@@ -1442,7 +1445,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 					}
 					// Read the table entry from DB
 					if !existsInDbData {
-						exists, derr, _ := dbTableExists(d, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
+						exists, derr := dbTableExists(d, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
 						if derr != nil {
 							return false, derr
 						}
@@ -1453,6 +1456,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 							break
 						}
 					}
+					parentTable = xpathKeyExtRet.tableName
 				} else {
 					// We always expect a valid table and key to be returned. Else we cannot validate parent check
 					parentTblExists = false
@@ -1510,7 +1514,9 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 			}
 			return true, nil
 		}
-
+		if !((strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/"))) { //uri points to entire list
+			return true, nil
+		}
 		d = dbs[xpathInfo.dbIndex]
 		var xpathKeyExtRet xpathTblKeyExtractRet
 		var xerr error
@@ -1526,9 +1532,8 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 		if xpathKeyExtRet.isVirtualTbl {
 			return true, nil
 		}
-		if !((strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/"))) { //uri points to entire list
-			return true, nil
-		} else if len(xpathKeyExtRet.tableName) > 0 && len(xpathKeyExtRet.dbKey) > 0 {
+
+		if len(xpathKeyExtRet.tableName) > 0 && len(xpathKeyExtRet.dbKey) > 0 {
 			// Read the table entry from DB
 			exists := false
 			var derr error
@@ -1538,7 +1543,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 				xfmrLogDebug("db index for xpath - %v is %v", xpath, cdb)
 				exists = dbTableExistsInDbData(cdb, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, dbData)
 				if !exists {
-					exists, derr, _ = dbTableExists(dbs[cdb], xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
+					exists, derr = dbTableExists(dbs[cdb], xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
 					if derr != nil {
 						return false, derr
 					}
@@ -1549,7 +1554,7 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 					}
 				}
 			} else {
-				exists, derr, _ = dbTableExists(d, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
+				exists, derr = dbTableExists(d, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, oper)
 			}
 			if derr != nil {
 				log.Warningf("ParentTable GetEntry failed for table: %v, key: %v err: %v", xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey, derr)
@@ -1566,28 +1571,34 @@ func verifyParentTableOc(d *db.DB, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct, 
 			log.Warningf("Parent table check: Unable to get valid table and key err: %v, table %v, key %v. Please verify table and key mapping", xerr, xpathKeyExtRet.tableName, xpathKeyExtRet.dbKey)
 			return false, xerr
 		}
-	} else if yangType == YANG_CONTAINER && oper == DELETE && ((xpathInfo.keyName != nil && len(*xpathInfo.keyName) > 0) || len(xpathInfo.xfmrKey) > 0) {
-		// If the delete is at container level and the container is mapped to a unique table, then check for table existence to avoid CVL throwing error
-		parentUri := ""
-		if len(parentUriList) > 0 {
-			parentUri = strings.Join(parentUriList, "/")
-			parentUri = "/" + parentUri
+	} else if oper == DELETE && (len(xpathInfo.xfmrFunc) == 0) && ((yangType == YANG_LEAF && len(xpathInfo.defVal) > 0) || (yangType == YANG_CONTAINER && ((xpathInfo.keyName != nil && len(*xpathInfo.keyName) > 0) || len(xpathInfo.xfmrKey) > 0))) {
+		// If the delete is at container/leaf(having default value) that is mapped to a unique table, then check for table existence to avoid CVL throwing error or reset default value at the leaf when table does not exist.
+
+		// Check for virtual table case at curUri
+		if xpathInfo.virtualTbl != nil && *xpathInfo.virtualTbl {
+			xfmrLogDebug("virtual table case for uri - %v", uri)
+			return true, nil
 		}
-		// Get table for parent xpath
-		parentTable, perr := dbTableFromUriGet(d, ygRoot, oper, parentUri, uri, nil, txCache, nil)
+		var perr error
+		if yangType == YANG_CONTAINER {
+			parentUri := ""
+			if len(parentUriList) > 0 {
+				parentUri = strings.Join(parentUriList, "/")
+				parentUri = "/" + parentUri
+			}
+			// Get table for parent xpath
+			parentTable, perr = dbTableFromUriGet(d, ygRoot, oper, parentUri, uri, nil, txCache, nil)
+		}
 		// Get table for current xpath
-		var xpathKeyExtRet xpathTblKeyExtractRet
-		var cerr error
-		if oper == GET {
-			xpathKeyExtRet, cerr = xpathKeyExtractForGet(d, ygRoot, oper, uri, uri, nil, subOpDataMap, txCache, dbTblKeyCache, dbs)
-		} else {
-			xpathKeyExtRet, cerr = xpathKeyExtract(d, ygRoot, oper, uri, uri, nil, subOpDataMap, txCache, nil, dbs)
+		xpathKeyExtRet, cerr := xpathKeyExtract(d, ygRoot, oper, uri, uri, nil, subOpDataMap, txCache, nil, dbs)
+		if xpathKeyExtRet.isVirtualTbl {
+			return true, nil
 		}
 		curKey := xpathKeyExtRet.dbKey
 		curTable := xpathKeyExtRet.tableName
 		if len(curTable) > 0 {
 			if perr == nil && cerr == nil && (curTable != parentTable) && len(curKey) > 0 {
-				exists, derr, _ := dbTableExists(d, curTable, curKey, oper)
+				exists, derr := dbTableExists(d, curTable, curKey, oper)
 				if !exists {
 					return true, derr
 				} else {

@@ -65,7 +65,6 @@ type yangXpathInfo struct {
 	hasChildSubTree    bool
 	hasNonTerminalNode bool
 	subscribeMinIntvl  int
-	cascadeDel         int8
 	virtualTbl         *bool
 	nameWithMod        *string
 	operationalQP      bool
@@ -121,6 +120,7 @@ type mdlInfo struct {
 	Ver string
 }
 
+var dbConfigMap = make(map[string]interface{})
 var xYangSpecMap map[string]*yangXpathInfo
 var xDbSpecMap map[string]*dbInfo
 var xYangModSpecMap map[string]*moduleAnnotInfo
@@ -134,6 +134,7 @@ var sonicLeafRefMap map[string][]string
 func init() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGUSR2)
+	dbConfigMap = db.GetDbConfigMap()
 
 	go func() {
 		for {
@@ -275,7 +276,6 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 			curXpathData.subscriptionFlags.Set(subsOnChangeEnable)
 		}
 		curXpathData.subscribeMinIntvl = xYangSpecMap[xpathPrefix].subscribeMinIntvl
-		curXpathData.cascadeDel = xYangSpecMap[xpathPrefix].cascadeDel
 		xpath = xpathPrefix
 	} else {
 		if entry == nil {
@@ -312,7 +312,6 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 			xYangSpecMap[xpath] = xpathData
 			xpathData.dbIndex = db.ConfigDB // default value
 			xpathData.subscribeMinIntvl = XFMR_INVALID
-			xpathData.cascadeDel = XFMR_INVALID
 		} else {
 			if len(xpathData.xfmrFunc) > 0 {
 				childSubTreePresenceFlagSet(xpath)
@@ -327,6 +326,14 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 		if ok && parentXpathData == nil {
 			ok = false
 		}
+		/* Inherit the tableOwner status from the parent until a new table annotation is encountered at the current node */
+		if xpathData.tblOwner == nil && ok && parentXpathData.tblOwner != nil {
+			if xpathData.xfmrTbl == nil && xpathData.tableName == nil {
+				xpathData.tblOwner = new(bool)
+				*xpathData.tblOwner = *parentXpathData.tblOwner
+			}
+		}
+
 		/* init current xpath table data with its parent data, change only if needed. */
 		if ok && xpathData.tableName == nil {
 			if xpathData.tableName == nil && parentXpathData.tableName != nil && xpathData.xfmrTbl == nil {
@@ -344,7 +351,7 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 			xpathData.dbIndex = parentXpathData.dbIndex
 		}
 
-		if ok && len(parentXpathData.validateFunc) > 0 {
+		if ok && (len(xpathData.validateFunc) == 0) && (len(parentXpathData.validateFunc) > 0) {
 			xpathData.validateFunc = parentXpathData.validateFunc
 		}
 
@@ -374,16 +381,6 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 
 			if !xpathData.subscriptionFlags.Has(subsPrefSample) && parentXpathData.subscriptionFlags.Has(subsPrefSample) {
 				xpathData.subscriptionFlags.Set(subsPrefSample)
-			}
-
-			if parentXpathData.cascadeDel == XFMR_INVALID {
-				/* should not hit this case */
-				log.Warningf("Cascade-delete flag is set to invalid for(%v) \r\n", xpathPrefix)
-				return
-			}
-
-			if xpathData.cascadeDel == XFMR_INVALID && xpathData.dbIndex == db.ConfigDB {
-				xpathData.cascadeDel = parentXpathData.cascadeDel
 			}
 
 			if entry.Prefix.Name != parentXpathData.yangEntry.Prefix.Name {
@@ -501,11 +498,6 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 				log.Infof("subscribe OnChange is disabled so setting subscribe preference to default/sample from onchange for xpath - %v", xpath)
 			}
 			xpathData.subscriptionFlags.Set(subsPrefSample)
-		}
-
-		if xpathData.cascadeDel == XFMR_INVALID {
-			/* set to  default value */
-			xpathData.cascadeDel = XFMR_DISABLE
 		}
 
 		if updateChoiceCaseXpath {
@@ -890,7 +882,8 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 
 	xpathData.dbIndex = db.ConfigDB // default value
 	xpathData.subscribeMinIntvl = XFMR_INVALID
-	xpathData.cascadeDel = XFMR_INVALID
+	tableOwnerAnnotated := false
+	isTableOwner := true
 	/* fill table with yang extension data. */
 	if entry != nil && len(entry.Exts) > 0 {
 		for _, ext := range entry.Exts {
@@ -943,7 +936,7 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 					xYangModSpecMap[xpath] = modInfo
 				}
 				xYangModSpecMap[xpath].xfmrPre = ext.NName()
-			case "get-validate":
+			case "validate-xfmr":
 				xpathData.validateFunc = ext.NName()
 			case "rpc-callback":
 				xYangRpcSpecMap[xpath] = ext.NName()
@@ -955,12 +948,9 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 			case "db-name":
 				xpathData.dbIndex = db.GetdbNameToIndex(ext.NName())
 			case "table-owner":
-				if xpathData.tblOwner == nil {
-					xpathData.tblOwner = new(bool)
-					*xpathData.tblOwner = true
-				}
+				tableOwnerAnnotated = true
 				if strings.EqualFold(ext.NName(), "False") {
-					*xpathData.tblOwner = false
+					isTableOwner = false
 				}
 			case "subscribe-preference":
 				if ext.NName() == "sample" {
@@ -985,12 +975,6 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 					}
 					xpathData.subscribeMinIntvl = minIntvl
 				}
-			case "cascade-delete":
-				if ext.NName() == "ENABLE" || ext.NName() == "enable" {
-					xpathData.cascadeDel = XFMR_ENABLE
-				} else {
-					xpathData.cascadeDel = XFMR_DISABLE
-				}
 			case "virtual-table":
 				if xpathData.virtualTbl == nil {
 					xpathData.virtualTbl = new(bool)
@@ -1014,6 +998,17 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 					xpathData.isDataSrcDynamic = new(bool)
 					*xpathData.isDataSrcDynamic = true
 				}
+			}
+		}
+		/* table owner annotation is valid only when it is annotated with a table-name/table-transformer annotation at the node */
+		if tableOwnerAnnotated {
+			if xpathData.tableName != nil || xpathData.xfmrTbl != nil {
+				if xpathData.tblOwner == nil {
+					xpathData.tblOwner = new(bool)
+				}
+				*xpathData.tblOwner = isTableOwner
+			} else {
+				log.Warningf("table-owner annotation is found without table annotation at xpath %v.\r\n", xpath)
 			}
 		}
 	}
@@ -1127,10 +1122,18 @@ func annotDbSpecMapFill(xDbSpecMap map[string]*dbInfo, dbXpath string, entry *ya
 					}
 				}
 			case "cascade-delete":
-				if ext.NName() == "ENABLE" || ext.NName() == "enable" {
-					dbXpathData.cascadeDel = XFMR_ENABLE
-				} else {
-					dbXpathData.cascadeDel = XFMR_DISABLE
+				fieldName := pname[len(pname)-1]
+				fieldXpath := tableName + "/" + fieldName
+				if fldXpathData, ok := xDbSpecMap[fieldXpath]; ok {
+					if fldXpathData.isKey {
+						if ext.NName() == "ENABLE" || ext.NName() == "enable" {
+							dbXpathData.cascadeDel = XFMR_ENABLE
+						} else {
+							dbXpathData.cascadeDel = XFMR_DISABLE
+						}
+					} else {
+						log.Warningf("cascade-delete annotation is supported for sonic key leaf only. Ignoring the incorrect annotation")
+					}
 				}
 			case "key-transformer":
 				listName := pname[SONIC_TBL_CHILD_INDEX]
@@ -1204,7 +1207,6 @@ func mapPrint(fileName string) {
 		if d.nameWithMod != nil {
 			fmt.Fprintf(fp, "    nameWithMod : %v\r\n", *d.nameWithMod)
 		}
-		fmt.Fprintf(fp, "    cascadeDel  : %v\r\n", d.cascadeDel)
 		fmt.Fprintf(fp, "    hasChildSubTree : %v\r\n", d.hasChildSubTree)
 		fmt.Fprintf(fp, "    hasNonTerminalNode : %v\r\n", d.hasNonTerminalNode)
 		fmt.Fprintf(fp, "    subscribeOnChg disbale flag: %v\r\n", d.subscriptionFlags.Has(subsOnChangeDisable))
@@ -1352,7 +1354,7 @@ func sonicYangNestedListValidateElements(tableName string, entry *yang.Entry) er
 	   and the non-key-leaf becomes the value of the dynamic field.If the nested list does not conform
 	   to this structure do not load it and even its parent list.
 	*/
-	if (len(strings.Split(entry.Key, " ")) == 1) && (len(entry.Dir) == 2) {
+	if (len(strings.Fields(entry.Key)) == 1) && (len(entry.Dir) == 2) {
 		return nil
 	}
 

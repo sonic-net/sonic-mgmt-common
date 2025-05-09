@@ -1622,10 +1622,9 @@ var DbToYang_intf_get_ether_counters_xfmr SubTreeXfmrDbToYang = func(inParams Xf
 	return populatePortCounters(inParams, eth_counters)
 }
 
-var intf_post_xfmr PostXfmrFunc = func(inParams XfmrParams) (map[string]map[string]db.Value, error) {
+var intf_post_xfmr PostXfmrFunc = func(inParams XfmrParams) error {
 
 	requestUriPath := (NewPathInfo(inParams.requestUri)).YangPath
-	retDbDataMap := (*inParams.dbDataMap)[inParams.curDb]
 	log.Info("Entering intf_post_xfmr")
 	log.Info(requestUriPath)
 	xpath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
@@ -1636,7 +1635,7 @@ var intf_post_xfmr PostXfmrFunc = func(inParams XfmrParams) (map[string]map[stri
 		/* Preventing delete at IPv6 config level*/
 		if xpath == "/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv6/config" {
 			log.Info("In interface Post transformer for DELETE op ==> URI : ", inParams.requestUri)
-			return retDbDataMap, tlerr.NotSupported(err_str)
+			return tlerr.NotSupported(err_str)
 		}
 
 		/* For delete request and for fields with default value, transformer adds subOp map with update operation (to update with default value).
@@ -1661,7 +1660,7 @@ var intf_post_xfmr PostXfmrFunc = func(inParams XfmrParams) (map[string]map[stri
 			}
 		}
 	}
-	return retDbDataMap, nil
+	return nil
 }
 
 var intf_pre_xfmr PreXfmrFunc = func(inParams XfmrParams) error {

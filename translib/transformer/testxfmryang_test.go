@@ -25,9 +25,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 )
+
+type verifyDbResultData struct {
+	test      string
+	db_key    string
+	db_result map[string]interface{}
+}
 
 func Test_node_exercising_subtree_xfmr_and_virtual_table(t *testing.T) {
 	var pre_req_map, expected_map, cleanuptbl map[string]interface{}
@@ -35,7 +42,7 @@ func Test_node_exercising_subtree_xfmr_and_virtual_table(t *testing.T) {
 
 	t.Log("\n\n+++++++++++++ Performing Set on Yang Node Exercising Subtree-Xfmr and Virtual Table ++++++++++++")
 	url = "/openconfig-test-xfmr:test-xfmr/interfaces"
-	url_body_json = "{ \"openconfig-test-xfmr:interface\": [ { \"id\": \"Eth_0\", \"config\": { \"id\": \"Eth_0\" }, \"ingress-test-sets\": { \"ingress-test-set\": [ { \"set-name\": \"TestSet_01\", \"type\": \"TEST_SET_IPV4\", \"config\": { \"set-name\": \"TestSet_01\", \"type\": \"TEST_SET_IPV4\" } } ] } } ]}"
+	url_body_json = "{\"openconfig-test-xfmr:interface\": [ { \"id\": \"Eth_0\", \"config\": { \"id\": \"Eth_0\" }, \"ingress-test-sets\": { \"ingress-test-set\": [ { \"set-name\": \"TestSet_01\", \"type\": \"TEST_SET_IPV4\", \"config\": { \"set-name\": \"TestSet_01\", \"type\": \"TEST_SET_IPV4\" } } ] } } ]}"
 	expected_map = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_01_TEST_SET_IPV4": map[string]interface{}{"ports@": "Eth_0", "type": "IPV4"}}}
 	cleanuptbl = map[string]interface{}{"TEST_SET_TABLE": map[string]interface{}{"TestSet_01_TEST_SET_IPV4": ""}}
 	t.Run("Test set on node exercising subtree-xfmr and virtual table.", processSetRequest(url, url_body_json, "POST", false, nil))
@@ -140,7 +147,6 @@ func Test_node_exercising_pre_xfmr_node(t *testing.T) {
 	url_body_json := "{ \"openconfig-test-xfmr:test-sets\": { \"test-set\": [ { \"name\": \"TestSet_03\", \"type\": \"TEST_SET_IPV4\", \"config\": { \"name\": \"TestSet_03\", \"type\": \"TEST_SET_IPV4\", \"description\": \"testSet_03 description\" } } ] }}"
 	t.Run("Test set on node exercising pre-xfmr.", processSetRequest(url, url_body_json, "PUT", true, expected_err))
 	t.Log("\n\n+++++++++++++ Done Performing set on node exercising pre-xfmr ++++++++++++")
-
 }
 
 func Test_node_with_child_tableXfmr_keyXfmr_fieldNameXfmrs_nonConfigDB_data(t *testing.T) {
@@ -204,26 +210,169 @@ func Test_node_with_child_tableXfmr_keyXfmr_fieldNameXfmrs_nonConfigDB_data(t *t
 	unloadDB(db.ConfigDB, cleanuptbl)
 }
 
-func Test_delete_on_node_with_default_value(t *testing.T) {
+func Test_node_exercising_tableXfmr_virtual_table_and_validate_handler(t *testing.T) {
+	/* verify if get like traversal happens correctly when deleting a node having table-xfmr, virtual-table and validate handler annotation in child yang hierachy */
+	t.Log("+++++++++++++++++ Test delete in yang hierachy involing table-xfmr, virtual-table and validate handler annotations +++++++++++++++")
+	prereq_ni_instance := map[string]interface{}{"TEST_VRF": map[string]interface{}{"default": map[string]interface{}{"enabled": "true"},
+		"Vrf_01": map[string]interface{}{"enabled": "false"}, "Vrf_02": map[string]interface{}{"enabled": "true"}}}
+	prereq_bgp := map[string]interface{}{"TEST_BGP_NETWORK_CFG": map[string]interface{}{"Vrf_01|22": map[string]interface{}{"backdoor": "true", "policy-name": "abcd"},
+		"Vrf_01|33": map[string]interface{}{"policy-name": "fgh"}, "Vrf_02|55": map[string]interface{}{"backdoor": "false"}}}
+	prereq_ospfv2_router := map[string]interface{}{"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "true", "write-multiplier": "2"},
+		"Vrf_02": map[string]interface{}{"enabled": "true"}}}
+	prereq_ospfv2_router_distribution := map[string]interface{}{"TEST_OSPFV2_ROUTER_DISTRIBUTION": map[string]interface{}{"Vrf_01|66": map[string]interface{}{"priority": "6"},
+		"Vrf_01|98": map[string]interface{}{"table-id": "4"}, "Vrf_02|81": map[string]interface{}{"priority": "9", "table-id": "67"}}}
+	cleanuptbl := map[string]interface{}{"TEST_VRF": map[string]interface{}{"default": "", "Vrf_01": "", "Vrf_02": ""},
+		"TEST_BGP_NETWORK_CFG":            map[string]interface{}{"Vrf_01|22": "", "Vrf_01|33": "", "Vrf_02|55": ""},
+		"TEST_OSPFV2_ROUTER":              map[string]interface{}{"Vrf_01": "", "Vrf_02": ""},
+		"TEST_OSPFV2_ROUTER_DISTRIBUTION": map[string]interface{}{"Vrf_01|66": "", "Vrf_01|98": "", "Vrf_02|81": ""}}
+	//Setup
+	loadDB(db.ConfigDB, prereq_ni_instance)
+	loadDB(db.ConfigDB, prereq_bgp)
+	loadDB(db.ConfigDB, prereq_ospfv2_router)
+	loadDB(db.ConfigDB, prereq_ospfv2_router_distribution)
+	url := "/openconfig-test-xfmr:test-xfmr/test-ni-instances/test-ni-instance[ni-name=vrf-01]/test-protocols"
+	expected_ni_instance_vrf_01 := map[string]interface{}{"TEST_VRF": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "false"}}}
+	expected_ni_instance_default := map[string]interface{}{"TEST_VRF": map[string]interface{}{"default": map[string]interface{}{"enabled": "true"}}}
+	expected_ni_instance_vrf_02 := map[string]interface{}{"TEST_VRF": map[string]interface{}{"Vrf_02": map[string]interface{}{"enabled": "true"}}}
+	expected_bgp := map[string]interface{}{"TEST_BGP_NETWORK_CFG": map[string]interface{}{"Vrf_02|55": map[string]interface{}{"backdoor": "false"}}}
+	expected_ospfv2_router := map[string]interface{}{"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_02": map[string]interface{}{"enabled": "true"}}}
+	expected_ospfv2_router_distribution := map[string]interface{}{"TEST_OSPFV2_ROUTER_DISTRIBUTION": map[string]interface{}{"Vrf_02|81": map[string]interface{}{"priority": "9", "table-id": "67"}}}
+	empty_expected := make(map[string]interface{})
+	t.Run("Delete in yang hierachy involing table-xfmr, virtual-table and validate handler annotations.", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	verifyDbResultList := [11]verifyDbResultData{
+		{test: "Verify ni-instance in request URL(vrf-01) is not deleted from db since URL points to child node.", db_key: "TEST_VRF|Vrf_01", db_result: expected_ni_instance_vrf_01},
+		{test: "Verify default ni-instance not assocaited with ni-instance in request URL is retained in db.", db_key: "TEST_VRF|default", db_result: expected_ni_instance_default},
+		{test: "Verify Vrf_02 ni-instance not assocaited with ni-instance in request URL is retained in db.", db_key: "TEST_VRF|Vrf_02", db_result: expected_ni_instance_vrf_02},
+		{test: "Verify delete of bgp instance(vrf-01|22) assocaited with ni-instance in request URL is deleted from db.", db_key: "TEST_BGP_NETWORK_CFG|Vrf_01|22", db_result: empty_expected},
+		{test: "Verify delete of bgp instance(vrf-01|33) assocaited with ni-instance in request URL is deleted from db.", db_key: "TEST_BGP_NETWORK_CFG|Vrf_01|33", db_result: empty_expected},
+		{test: "Verify bgp instance(vrf-02|55) not assocaited with ni-instance in request URL is retained in db.", db_key: "TEST_BGP_NETWORK_CFG|Vrf_02|55", db_result: expected_bgp},
+		{test: "Verify ospfv2-global/router instance(vrf-01) assocaited with ni-instance in request URL is deleted from db.", db_key: "TEST_OSPFV2_ROUTER|Vrf_01", db_result: empty_expected},
+		{test: "Verify ospfv2-global/router instance(vrf-02) not assocaited with ni-instance in request URL is retained in db.", db_key: "TEST_OSPFV2_ROUTER|Vrf_02",
+			db_result: expected_ospfv2_router},
+		{test: "Verify ospfv2-router-distribution instance(vrf-01|66) assocaited with ni-instance in request URL is deleted from db.", db_key: "TEST_OSPFV2_ROUTER_DISTRIBUTION|Vrf_01|66",
+			db_result: empty_expected},
+		{test: "Verify ospfv2-router-distribution instance(vrf-01|98) assocaited with ni-instance in request URL is deleted from db.", db_key: "TEST_OSPFV2_ROUTER_DISTRIBUTION|Vrf_01|98",
+			db_result: empty_expected},
+		{test: "Verify ospfv2-router-distribution instance(vrf-02|81) not assocaited with ni-instance in request URL is retained in db.", db_key: "TEST_OSPFV2_ROUTER_DISTRIBUTION|Vrf_02|81",
+			db_result: expected_ospfv2_router_distribution},
+	}
+	for _, data := range verifyDbResultList {
+		t.Run(data.test, verifyDbResult(rclient, data.db_key, data.db_result, false))
+	}
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+}
 
+func Test_node_exercising_non_table_owner_annotation(t *testing.T) {
+
+	prereq := map[string]interface{}{"DEVICE_ZONE_METADATA": map[string]interface{}{"local-zonehost": map[string]interface{}{"metric": "32", "hwsku": "testhwsku", "deployment-id": "834"}}}
+	cleanuptbl := map[string]interface{}{"DEVICE_ZONE_METADATA": map[string]interface{}{"local-zonehost": ""}}
+	expected_map := map[string]interface{}{"DEVICE_ZONE_METADATA": map[string]interface{}{"local-zonehost": map[string]interface{}{"hwsku": "testhwsku", "deployment-id": "834"}}}
+	url := "/openconfig-test-xfmr:test-xfmr/test-sets/system-zone-device-data"
+	t.Log("++++++++++++++  Test_delete_on_node_exercising_non_table_owner_annotation  +++++++++++++")
+	prereq = map[string]interface{}{"DEVICE_ZONE_METADATA": map[string]interface{}{"local-zonehost": map[string]interface{}{"metric": "32", "hwsku": "testhwsku", "deployment-id": "834"}}}
+	cleanuptbl = map[string]interface{}{"DEVICE_ZONE_METADATA": map[string]interface{}{"local-zonehost": ""}}
+	expected_map = map[string]interface{}{"DEVICE_ZONE_METADATA": map[string]interface{}{"local-zonehost": map[string]interface{}{"hwsku": "testhwsku", "deployment-id": "834"}}}
+	// Setup
+	loadDB(db.ConfigDB, prereq)
+	t.Run("Delete on node exercising non table owner annotation.", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify delete on node exercising non table owner annotation.", verifyDbResult(rclient, "DEVICE_ZONE_METADATA|local-zonehost", expected_map, false))
+	// TearDown
+	unloadDB(db.ConfigDB, cleanuptbl)
+}
+
+func Test_node_exercising_subset_of_fields_in_mapped_table(t *testing.T) {
+
+	prereq_ni_instance := map[string]interface{}{"TEST_VRF": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "true"}}}
+	prereq_ospfv2_router := map[string]interface{}{"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "true", "write-multiplier": "2",
+		"initial-delay": "40", "max-delay": "100"}}}
+	cleanuptbl := map[string]interface{}{"TEST_VRF": map[string]interface{}{"Vrf_01": ""},
+		"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": ""}}
+	expected_ospfv2_router := map[string]interface{}{"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "true", "write-multiplier": "2",
+		"initial-delay": "50"}}}
+	url := "/openconfig-test-xfmr:test-xfmr/test-ni-instances/ni-instance[ni-name=vrf-01]/test-protocols/test-protocol[name=ospfv2]/ospfv2/" +
+		"global/timers/config"
+
+	t.Log("++++++++++++++  Test_delete_on_node_exercising_subset_of_fields_in_mapped_table  +++++++++++++")
+	prereq_ni_instance = map[string]interface{}{"TEST_VRF": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "true"}}}
+	prereq_ospfv2_router = map[string]interface{}{"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "true", "write-multiplier": "2",
+		"initial-delay": "50"}}}
+	cleanuptbl = map[string]interface{}{"TEST_VRF": map[string]interface{}{"Vrf_01": ""},
+		"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": ""}}
+	expected_ospfv2_router = map[string]interface{}{"TEST_OSPFV2_ROUTER": map[string]interface{}{"Vrf_01": map[string]interface{}{"enabled": "true", "write-multiplier": "2"}}}
+	url = "/openconfig-test-xfmr:test-xfmr/test-ni-instances/test-ni-instance[ni-name=vrf-01]/test-protocols/test-protocol[name=ospfv2]/ospfv2/" +
+		"global/timers/config"
+	// Setup
+	loadDB(db.ConfigDB, prereq_ni_instance)
+	loadDB(db.ConfigDB, prereq_ospfv2_router)
+	t.Run("Delete on node exercising subset of fields in mapped table.", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify delete on node exercising subset of fields in mapped table.", verifyDbResult(rclient, "TEST_OSPFV2_ROUTER|Vrf_01", expected_ospfv2_router, false))
+	// TearDown
+	unloadDB(db.ConfigDB, cleanuptbl)
+}
+
+func test_node_exercising_db_parent_child_nonkey_leafref_relationship(t *testing.T) {
+	/* oc yang hierarchy parent node's db table mapping has nonkey leafref db child relationship to a
+	   node's db table mapping in the child hierachy & siblings yang nodes having similar relationship */
+	prereq := map[string]interface{}{"TEST_NTP": map[string]interface{}{"global": map[string]interface{}{"trusted-key@": "68", "auth-enabled": "true"}},
+		"TEST_NTP_AUTHENTICATION_KEY": map[string]interface{}{"68": map[string]interface{}{"key-type": "MD5", "key-value": "0x635352e91dd9ddf2ed9542db848d3b31"}}}
+	cleanuptbl := map[string]interface{}{"TEST_NTP": map[string]interface{}{"global": ""}, "TEST_NTP_AUTHENTICATION_KEY": map[string]interface{}{"68": ""}}
+	url := "/openconfig-test-xfmr:test-xfmr/test-ntp/test-ntp-keys"
+	experr := tlerr.TranslibCVLFailure{Code: 1002, CVLErrorInfo: cvl.CVLErrorInfo{ErrCode: 1002, CVLErrDetails: "Config Validation Semantic Error",
+		Msg: "Validation failed for Delete operation, given instance is in use", ConstraintErrMsg: "Validation failed for Delete operation, given instance is in use",
+		TableName: "TEST_NTP_AUTHENTICATION_KEY", Keys: []string{"68"}, Field: "", Value: "", ErrAppTag: ""}}
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, prereq)
+	t.Log("++++++++++++++  Test_delete_on_node_exercising_db_parent_child_nonkey_leafref_relationship  +++++++++++++")
+	url = "/openconfig-test-xfmr:test-xfmr/test-ntp/test-ntp-keys"
+	t.Run("Test delete of child yang node having parent-child non-key leafref relationship with parent yang node(error-case).", processDeleteRequest(url, true, experr))
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
+}
+
+func Test_leaf_node(t *testing.T) {
+
+	/* Test delete on leaf node that has a yang default */
 	cleanuptbl := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": ""}}
 
 	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=test_group_1]/config/color-hold-time"
 	prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"colors@": "red,blue,green", "color-hold-time": "30"}}}
 
-	t.Log("++++++++++++++  Test_delete_on_node_with_default_value  +++++++++++++")
-
-	// Setup - Prerequisite - None
+	t.Log("++++++++++++++  Test_delete_on_leaf_node_with_default_value_when_mapped_instance_exists_in_db  +++++++++++++")
+	// Setup
 	unloadDB(db.ConfigDB, cleanuptbl)
 	loadDB(db.ConfigDB, prereq)
-
-	// Payload
 	del_sensor_group_expected := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"test_group_1": map[string]interface{}{"colors@": "red,blue,green", "color-hold-time": "10"}}}
-
-	t.Run("Delete on node having default value", processDeleteRequest(url, false))
+	t.Run("Delete on leaf node having default value when mapped instance exists in db.", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
-	t.Run("Verify delete on node with default value", verifyDbResult(rclient, "TEST_SENSOR_GROUP|test_group_1", del_sensor_group_expected, false))
+	t.Run("Verify delete on leaf node with default value resets to default", verifyDbResult(rclient, "TEST_SENSOR_GROUP|test_group_1", del_sensor_group_expected, false))
+	// Teardown
+	unloadDB(db.ConfigDB, cleanuptbl)
 
+	t.Log("++++++++++++++  Test_delete_on_leaf_node_with_default_value_when_mapped_instance_does_not_exist_db  +++++++++++++") //table mapping to container
+	cleanuptbl = map[string]interface{}{"TRANSPORT_ZONE": map[string]interface{}{"transport-host": ""}}
+	empty_expected := make(map[string]interface{})
+	// Setup
+	unloadDB(db.ConfigDB, cleanuptbl)
+	url = "/openconfig-test-xfmr:test-xfmr/test-sets/transport-zone"
+	t.Run("Delete on leaf node having default value when mapped instance doesn't exists in db and is annotated to a container.", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify delete on leaf node with default value doesn't reset to default creating an instance in DB when mapped instance is annotated to a container.",
+		verifyDbResult(rclient, "TRANSPORT_ZONE|transport-host", empty_expected, false))
+
+	t.Log("++++++++++++++  Test_delete_on_leaf_node_without_default_value  +++++++++++++")
+	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": ""}}
+	prereq = map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode", "description": "testdescription"}}}
+	expected_map := map[string]interface{}{"TEST_SENSOR_GLOBAL": map[string]interface{}{"global_sensor": map[string]interface{}{"mode": "testmode"}}}
+	url = "/openconfig-test-xfmr:test-xfmr/global-sensor/description"
+	//Setup
+	loadDB(db.ConfigDB, prereq)
+	t.Run("Delete on leaf node without default value", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify delete on leaf node without default value", verifyDbResult(rclient, "TEST_SENSOR_GLOBAL|global_sensor", expected_map, false))
 	// Teardown
 	unloadDB(db.ConfigDB, cleanuptbl)
 }
@@ -348,6 +497,26 @@ func Test_leaflist_node(t *testing.T) {
 	unloadDB(db.ConfigDB, cleanuptbl)
 	time.Sleep(1 * time.Second)
 	t.Log("\n\n+++++++++++++ Done Performing Put/Replace on Yang leaf-list Node demonstrating leaf-list contents swap ++++++++++++")
+
+	t.Log("\n\n+++++++++++++ Performing Delete on Yang leaf-list Node - demonstrating specific leaf-list instance deletion & complete leaf-list deletion ++++++++++++++")
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=sensor_group_01]/config/group-colors[group-colors=blue]"
+	pre_req_map = map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_01": map[string]interface{}{
+		"colors@": "red,blue,green", "color-hold-time": "30"}}}
+	expected_map = map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_01": map[string]interface{}{"colors@": "red,green", "color-hold-time": "30"}}}
+	cleanuptbl = map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_01": ""}}
+	loadDB(db.ConfigDB, pre_req_map)
+	time.Sleep(1 * time.Second)
+	t.Run("Test specific leaf-list instance deletion.", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify specific leaf-list instance deletion.", verifyDbResult(rclient, "TEST_SENSOR_GROUP|sensor_group_01", expected_map, false))
+	time.Sleep(1 * time.Second)
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=sensor_group_01]/config/group-colors"
+	expected_map = map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_01": map[string]interface{}{"color-hold-time": "30"}}}
+	t.Run("Test complete leaf-list attribute deletion.", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify complete leaf-list attribute deletion.", verifyDbResult(rclient, "TEST_SENSOR_GROUP|sensor_group_01", expected_map, false))
+	unloadDB(db.ConfigDB, cleanuptbl)
+	t.Log("\n\n+++++++++++++ Performing Delete on Yang leaf-list Node instance demonstrating specific leaf-list instance deletion ++++++++++++")
 }
 
 func Test_node_exercising_singleton_container_and_keyname_mapping(t *testing.T) {
@@ -1176,8 +1345,8 @@ func Test_sonic_yang_default_value_handling(t *testing.T) {
 // Test partial key at whole list level
 func Test_WholeList_PartialKey(t *testing.T) {
 
-	/* Delete at whole list returning partial key / parent key. Test if only relevant instances are deleted  */
-	parent_prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_1": map[string]interface{}{"NULL": "NULL"}}}
+	/* Delete And Get at a parent yang list node should rerieve/process only those child nodes which are relevant to the parent list key */
+	parent_prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_1": map[string]interface{}{"NULL": "NULL"}, "sensor_group_2": map[string]interface{}{"NULL": "NULL"}}}
 	prereq := map[string]interface{}{"TEST_SENSOR_ZONE_TABLE": map[string]interface{}{"sensor_group_1|zoneA": map[string]interface{}{"description": "sensor_group_1 zoneA instance"}, "sensor_group_2|zoneA": map[string]interface{}{"description": "sensor_group_2 zoneA instance"}}}
 
 	// Setup - Prerequisite
@@ -1201,6 +1370,33 @@ func Test_WholeList_PartialKey(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	t.Run("DELETE on whole list with partial/parent key - verify child table instance with parent key gets deleted", verifyDbResult(rclient, "TEST_SENSOR_ZONE_TABLE|sensor_group_1|zoneA", expected_del, false))
 	t.Run("DELETE on whole list with partial/parent key - verify child table instance not having parent key still exists", verifyDbResult(rclient, "TEST_SENSOR_ZONE_TABLE|sensor_group_2|zoneA", expected_map, false))
+
+	/* Verify if get like traversal is happenning for delete when a yang list node in child hierarchy has partial key of parent */
+	t.Log("++++++++++++++  DELETE On Container with Child Node List With PartialKey of Parent List ++++++++++++++")
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, parent_prereq)
+	loadDB(db.ConfigDB, prereq)
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=sensor_group_1]/test-sensor-zones"
+	t.Run("Test_Delete_On_Container_with_Child_Node_List_With_PartialKey_of_Parent_List", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify delete on container with child node list with partial key of parent - releavant child instances get deleted.", verifyDbResult(rclient, "TEST_SENSOR_ZONE_TABLE|sensor_group_1|zoneA", expected_del, false))
+	t.Run("Verify delete on container with child node list with partial key of parent - non-releavant child instances not deleted.", verifyDbResult(rclient, "TEST_SENSOR_ZONE_TABLE|sensor_group_2|zoneA", expected_map, false))
+	time.Sleep(1 * time.Second)
+
+	t.Log("++++++++++++++  DELETE On List Instance With Child Node List With PartialKey Of Parent List ++++++++++++++")
+	// Setup - Prerequisite
+	loadDB(db.ConfigDB, parent_prereq)
+	loadDB(db.ConfigDB, prereq)
+	url = "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=sensor_group_1]"
+	expected_parent_map := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_2": map[string]interface{}{"NULL": "NULL"}}}
+	t.Run("Test_Delete_On_List_Instance_with_Child_Node_List_With_PartialKey_of_Parent_List", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify delete on list instance with child node list with partial key of parent - parent instance specified in request gets deleted.", verifyDbResult(rclient, "TEST_SENSOR_GROUP|sensor_group_1", expected_del, false))
+	t.Run("Verify delete on list instance with child node list with partial key of parent - other parent list instances stay intact.", verifyDbResult(rclient, "TEST_SENSOR_GROUP|sensor_group_2", expected_parent_map, false))
+	t.Run("Verify delete on list instance with child node list with partial key of parent - releavant child instances get deleted.", verifyDbResult(rclient, "TEST_SENSOR_ZONE_TABLE|sensor_group_1|zoneA", expected_del, false))
+	t.Run("Verify delete on list instance with child node list with partial key of parent - non-releavant child instances not deleted.s", verifyDbResult(rclient, "TEST_SENSOR_ZONE_TABLE|sensor_group_2|zoneA", expected_map, false))
+
+	t.Log("++++++++++++++  Done Test_GET_And_Delete_Involving_Node_With_PartialKey_Of_Parent +++++++++++++")
 
 	// Teardown
 	unloadDB(db.ConfigDB, parent_prereq)

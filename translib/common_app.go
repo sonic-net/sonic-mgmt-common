@@ -604,9 +604,11 @@ func (app *CommonApp) translateCRUDCommon(d *db.DB, opcode int) ([]db.WatchKeys,
 	}
 
 	var resultTblList []string
+	resultTblMap := make(map[string]bool)
 	for _, dbMap := range result { //Get dependency list for all tables in result
-		for _, resMap := range dbMap { //Get dependency list for all tables in result
-			for tblnm := range resMap { //Get dependency list for all tables in result
+		for tblnm := range dbMap[db.ConfigDB] {
+			if !resultTblMap[tblnm] {
+				resultTblMap[tblnm] = true
 				resultTblList = append(resultTblList, tblnm)
 			}
 		}
@@ -891,6 +893,228 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 	return err
 }
 
+func deleteFields(existingEntry db.Value, d *db.DB, cmnAppTs *db.TableSpec, tblKey string, tblRw db.Value, deleteEmptyEntry bool) error {
+	var err error
+	log.V(4).Info("DELETE case - fields/cols to delete hence delete only those fields.")
+	/* handle leaf-list merge if any leaf-list exists */
+	tblNm := cmnAppTs.Name
+	resTblRw := checkAndProcessLeafList(existingEntry, tblRw, DELETE, d, tblNm, tblKey)
+	log.V(4).Info("DELETE case - checkAndProcessLeafList() returned table row ", resTblRw)
+	if len(resTblRw.Field) > 0 {
+		if !deleteEmptyEntry {
+			/* add the NULL field if the last field gets deleted && deleteEmpyEntry is false */
+			deleteCount := 0
+			for field := range existingEntry.Field {
+				if resTblRw.Has(field) {
+					deleteCount++
+				}
+			}
+			if deleteCount == len(existingEntry.Field) {
+				nullTblRw := db.Value{Field: map[string]string{"NULL": "NULL"}}
+				log.V(4).Infof("All existing fields(%v) getting deleted, add NULL field to keep the db entry/instance(%v)", existingEntry.Field, tblNm+"|"+tblKey)
+				err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, nullTblRw)
+				if err != nil {
+					log.Warning("UPDATE case - d.ModEntry() failure")
+					return err
+				}
+			}
+		}
+		/* deleted fields */
+		err := d.DeleteEntryFields(cmnAppTs, db.Key{Comp: []string{tblKey}}, resTblRw)
+		if err != nil {
+			log.Warning("DELETE case - d.DeleteEntryFields() failure")
+			return err
+		}
+	}
+	return err
+}
+
+func (app *CommonApp) handleChildDeleteForOcReplaceAndDelete(d *db.DB, sortedDelTblLst []string, moduleNm string) error {
+	/* resultTblLst has child first, parent later order */
+	var err error
+
+	for _, tblNm := range sortedDelTblLst {
+		log.V(4).Info("In Yang to DB map returned from transformer looking for table = ", tblNm)
+		var parentKeysList []string
+		if tblVal, ok := app.cmnAppTableMap[DELETE][db.ConfigDB][tblNm]; ok {
+			cmnAppTs := &db.TableSpec{Name: tblNm}
+			if len(tblVal) == 0 {
+				log.Info("No table instances/rows found hence mark entire table to be deleted = ", tblNm)
+				/* handle child table cleanup when North Bound oper is REPLACE- TODO.
+				   For north bound DELETE child yang hierarchy traversal for target/request
+				   URI will populate the relevant child tables in the result map and
+				   SortAsPerTblDeps() on the tables in result map will take care of child table getting
+				   processed.There is no need to check CVL dependencies it being unaware of table mapped under
+				   under target URI.
+				*/
+				if app.cmnAppOpcode == REPLACE {
+					log.V(4).Info("process Table level Delete For North Bound Replace oper")
+					/* TODO - For North Bound REPLACE operation payload translation can result in
+					   data being populated in UPDATE map based on table ownership and also the
+					   scope of db-mapping at the target URL.DELETE map will contain whats not present
+					   in the payload in yang hiercharchy beneath the target URL.Thus data needs to be
+					   processed in order resolving dependencies to achieve the end result */
+				}
+				log.Info("deleting table = ", tblNm)
+				err = d.DeleteTable(cmnAppTs)
+				if err != nil {
+					log.Warning("d.DelTable() failure")
+					return err
+				}
+				continue
+			}
+			// Sort keys to make a list in order multiple keys first, single key last
+			ordDbKeyLst := transformer.SortSncTableDbKeys(tblNm, tblVal)
+			log.V(4).Infof("DELETE case - ordered list of DB keys for tbl %v = %v", tblNm, ordDbKeyLst)
+
+			for _, tblKey := range ordDbKeyLst {
+				tblRw := tblVal[tblKey]
+				if len(tblRw.Field) == 0 {
+					log.Info("DELETE case - no fields/cols to delete hence mark for delete the entire row having key = ", tblKey)
+					if app.cmnAppOpcode == REPLACE {
+						parentKeysList = append(parentKeysList, tblKey)
+					} else {
+						// DELETE case. We rely on the infra generated children as infra does the complete yang tree traversal.
+						// The SortAsPerTblDeps and keys sorting for same table makes sure that all children are deleted first.
+						// There is no need to check CVL dependencies. Just delete the entry.
+						log.Info("Delete entry ", cmnAppTs, db.Key{Comp: []string{tblKey}})
+						err = d.DeleteEntry(cmnAppTs, db.Key{Comp: []string{tblKey}})
+						if err != nil {
+							if cvl.CVLRetCode(err.(tlerr.TranslibCVLFailure).Code) == cvl.CVL_SEMANTIC_KEY_NOT_EXIST {
+								log.Infof("Ignore delete that cannot be processed for table %v key %v that does not exist. err %v", tblNm, tblKey, err.(tlerr.TranslibCVLFailure).CVLErrorInfo.ConstraintErrMsg)
+								err = nil
+							} else {
+								log.Warning("DELETE case - d.DeleteEntry() failure")
+								return err
+							}
+						}
+					}
+				} else {
+					// In case we have FillFields available in the tblRw, do not send the request to DB.
+					if len(tblRw.Field) == 1 {
+						if tblRw.Has("FillFields") {
+							continue
+						}
+					}
+					log.Info("DELETE case - fields/cols to delete hence delete only those fields.")
+					existingEntry, exstErr := d.GetEntry(cmnAppTs, db.Key{Comp: []string{tblKey}})
+					if exstErr != nil {
+						log.Info("Table Entry from which the fields are to be deleted does not exist. Ignore error for non existant instance for idempotency")
+						continue
+					}
+					if log.V(3) {
+						log.Info("Fields delete", cmnAppTs, db.Key{Comp: []string{tblKey}}, tblRw)
+					}
+					err = deleteFields(existingEntry, d, cmnAppTs, tblKey, tblRw, app.deleteEmptyEntry)
+					if err != nil {
+						log.Warning("DELETE case - deleteFields failure ")
+						return err
+					}
+				}
+			}
+			/* Delete the dependent entries for all keys in parentKeysList in case of REPLACE */
+			if app.cmnAppOpcode == REPLACE && len(parentKeysList) > 0 {
+				// TODO as mentioned in above comment
+			}
+		}
+	}
+	return err
+}
+
+func processChildTablesforDelete(d *db.DB, parentTblNm string, ordTblList []string) error {
+	var err error
+
+	cvlSess, err := d.NewValidationSession()
+	if err != nil || cvlSess == nil {
+		log.Info("getCVLDepDataForDelete : cvl.ValidationSessOpen failed")
+		return err
+	}
+	defer cvl.ValidationSessClose(cvlSess)
+
+	childrenWithinModule := make(map[string]bool)
+	// Get all children tables within the same module that are to be considered for delete
+	for _, ordtbl := range ordTblList {
+		if ordtbl == parentTblNm {
+			// Handle the child tables only till you reach the parent table entry
+			break
+		}
+		// Check if the child table is in DB. If no keys available then ignore the table
+		dbTblSpec := &db.TableSpec{Name: ordtbl}
+		chldKeys, getTblErr := d.GetKeys(dbTblSpec)
+		if getTblErr != nil {
+			log.V(4).Infof("GetKeys() failed for child table - %v - error - %v", ordtbl, getTblErr)
+			continue
+		}
+		if len(chldKeys) == 0 {
+			log.V(4).Infof("Child table %v not availble in DB. Hence not required to consider for Delete", ordtbl)
+			continue
+		}
+		childrenWithinModule[ordtbl] = true
+	}
+	if len(childrenWithinModule) == 0 {
+		log.V(4).Info("No action to take for child tables in DB")
+		return nil
+	}
+	log.Info("Since parent table is to be deleted, first deleting children within the same module= ", childrenWithinModule)
+
+	// Get all keys for parent table and check if the child table has a key based relationship
+	log.V(4).Info("Get Keys for parent Tbl ", parentTblNm)
+	parentTblSpec := &db.TableSpec{Name: parentTblNm}
+	parentTblKeys, getKeysErr := d.GetKeys(parentTblSpec)
+	if getKeysErr != nil {
+		log.Warningf("GetKeys() failed for parent table - %v - error - %v", parentTblNm, getKeysErr)
+	}
+	if len(parentTblKeys) == 0 {
+		log.Info("No DB data found so no action to take for parent table ", parentTblNm)
+		return nil
+	}
+
+	parentTblKeyMap := make(map[string]db.Value)
+	log.V(4).Info("parent table keys - ", parentTblKeys)
+	for _, parentKey := range parentTblKeys {
+		parentTblKeyMap[strings.Join(parentKey.Comp, "|")] = db.Value{}
+	}
+	log.V(4).Info("parent table key map - ", parentTblKeyMap)
+	// Sort the parent keys in child first order
+	ordParentTblKeys := transformer.SortSncTableDbKeys(parentTblNm, parentTblKeyMap)
+	log.V(4).Info("Sorted parent table keys - ", ordParentTblKeys)
+
+	// Delete Child table within the ordered list only if the child has a key based relationship to the parent
+	// If yes, then delete the child table
+	for _, parentKey := range ordParentTblKeys {
+		depList := cvlSess.GetDepDataForDelete(parentTblNm + "|" + parentKey)
+		log.V(4).Infof("GetDepDataForDelete for tblKey %v returned %v", parentKey, depList)
+		// GetDepDataForDelete gives in Parent first order. Hence traverse from the last element to delete last child first
+		for idx := len(depList) - 1; idx >= 0; idx-- {
+			depEntry := depList[idx]
+			for childInst, childInstData := range depEntry.Entry {
+				chldInstList := strings.SplitN(childInst, "|", 2)
+				if len(chldInstList) < 2 {
+					// No key available in the child table. Cannot process child table
+					continue
+				}
+				chldTbl := chldInstList[0]
+				// Check if the child table is in the list of children within the same module
+				// Delete the child instance if they have a key dependency to parent instance only
+				if _, deleteChildOk := childrenWithinModule[chldTbl]; deleteChildOk && len(childInstData) == 0 {
+					log.V(4).Infof("Child table %v has key relationship with parent table %v . Hence delete child", chldTbl, parentTblNm)
+					chldKey := chldInstList[1]
+					chldTs := &db.TableSpec{Name: chldTbl}
+					log.V(4).Info("DELETE case - child table instance to be deleted = ", chldKey)
+					err := d.DeleteEntry(chldTs, db.Key{Comp: []string{chldKey}})
+					if err != nil {
+						log.Warning("DELETE case - child table instance DeleteEntry failure ")
+						return err
+					}
+				} else {
+					log.Infof("Dependency table(%v) is either not child of same module or child table does not have a key dependency to parent table", chldTbl)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[string]db.Value) error {
 	var err error
 	var cmnAppTs, dbTblSpec *db.TableSpec
@@ -915,6 +1139,15 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 	}
 	log.Info("getModuleNmFromPath() returned module name = ", moduleNm)
 
+	isSonicUri := strings.HasPrefix(app.pathInfo.Path, "/sonic")
+	if !isSonicUri && (opcode == REPLACE || opcode == DELETE) {
+		log.V(4).Info("Special Handling for DELETE/REPLACE on non-sonic path")
+		err = app.handleChildDeleteForOcReplaceAndDelete(d, resultTblLst, moduleNm)
+		if err != nil {
+			log.Warning("handleChildDeleteForOcReplaceAndDelete() failed ", err)
+		}
+		return err
+	}
 	/* resultTblLst has child first, parent later order */
 	for _, tblNm := range resultTblLst {
 		log.Info("In Yang to DB map returned from transformer looking for table = ", tblNm)
@@ -935,21 +1168,22 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 			}
 			if len(tblVal) == 0 {
 				log.Info("DELETE case - No table instances/rows found hence delete entire table = ", tblNm)
-				if !app.skipOrdTableChk {
-					for _, ordtbl := range ordTblList {
-						if ordtbl == tblNm {
-							// Handle the child tables only till you reach the parent table entry
-							break
-						}
-						log.Info("Since parent table is to be deleted, first deleting child table = ", ordtbl)
-						dbTblSpec = &db.TableSpec{Name: ordtbl}
-						err = d.DeleteTable(dbTblSpec)
-						if err != nil {
-							log.Warning("DELETE case - d.DeleteTable() failure for Table = ", ordtbl)
-							return err
-						}
+				skipChildDelete := false
+				if len(ordTblList) == 1 && ordTblList[0] == tblNm {
+					skipChildDelete = true
+				}
+				if !skipChildDelete && !app.skipOrdTableChk {
+					// Delete Child table within same module only if the child has a key based relationship to the parent
+					// Get all keys for parent table and check if the child table has a key based relationship
+					// If yes, then delete the child table
+					err = processChildTablesforDelete(d, tblNm, ordTblList)
+					if err != nil {
+						log.Warning("processChildTablesforDelete() failed ", err)
+						return err
 					}
 				}
+				// Finally delete the parent table.
+				log.V(4).Info("DELETE case - Delete entire table = ", tblNm)
 				err = d.DeleteTable(cmnAppTs)
 				if err != nil {
 					log.Warning("DELETE case - d.DeleteTable() failure for Table = ", tblNm)
@@ -958,7 +1192,6 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 				log.Info("DELETE case - Deleted entire table = ", tblNm)
 				// Continue to repeat ordered deletion for all tables
 				continue
-
 			}
 			// Sort keys to make a list in order multiple keys first, single key last
 			ordDbKeyLst := transformer.SortSncTableDbKeys(tblNm, tblVal)
@@ -988,16 +1221,10 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 					}
 					err = d.DeleteEntry(cmnAppTs, db.Key{Comp: []string{tblKey}})
 					if err != nil {
-						switch e := err.(type) {
-						case tlerr.TranslibCVLFailure:
-							if cvl.CVLRetCode(e.Code) == cvl.CVL_SEMANTIC_KEY_NOT_EXIST {
-								log.Infof("Ignore delete that cannot be processed for table %v key %v that does not exist. err %v", tblNm, tblKey, e.CVLErrorInfo.ConstraintErrMsg)
-								err = nil
-							} else {
-								log.Warning("DELETE case - d.DeleteEntry() failure")
-								return err
-							}
-						default:
+						if cvl.CVLRetCode(err.(tlerr.TranslibCVLFailure).Code) == cvl.CVL_SEMANTIC_KEY_NOT_EXIST {
+							log.Infof("Ignore delete that cannot be processed for table %v key %v that does not exist. err %v", tblNm, tblKey, err.(tlerr.TranslibCVLFailure).CVLErrorInfo.ConstraintErrMsg)
+							err = nil
+						} else {
 							log.Warning("DELETE case - d.DeleteEntry() failure")
 							return err
 						}
@@ -1016,34 +1243,13 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 						log.Info("Table Entry from which the fields are to be deleted does not exist. Ignore error for non existant instance for idempotency")
 						continue
 					}
+
+					log.Info("Fields delete", cmnAppTs, db.Key{Comp: []string{tblKey}}, tblRw)
 					/* handle leaf-list merge if any leaf-list exists */
-					resTblRw := checkAndProcessLeafList(existingEntry, tblRw, DELETE, d, tblNm, tblKey)
-					log.Info("DELETE case - checkAndProcessLeafList() returned table row ", resTblRw)
-					if len(resTblRw.Field) > 0 {
-						if !app.deleteEmptyEntry {
-							/* add the NULL field if the last field gets deleted && deleteEmpyEntry is false */
-							deleteCount := 0
-							for field := range existingEntry.Field {
-								if resTblRw.Has(field) {
-									deleteCount++
-								}
-							}
-							if deleteCount == len(existingEntry.Field) {
-								nullTblRw := db.Value{Field: map[string]string{"NULL": "NULL"}}
-								log.Info("Last field gets deleted, add NULL field to keep an db entry")
-								err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, nullTblRw)
-								if err != nil {
-									log.Warning("UPDATE case - d.ModEntry() failure")
-									return err
-								}
-							}
-						}
-						/* deleted fields */
-						err := d.DeleteEntryFields(cmnAppTs, db.Key{Comp: []string{tblKey}}, resTblRw)
-						if err != nil {
-							log.Warning("DELETE case - d.DeleteEntryFields() failure")
-							return err
-						}
+					err = deleteFields(existingEntry, d, cmnAppTs, tblKey, tblRw, app.deleteEmptyEntry)
+					if err != nil {
+						log.Warning("DELETE case - deleteFields failure ")
+						return err
 					}
 				}
 			}
