@@ -40,49 +40,17 @@ module openconfig-interfaces-deviation {
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:loopback-mode {
     deviate not-supported;
-  }    
+  }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-vlan:tpid {
     deviate not-supported;
   }    
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:type {
-    deviate not-supported;
-  }   
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-if-sdn:forwarding-viable {
     deviate not-supported;
   }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:loopback-mode {
-    deviate not-supported;
-  }    
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:oper-status {
-    deviate not-supported;
-  }    
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:last-change {
-    deviate not-supported;
-  }       
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:type {
-    deviate not-supported;
-  }   
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:ifindex {
-    deviate not-supported;
-  }   
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:logical {
-    deviate not-supported;
-  }   
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:management {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:cpu {
     deviate not-supported;
   }
 
@@ -254,12 +222,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:enabled {
-    deviate replace {
-      default false;
-    }
-  }
- 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:mtu {
     deviate not-supported;
   }
@@ -429,14 +391,6 @@ module openconfig-interfaces-deviation {
   }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:lag-type {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-type {
     deviate not-supported;
   }
 
