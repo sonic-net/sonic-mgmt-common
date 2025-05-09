@@ -590,6 +590,10 @@ var YangToDb_intf_enabled_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (ma
 	}
 
 	enabled, _ := inParams.param.(*bool)
+	if enabled == nil {
+		return res_map, nil
+	}
+
 	var enStr string
 	if *enabled {
 		enStr = "up"
@@ -1629,6 +1633,8 @@ var intf_pre_xfmr PreXfmrFunc = func(inParams XfmrParams) error {
 		}
 		switch requestUriPath {
 		case "/openconfig-interfaces:interfaces":
+			fallthrough
+		case "/openconfig-interfaces:interfaces/interface/config":
 			errStr += requestUriPath
 			return tlerr.InvalidArgsError{Format: errStr}
 		case "/openconfig-interfaces:interfaces/interface":

@@ -30,6 +30,7 @@ import (
 
 func Test_openconfig_interfaces(t *testing.T) {
 	var url, url_input_body_json string
+	var pre_req_map map[string]interface{}
 
 	t.Log("\n\n+++++++++++++ CONFIGURING INTERFACES ATTRIBUTES ++++++++++++")
 	t.Log("\n\n--- PATCH interfaces config---")
@@ -62,7 +63,7 @@ func Test_openconfig_interfaces(t *testing.T) {
 
 	cleanuptbl := map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet0": ""}}
 	unloadDB(db.ApplDB, cleanuptbl)
-	pre_req_map := map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet0": map[string]interface{}{"admin_status": "up", "mtu": "9000"}}}
+	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet0": map[string]interface{}{"admin_status": "up", "mtu": "9000"}}}
 	loadDB(db.ApplDB, pre_req_map)
 
 	t.Log("\n\n--- Verify PATCH interface leaf nodes  ---")
@@ -130,6 +131,17 @@ func Test_openconfig_interfaces(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	unloadDB(db.ApplDB, cleanuptbl)
+
+	t.Log("\n\n+++++++++++++ Performing Delete on interfaces/interface[name=Ethernet88]/config node ++++++++++++")
+	pre_req_map = map[string]interface{}{"PORT": map[string]interface{}{"Ethernet88": map[string]interface{}{"mtu": "9100"}}}
+	loadDB(db.ConfigDB, pre_req_map)
+	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet88]/config"
+	del_not_supported_msg := "Delete operation not supported for this path - /openconfig-interfaces:interfaces/interface/config"
+	del_not_supported := tlerr.InvalidArgsError{Format: del_not_supported_msg}
+	t.Run("Test delete on interfaces/interface[name=Ethernet88]/config node", processDeleteRequest(url, true, del_not_supported))
+	time.Sleep(1 * time.Second)
+	cleanuptbl = map[string]interface{}{"PORT": map[string]interface{}{"Ethernet88": ""}}
+	unloadDB(db.ConfigDB, cleanuptbl)
 }
 
 func Test_openconfig_ethernet(t *testing.T) {
