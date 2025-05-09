@@ -1071,12 +1071,12 @@ var DbToYangPath_intf_eth_port_config_path_xfmr PathXfmrDbToYangFunc = func(para
 
 	intfRoot := "/openconfig-interfaces:interfaces/interface"
 
-	if !(params.tblName == "PORT" || params.tblName == "MGMT_PORT") {
+	if !(params.tblName == "PORT") {
 		log.Info("DbToYangPath_intf_eth_port_config_path_xfmr: from wrong table: ", params.tblName)
 		return nil
 	}
 
-	if (params.tblName == "PORT" || params.tblName == "MGMT_PORT") && (len(params.tblKeyComp) > 0) {
+	if (params.tblName == "PORT") && (len(params.tblKeyComp) > 0) {
 		params.ygPathKeys[intfRoot+"/name"] = params.tblKeyComp[0]
 	} else {
 		log.Info("DbToYangPath_intf_eth_port_config_path_xfmr, wrong param: tbl ", params.tblName, " key ", params.tblKeyComp)
