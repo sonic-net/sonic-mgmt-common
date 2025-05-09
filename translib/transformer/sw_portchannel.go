@@ -41,7 +41,6 @@ const (
 	PORTCHANNEL_TABLE             = "PORTCHANNEL"
 	DEFAULT_PORTCHANNEL_MIN_LINKS = "1"
 	DEFAULT_PORTCHANNEL_SPEED     = "0"
-	DEFAULT_PORTCHANNEL_TYPE      = "LACP"
 )
 
 /* Validate whether LAG exists in DB */
