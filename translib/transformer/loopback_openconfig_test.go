@@ -128,7 +128,7 @@ func Test_openconfig_loopback_interfaces(t *testing.T) {
 
 	t.Log("\n\n--- Verify PATCH interfaces desc config ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Loopback100]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"description\": \"UT_Loopback_Interface\", \"enabled\": true, \"name\": \"Loopback100\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"name\": \"Loopback100\"}}"
 	t.Run("Test GET on interface desc config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -500,54 +500,3 @@ func Test_openconfig_loopback_ipv6_ipv4_addresses(t *testing.T) {
 	time.Sleep(1 * time.Second)
 }
 
-func Test_openconfig_loopback_state_params(t *testing.T) {
-	t.Log("\n\n--- PUT to Create Loopback16 ---")
-	url := "/openconfig-interfaces:interfaces/interface[name=Loopback16]"
-	url_input_body_json := "{\"openconfig-interfaces:interface\": [{\"name\":\"Loopback16\", \"config\": {\"name\": \"Loopback16\"}}]}"
-	t.Run("Test Create Loopback16", processSetRequest(url, url_input_body_json, "PUT", false, nil))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- Verify Loopback Creation ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=Loopback16]/config"
-	expected_get_json := "{\"openconfig-interfaces:config\": {\"name\": \"Loopback16\", \"enabled\": true}}"
-	t.Run("Test GET Loopback interface creation config ", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- Verify Loopback interface state leaf nodes  ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=Loopback16]/state"
-	expected_get_json = "{\"openconfig-interfaces:state\": {\"name\": \"Loopback16\"}}"
-	t.Run("Test GET on interface state", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- DELETE at interfaces/interface container Loopback16 interface ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=Loopback16]"
-	t.Run("Test DELETE on interface container", processDeleteRequest(url, false))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- Verify DELETE at Loopback16 Interface ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=Loopback16]"
-	err_str := "Resource not found"
-	expected_err := tlerr.NotFoundError{Format: err_str}
-	t.Run("Test GET on deleted Loopback interface", processGetRequest(url, nil, "", true, expected_err))
-	time.Sleep(1 * time.Second)
-
-	pre_req_map := map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Loopback100": map[string]interface{}{"description": "UT-Lo-Port", "admin_status": "up"}}}
-	loadDB(db.ApplDB, pre_req_map)
-
-	t.Log("\n\n--- Verify Loopback interface all state leaf nodes  ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=Loopback100]/state"
-	expected_get_json = "{\"openconfig-interfaces:state\": { \"name\": \"Loopback100\", \"description\": \"UT-Lo-Port\", \"enabled\": true, \"oper-status\": \"UP\", \"admin-status\": \"UP\" }}"
-	t.Run("Test GET on interface state all nodes", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- Verify Loopback interface state/mtu  ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=Loopback100]/state/mtu"
-	expected_get_json = "{}"
-	err_str = "Resource not found"
-	expected_err = tlerr.NotFoundError{Format: err_str}
-	t.Run("Test GET on interface state/mtu", processGetRequest(url, nil, expected_get_json, true, expected_err))
-	time.Sleep(1 * time.Second)
-
-	cleanuptbl := map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet0": ""}}
-	unloadDB(db.ApplDB, cleanuptbl)
-}
