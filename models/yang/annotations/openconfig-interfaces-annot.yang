@@ -148,12 +148,6 @@ module openconfig-interfaces-annot {
         }
     }
 
-    deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:lag-type {
-        deviate add {
-            sonic-ext:field-transformer "lag_type_xfmr";
-        }
-    }
-
     deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state {
       deviate add {
             sonic-ext:subtree-transformer "intf_lag_state_xfmr";

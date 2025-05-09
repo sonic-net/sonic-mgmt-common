@@ -32,8 +32,6 @@ import (
 func init() {
 	XlateFuncBind("YangToDb_lag_min_links_xfmr", YangToDb_lag_min_links_xfmr)
 	XlateFuncBind("DbToYang_lag_min_links_xfmr", DbToYang_lag_min_links_xfmr)
-	XlateFuncBind("YangToDb_lag_type_xfmr", YangToDb_lag_type_xfmr)
-	XlateFuncBind("DbToYang_lag_type_xfmr", DbToYang_lag_type_xfmr)
 	XlateFuncBind("DbToYang_intf_lag_state_xfmr", DbToYang_intf_lag_state_xfmr)
 	XlateFuncBind("Subscribe_intf_lag_state_xfmr", Subscribe_intf_lag_state_xfmr)
 	XlateFuncBind("DbToYangPath_intf_lag_state_path_xfmr", DbToYangPath_intf_lag_state_path_xfmr)
@@ -151,11 +149,6 @@ func getLagStateAttr(attr *string, ifName *string, lagInfoMap map[string]db.Valu
 		links, _ := strconv.Atoi(lagEntries.Field["min-links"])
 		minlinks := uint16(links)
 		oc_val.MinLinks = &minlinks
-	case "lag-type":
-		lagType, ok := lagEntries.Field["lag_type"]
-		if ok && lagType == "LACP" {
-			oc_val.LagType = ocbinds.OpenconfigIfAggregate_AggregationType_LACP
-		}
 	}
 	return nil
 }
@@ -171,11 +164,6 @@ func getLagState(inParams XfmrParams, d *db.DB, ifName *string, lagInfoMap map[s
 	links, _ := strconv.Atoi(lagEntries.Field["min-links"])
 	minlinks := uint16(links)
 	oc_val.MinLinks = &minlinks
-
-	lagType, ok := lagEntries.Field["lag-type"]
-	if ok && lagType == "LACP" {
-		oc_val.LagType = ocbinds.OpenconfigIfAggregate_AggregationType_LACP
-	}
 
 	return nil
 }
@@ -226,10 +214,6 @@ func fillLagInfoForIntf(inParams XfmrParams, d *db.DB, ifName *string, lagInfoMa
 		links = min_links
 	}
 	lagInfoMap[*ifName].Field["min-links"] = strconv.Itoa(links)
-
-	if val, ok := curr.Field["lag_type"]; ok {
-		lagInfoMap[*ifName].Field["lag-type"] = val
-	}
 
 	log.Infof("Updated the lag-info-map for Interface: %s", *ifName)
 
@@ -310,62 +294,6 @@ var DbToYang_lag_min_links_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (m
 	return result, err
 }
 
-// YangToDb_lag_type_xfmr is a Yang to DB translation overloaded method for handle lag-type config
-var YangToDb_lag_type_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[string]string, error) {
-	if log.V(3) {
-		log.Info("Entering YangToDb_lag_type_xfmr")
-	}
-	res_map := make(map[string]string)
-	var err error
-
-	pathInfo := NewPathInfo(inParams.uri)
-	ifKey := pathInfo.Var("name")
-
-	intfType, _, err := getIntfTypeByName(ifKey)
-	if intfType != IntfTypePortChannel || err != nil {
-		errStr := "Invalid interface type: " + ifKey
-		log.Warning(errStr)
-		return res_map, errors.New(errStr)
-	}
-
-	lagType, ok := inParams.param.(ocbinds.E_OpenconfigIfAggregate_AggregationType)
-	if !ok {
-		return res_map, errors.New("Invalid lag-type config")
-	}
-
-	if lagType == ocbinds.OpenconfigIfAggregate_AggregationType_LACP {
-		res_map["lag_type"] = "LACP"
-	} else if lagType == ocbinds.OpenconfigIfAggregate_AggregationType_UNSET {
-		res_map["lag_type"] = ""
-	} else {
-		return res_map, errors.New("Invalid lag-type config, Only LACP mode supported")
-	}
-
-	return res_map, nil
-}
-
-var DbToYang_lag_type_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
-	if log.V(3) {
-		log.Info("Entering DbToYang_lag_type_xfmr")
-	}
-	var err error
-	result := make(map[string]interface{})
-
-	err = validatePortChannel(inParams.d, inParams.key)
-	if err != nil {
-		log.Infof("DbToYang_lag_type_xfmr Error: %v ", err)
-		return result, err
-	}
-
-	data := (*inParams.dbDataMap)[inParams.curDb]
-	lagType, ok := data[PORTCHANNEL_TABLE][inParams.key].Field["lag_type"]
-	if ok {
-		result["lag-type"] = lagType
-	}
-
-	return result, nil
-}
-
 // DbToYang_intf_lag_state_xfmr is a DB to Yang translation overloaded method for PortChannel GET operation
 var DbToYang_intf_lag_state_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
 	var err error
@@ -416,13 +344,6 @@ var DbToYang_intf_lag_state_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams)
 	case "/openconfig-interfaces:interfaces/interface/openconfig-if-aggregate:aggregation/state/min-links":
 		log.Info("Get is for min-links")
 		attr := "min-links"
-		err = getLagStateAttr(&attr, &ifName, lagInfoMap, ocAggregationStateVal)
-		if err != nil {
-			return err
-		}
-	case "/openconfig-interfaces:interfaces/interface/openconfig-if-aggregate:aggregation/state/lag-type":
-		log.Info("Get is for lag-type")
-		attr := "lag-type"
 		err = getLagStateAttr(&attr, &ifName, lagInfoMap, ocAggregationStateVal)
 		if err != nil {
 			return err

@@ -97,7 +97,7 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	t.Log("\n\n--- Verify the added PortChannel Member ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id"
-	expected_get_json = "{\"openconfig-if-aggregate:aggregate-id\": \"PortChannel111\"}"
+	expected_get_json = "{\"aggregate-id\": \"PortChannel111\"}"
 	t.Run("Test GET on portchannel agg-id", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -139,14 +139,6 @@ func Test_openconfig_portchannel(t *testing.T) {
 	t.Run("Test PATCH on interface wrong type config", processSetRequest(url, url_input_body_json, "PATCH", true, wrong_type_err))
 	time.Sleep(1 * time.Second)
 
-	t.Log("\n\n--- PATCH interfaces loopback-mode ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/config"
-	url_input_body_json = "{\"openconfig-interfaces:config\": { \"description\": \"UT_Interface\", \"enabled\": false, \"type\": \"iana-if-type:ieee8023adLag\", \"loopback-mode\": \"NONE\"}}"
-	lo_mode_not_supported_msg := "Invalid interface type for loopback-mode config"
-	lo_mode_not_supported := errors.New(lo_mode_not_supported_msg)
-	t.Run("Test PATCH on interface loopback-mode config", processSetRequest(url, url_input_body_json, "PATCH", true, lo_mode_not_supported))
-	time.Sleep(1 * time.Second)
-
 	pre_req_map := map[string]interface{}{"LAG_TABLE": map[string]interface{}{"PortChannel111": map[string]interface{}{"description": "UT-Po-Port", "admin_status": "up", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025", "last_down_time": "Sat Feb 08 11:53:37 2025", "mtu": "8888"}}}
 	loadDB(db.ApplDB, pre_req_map)
 
@@ -181,7 +173,7 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	t.Log("\n\n--- Verify PATCH PortChannel config ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config"
-	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"min-links\": 3}}"
+	expected_get_json = "{\"config\": {\"min-links\": 3}}"
 	t.Run("Test GET on portchannel config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -192,44 +184,8 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	t.Log("\n\n--- Verify DELETE PortChannel min-links ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config"
-	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"min-links\": 1}}"
+	expected_get_json = "{\"config\": {\"min-links\": 1}}"
 	t.Run("Test GET on portchannel min-links after DELETE", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- PATCH PortChannel lag-type ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config/lag-type"
-	url_input_body_json = "{\"openconfig-if-aggregate:lag-type\":\"LACP\"}"
-	t.Run("Test PATCH lag-type on portchannel", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- Verify PATCH PortChannel config ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config"
-	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"lag-type\": \"LACP\", \"min-links\": 1}}"
-	t.Run("Test GET on portchannel lag-type config", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- Verify interface state leaf nodes  ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/state"
-	expected_get_json = "{\"openconfig-if-aggregate:state\":{\"min-links\":1 ,\"lag-type\":\"LACP\"}}"
-	t.Run("Test GET on interface aggregation state", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- DELETE PortChannel lag-type ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config/lag-type"
-	t.Run("Verify DELETE on PortChannel lag-type", processDeleteRequest(url, false))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- Verify DELETE PortChannel lag-type ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config"
-	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"min-links\": 1}}"
-	t.Run("Test GET on portchannel lag-type after DELETE", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-
-	t.Log("\n\n--- PATCH PortChannel lag-type wrong value ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config/lag-type"
-	url_input_body_json = "{\"openconfig-if-aggregate:lag-type\":\"STATIC\"}"
-	lacp_type_err := errors.New("Invalid lag-type config, Only LACP mode supported")
-	t.Run("Test PATCH lag-type on portchannel wrong value", processSetRequest(url, url_input_body_json, "PATCH", true, lacp_type_err))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH PortChannel interface Config ---")

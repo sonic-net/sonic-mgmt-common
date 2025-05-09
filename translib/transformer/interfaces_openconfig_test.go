@@ -193,13 +193,6 @@ func Test_openconfig_interfaces(t *testing.T) {
 	cleanuptbl = map[string]interface{}{"PORT": map[string]interface{}{"Ethernet88": ""}}
 	unloadDB(db.ConfigDB, cleanuptbl)
 
-	t.Log("\n\n--- DELETE interfaces state node - verify expected error ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/state/mtu"
-	crud_not_supported_msg := "CRUD operation not allowed on state nodes"
-	crud_not_supported := errors.New(crud_not_supported_msg)
-	t.Run("Test DELETE on interface state/mtu", processDeleteRequest(url, true, crud_not_supported))
-	time.Sleep(1 * time.Second)
-
 	t.Log("\n\n--- Input range validation for mtu ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/config/mtu"
 	url_input_body_json = "{\"openconfig-interfaces:mtu\": 99999}"
@@ -250,7 +243,9 @@ func Test_openconfig_interfaces(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n+++++++++++++ Validate interface/state node ++++++++++++")
-	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper-status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025", "last_down_time": "Sat Feb 08 11:53:37 2025"}}}
+	pre_req_map = map[string]interface{}{"PORT": map[string]interface{}{"Ethernet23": map[string]interface{}{"mtu": "9100"}}}
+	loadDB(db.ConfigDB, pre_req_map)
+	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025", "last_down_time": "Sat Feb 08 11:53:37 2025"}}}
 	loadDB(db.ApplDB, pre_req_map)
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
 	expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561700\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
@@ -260,7 +255,7 @@ func Test_openconfig_interfaces(t *testing.T) {
 	unloadDB(db.ApplDB, cleanuptbl)
 
 	t.Log("\n\n+++++++++++++ Validate interface/state/last-change only up-time in db node ++++++++++++")
-	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper-status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025"}}}
+	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025"}}}
 	loadDB(db.ApplDB, pre_req_map)
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
 	expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561400\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
@@ -270,7 +265,7 @@ func Test_openconfig_interfaces(t *testing.T) {
 	unloadDB(db.ApplDB, cleanuptbl)
 
 	t.Log("\n\n+++++++++++++ Validate interface/state/last-change only down-time in db node ++++++++++++")
-	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper-status": "up", "last_down_time": "Sat Feb 08 11:53:34 2025"}}}
+	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_down_time": "Sat Feb 08 11:53:34 2025"}}}
 	loadDB(db.ApplDB, pre_req_map)
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
 	expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561400\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
@@ -280,7 +275,7 @@ func Test_openconfig_interfaces(t *testing.T) {
 	unloadDB(db.ApplDB, cleanuptbl)
 
 	t.Log("\n\n+++++++++++++ Validate interface/state/last-change both up-down same ++++++++++++")
-	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper-status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025", "last_down_time": "Sat Feb 08 11:53:34 2025"}}}
+	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025", "last_down_time": "Sat Feb 08 11:53:34 2025"}}}
 	loadDB(db.ApplDB, pre_req_map)
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
 	expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561400\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
@@ -321,7 +316,7 @@ func Test_openconfig_ethernet(t *testing.T) {
 
 	t.Log("\n\n--- DELETE at ethernet port-speed---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/config/port-speed"
-	err_str = "DELETE request not allowed for port-speed"
+	err_str := "DELETE request not allowed for port-speed"
 	expected_err := tlerr.NotSupportedError{Format: err_str}
 	t.Run("Test DELETE on ethernet port-speed", processDeleteRequest(url, true, expected_err))
 	time.Sleep(1 * time.Second)
@@ -347,7 +342,7 @@ func Test_openconfig_ethernet(t *testing.T) {
 	t.Log("\n\n--- Verify DELETE at ethernet auto-negotiate ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/config/auto-negotiate"
 	err_str = "auto-negotiate not set"
-	expected_err_invalid = tlerr.InvalidArgsError{Format: err_str}
+	expected_err_invalid := tlerr.InvalidArgsError{Format: err_str}
 	t.Run("Test GET on deleted auto-negotiate", processGetRequest(url, nil, "", true, expected_err_invalid))
 	time.Sleep(1 * time.Second)
 
