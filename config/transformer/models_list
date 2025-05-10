@@ -1,4 +1,6 @@
 #List yang models transformer need to load
+ietf-interfaces.yang
+iana-if-type.yang
 openconfig-acl.yang
 openconfig-acl-annot.yang
 openconfig-sampling-sflow.yang
@@ -8,6 +10,5 @@ openconfig-interfaces.yang
 openconfig-interfaces-annot.yang
 openconfig-if-ip.yang
 openconfig-if-aggregate.yang
-openconfig-interfaces-annot.yang
 openconfig-mclag.yang
 openconfig-mclag-annot.yang

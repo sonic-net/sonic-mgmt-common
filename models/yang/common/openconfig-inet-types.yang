@@ -224,6 +224,26 @@ module openconfig-inet-types {
       RFC 4001: Textual Conventions for Internet Network Addresses";
   }
 
+  typedef ipv6-address-type {
+    type enumeration {
+      enum GLOBAL_UNICAST {
+        description
+          "The IPv6 address is a global unicast address type and must be in
+          the format defined in RFC 4291 section 2.4.";
+      }
+      enum LINK_LOCAL_UNICAST {
+        description
+          "The IPv6 address is a Link-Local unicast address type and must be
+          in the format defined in RFC 4291 section 2.4.";
+      }
+    }
+    description
+      "The value represents the type of IPv6 address";
+    reference
+      "RFC 4291: IP Version 6 Addressing Architecture
+      section 2.5";
+  }
+
   typedef domain-name {
     type string {
       length "1..253";
