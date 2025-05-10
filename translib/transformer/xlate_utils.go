@@ -80,12 +80,12 @@ func keyCreate(xlateParams xlateToParams, curUri string, data interface{}) strin
 			}
 
 			if len(keyPrefix) > 0 {
-				keyPrefix += delim
+				keyPrefix += dbKeySep
 			}
 			keyVal := ""
 			for i, k := range strings.Split(yangEntry.Key, " ") {
 				if i > 0 {
-					keyVal = keyVal + delim
+					keyVal = keyVal + dbKeySep
 				}
 				fieldXpath := xlateParams.xpath + "/" + k
 				fVal, err := unmarshalJsonToDbData(yangEntry.Dir[k], fieldXpath, k, data.(map[string]interface{})[k])
@@ -572,6 +572,7 @@ func formXfmrInputRequest(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot *
 	// If the application wants optimization in subtree invocation set this flag to true
 	// to not invoke subtree at child container level for CRU
 	inParams.invokeCRUSubtreeOnce = new(bool)
+	inParams.isNotTblOwner = new(bool) // default false i.e. always table owner
 
 	if d != nil {
 		if dbNum := d.Opts.DBNo; dbs[dbNum] == nil {
@@ -614,14 +615,32 @@ func findInMap(m map[string]string, str string) string {
 	return ""
 }
 
-func getDBOptions(dbNo db.DBNum) db.Options {
+func getDBOptions(dbNo db.DBNum, opts ...func(*db.Options)) db.Options {
 	var opt db.Options
+	separator := ""
 
-	switch dbNo {
-	case db.ApplDB, db.CountersDB, db.FlexCounterDB, db.AsicDB:
-		opt = getDBOptionsWithSeparator(dbNo, "", ":", ":")
-	case db.ConfigDB, db.StateDB:
-		opt = getDBOptionsWithSeparator(dbNo, "", "|", "|")
+	if dbConfigMap != nil {
+		dbName := db.GetDBInstName(dbNo)
+		dbList, ok := dbConfigMap["DATABASES"].(map[string]interface{})
+		if ok {
+			dbSep, ok := dbList[dbName].(map[string]interface{})["separator"]
+			if ok {
+				separator = dbSep.(string)
+			}
+		}
+	}
+
+	if separator == "" {
+		switch dbNo {
+		case db.ApplDB, db.CountersDB, db.ErrorDB, db.FlexCounterDB, db.AsicDB, db.LogLevelDB:
+			separator = ":"
+		case db.SnmpDB, db.ConfigDB, db.StateDB, db.EventDB:
+			separator = "|"
+		}
+	}
+	opt = getDBOptionsWithSeparator(dbNo, "", separator, separator)
+	for _, setopt := range opts {
+		setopt(&opt)
 	}
 
 	return opt
@@ -717,6 +736,7 @@ func xpathKeyExtract(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, path strin
 		log.Warningf("No entry found in xYangSpecMap for xpath %v.", retData.xpath)
 		return retData, err
 	}
+	/* This function is only called fo SET cases and the cdb is always considered as config DB */
 	// for SUBSCRIBE reuestUri = path
 	requestUriYangType := xpathInfo.yangType
 	if requestUriYangType == YANG_LIST {
@@ -724,12 +744,8 @@ func xpathKeyExtract(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, path strin
 			isUriForListInstance = true
 		}
 	}
-	cdb = xpathInfo.dbIndex
 	dbOpts := getDBOptions(cdb)
 	keySeparator := dbOpts.KeySeparator
-	if len(xpathInfo.delim) > 0 {
-		keySeparator = xpathInfo.delim
-	}
 	xpathList := strings.Split(retData.xpath, "/")
 	xpathList = xpathList[1:]
 	yangXpath := ""
@@ -754,22 +770,6 @@ func xpathKeyExtract(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, path strin
 			if yangType == YANG_LEAF_LIST {
 				break
 			}
-			if xpathInfo.dbIndex != db.MaxDB {
-				cdb = xpathInfo.dbIndex
-				if dbs[cdb] != nil {
-					d = dbs[cdb]
-					if len(xpathInfo.delim) > 0 {
-						keySeparator = xpathInfo.delim
-					} else {
-						keySeparator = getDBOptions(cdb).KeySeparator
-					}
-				} else {
-					log.Warningf("xpathKeyExtract: dbs array: %v does not have the db pointer for the db index: %v and the yang path: %v", dbs, xpathInfo.dbIndex, path)
-				}
-			} else {
-				log.Warningf("xpathKeyExtract: invalid xpathInfo.dbIndex: %v for the yang path: %v ", xpathInfo.dbIndex, path)
-			}
-			xfmrLogDebug("xpathKeyExtract: dbs: %v; cdb: %v; xpathInfo.dbIndex: %v for the path: %v", dbs, cdb, xpathInfo.dbIndex, yangXpath)
 			if strings.Contains(k, "[") {
 				if len(keyStr) > 0 {
 					keyStr += keySeparator
@@ -784,29 +784,14 @@ func xpathKeyExtract(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, path strin
 						}
 					}
 					if callKeyXfmr {
-						xfmrFuncName := yangToDbXfmrFunc(xYangSpecMap[yangXpath].xfmrKey)
 						inParams := formXfmrInputRequest(d, dbs, cdb, ygRoot, curPathWithKey, requestUri, oper, "", nil, subOpDataMap, nil, txCache)
-						if oper == GET {
-							ret, err := XlateFuncCall(xfmrFuncName, inParams)
-							if err != nil {
-								retData.dbKey, retData.tableName, retData.xpath = "", "", ""
-								xfmrLogDebug("keyXfmr %v failed at path %v: %v. Please check key-xfmr", xfmrFuncName, curPathWithKey, err)
-								xfmrLogDebug("Return at uri(%v) - xpath(%v), key(%v), tableName(%v), isVirtualTbl(%v)", path, retData.xpath, keyStr, retData.tableName, retData.isVirtualTbl)
-
-								return retData, err
-							}
-							if ret != nil {
-								keyStr = ret[0].Interface().(string)
-							}
-						} else {
-							ret, err := keyXfmrHandler(inParams, xYangSpecMap[yangXpath].xfmrKey)
-							if err != nil {
-								retData.dbKey, retData.tableName, retData.xpath = "", "", ""
-								xfmrLogDebug("Return at uri(%v) - xpath(%v), curPathWithKey(%v) key(%v), tableName(%v), isVirtualTbl(%v)", path, retData.xpath, curPathWithKey, keyStr, retData.tableName, retData.isVirtualTbl)
-								return retData, err
-							}
-							keyStr = ret
+						ret, err := keyXfmrHandler(inParams, xYangSpecMap[yangXpath].xfmrKey)
+						if err != nil {
+							retData.dbKey, retData.tableName, retData.xpath = "", "", ""
+							xfmrLogDebug("Return at uri(%v) - xpath(%v), curPathWithKey(%v) key(%v), tableName(%v), isVirtualTbl(%v)", path, retData.xpath, curPathWithKey, keyStr, retData.tableName, retData.isVirtualTbl)
+							return retData, err
 						}
+						keyStr = ret
 						if xfmrTblKeyCache != nil {
 							if _, _ok := xfmrTblKeyCache[curPathWithKey]; !_ok {
 								xfmrTblKeyCache[curPathWithKey] = tblKeyCache{}
@@ -830,11 +815,8 @@ func xpathKeyExtract(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, path strin
 							tableName = *tblPtr
 						} else if xpathInfo.xfmrTbl != nil {
 							inParams := formXfmrInputRequest(d, dbs, cdb, ygRoot, curPathWithKey, requestUri, oper, "", nil, subOpDataMap, nil, txCache)
-							if oper == GET {
-								inParams.dbDataMap = dbDataMap
-							}
 							tableName, err = tblNameFromTblXfmrGet(*xpathInfo.xfmrTbl, inParams, xfmrTblKeyCache)
-							if err != nil && oper != GET {
+							if err != nil {
 								return retData, err
 							}
 						}
@@ -867,28 +849,14 @@ func xpathKeyExtract(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, path strin
 					}
 				}
 				if callKeyXfmr {
-					xfmrFuncName := yangToDbXfmrFunc(xYangSpecMap[yangXpath].xfmrKey)
 					inParams := formXfmrInputRequest(d, dbs, cdb, ygRoot, curPathWithKey, requestUri, oper, "", nil, subOpDataMap, nil, txCache)
-					if oper == GET {
-						ret, err := XlateFuncCall(xfmrFuncName, inParams)
-						if err != nil {
-							retData.dbKey, retData.tableName, retData.xpath = "", "", ""
-							xfmrLogDebug("Error from keyXfmr %v at path %v: %v", xfmrFuncName, curPathWithKey, err)
-							xfmrLogDebug("Return at uri(%v) - xpath(%v), curPathWithKey(%v) key(%v), tableName(%v), isVirtualTbl(%v)", path, retData.xpath, curPathWithKey, keyStr, retData.tableName, retData.isVirtualTbl)
-							return retData, err
-						}
-						if ret != nil {
-							keyStr = ret[0].Interface().(string)
-						}
-					} else {
-						ret, err := keyXfmrHandler(inParams, xYangSpecMap[yangXpath].xfmrKey)
-						if (yangType != YANG_LIST) && (err != nil) {
-							retData.dbKey, retData.tableName, retData.xpath = "", "", ""
-							xfmrLogDebug("Return at uri(%v) - xpath(%v), curPathWithKey(%v) key(%v), tableName(%v), isVirtualTbl(%v)", path, retData.xpath, curPathWithKey, keyStr, retData.tableName, retData.isVirtualTbl)
-							return retData, err
-						}
-						keyStr = ret
+					ret, err := keyXfmrHandler(inParams, xYangSpecMap[yangXpath].xfmrKey)
+					if (yangType != YANG_LIST) && (err != nil) {
+						retData.dbKey, retData.tableName, retData.xpath = "", "", ""
+						xfmrLogDebug("Return at uri(%v) - xpath(%v), curPathWithKey(%v) key(%v), tableName(%v), isVirtualTbl(%v)", path, retData.xpath, curPathWithKey, keyStr, retData.tableName, retData.isVirtualTbl)
+						return retData, err
 					}
+					keyStr = ret
 					if xfmrTblKeyCache != nil {
 						if _, _ok := xfmrTblKeyCache[curPathWithKey]; !_ok {
 							xfmrTblKeyCache[curPathWithKey] = tblKeyCache{}
@@ -920,7 +888,10 @@ func xpathKeyExtract(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, path strin
 		if inParams.isVirtualTbl != nil {
 			retData.isVirtualTbl = *(inParams.isVirtualTbl)
 		}
-		if err != nil && oper != GET {
+		if inParams.isNotTblOwner != nil {
+			retData.isNotTblOwner = *(inParams.isNotTblOwner)
+		}
+		if err != nil {
 			xfmrLogDebug("Return at uri(%v) - xpath(%v), key(%v), tableName(%v), isVirtualTbl(%v)", path, retData.xpath, keyStr, retData.tableName, retData.isVirtualTbl)
 			return retData, err
 		}
@@ -1541,7 +1512,7 @@ func dbDataXfmrHandler(resultMap map[Operation]map[db.DBNum]map[string]map[strin
 
 func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot *ygot.GoStruct, uri string,
 	requestUri string, xpath string, oper Operation, tbl string, tblKey string, dbDataMap *RedisDbMap,
-	txCache interface{}, resultMap map[string]interface{}, validate bool, qParams QueryParams, reqCtxt context.Context, listKeysMap map[string]interface{}) xlateFromDbParams {
+	txCache interface{}, resultMap map[string]interface{}, qParams QueryParams, reqCtxt context.Context, listKeysMap map[string]interface{}) xlateFromDbParams {
 	var inParamsForGet xlateFromDbParams
 	inParamsForGet.d = d
 	inParamsForGet.dbs = dbs
@@ -1556,7 +1527,6 @@ func formXlateFromDbParams(d *db.DB, dbs [db.MaxDB]*db.DB, cdb db.DBNum, ygRoot 
 	inParamsForGet.dbDataMap = dbDataMap
 	inParamsForGet.txCache = txCache
 	inParamsForGet.resultMap = resultMap
-	inParamsForGet.validate = validate
 	inParamsForGet.queryParams = qParams
 	inParamsForGet.reqCtxt = reqCtxt
 	inParamsForGet.listKeysMap = listKeysMap
@@ -1587,7 +1557,6 @@ func formXlateToDbParam(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri str
 	inParamsForSet.invokeCRUSubtreeOnceMap = invokeSubtreeOnceMap
 	inParamsForSet.yangDefValMap = yangDefValMap
 	inParamsForSet.yangAuxValMap = yangAuxValMap
-
 	return inParamsForSet
 }
 
@@ -1739,7 +1708,7 @@ func splitUri(uri string) []string {
 	return pathList
 }
 
-func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bool, error, db.Value) {
+func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bool, error) {
 	var err error
 	// Read the table entry from DB
 	if len(tableName) > 0 {
@@ -1749,7 +1718,7 @@ func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bo
 			}
 			retKey, err := dbKeyValueXfmrHandler(oper, d.Opts.DBNo, tableName, dbKey, false)
 			if err != nil {
-				return false, err, db.Value{}
+				return false, err
 			}
 			xfmrLogDebug("dbKeyValueXfmrHandler() returned db key %v", retKey)
 			dbKey = retKey
@@ -1762,28 +1731,28 @@ func dbTableExists(d *db.DB, tableName string, dbKey string, oper Operation) (bo
 			if derr != nil {
 				log.Warningf("Failed to get keys for tbl(%v) dbKey pattern %v error: %v", tableName, dbKey, derr)
 				err = tlerr.NotFound("Resource not found")
-				return false, err, db.Value{}
+				return false, err
 			}
 			xfmrLogDebug("keys for table %v are %v", tableName, keys)
 			if len(keys) > 0 {
-				return true, nil, db.Value{}
+				return true, nil
 			} else {
 				log.Warningf("dbKey %v does not exist in DB for table %v", dbKey, tableName)
 				err = tlerr.NotFound("Resource not found")
-				return false, err, db.Value{}
+				return false, err
 			}
 		} else {
 			existingEntry, derr := d.GetEntry(dbTblSpec, db.Key{Comp: []string{dbKey}})
 			if derr != nil {
 				log.Warningf("GetEntry failed for table: %v, key: %v err: %v", tableName, dbKey, derr)
 				err = tlerr.NotFound("Resource not found")
-				return false, err, db.Value{}
+				return false, err
 			}
-			return existingEntry.IsPopulated(), err, existingEntry
+			return existingEntry.IsPopulated(), err
 		}
 	} else {
 		log.Warning("Empty table name received")
-		return false, nil, db.Value{}
+		return false, nil
 	}
 }
 
@@ -2713,11 +2682,11 @@ func hasSameOcSonicKeys(listUri string, xpath string, table string) bool {
 func (inPm XfmrParams) String() string {
 	return fmt.Sprintf("{oper: %v, uri: %v, requestUri: %v, "+
 		"DB Name at current node: %v, table: %v, key: %v, dbDataMap: %v, subOpDataMap: %v, yangDefValMap: %v "+
-		"skipOrdTblChk: %v, isVirtualTbl: %v, pCascadeDelTbl: %v, "+
+		"skipOrdTblChk: %v, isVirtualTbl: %v, isNotTblOwner: %v, pCascadeDelTbl: %v, "+
 		"invokeCRUSubtreeOnce: %v}, context: %v}",
 		inPm.oper, inPm.uri, inPm.requestUri,
 		inPm.curDb.Name(), inPm.table, inPm.key, inPm.dbDataMap, inPm.subOpDataMap, inPm.yangDefValMap,
-		boolPtrToString(inPm.skipOrdTblChk), boolPtrToString(inPm.isVirtualTbl), inPm.pCascadeDelTbl,
+		boolPtrToString(inPm.skipOrdTblChk), boolPtrToString(inPm.isVirtualTbl), boolPtrToString(inPm.isNotTblOwner), inPm.pCascadeDelTbl,
 		boolPtrToString(inPm.invokeCRUSubtreeOnce), inPm.ctxt)
 }
 
@@ -2942,9 +2911,14 @@ func hasSonicNestedList(tblName string) (bool, *dbInfo) {
 	return hasNestedList, innerListSpecInfo
 }
 
-func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, data map[string]map[string]db.Value, oper Operation) error {
+func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string, parentListNm string, nestedListNm string, d *db.DB, oper Operation) error {
 	/* this function will process sonic yang nested list Get case and perform resource check for it*/
 	xfmrLogDebug("Process Sonic Nested List Get Request %v", uri)
+
+	if d == nil {
+		xfmrLogDebug("DB handle is nil")
+		return tlerr.InternalError{Format: "DB handle is nil", Path: uri}
+	}
 
 	dbSpecPath := tableNm + "/" + parentListNm + "/" + nestedListNm
 	nestedListDbSpecInfo, ok := xDbSpecMap[dbSpecPath]
@@ -2969,7 +2943,24 @@ func sonicNestedListRequestResourceCheck(uri string, tableNm string, key string,
 			nestedListYangKeyName := nestedListDbSpecInfo.dbEntry.Key
 			fieldNm := extractLeafValFromUriKey(uri, nestedListYangKeyName)
 			if fieldNm != "" {
-				if _, fieldOk := data[tableNm][key].Field[fieldNm]; fieldOk {
+				/*sonicNestedListRequestResourceCheck() is currently called in CRUD context.
+				If using for GET send oper as CREATE for value-xfmr since the key used corresponds to key from URI*/
+				if hasKeyValueXfmr(tableNm) {
+					if retKey, err := dbKeyValueXfmrHandler(oper, d.Opts.DBNo, tableNm, key, false); err != nil {
+						xfmrLogDebug("dbKeyValueXfmrHandler() returned err %v", err)
+						return tlerr.InternalError{Format: err.Error(), Path: uri}
+					} else {
+						key = retKey
+					}
+				}
+				dbTblSpec := &db.TableSpec{Name: tableNm}
+				existingEntry, err := d.GetEntry(dbTblSpec, db.Key{Comp: []string{key}})
+				if err != nil || !existingEntry.IsPopulated() {
+					log.Warningf("GetEntry failed for table: %v, key: %v err: %v", tableNm, key, err)
+					return tlerr.NotFound("Resource not found")
+				}
+				if _, fieldOk := existingEntry.Field[fieldNm]; fieldOk {
+					xfmrLogDebug("Field %v exists in table - %v, instance - %v", fieldNm, tableNm, key)
 					return nil
 				} else {
 					xfmrLogInfo("Field %v doesn't exist in table - %v, instance - %v", fieldNm, tableNm, key)

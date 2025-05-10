@@ -72,10 +72,11 @@ type XfmrTranslateSubscribeInfo struct {
 }
 
 type xpathTblKeyExtractRet struct {
-	xpath        string
-	tableName    string
-	dbKey        string
-	isVirtualTbl bool
+	xpath         string
+	tableName     string
+	dbKey         string
+	isVirtualTbl  bool
+	isNotTblOwner bool
 }
 
 type xlateFromDbParams struct {
@@ -96,7 +97,6 @@ type xlateFromDbParams struct {
 	tbl               string
 	tblKey            string
 	resultMap         map[string]interface{}
-	validate          bool
 	xfmrDbTblKeyCache map[string]tblKeyCache
 	queryParams       QueryParams
 	dbTblKeyGetCache  map[db.DBNum]map[string]map[string]bool
@@ -114,6 +114,7 @@ type xlateToParams struct {
 	uri                     string
 	requestUri              string
 	xpath                   string
+	parentXpath             string
 	keyName                 string
 	jsonData                interface{}
 	resultMap               map[Operation]RedisDbMap
@@ -126,6 +127,7 @@ type xlateToParams struct {
 	name                    string
 	value                   interface{}
 	tableName               string
+	isNotTblOwner           bool
 	yangDefValMap           map[string]map[string]db.Value
 	yangAuxValMap           map[string]map[string]db.Value
 	xfmrDbTblKeyCache       map[string]tblKeyCache
@@ -148,6 +150,7 @@ type qpSubtreePruningErr struct {
 }
 
 type Operation int
+type subOpDataMapType map[Operation]*RedisDbMap
 
 type ContentType uint8
 
