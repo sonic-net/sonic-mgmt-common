@@ -19,6 +19,13 @@ module sonic-test-xfmr {
 			"Initial revision of Sonic transformer test yang.";
 	}
 
+        typedef ntp-key-type {
+                type enumeration {
+                        enum MD5; 
+                        enum SHA1;
+                }
+        }
+
 	container sonic-test-xfmr {
 
 		container TEST_SENSOR_GROUP {
@@ -339,6 +346,181 @@ module sonic-test-xfmr {
                                         }
                                 }
                         }
+                }
+
+                container DEVICE_ZONE_METADATA {
+                        container local-zonehost {
+                                 leaf metric {
+                                   type uint32;
+                                 }
+                                 leaf hold-interval {
+                                   type uint32;
+                                 }
+                                 leaf hwsku {
+                                   type string;                                         
+                                 }
+                                 leaf deployment-id {
+					type uint8;
+                                 }
+                        }
+                }
+
+                container TRANSPORT_ZONE {
+                        container transport-host {
+                                 leaf transport-keepalive-interval {
+                                   type uint32;
+                                 }
+                                 leaf restart-time {
+                                   type uint32;                                         
+                                 }
+                                 leaf delay-time {
+					type uint32;
+                                        default 5;
+                                 }
+                        }
+                }
+
+                container TEST_NTP {
+                        container global {
+                                 leaf auth-enabled {
+                                        type boolean;
+                                 }
+                                 leaf-list trusted-key {
+                                        type leafref {
+                                                path "/sonic-test-xfmr/TEST_NTP_AUTHENTICATION_KEY/NTP_AUTHENTICATION_KEY_LIST/id";
+                                        }                                         
+                                 }
+                                 leaf ni-name {
+                                        type string;
+                                 }
+                        }
+                }
+
+                container TEST_NTP_AUTHENTICATION_KEY {
+                         list NTP_AUTHENTICATION_KEY_LIST {
+                                key "id";
+
+                                leaf id {
+                                        type uint32;
+                                }                                
+                                leaf key-type {
+                                        mandatory true;
+                                        type ntp-key-type;
+                                }
+                                leaf key-value {
+                                        type string;
+                                }                               
+                          }
+                }
+
+                container TEST_NTP_SERVER {
+                         list NTP_SERVER_LIST {
+                                key "server-id";
+
+                                leaf server-id {
+                                        type uint32;
+                                }                                
+                                leaf key-id {
+                                        type leafref {
+                                                path "/sonic-test-xfmr/TEST_NTP_AUTHENTICATION_KEY/NTP_AUTHENTICATION_KEY_LIST/id";
+                                        } 
+                                }
+                                leaf min-poll {
+                                        type uint8 {
+                                                range "3..17";
+                                        }
+                                }                               
+                          }
+                }
+
+                container TEST_VRF {
+                         list TEST_VRF_LIST {
+                                key "test-vrf-name";
+
+                                leaf test-vrf-name {
+                                        type string {
+                                                pattern "default|Vrf_[a-zA-Z0-9]+" {
+                                                        error-message "Invalid VRF name";
+                                                        error-app-tag vrf-name-invalid;
+                                                }
+                                        }
+                                }                                
+                                leaf enabled {
+                                        type boolean;
+                                }
+                                leaf description {
+                                        type string;
+                                }                           
+                          }
+                }
+
+                container TEST_BGP_NETWORK_CFG {
+                         list TEST_BGP_NETWORK_CFG_LIST {
+                                key "test-vrf-name network-id";
+
+                                leaf test-vrf-name {
+                                        type leafref {
+                                                path "../../../TEST_VRF/TEST_VRF_LIST/test-vrf-name";
+                                        }
+                                }
+                                leaf network-id {
+                                        type uint32;
+                                }                                
+                                leaf backdoor {
+                                        type boolean;
+                                }                           
+                                leaf policy-name {
+                                        type string;
+                                }
+                          }
+                }
+
+                container TEST_OSPFV2_ROUTER {
+                         list TEST_OSPFV2_ROUTER_LIST {
+                                key "test-vrf-name";
+
+                                leaf test-vrf-name {
+                                        type leafref {
+                                                path "../../../TEST_VRF/TEST_VRF_LIST/test-vrf-name";
+                                        }
+                                }                             
+                                leaf enabled {
+                                        type boolean;
+                                }
+                                leaf write-multiplier {
+                                        type uint32;
+                                }
+                                leaf maximum-paths {
+                                        type uint32;
+                                } 
+                                leaf initial-delay {
+                                        type uint32;
+                                }
+                                leaf max-delay {
+                                        type uint32;
+                                }                          
+                          }
+                }
+
+                container TEST_OSPFV2_ROUTER_DISTRIBUTION {
+                         list TEST_OSPFV2_ROUTER_DISTRIBUTION_LIST {
+                                key "test-vrf-name distribution-id";
+
+                                leaf test-vrf-name {
+                                        type leafref {
+                                                path "../../../TEST_OSPFV2_ROUTER/TEST_OSPFV2_ROUTER_LIST/test-vrf-name";
+                                        }
+                                }                             
+                                leaf distribution-id {
+                                        type uint32;
+                                }
+                                leaf priority {
+                                        type uint32;
+                                }
+                                leaf table-id {
+                                        type uint32;
+                                }                  
+                         }
                 }
 	}
 }

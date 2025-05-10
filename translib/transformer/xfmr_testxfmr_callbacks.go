@@ -41,6 +41,7 @@ func init() {
 
 	// Table transformer functions
 	XlateFuncBind("test_sensor_type_tbl_xfmr", test_sensor_type_tbl_xfmr)
+	XlateFuncBind("test_ni_instance_protocol_table_xfmr", test_ni_instance_protocol_table_xfmr)
 
 	// Key transformer functions
 	XlateFuncBind("YangToDb_test_sensor_type_key_xfmr", YangToDb_test_sensor_type_key_xfmr)
@@ -51,6 +52,17 @@ func init() {
 	XlateFuncBind("DbToYang_test_set_key_xfmr", DbToYang_test_set_key_xfmr)
 	XlateFuncBind("YangToDb_sensor_a_light_sensor_key_xfmr", YangToDb_sensor_a_light_sensor_key_xfmr)
 	XlateFuncBind("DbToYang_sensor_a_light_sensor_key_xfmr", DbToYang_sensor_a_light_sensor_key_xfmr)
+	//XlateFuncBind("YangToDb_test_ntp_authentication_key_xfmr", YangToDb_test_ntp_authentication_key_xfmr)
+	//XlateFuncBind("DbToYang_test_ntp_authentication_key_xfmr", DbToYang_test_ntp_authentication_key_xfmr)
+	XlateFuncBind("YangToDb_test_ni_instance_key_xfmr", YangToDb_test_ni_instance_key_xfmr)
+	XlateFuncBind("DbToYang_test_ni_instance_key_xfmr", DbToYang_test_ni_instance_key_xfmr)
+	XlateFuncBind("YangToDb_test_ni_instance_protocol_key_xfmr", YangToDb_test_ni_instance_protocol_key_xfmr)
+	XlateFuncBind("DbToYang_test_ni_instance_protocol_key_xfmr", DbToYang_test_ni_instance_protocol_key_xfmr)
+	XlateFuncBind("YangToDb_test_bgp_network_cfg_key_xfmr", YangToDb_test_bgp_network_cfg_key_xfmr)
+	XlateFuncBind("DbToYang_test_bgp_network_cfg_key_xfmr", DbToYang_test_bgp_network_cfg_key_xfmr)
+	XlateFuncBind("YangToDb_test_ospfv2_router_distribution_key_xfmr", YangToDb_test_ospfv2_router_distribution_key_xfmr)
+	XlateFuncBind("DbToYang_test_ospfv2_router_distribution_key_xfmr", DbToYang_test_ospfv2_router_distribution_key_xfmr)
+	XlateFuncBind("YangToDb_test_ospfv2_router_key_xfmr", YangToDb_test_ospfv2_router_key_xfmr)
 
 	// Key leafrefed Field transformer functions
 	XlateFuncBind("DbToYang_test_sensor_type_field_xfmr", DbToYang_test_sensor_type_field_xfmr)
@@ -71,6 +83,8 @@ func init() {
 
 	//validate transformer
 	XlateFuncBind("light_sensor_validate", light_sensor_validate)
+	XlateFuncBind("validate_bgp_proto", validate_bgp_proto)
+	XlateFuncBind("validate_ospfv2_proto", validate_ospfv2_proto)
 
 	// Sonic yang Key transformer functions
 	XlateFuncBind("DbToYang_test_sensor_mode_key_xfmr", DbToYang_test_sensor_mode_key_xfmr)
@@ -112,7 +126,7 @@ var test_pre_xfmr PreXfmrFunc = func(inParams XfmrParams) error {
 	return err
 }
 
-var test_post_xfmr PostXfmrFunc = func(inParams XfmrParams) (map[string]map[string]db.Value, error) {
+var test_post_xfmr PostXfmrFunc = func(inParams XfmrParams) error {
 
 	pathInfo := NewPathInfo(inParams.uri)
 	groupId := pathInfo.Var("id")
@@ -132,7 +146,7 @@ var test_post_xfmr PostXfmrFunc = func(inParams XfmrParams) (map[string]map[stri
 			inParams.subOpDataMap[CREATE] = &subOpCreateMap
 		}
 	}
-	return retDbDataMap, nil
+	return nil
 }
 
 var test_sensor_type_tbl_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) {
@@ -171,7 +185,7 @@ var YangToDb_test_sensor_type_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParam
 	pathInfo := NewPathInfo(inParams.uri)
 	groupId := pathInfo.Var("id")
 	sensorType := pathInfo.Var("type")
-	if groupId == "" || sensorType == "" {
+	if groupId == "" {
 		return sensor_type_key, err
 	}
 	if len(groupId) > 0 {
@@ -182,6 +196,8 @@ var YangToDb_test_sensor_type_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParam
 		} else if strings.HasPrefix(sensorType, "sensorb_") {
 			sensor_type = strings.Replace(sensorType, "sensorb_", "sensor_type_b_", 1)
 			sensor_type_key = groupId + "|" + sensor_type
+		} else if sensorType == "" && (strings.HasSuffix(inParams.uri, "/test-sensor-type")) && (inParams.oper == GET || inParams.oper == DELETE) {
+			sensor_type_key = groupId
 		} else {
 			err_str := "Invalid key. Key not supported."
 			err = tlerr.NotSupported(err_str)
@@ -760,6 +776,8 @@ var YangToDb_sensor_a_light_sensor_key_xfmr KeyXfmrYangToDb = func(inParams Xfmr
 	sensorType := pathInfo.Var("type")
 	lightSensorTag := pathInfo.Var("tag")
 	if groupId == "" || sensorType == "" {
+		err_str := "Invalid key. Key not supported."
+		err = tlerr.NotSupported(err_str)
 		return light_sensor_key, err
 	}
 	sensor_type := ""
@@ -773,11 +791,10 @@ var YangToDb_sensor_a_light_sensor_key_xfmr KeyXfmrYangToDb = func(inParams Xfmr
 		err_str := "Invalid key. Key not supported."
 		err = tlerr.NotSupported(err_str)
 	}
-	if err == nil {
+	if err == nil && lightSensorTag != "" {
 		sensor_tag := strings.Replace(lightSensorTag, "lightsensor_", "light_sensor_", 1)
 		light_sensor_key += "|" + sensor_tag
 	}
-
 	log.Info("YangToDb_sensor_a_light_sensor_key_xfmr returns", light_sensor_key)
 	return light_sensor_key, err
 }
@@ -814,4 +831,248 @@ func light_sensor_validate(inParams XfmrParams) bool {
 	}
 	log.Info("light_sensor_validate returning ", traversal_valid)
 	return traversal_valid
+}
+
+var YangToDb_test_ni_instance_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var db_ni_name string
+	var err error
+	log.Info("YangToDb_test_ni_instance_key_xfmr ", inParams.uri)
+	pathInfo := NewPathInfo(inParams.uri)
+	ni_name := pathInfo.Var("ni-name")
+
+	if strings.HasPrefix(ni_name, "vrf-") {
+		db_ni_name = strings.Replace(ni_name, "vrf-", "Vrf_", 1)
+	} else if strings.HasPrefix(ni_name, "default") {
+		db_ni_name = ni_name
+	} else if ni_name != "" {
+		err_str := "Invalid key. Key not supported."
+		err = tlerr.NotSupported(err_str)
+	}
+	log.Info("YangToDb_test_ni_instance_key_xfmr returning db_ni_name ", db_ni_name, " error ", err)
+	return db_ni_name, err
+}
+
+var DbToYang_test_ni_instance_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	log.Info("DbToYang_test_ni_instance_key_xfmr ", inParams.uri)
+	var rmap map[string]interface{}
+	var ni_name string
+
+	if inParams.key == "default" {
+		ni_name = "default"
+	} else {
+		ni_name = strings.Replace(inParams.key, "Vrf_", "vrf-", 1)
+	}
+	rmap = make(map[string]interface{})
+	rmap["ni-name"] = ni_name
+
+	log.Info("DbToYang_test_ni_instance_key_xfmr returning ", rmap)
+	return rmap, nil
+}
+
+var test_ni_instance_protocol_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) {
+	var tblList []string
+	var err error
+
+	log.Info("test_ni_instance_protocol_table_xfmr", inParams.uri)
+	if inParams.oper == GET || inParams.oper == DELETE {
+		pathInfo := NewPathInfo(inParams.uri)
+		ni_name := pathInfo.Var("ni-name")
+		proto_name := pathInfo.Var("name")
+		log.Info("test_ni_instance_protocol_table_xfmr ni-inatnce ", ni_name, " proto name ", proto_name)
+		cfg_tbl_updated := false
+		if inParams.dbDataMap != nil {
+			log.Info("test_ni_instance_protocol_table_xfmr  tblList dbDataMap ", (*inParams.dbDataMap)[db.ConfigDB])
+			if (ni_name == "default") || (strings.HasPrefix(ni_name, "vrf-")) {
+				if proto_name == "" { // inParams.uri at whole list level, hence add all child instances to be traversed
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"] = db.Value{Field: make(map[string]string)}
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"].Field["NULL"] = "NULL"
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"] = db.Value{Field: make(map[string]string)}
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
+					cfg_tbl_updated = true
+					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB] ", (*inParams.dbDataMap)[db.ConfigDB])
+				} else if proto_name == "bgp" {
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"] = db.Value{Field: make(map[string]string)}
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["bgp"].Field["NULL"] = "NULL"
+					cfg_tbl_updated = true
+					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB] ", (*inParams.dbDataMap)[db.ConfigDB])
+				} else if proto_name == "ospfv2" {
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"] = make(map[string]db.Value)
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"] = db.Value{Field: make(map[string]string)}
+					(*inParams.dbDataMap)[db.ConfigDB]["TEST_CFG_PROTO_TBL"]["ospfv2"].Field["NULL"] = "NULL"
+					cfg_tbl_updated = true
+					log.Info("test_ni_instance_protocol_table_xfmr returning (*inParams.dbDataMap)[db.ConfigDB] ", (*inParams.dbDataMap)[db.ConfigDB])
+				} else {
+					err_str := "Invalid protocol key. Key not supported."
+					err = tlerr.NotSupported(err_str)
+				}
+			} else {
+				err_str := "Invalid ni-instance key. Key not supported."
+				err = tlerr.NotSupported(err_str)
+			}
+		}
+		if cfg_tbl_updated {
+			tblList = append(tblList, "TEST_CFG_PROTO_TBL")
+		}
+	}
+	*inParams.isVirtualTbl = true
+	log.Info("test_ni_instance_protocol_table_xfmr returning tblList ", tblList, " error ", err)
+	return tblList, err
+}
+
+var YangToDb_test_ni_instance_protocol_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var key string
+	var err error
+
+	if inParams.oper == GET || inParams.oper == DELETE {
+		pathInfo := NewPathInfo(inParams.uri)
+		ni_name := pathInfo.Var("ni-name")
+		proto_name := pathInfo.Var("name")
+		log.Info("YangToDb_test_ni_instance_protocol_key_xfmr received ni-instance ", ni_name, " protocol name ", proto_name)
+		if (ni_name == "default") || (strings.HasPrefix(ni_name, "vrf-")) {
+			if proto_name == "bgp" {
+				key = "bgp"
+			} else if proto_name == "ospfv2" {
+				key = "ospfv2"
+			} else if proto_name != "" {
+				err_str := "Invalid protocol key. Key not supported."
+				err = tlerr.NotSupported(err_str)
+			}
+		} else {
+			err_str := "Invalid ni-instance key. Key not supported."
+			err = tlerr.NotSupported(err_str)
+		}
+	}
+	log.Info("YangToDb_test_ni_instance_protocol_key_xfmr returning key ", key, " error ", err)
+	return key, err
+}
+
+var DbToYang_test_ni_instance_protocol_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	rmap := make(map[string]interface{})
+	rmap["name"] = inParams.key
+	log.Info("DbToYang_test_ni_instance_protocol_key_xfmr returning ", rmap)
+	return rmap, nil
+}
+
+func checkNwInstanceProtocol(inParams XfmrParams, protoNm string) bool {
+	pathInfo := NewPathInfo(inParams.uri)
+	proto_name := pathInfo.Var("name")
+	log.Info("checkNwInstanceProtocol() through validate handler ", proto_name)
+	return proto_name == protoNm
+}
+
+func validate_bgp_proto(inParams XfmrParams) bool {
+	return checkNwInstanceProtocol(inParams, "bgp")
+}
+
+func validate_ospfv2_proto(inParams XfmrParams) bool {
+	return checkNwInstanceProtocol(inParams, "ospfv2")
+}
+
+var YangToDb_test_ospfv2_router_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var ospfv2_db_key string
+	var err error
+	log.Info("YangToDb_test_ospfv2_router_key_xfmr ", inParams.uri)
+	pathInfo := NewPathInfo(inParams.uri)
+	ni_name := pathInfo.Var("ni-name")
+
+	if strings.HasPrefix(ni_name, "vrf-") {
+		ospfv2_db_key = strings.Replace(ni_name, "vrf-", "Vrf_", 1)
+	} else if strings.HasPrefix(ni_name, "default") {
+		ospfv2_db_key = ni_name
+	} else if ni_name != "" {
+		err_str := "Invalid network-instance key. Key not supported."
+		err = tlerr.NotSupported(err_str)
+	}
+	log.Info("YangToDb_test_ospfv2_router_key_xfmr returning ", ospfv2_db_key, " error ", err)
+	return ospfv2_db_key, err
+}
+
+var YangToDb_test_ospfv2_router_distribution_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var db_ni_name, ospfv2_db_key string
+	var err error
+	log.Info("YangToDb_test_ospfv2_router_distribution_key_xfmr ", inParams.uri)
+	pathInfo := NewPathInfo(inParams.uri)
+	ni_name := pathInfo.Var("ni-name")
+	distribution_id := pathInfo.Var("distribution-id")
+
+	if strings.HasPrefix(ni_name, "vrf-") {
+		db_ni_name = strings.Replace(ni_name, "vrf-", "Vrf_", 1)
+	} else if strings.HasPrefix(ni_name, "default") {
+		db_ni_name = ni_name
+	} else if ni_name != "" {
+		err_str := "Invalid key. Key not supported."
+		err = tlerr.NotSupported(err_str)
+	}
+
+	if distribution_id != "" {
+		ospfv2_db_key = db_ni_name + "|" + distribution_id
+	} else {
+		ospfv2_db_key = db_ni_name
+	}
+
+	log.Info("YangToDb_test_ospfv2_router_distribution_key_xfmr returning ", ospfv2_db_key, " error ", err)
+	return ospfv2_db_key, err
+}
+
+var DbToYang_test_ospfv2_router_distribution_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	log.Info("DbToYang_test_ospfv2_router_distribution_key_xfmr ", inParams.uri)
+	var rmap map[string]interface{}
+	var distribution_id string
+
+	if strings.Contains(inParams.key, "|") {
+		key_split := strings.SplitN(inParams.key, "|", 2)
+		if len(key_split) == 2 {
+			distribution_id = key_split[1]
+			rmap = make(map[string]interface{})
+			rmap["distribution-id"] = distribution_id
+		}
+	}
+	log.Info("DbToYang_test_ospfv2_router_distribution_key_xfmr returning ", rmap)
+	return rmap, nil
+}
+
+var YangToDb_test_bgp_network_cfg_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams) (string, error) {
+	var db_ni_name, bgp_cfg_db_key string
+	var err error
+	log.Info("YangToDb_test_bgp_network_cfg_key_xfmr ", inParams.uri)
+	pathInfo := NewPathInfo(inParams.uri)
+	ni_name := pathInfo.Var("ni-name")
+	network_id := pathInfo.Var("network-id")
+
+	if strings.HasPrefix(ni_name, "vrf-") {
+		db_ni_name = strings.Replace(ni_name, "vrf-", "Vrf_", 1)
+	} else if strings.HasPrefix(ni_name, "default") {
+		db_ni_name = ni_name
+	} else if ni_name != "" {
+		err_str := "Invalid key. Key not supported."
+		err = tlerr.NotSupported(err_str)
+	}
+
+	if network_id != "" {
+		bgp_cfg_db_key = db_ni_name + "|" + network_id
+	} else {
+		bgp_cfg_db_key = db_ni_name
+	}
+
+	log.Info("YangToDb_test_bgp_network_cfg_key_xfmr returning ", bgp_cfg_db_key, " error ", err)
+	return bgp_cfg_db_key, err
+}
+
+var DbToYang_test_bgp_network_cfg_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	log.Info("DbToYang_test_bgp_network_cfg_key_xfmr ", inParams.uri)
+	var rmap map[string]interface{}
+	var network_id string
+
+	if strings.Contains(inParams.key, "|") {
+		key_split := strings.SplitN(inParams.key, "|", 2)
+		if len(key_split) == 2 {
+			network_id = key_split[1]
+			rmap = make(map[string]interface{})
+			rmap["network-id"] = network_id
+		}
+	}
+	log.Info("DbToYang_test_bgp_network_cfg_key_xfmr returning ", rmap)
+	return rmap, nil
 }
