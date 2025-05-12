@@ -921,7 +921,7 @@ func deleteFields(existingEntry db.Value, d *db.DB, cmnAppTs *db.TableSpec, tblK
 			}
 			if deleteCount == len(existingEntry.Field) {
 				nullTblRw := db.Value{Field: map[string]string{"NULL": "NULL"}}
-				log.Info("Last field gets deleted, add NULL field to keep an db entry")
+				log.V(4).Infof("All existing fields(%v) getting deleted, add NULL field to keep the db entry/instance(%v)", existingEntry.Field, tblNm+"|"+tblKey)
 				err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, nullTblRw)
 				if err != nil {
 					log.Warning("UPDATE case - d.ModEntry() failure")
@@ -978,7 +978,7 @@ func (app *CommonApp) processTableDeleteForReplace(d *db.DB, parentTblNm string,
 			continue
 		}
 		markChildTablesToCleanFromTranslatedResult(d, dbMap[db.ConfigDB], childTblToCleanMap, parentTblNm, moduleNm)
-		if log.V(3) {
+		if log.V(4) {
 			log.Infof("populated child tables that might need cleanup after processing result tables for oper %v is %v", oper, childTblToCleanMap)
 		}
 	}
@@ -1194,7 +1194,7 @@ func (app *CommonApp) handleChildDeleteForOcReplaceAndDelete(d *db.DB, sortedDel
 						log.Info("Table Entry from which the fields are to be deleted does not exist. Ignore error for non existant instance for idempotency")
 						continue
 					}
-					if log.V(3) {
+					if log.V(4) {
 						log.Info("Fields delete", cmnAppTs, db.Key{Comp: []string{tblKey}}, tblRw)
 					}
 					err = deleteFields(existingEntry, d, cmnAppTs, tblKey, tblRw, app.deleteEmptyEntry)
