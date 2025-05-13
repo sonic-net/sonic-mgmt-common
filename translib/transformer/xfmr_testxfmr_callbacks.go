@@ -52,8 +52,6 @@ func init() {
 	XlateFuncBind("DbToYang_test_set_key_xfmr", DbToYang_test_set_key_xfmr)
 	XlateFuncBind("YangToDb_sensor_a_light_sensor_key_xfmr", YangToDb_sensor_a_light_sensor_key_xfmr)
 	XlateFuncBind("DbToYang_sensor_a_light_sensor_key_xfmr", DbToYang_sensor_a_light_sensor_key_xfmr)
-	//XlateFuncBind("YangToDb_test_ntp_authentication_key_xfmr", YangToDb_test_ntp_authentication_key_xfmr)
-	//XlateFuncBind("DbToYang_test_ntp_authentication_key_xfmr", DbToYang_test_ntp_authentication_key_xfmr)
 	XlateFuncBind("YangToDb_test_ni_instance_key_xfmr", YangToDb_test_ni_instance_key_xfmr)
 	XlateFuncBind("DbToYang_test_ni_instance_key_xfmr", DbToYang_test_ni_instance_key_xfmr)
 	XlateFuncBind("YangToDb_test_ni_instance_protocol_key_xfmr", YangToDb_test_ni_instance_protocol_key_xfmr)
@@ -110,7 +108,7 @@ var test_pre_xfmr PreXfmrFunc = func(inParams XfmrParams) error {
 	rejectReplaceNodes := []string{"/openconfig-test-xfmr:test-xfmr/interfaces",
 		"/openconfig-test-xfmr:test-xfmr/test-sensor-groups",
 		"/openconfig-test-xfmr:test-xfmr/test-sensor-types",
-		"/openconfig-test-xfmr:test-xfmr/test-sets",
+		"/openconfig-test-xfmr:test-xfmr",
 	}
 	targetUriPath, _ := getYangPathFromUri(pathInfo.Path)
 

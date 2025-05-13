@@ -2027,6 +2027,13 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 							}
 							inParamsForGet.ygRoot = ygRoot
 							break
+						} else if (yangType == YANG_LEAF_LIST) && ((strings.HasSuffix(uri, "]")) || (strings.HasSuffix(uri, "]/"))) {
+							/*GET on leaf-list instance with subtree annotatiion.
+							  Translib pre-populates ygRoot with leaf-list instance specified in GET URL
+							*/
+							jsonMapData, _ := json.Marshal(resultMap)
+							jsonData = fmt.Sprintf("%v", string(jsonMapData))
+							return jsonData, false, nil
 						}
 					} else {
 						tbl, key, _ := tableNameAndKeyFromDbMapGet((*dbDataMap)[cdb], xpathKeyExtRet.tableName)
