@@ -79,6 +79,34 @@ type xpathTblKeyExtractRet struct {
 	isNotTblOwner bool
 }
 
+type replaceProcessingInfo struct {
+	/* used to differentiate DELETE flow for REPLACE vs normal DELETE */
+	isDeleteForReplace bool
+
+	/* Add current uri when subtree invoked first time in payload processing.
+	   Used in DELETE flow for REPLACE
+	*/
+	subtreeVisitedCache map[string]bool
+
+	/* subOpDataMap filled only by infra during Replace request/target URI or
+	   payload processing for nontable owner cases identified by non table owner
+	   annotation(static/dynamic) or inherited table case(applies for target URI level only).
+	*/
+	subOpDataMap map[Operation]*RedisDbMap
+
+	/* set to true for request URI node having child complex-node(list/container) else
+	   set to false IFF request URI is leaf/leaf-list/terminal-container/terminal-list */
+	targetHasNonTerminalNode bool
+
+	/* Boolean pointer that is used to indicate if sibling fields traversal is required
+	   during delete if field found in non REPLACE resultMap*/
+	skipFieldSiblingTraversalForDelete *bool
+
+	/*used to identify if default value processing is being done for Non-table owner data
+	  populated in subOpDataMap[UPDATE]*/
+	isNonTblOwnerDefaultValProcess bool
+}
+
 type xlateFromDbParams struct {
 	d          *db.DB //current db
 	dbs        [db.MaxDB]*db.DB
@@ -133,6 +161,7 @@ type xlateToParams struct {
 	xfmrDbTblKeyCache       map[string]tblKeyCache
 	dbTblKeyGetCache        map[db.DBNum]map[string]map[string]bool
 	invokeCRUSubtreeOnceMap map[string]map[string]bool
+	replaceInfo             *replaceProcessingInfo
 }
 
 type contentQPSpecMapInfo struct {

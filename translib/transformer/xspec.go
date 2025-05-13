@@ -296,14 +296,16 @@ func yangToDbMapFill(keyLevel uint8, xYangSpecMap map[string]*yangXpathInfo, ent
 		curXpathFull = xpath
 		if xpathPrefix != xpathFull {
 			curXpathFull = xpathFull + "/" + entry.Name
+			xpathData := new(yangXpathInfo)
+			xpathData.subscribeMinIntvl = XFMR_INVALID
+			xpathData.dbIndex = db.ConfigDB // default value
 			if annotNode, ok := xYangSpecMap[curXpathFull]; ok {
-				xpathData := new(yangXpathInfo)
-				xpathData.subscribeMinIntvl = XFMR_INVALID
-				xpathData.dbIndex = db.ConfigDB // default value
 				xYangSpecMap[xpath] = xpathData
 				copyYangXpathSpecData(xYangSpecMap[xpath], annotNode)
-				updateChoiceCaseXpath = true
+			} else {
+				xYangSpecMap[curXpathFull] = xpathData
 			}
+			updateChoiceCaseXpath = true
 		}
 
 		xpathData, ok := xYangSpecMap[xpath]
