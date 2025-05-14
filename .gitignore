@@ -11,3 +11,6 @@ __pycache__
 translib/ocbinds/ocbinds.go
 models/yang/*.md
 .idea
+test/bookworm/*.deb
+test/bookworm/*.whl
+container
