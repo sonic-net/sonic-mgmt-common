@@ -740,7 +740,12 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						A leaf-list field in redis has "@" suffix as per swsssdk convention.
 						*/
 						resTblRw := db.Value{Field: map[string]string{}}
-						resTblRw = checkAndProcessLeafList(existingEntry, tblRw, UPDATE, d, tblNm, tblKey)
+						/* for north-bound REPLACE request always swap the whole leaf-list */
+						if app.cmnAppOpcode == REPLACE {
+							resTblRw = tblRw
+						} else {
+							resTblRw = checkAndProcessLeafList(existingEntry, tblRw, UPDATE, d, tblNm, tblKey)
+						}
 						log.Info("Processing Table row ", resTblRw)
 						err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, resTblRw)
 						if err != nil {
@@ -773,7 +778,12 @@ func (app *CommonApp) cmnAppCRUCommonDbOpn(d *db.DB, opcode int, dbMap map[strin
 						A leaf-list field in redis has "@" suffix as per swsssdk convention.
 						*/
 						resTblRw := db.Value{Field: map[string]string{}}
-						resTblRw = checkAndProcessLeafList(existingEntry, tblRw, UPDATE, d, tblNm, tblKey)
+						/* for north-bound REPLACE request always swap the whole leaf-list */
+						if app.cmnAppOpcode == REPLACE {
+							resTblRw = tblRw
+						} else {
+							resTblRw = checkAndProcessLeafList(existingEntry, tblRw, UPDATE, d, tblNm, tblKey)
+						}
 						err = d.ModEntry(cmnAppTs, db.Key{Comp: []string{tblKey}}, resTblRw)
 						if err != nil {
 							log.Warning("UPDATE case - d.ModEntry() failure")
@@ -929,9 +939,186 @@ func deleteFields(existingEntry db.Value, d *db.DB, cmnAppTs *db.TableSpec, tblK
 	return err
 }
 
+func (app *CommonApp) processTableDeleteForReplace(d *db.DB, parentTblNm string, parentTblSpec *db.TableSpec, moduleNm string, cvlSess *cvl.CVL, ordParentTblKeys []string) error {
+	var err error
+	var childTblToCleanMap map[string]bool
+	var parentTblKeyMap map[string]db.Value
+	var parentTblKeys []db.Key
+	var getKeysErr error
+
+	replaceDbMap, replaceOk := app.cmnAppTableMap[REPLACE][db.ConfigDB]
+
+	/* non-table owners are filled in update by infra, subtrees can fill anywhere
+	   map-consolidation at the end of infra translation before hitting common_app
+	   should merge the data if table-instance present across operations.
+	*/
+	updateDbMap, updateOk := app.cmnAppTableMap[UPDATE][db.ConfigDB]
+	createDbMap, createOk := app.cmnAppTableMap[CREATE][db.ConfigDB]
+	if !replaceOk && !updateOk && !createOk {
+		log.V(4).Info("No data in REPLACE, UPDATE and CREATE result map.")
+		return nil
+	}
+	if len(ordParentTblKeys) == 0 {
+		parentTblKeys, getKeysErr = d.GetKeys(parentTblSpec)
+		if getKeysErr != nil {
+			log.Warningf("GetKeys() failed for parent table - %v - error - %v", parentTblNm, getKeysErr)
+		}
+		if len(parentTblKeys) == 0 {
+			log.V(4).Info("No DB data found so no action to take for parent table ", parentTblNm)
+			return nil
+		}
+	}
+
+	log.Infof("processDeleteForReplace: parent table %v", parentTblNm)
+
+	childTblToCleanMap = make(map[string]bool)
+	for oper, dbMap := range app.cmnAppTableMap {
+		//table/instances passed as input param to this function belong to DELETE resultmap
+		if (oper == DELETE) || (len(dbMap) == 0) || (len(dbMap[db.ConfigDB]) == 0) {
+			continue
+		}
+		markChildTablesToCleanFromTranslatedResult(d, dbMap[db.ConfigDB], childTblToCleanMap, parentTblNm, moduleNm)
+		if log.V(4) {
+			log.Infof("populated child tables that might need cleanup after processing result tables for oper %v is %v", oper, childTblToCleanMap)
+		}
+	}
+
+	if len(childTblToCleanMap) == 0 {
+		log.Info("No child tables, mapped to/under target URI yang hierarchy remaining for cleanup.")
+		return nil
+	}
+
+	if len(ordParentTblKeys) == 0 {
+		parentTblKeyMap = make(map[string]db.Value)
+		log.V(4).Info("parent table keys - ", parentTblKeys)
+		for _, parentKey := range parentTblKeys {
+			parentTblKeyMap[strings.Join(parentKey.Comp, "|")] = db.Value{}
+		}
+		log.V(4).Info("parent table key map - ", parentTblKeyMap)
+		ordParentTblKeys = transformer.SortSncTableDbKeys(parentTblNm, parentTblKeyMap)
+	}
+	log.V(4).Info("Sorted parent table keys - ", ordParentTblKeys)
+
+	for _, parentKey := range ordParentTblKeys {
+		log.V(4).Info("processing parentKey: ", parentKey)
+		parentInst := parentTblNm + "|" + parentKey
+		depDataList := cvlSess.GetDepDataForDelete(parentInst)
+		log.V(4).Info("depList: ", depDataList)
+		for idx := len(depDataList) - 1; idx >= 0; idx-- { //CVL gives in parent first order
+			depEntry := depDataList[idx]
+			log.V(4).Infof("Processing depEntry for item %v in depDataList ", depEntry.RefKey)
+			for depInst, depInstFieldMap := range depEntry.Entry {
+				log.V(4).Info("Processing depInst:depFields ", depInst, depInstFieldMap)
+				childTblAndKey := strings.SplitN(depInst, "|", 2)
+				if len(childTblAndKey) != 2 {
+					log.Warning("Child table/key not found in depInst: ", depInst)
+					continue
+				}
+				childTblNm := childTblAndKey[0]
+				childTblKey := childTblAndKey[1]
+				if !childTblToCleanMap[childTblNm] {
+					continue
+				}
+
+				/*  Child table mapped in the yang hierarchy from request URI will be present either
+				    in REPLACE/UPDATE/CREATE result-map(payload/direct map to request URI) based on
+					table ownership, or in DELETE result-map(since a GET like traversal is done).
+				    If present in DELETE result-map then its already processed being a child table
+				    and no clean-up needed before cleaning parent.Clean-up needed only when present
+				    in REPLACE/UPDATE/CREATE
+				*/
+				tblOwner := true //if instance found in REPLACE map then table owner
+				nonTblOwnerInstRwInResultMap := db.Value{}
+				nonTblOwnerInstRwInResultMap.Field = make(map[string]string)
+				var instInReplaceMap, instInUpdateMap, instInCreateMap bool
+				if _, instInReplaceMap = replaceDbMap[childTblNm][childTblKey]; !instInReplaceMap {
+					if nonTblOwnerInstRwInResultMap, instInUpdateMap = updateDbMap[childTblNm][childTblKey]; !instInUpdateMap {
+						if nonTblOwnerInstRwInResultMap, instInCreateMap = createDbMap[childTblNm][childTblKey]; !instInCreateMap {
+							log.V(4).Info("Table instance not found in REPLACE/UPDATE/CREATE result map.")
+							continue
+						}
+					}
+					tblOwner = false
+					log.V(4).Infof("Table instance %v found in UPDATE/CREATE result map with fields %v", childTblAndKey, nonTblOwnerInstRwInResultMap)
+				}
+
+				//cleanup depending on table-ownership and key vs non-key based relationship between the parent and child table
+				childTblSpec := &db.TableSpec{Name: childTblNm}
+				if len(depInstFieldMap) > 0 {
+					// non-key based realtionship so clean-up only dependent fields
+					var fieldRw db.Value
+					fieldRw.Field = make(map[string]string)
+					for field, val := range depInstFieldMap {
+						fieldRw.Field[field] = val
+					}
+					if !tblOwner {
+						/* for non-table owner if dependent data has a field not mapped to/under the
+						   target URI yang hierarchy then abort since CVL will not allow parent to be deleted
+						   without dependency being cleaned.
+						*/
+						cleanUp, cleanUpErr := checkNonTblOwnerDepChildNeedsCleanUp(fieldRw, nonTblOwnerInstRwInResultMap,
+							parentInst, depInst, app.pathInfo.Path)
+						if cleanUpErr != nil {
+							return cleanUpErr
+						}
+						if !cleanUp {
+							continue
+						}
+					}
+					err = d.DeleteEntryFields(childTblSpec, db.Key{Comp: []string{childTblKey}}, fieldRw)
+					if err != nil {
+						log.Warning("DELETE for REPLACE case d.DeleteEntryFields() failure")
+						return err
+					}
+				} else {
+					//key based relation between parent and child so complete child instance can be deleted
+					if !tblOwner {
+						/* for non-table owner entire child instance cannot be deleted
+						   if that instance in DB has a field not mapped to/under the
+						   target URI yang hierarchy.
+						*/
+						existingEntry, existingEntryErr := d.GetEntry(childTblSpec, db.Key{Comp: []string{childTblKey}})
+						if existingEntryErr != nil {
+							log.Warning("DELETE case for REPLACE - d.GetEntry() failure")
+							return err
+						}
+						if existingEntry.IsPopulated() {
+							cleanUp, cleanUpErr := checkNonTblOwnerDepChildNeedsCleanUp(existingEntry, nonTblOwnerInstRwInResultMap,
+								parentInst, depInst, app.pathInfo.Path)
+							if cleanUpErr != nil {
+								return cleanUpErr
+							}
+							if !cleanUp {
+								continue
+							}
+						}
+					}
+					err = d.DeleteEntry(childTblSpec, db.Key{Comp: []string{childTblKey}})
+					if err != nil {
+						log.Warning("DELETE for REPLACE case - d.DeleteEntry() failure")
+						return err
+					}
+				}
+			}
+		} // end of depData List loop
+	} //end of parent table keys loop
+
+	return nil
+}
+
 func (app *CommonApp) handleChildDeleteForOcReplaceAndDelete(d *db.DB, sortedDelTblLst []string, moduleNm string) error {
 	/* resultTblLst has child first, parent later order */
+	var cvlSess *cvl.CVL
 	var err error
+
+	if app.cmnAppOpcode == REPLACE {
+		cvlSess, err = d.NewValidationSession()
+		if err != nil || cvlSess == nil {
+			log.Info("getCVLDepDataForDelete : cvl.ValidationSessOpen failed")
+			return err
+		}
+		defer cvl.ValidationSessClose(cvlSess)
+	}
 
 	for _, tblNm := range sortedDelTblLst {
 		log.V(4).Info("In Yang to DB map returned from transformer looking for table = ", tblNm)
@@ -940,7 +1127,7 @@ func (app *CommonApp) handleChildDeleteForOcReplaceAndDelete(d *db.DB, sortedDel
 			cmnAppTs := &db.TableSpec{Name: tblNm}
 			if len(tblVal) == 0 {
 				log.Info("No table instances/rows found hence mark entire table to be deleted = ", tblNm)
-				/* handle child table cleanup when North Bound oper is REPLACE- TODO.
+				/* handle child table cleanup when North Bound oper is REPLACE
 				   For north bound DELETE child yang hierarchy traversal for target/request
 				   URI will populate the relevant child tables in the result map and
 				   SortAsPerTblDeps() on the tables in result map will take care of child table getting
@@ -949,11 +1136,16 @@ func (app *CommonApp) handleChildDeleteForOcReplaceAndDelete(d *db.DB, sortedDel
 				*/
 				if app.cmnAppOpcode == REPLACE {
 					log.V(4).Info("process Table level Delete For North Bound Replace oper")
-					/* TODO - For North Bound REPLACE operation payload translation can result in
+					/* For North Bound REPLACE operation payload translation can result in
 					   data being populated in UPDATE map based on table ownership and also the
 					   scope of db-mapping at the target URL.DELETE map will contain whats not present
 					   in the payload in yang hiercharchy beneath the target URL.Thus data needs to be
-					   processed in order resolving dependencies to achieve the end result */
+					   processed in order resolving dependencies to achieve the end result.
+					*/
+					err = app.processTableDeleteForReplace(d, tblNm, cmnAppTs, moduleNm, cvlSess, parentKeysList)
+					if err != nil {
+						return err
+					}
 				}
 				log.Info("deleting table = ", tblNm)
 				err = d.DeleteTable(cmnAppTs)
@@ -1002,7 +1194,7 @@ func (app *CommonApp) handleChildDeleteForOcReplaceAndDelete(d *db.DB, sortedDel
 						log.Info("Table Entry from which the fields are to be deleted does not exist. Ignore error for non existant instance for idempotency")
 						continue
 					}
-					if log.V(3) {
+					if log.V(4) {
 						log.Info("Fields delete", cmnAppTs, db.Key{Comp: []string{tblKey}}, tblRw)
 					}
 					err = deleteFields(existingEntry, d, cmnAppTs, tblKey, tblRw, app.deleteEmptyEntry)
@@ -1014,7 +1206,23 @@ func (app *CommonApp) handleChildDeleteForOcReplaceAndDelete(d *db.DB, sortedDel
 			}
 			/* Delete the dependent entries for all keys in parentKeysList in case of REPLACE */
 			if app.cmnAppOpcode == REPLACE && len(parentKeysList) > 0 {
-				// TODO as mentioned in above comment
+				err = app.processTableDeleteForReplace(d, tblNm, cmnAppTs, moduleNm, cvlSess, parentKeysList)
+				if err != nil {
+					return err
+				}
+			}
+			for _, tableKey := range parentKeysList {
+				log.V(4).Info("Delete parent entry ", cmnAppTs, db.Key{Comp: []string{tableKey}})
+				err = d.DeleteEntry(cmnAppTs, db.Key{Comp: []string{tableKey}})
+				if err != nil {
+					if cvl.CVLRetCode(err.(tlerr.TranslibCVLFailure).Code) == cvl.CVL_SEMANTIC_KEY_NOT_EXIST {
+						log.V(4).Infof("Ignore delete that cannot be processed for table %v key %v that does not exist. err %v", tblNm, tableKey, err.(tlerr.TranslibCVLFailure).CVLErrorInfo.ConstraintErrMsg)
+						err = nil
+					} else {
+						log.Warning("DELETE case - d.DeleteEntry() failure")
+						return err
+					}
+				}
 			}
 		}
 	}
@@ -1379,4 +1587,50 @@ func isPartialReplace(exstRw db.Value, replTblRw db.Value, auxRw db.Value) bool 
 	}
 	log.Info("returning partialReplace - ", partialReplace)
 	return partialReplace
+}
+
+func checkNonTblOwnerDepChildNeedsCleanUp(entryTocheckAgainst db.Value, resultMapEntry db.Value, parentTblInst string, childTblInst string, targetPath string) (bool, error) {
+	foundfieldNotMapped := false
+	fieldNm := ""
+	log.Info("checkNonTblOwnerDepChildNeedsCleanUp() - entryTocheckAgainst", entryTocheckAgainst, "resultMapEntry", resultMapEntry)
+	for field := range entryTocheckAgainst.Field {
+		if !resultMapEntry.Has(field) {
+			foundfieldNotMapped = true
+			fieldNm = field
+			break
+		}
+	}
+	if foundfieldNotMapped {
+		fieldNm = strings.TrimSuffix(fieldNm, "@")
+		log.Warningf("Found field %v not mapped to/under target URI yang hierarchy in child instance %v so cannot delete the child instance.", fieldNm, childTblInst)
+		errStr := fmt.Sprintf("Instance %v is in use by %v for field %v(not mapped in target yang hierarchy) and cannot be deleted.", parentTblInst, childTblInst, fieldNm)
+		return false, tlerr.InternalError{Format: errStr, Path: targetPath}
+	}
+
+	return true, nil
+}
+
+func markChildTablesToCleanFromTranslatedResult(d *db.DB, resultDbMap map[string]map[string]db.Value, childTblToCleanMap map[string]bool, parentTblNm string, moduleNm string) {
+	for tblNm := range resultDbMap {
+		if tblNm == parentTblNm {
+			continue
+		}
+		if childTblToCleanMap[tblNm] {
+			log.Info("Table already marked for cleaning ", tblNm)
+			continue
+		}
+		tblSpec := &db.TableSpec{Name: tblNm}
+		tblKeys, getKeysErr := d.GetKeys(tblSpec)
+		if getKeysErr != nil {
+			log.Infof("GetKeys() failed for table - %v - error - %v", tblNm, getKeysErr)
+		}
+		if len(tblKeys) == 0 {
+			log.Info("No DB data found so no action to take for table ", tblNm)
+			continue
+		}
+		if !transformer.IsDependentChildTable(tblNm, parentTblNm, moduleNm) {
+			continue
+		}
+		childTblToCleanMap[tblNm] = true
+	}
 }
