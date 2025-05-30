@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"github.com/Azure/sonic-mgmt-common/translib/utils"
 	log "github.com/golang/glog"
 	"github.com/openconfig/ygot/ygot"
 )
@@ -40,6 +41,8 @@ func init() {
 	XlateFuncBind("intf_table_xfmr", intf_table_xfmr)
 	XlateFuncBind("YangToDb_intf_tbl_key_xfmr", YangToDb_intf_tbl_key_xfmr)
 	XlateFuncBind("DbToYang_intf_tbl_key_xfmr", DbToYang_intf_tbl_key_xfmr)
+	XlateFuncBind("YangToDb_intf_name_xfmr", YangToDb_intf_name_xfmr)
+	XlateFuncBind("DbToYang_intf_name_xfmr", DbToYang_intf_name_xfmr)
 	XlateFuncBind("YangToDb_intf_mtu_xfmr", YangToDb_intf_mtu_xfmr)
 	XlateFuncBind("DbToYang_intf_mtu_xfmr", DbToYang_intf_mtu_xfmr)
 	XlateFuncBind("DbToYang_intf_admin_status_xfmr", DbToYang_intf_admin_status_xfmr)
@@ -91,6 +94,10 @@ const (
 	PORTCHANNEL_INTERFACE_TN = "PORTCHANNEL_INTERFACE"
 	PORTCHANNEL_MEMBER_TN    = "PORTCHANNEL_MEMBER"
 	DEFAULT_MTU              = "9100"
+
+	VLAN_TN                  = "VLAN"
+	VLAN_MEMBER_TN           = "VLAN_MEMBER"
+	VLAN_INTERFACE_TN        = "VLAN_INTERFACE"
 )
 
 const (
@@ -98,6 +105,7 @@ const (
 	COLON       = ":"
 	ETHERNET    = "Eth"
 	PORTCHANNEL = "PortChannel"
+	VLAN        = "Vlan"
 )
 
 type TblData struct {
@@ -134,10 +142,14 @@ var IntfTypeTblMap = map[E_InterfaceType]IntfTblData{
 		appDb:   TblData{portTN: "LAG_TABLE", intfTN: "INTF_TABLE", keySep: COLON, memberTN: "LAG_MEMBER_TABLE"},
 		stateDb: TblData{portTN: "LAG_TABLE", intfTN: "INTERFACE_TABLE", keySep: PIPE},
 	},
+	IntfTypeVlan: IntfTblData{
+		cfgDb: TblData{portTN: "VLAN", memberTN: "VLAN_MEMBER", intfTN: "VLAN_INTERFACE", keySep: PIPE},
+		appDb: TblData{portTN: "VLAN_TABLE", memberTN: "VLAN_MEMBER_TABLE", intfTN: "INTF_TABLE", keySep: COLON},
+	},
 }
 
 var dbIdToTblMap = map[db.DBNum][]string{
-	db.ConfigDB: {"PORT", "PORTCHANNEL"},
+	db.ConfigDB: {"PORT", "PORTCHANNEL", "VLAN"},
 	db.ApplDB:   {"PORT_TABLE", "LAG_TABLE"},
 	db.StateDB:  {"PORT_TABLE", "LAG_TABLE"},
 }
@@ -164,6 +176,7 @@ const (
 	IntfTypeUnset       E_InterfaceType = 0
 	IntfTypeEthernet    E_InterfaceType = 1
 	IntfTypePortChannel E_InterfaceType = 2
+	IntfTypeVlan        E_InterfaceType = 3
 )
 
 type E_InterfaceSubType int64
@@ -179,6 +192,8 @@ func getIntfTypeByName(name string) (E_InterfaceType, E_InterfaceSubType, error)
 		return IntfTypeEthernet, IntfSubTypeUnset, err
 	} else if strings.HasPrefix(name, PORTCHANNEL) {
 		return IntfTypePortChannel, IntfSubTypeUnset, err
+	} else if strings.HasPrefix(name, VLAN) {
+		return IntfTypeVlan, IntfSubTypeUnset, err
 	} else {
 		err = errors.New("Interface name prefix not matched with supported types")
 		return IntfTypeUnset, IntfSubTypeUnset, err
@@ -218,6 +233,14 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 
 		if *requestUriPath == "/openconfig-interfaces:interfaces/interface" {
 			switch ifType {
+			case IntfTypeVlan:
+				/* VLAN Interface Delete Handling */
+				/* Update the map for VLAN and VLAN MEMBER table */
+				err := deleteVlanIntfAndMembers(inParams, ifName)
+				if err != nil {
+					log.Warningf("Deleting VLAN: %s failed! Err:%v", *ifName, err)
+					return tlerr.InvalidArgsError{Format: err.Error()}
+				}
 			case IntfTypePortChannel:
 				err := deleteLagIntfAndMembers(inParams, ifName)
 				if err != nil {
@@ -243,6 +266,22 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 	case CREATE:
 		fallthrough
 	case UPDATE, REPLACE:
+		if ifType == IntfTypeVlan {
+			err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypeVlan].cfgDb.portTN, *ifName)
+			if err != nil {
+				errStr := "VLAN: " + *ifName + " does not exist."
+				return tlerr.InvalidArgsError{Format: errStr}
+			}
+			//Add tagged/untagged vlan members during vlan creation
+			//Also add vlan members based on the dot1q and translation mappings
+			tagged_set, untagged_set := utils.GetFromCacheVlanMemberList(*ifName)
+			if tagged_set.SetSize() != 0 || untagged_set.SetSize() != 0 {
+				err = addIntfMemberOnVlanCreation(inParams, ifName, tagged_set.SetItems(), untagged_set.SetItems())
+				if err != nil {
+					return err
+				}
+			}
+		}
 		if ifType == IntfTypeEthernet {
 			err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypeEthernet].cfgDb.portTN, *ifName)
 			if err != nil { // Invalid Physical interface
@@ -638,6 +677,61 @@ var DbToYang_intf_enabled_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (ma
 		log.Info("Admin status field not found in DB")
 	}
 	return result, err
+}
+
+func removeDuplicateStr(strSlice []string) []string {
+	allKeys := make(map[string]bool)
+	list := []string{}
+	for _, item := range strSlice {
+		if _, value := allKeys[item]; !value {
+			allKeys[item] = true
+			list = append(list, item)
+		}
+	}
+	return list
+}
+
+var YangToDb_intf_name_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[string]string, error) {
+	res_map := make(map[string]string)
+	var err error
+
+	pathInfo := NewPathInfo(inParams.uri)
+	ifname := pathInfo.Var("name")
+	intfType, _, ierr := getIntfTypeByName(*ifName)
+
+	if strings.HasPrefix(ifName, VLAN) {
+		vlanDBEntry, dbErr := inParams.d.GetEntry(&db.TableSpec{Name: "VLAN"}, db.Key{Comp: []string{ifName}})
+		if log.V(3) {
+			log.Info(dbErr)
+		}
+		vlanId := ifName[len("Vlan"):]
+		res_map["vlanid"] = vlanId
+		membersInDb := (&vlanDBEntry).Get("members@")
+		if len(membersInDb) != 0 {
+			membersNames := strings.Split(membersInDb, ",")
+			membersNames = removeDuplicateStr(membersNames)
+			membersInDb = strings.Join(membersNames, ",")
+			res_map["members@"] = membersInDb
+			vlanDBEntry.Field["members@"] = membersInDb
+			inParams.d.SetEntry(&db.TableSpec{Name: "VLAN"}, db.Key{Comp: []string{ifName}}, vlanDBEntry)
+		}
+	} else if strings.HasPrefix(ifName, PORTCHANNEL) {
+		res_map["NULL"] = "NULL"
+	} else if strings.HasPrefix(ifName, ETHERNET) {
+		res_map["NULL"] = "NULL"
+	}
+	log.Info("YangToDb_intf_name_xfmr: res_map:", res_map)
+	return res_map, err
+}
+
+var DbToYang_intf_name_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	res_map := make(map[string]interface{})
+
+	pathInfo := NewPathInfo(inParams.uri)
+	ifName := pathInfo.Var("name")
+	log.Info("DbToYang_intf_name_xfmr: Interface Name = ", ifName)
+	res_map["name"] = ifName
+	return res_map, nil
 }
 
 var YangToDb_intf_mtu_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[string]string, error) {
@@ -1143,6 +1237,14 @@ var DbToYang_intf_eth_aggr_id_xfmr = func(inParams XfmrParams) (map[string]inter
 	log.Infof("DbToYang_intf_eth_aggr_id_xfmr result %v", result)
 
 	return result, err
+}
+
+func processIntfTableRemoval(d *db.DB, ifName string, tblName string, intfMap map[string]db.Value) {
+	intfKey, _ := d.GetKeysByPattern(&db.TableSpec{Name: tblName}, "*"+ifName)
+	if len(intfKey) != 0 {
+		key := ifName
+		intfMap[key] = db.Value{Field: map[string]string{}}
+	}
 }
 
 func getIntfCountersTblKey(d *db.DB, ifKey string) (string, error) {

@@ -13,6 +13,7 @@ module openconfig-interfaces-deviation {
   import openconfig-if-ip {prefix oc-ip; }
   import openconfig-vlan { prefix oc-vlan; }
   import openconfig-if-ethernet {prefix oc-eth; }
+  import openconfig-vlan {prefix oc-vlan;}
   import openconfig-if-aggregate {prefix oc-lag; }
   import openconfig-if-tunnel {prefix oc-tun; }
 
@@ -247,14 +248,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-vlan:switched-vlan {
-    deviate not-supported;
-  }
-  
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan {
-    deviate not-supported;
-  }
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:lag-type {
     deviate not-supported;
   }
@@ -305,6 +298,18 @@ module openconfig-interfaces-deviation {
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-tun:tunnel {
     deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan/oc-vlan:config/oc-vlan:native-vlan {
+      deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan/oc-vlan:state/oc-vlan:native-vlan {
+      deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-vlan:switched-vlan/oc-vlan:state/oc-vlan:native-vlan {
+      deviate not-supported;
   }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan {
