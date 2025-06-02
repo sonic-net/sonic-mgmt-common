@@ -306,7 +306,7 @@ func removeFromMembersListForAllVlans(d *db.DB, ifName *string, vlanMemberMap ma
 func removeTaggedVlanAndUpdateVlanMembTbl(d *db.DB, trunkVlan *string, ifName *string,
 	vlanMemberMap map[string]db.Value) error {
 	var err error
-	
+
 	memberPortEntry, err := d.GetEntry(&db.TableSpec{Name: VLAN_MEMBER_TN}, db.Key{Comp: []string{*trunkVlan, *ifName}})
 	if err != nil || !memberPortEntry.IsPopulated() {
 		errStr := "Tagged Vlan configuration: " + *trunkVlan + " doesn't exist for Interface: " + *ifName

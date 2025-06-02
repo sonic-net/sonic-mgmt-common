@@ -95,9 +95,9 @@ const (
 	PORTCHANNEL_MEMBER_TN    = "PORTCHANNEL_MEMBER"
 	DEFAULT_MTU              = "9100"
 
-	VLAN_TN                  = "VLAN"
-	VLAN_MEMBER_TN           = "VLAN_MEMBER"
-	VLAN_INTERFACE_TN        = "VLAN_INTERFACE"
+	VLAN_TN           = "VLAN"
+	VLAN_MEMBER_TN    = "VLAN_MEMBER"
+	VLAN_INTERFACE_TN = "VLAN_INTERFACE"
 )
 
 const (
