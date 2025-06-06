@@ -26,9 +26,7 @@ import (
 	"strings"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
-	"github.com/Azure/sonic-mgmt-common/translib/internal/apis"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
-	"github.com/Azure/sonic-mgmt-common/translib/path"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/Azure/sonic-mgmt-common/translib/utils"
 	log "github.com/golang/glog"
@@ -64,7 +62,6 @@ type swVlanMemberPort_t struct {
 func init() {
 	XlateFuncBind("YangToDb_sw_vlans_xfmr", YangToDb_sw_vlans_xfmr)
 	XlateFuncBind("DbToYang_sw_vlans_xfmr", DbToYang_sw_vlans_xfmr)
-	XlateFuncBind("Subscribe_sw_vlans_xfmr", Subscribe_sw_vlans_xfmr)
 	XlateFuncBind("DbToYangPath_sw_vlans_path_xfmr", DbToYangPath_sw_vlans_path_xfmr)
 }
 
@@ -2370,8 +2367,6 @@ var DbToYang_sw_vlans_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error
 
 var DbToYangPath_sw_vlans_path_xfmr PathXfmrDbToYangFunc = func(params XfmrDbToYgPathParams) error {
 	log.Info("DbToYangPath_sw_vlans_path_xfmr : params ", params)
-
-	intfRoot := "/openconfig-interfaces:interfaces/interface"
 
 	if (params.tblName != "PORT") &&
 		(params.tblName != "PORTCHANNEL") {

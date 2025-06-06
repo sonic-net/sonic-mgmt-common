@@ -32,7 +32,6 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	"github.com/Azure/sonic-mgmt-common/translib/utils"
 	log "github.com/golang/glog"
 	"github.com/openconfig/ygot/ygot"
 )
@@ -266,22 +265,6 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 	case CREATE:
 		fallthrough
 	case UPDATE, REPLACE:
-		if ifType == IntfTypeVlan {
-			err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypeVlan].cfgDb.portTN, *ifName)
-			if err != nil {
-				errStr := "VLAN: " + *ifName + " does not exist."
-				return tlerr.InvalidArgsError{Format: errStr}
-			}
-			//Add tagged/untagged vlan members during vlan creation
-			//Also add vlan members based on the dot1q and translation mappings
-			tagged_set, untagged_set := utils.GetFromCacheVlanMemberList(*ifName)
-			if tagged_set.SetSize() != 0 || untagged_set.SetSize() != 0 {
-				err = addIntfMemberOnVlanCreation(inParams, ifName, tagged_set.SetItems(), untagged_set.SetItems())
-				if err != nil {
-					return err
-				}
-			}
-		}
 		if ifType == IntfTypeEthernet {
 			err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypeEthernet].cfgDb.portTN, *ifName)
 			if err != nil { // Invalid Physical interface
@@ -696,8 +679,7 @@ var YangToDb_intf_name_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[s
 	var err error
 
 	pathInfo := NewPathInfo(inParams.uri)
-	ifname := pathInfo.Var("name")
-	intfType, _, ierr := getIntfTypeByName(*ifName)
+	ifName := pathInfo.Var("name")
 
 	if strings.HasPrefix(ifName, VLAN) {
 		vlanDBEntry, dbErr := inParams.d.GetEntry(&db.TableSpec{Name: "VLAN"}, db.Key{Comp: []string{ifName}})
@@ -1237,14 +1219,6 @@ var DbToYang_intf_eth_aggr_id_xfmr = func(inParams XfmrParams) (map[string]inter
 	log.Infof("DbToYang_intf_eth_aggr_id_xfmr result %v", result)
 
 	return result, err
-}
-
-func processIntfTableRemoval(d *db.DB, ifName string, tblName string, intfMap map[string]db.Value) {
-	intfKey, _ := d.GetKeysByPattern(&db.TableSpec{Name: tblName}, "*"+ifName)
-	if len(intfKey) != 0 {
-		key := ifName
-		intfMap[key] = db.Value{Field: map[string]string{}}
-	}
 }
 
 func getIntfCountersTblKey(d *db.DB, ifKey string) (string, error) {
