@@ -183,14 +183,6 @@ func GenerateMemberPortsSliceFromString(memberPortsStr *string) []string {
 	return memberPorts
 }
 
-// GetFromCacheVlanMemberList Get tagged/untagged Set for given vlan
-func GetFromCacheVlanMemberList(vlanName string) (Set, Set) {
-	if memberlist, ok := vlanMemberCache.Load(vlanName); ok {
-		return memberlist.(*vlan_member_list).tagged, memberlist.(*vlan_member_list).untagged
-	}
-	return Set{}, Set{}
-}
-
 // ExtractVlanIdsFromRange expands given range into list of individual VLANs
 // Param: A Range e.g. 1-3 or 1..3
 // Return: Expanded list e.g. [Vlan1, Vlan2, Vlan3] */
