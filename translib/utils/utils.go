@@ -174,15 +174,6 @@ func VlanDifference(vlanList1, vlanList2 []string) []string {
 	return diff
 }
 
-// GenerateMemberPortsSliceFromString Convert string to slice
-func GenerateMemberPortsSliceFromString(memberPortsStr *string) []string {
-	if len(*memberPortsStr) == 0 {
-		return nil
-	}
-	memberPorts := strings.Split(*memberPortsStr, ",")
-	return memberPorts
-}
-
 // ExtractVlanIdsFromRange expands given range into list of individual VLANs
 // Param: A Range e.g. 1-3 or 1..3
 // Return: Expanded list e.g. [Vlan1, Vlan2, Vlan3] */

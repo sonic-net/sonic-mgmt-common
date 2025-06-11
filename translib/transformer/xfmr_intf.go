@@ -273,11 +273,17 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 			}
 			if inParams.oper == REPLACE {
 				if strings.Contains(*requestUriPath, "/openconfig-interfaces:interfaces/interface") {
-					// OC interfaces yang does not have attributes to set Physical interface critical attributes like speed.
-					// Replace/PUT request without the critical attributes would end up in deletion of the same in PORT table, which cannot be allowed.
-					// Hence block the Replace/PUT request for Physical interfaces alone.
-					err_str := "Replace/PUT request not allowed for Physical interfaces"
-					return tlerr.NotSupported(err_str)
+					if strings.Contains(*requestUriPath, "openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan") {
+						if log.V(3) {
+							log.Infof("allow replace operation for switched-vlan")
+						}
+					} else {
+						// OC interfaces yang does not have attributes to set Physical interface critical attributes like speed, alias, lanes, index.
+						// Replace/PUT request without the critical attributes would end up in deletion of the same in PORT table, which cannot be allowed.
+						// Hence block the Replace/PUT request for Physical interfaces alone.
+						err_str := "Replace/PUT request not allowed for Physical interfaces"
+						return tlerr.NotSupported(err_str)
+					}
 				}
 			}
 		}
@@ -682,21 +688,17 @@ var YangToDb_intf_name_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[s
 	ifName := pathInfo.Var("name")
 
 	if strings.HasPrefix(ifName, VLAN) {
-		vlanDBEntry, dbErr := inParams.d.GetEntry(&db.TableSpec{Name: "VLAN"}, db.Key{Comp: []string{ifName}})
-		if log.V(3) {
-			log.Info(dbErr)
-		}
 		vlanId := ifName[len("Vlan"):]
 		res_map["vlanid"] = vlanId
-		membersInDb := (&vlanDBEntry).Get("members@")
-		if len(membersInDb) != 0 {
-			membersNames := strings.Split(membersInDb, ",")
-			membersNames = removeDuplicateStr(membersNames)
-			membersInDb = strings.Join(membersNames, ",")
-			res_map["members@"] = membersInDb
-			vlanDBEntry.Field["members@"] = membersInDb
-			inParams.d.SetEntry(&db.TableSpec{Name: "VLAN"}, db.Key{Comp: []string{ifName}}, vlanDBEntry)
-		}
+		// membersInDb := (&vlanDBEntry).Get("members@")
+		// if len(membersInDb) != 0 {
+		// 	membersNames := strings.Split(membersInDb, ",")
+		// 	membersNames = removeDuplicateStr(membersNames)
+		// 	membersInDb = strings.Join(membersNames, ",")
+		// 	res_map["members@"] = membersInDb
+		// 	vlanDBEntry.Field["members@"] = membersInDb
+		// 	inParams.d.SetEntry(&db.TableSpec{Name: "VLAN"}, db.Key{Comp: []string{ifName}}, vlanDBEntry)
+		// }
 	} else if strings.HasPrefix(ifName, PORTCHANNEL) {
 		res_map["NULL"] = "NULL"
 	} else if strings.HasPrefix(ifName, ETHERNET) {
