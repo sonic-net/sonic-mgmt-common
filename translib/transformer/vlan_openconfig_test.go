@@ -36,4 +36,10 @@ func Test_openconfig_vlan(t *testing.T) {
 	url_input_body_json = "{\"openconfig-interfaces:interfaces\":{\"interface\":[{\"name\":\"Vlan10\",\"config\":{\"name\":\"Vlan10\",\"mtu\":9000,\"enabled\":true}}]}}"
 	t.Run("Test Create VLAN 10", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n--- Verify VLAN Creation ---")
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/config"
+	expected_get_json := "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan10\"}}"
+	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
+	time.Sleep(1 * time.Second)
 }

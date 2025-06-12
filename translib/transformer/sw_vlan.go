@@ -428,7 +428,7 @@ func processIntfVlanMemberAdd(d *db.DB, vlanMembersMap map[string]map[string]db.
 			vlanMemberMap[vlanMemberKey].Field["tagging_mode"] = ifEntry.Field["tagging_mode"]
 			log.V(3).Infof("Updated Vlan Member Map with vlan member key: %s and tagging-mode: %s", vlanMemberKey, ifEntry.Field["tagging_mode"])
 		}
-		// vlanMap[vlanName] = db.Value{Field: make(map[string]string)}
+		vlanMap[vlanName] = db.Value{Field: make(map[string]string)}
 	}
 
 	return err
@@ -804,9 +804,31 @@ func intfVlanMemberAdd(swVlanConfig *swVlanMemberPort_t,
 			del_res_map := make(map[string]map[string]db.Value)
 			vlanMapDel := make(map[string]db.Value)
 			vlanMemberMapDel := make(map[string]db.Value)
-			_, err := removeUntaggedVlanAndUpdateVlanMembTbl(inParams.d, ifName, vlanMemberMapDel)
+			untagdVlan, err := removeUntaggedVlanAndUpdateVlanMembTbl(inParams.d, ifName, vlanMemberMapDel)
 			if err != nil {
 				return err
+			}
+
+			// Update vlanMapDel with access VLAN
+			if untagdVlan != nil {
+				ts := db.TableSpec{Name: intTbl.cfgDb.memberTN + inParams.d.Opts.KeySeparator + *untagdVlan}
+				memberKeys, err := inParams.d.GetKeys(&ts)
+
+				memberFound := false
+				if err == nil {
+					for key := range memberKeys {
+						if memberKeys[key].Get(1) == *ifName {
+							memberFound = true
+							break
+						}
+					}
+					if memberFound {
+						vlanMapDel[*untagdVlan] = db.Value{Field: make(map[string]string)}
+					}
+				}
+
+				// // TODO: Or only this is necessary
+				// vlanMapDel[*untagdVlan] = db.Value{Field: make(map[string]string)}
 			}
 
 			if len(vlanMemberMapDel) != 0 {
@@ -819,21 +841,11 @@ func intfVlanMemberAdd(swVlanConfig *swVlanMemberPort_t,
 
 			if inParams.subOpDataMap[DELETE] != nil && (*inParams.subOpDataMap[DELETE])[db.ConfigDB] != nil {
 				if map_val, exists := (*inParams.subOpDataMap[DELETE])[db.ConfigDB][VLAN_TN]; exists {
-
-					// for vlanName := range vlanMapDel {
-					// 	if _, ok := map_val[vlanName]; ok {
-					// 		ifStr := map_val[vlanName].Field["members@"]
-					// 		strList := utils.GenerateMemberPortsSliceFromString(&ifStr)
-					// 		if !contains(strList, *ifName) {
-					// 			// Update the members list of VLAN table
-					// 			ifStr = ifStr + "," + *ifName
-					// 			map_val[vlanName].Field["members@"] = ifStr
-					// 		}
-					// 	} else {
-					// 		map_val[vlanName] = db.Value{Field: make(map[string]string)}
-					// 		map_val[vlanName].Field["members@"] = *ifName
-					// 	}
-					// }
+					for vlanName := range vlanMapDel {
+						if _, ok := map_val[vlanName]; !ok {
+							map_val[vlanName] = db.Value{Field: make(map[string]string)}
+						}
+					}
 					del_res_map[VLAN_TN] = map_val
 				}
 				mapCopy((*inParams.subOpDataMap[DELETE])[db.ConfigDB], del_res_map)
@@ -1046,7 +1058,7 @@ func intfVlanMemberReplace(swVlanConfig *swVlanMemberPort_t,
 	add_res_map := make(map[string]map[string]db.Value)
 
 	if accessVlanInPath {
-		newAccessVlanFound := false
+		newAccessVlanFound := cfgredAccessVlan == ""
 		accessVlan = ""
 
 		if accessVlanFound {
@@ -1054,19 +1066,22 @@ func intfVlanMemberReplace(swVlanConfig *swVlanMemberPort_t,
 
 			err = validateVlanExists(inParams.d, &accessVlan)
 			if err == nil {
-				newAccessVlanFound = true
-
-				// If new accessVlanExist, add it
-				//Adding VLAN to be configured(accessVlan) to the vlanMembersListMap
-				if vlanMembersListMap[accessVlan] == nil {
-					vlanMembersListMap[accessVlan] = make(map[string]db.Value)
+				if cfgredAccessVlan != accessVlan {
+					newAccessVlanFound = true
 				}
-				vlanMembersListMap[accessVlan][*ifName] = db.Value{Field: make(map[string]string)}
-				vlanMembersListMap[accessVlan][*ifName].Field["tagging_mode"] = "untagged"
+				if newAccessVlanFound {
+					// If new accessVlanExist, add it
+					//Adding VLAN to be configured(accessVlan) to the vlanMembersListMap
+					if vlanMembersListMap[accessVlan] == nil {
+						vlanMembersListMap[accessVlan] = make(map[string]db.Value)
+					}
+					vlanMembersListMap[accessVlan][*ifName] = db.Value{Field: make(map[string]string)}
+					vlanMembersListMap[accessVlan][*ifName].Field["tagging_mode"] = "untagged"
+				}
 			}
 		}
 		if cfgredAccessVlan != "" {
-			if newAccessVlanFound && (cfgredAccessVlan == accessVlan) {
+			if cfgredAccessVlan == accessVlan {
 				log.Infof("Untagged VLAN: %s already configured, not updating the cache!", accessVlan)
 				goto TRUNKCONFIG
 			}
@@ -1305,11 +1320,18 @@ var YangToDb_sw_vlans_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[
 		}
 		if len(vlanMap) != 0 {
 			res_map[VLAN_TN] = vlanMap
-			// if inParams.subOpDataMap[inParams.oper] == nil || (*inParams.subOpDataMap[inParams.oper])[db.ConfigDB] == nil {
-			// 	subOpMap := make(map[db.DBNum]map[string]map[string]db.Value)
-			// 	subOpMap[db.ConfigDB] = res_map
-			// 	inParams.subOpDataMap[inParams.oper] = &subOpMap
-			// }
+			if inParams.subOpDataMap[inParams.oper] != nil && (*inParams.subOpDataMap[inParams.oper])[db.ConfigDB] != nil {
+				map_val := (*inParams.subOpDataMap[inParams.oper])[db.ConfigDB][VLAN_TN]
+				for vlanName := range vlanMap {
+					if _, ok := map_val[vlanName]; !ok {
+						map_val[vlanName] = db.Value{Field: make(map[string]string)}
+					}
+				}
+			} else {
+				subOpMap := make(map[db.DBNum]map[string]map[string]db.Value)
+				subOpMap[db.ConfigDB] = res_map
+				inParams.subOpDataMap[inParams.oper] = &subOpMap
+			}
 		}
 
 		if len(vlanMemberMap) != 0 { //make sure this map filled only with vlans existing
@@ -1330,9 +1352,9 @@ var YangToDb_sw_vlans_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[
 		}
 	}
 	log.Info("YangToDb_sw_vlans_xfmr: vlan res map:", res_map)
-	// log.Info("YangToDb_sw_vlans_xfmr: inParams.subOpDataMap UPDATE: ", inParams.subOpDataMap[UPDATE])
-	// log.Info("YangToDb_sw_vlans_xfmr: inParams.subOpDataMap DELETE: ", inParams.subOpDataMap[DELETE])
-	// log.Info("YangToDb_sw_vlans_xfmr: inParams.subOpDataMap REPLACE: ", inParams.subOpDataMap[REPLACE])
+	log.Info("YangToDb_sw_vlans_xfmr: inParams.subOpDataMap UPDATE: ", inParams.subOpDataMap[UPDATE])
+	log.Info("YangToDb_sw_vlans_xfmr: inParams.subOpDataMap DELETE: ", inParams.subOpDataMap[DELETE])
+	log.Info("YangToDb_sw_vlans_xfmr: inParams.subOpDataMap REPLACE: ", inParams.subOpDataMap[REPLACE])
 	return res_map, err
 }
 
