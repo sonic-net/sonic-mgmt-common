@@ -426,6 +426,16 @@ var intf_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) 
 		log.Info("TableXfmrFunc - targetUriXpath : ", targetUriXpath)
 	}
 
+	if intfType == IntfTypeVlan {
+		if strings.Contains(inParams.requestUri, "subinterfaces") {
+			return tblList, errors.New("subinterfaces subtree is not valid for Vlan interface")
+		}
+	} else {
+		if strings.Contains(inParams.requestUri, "openconfig-vlan:routed-vlan") {
+			return tblList, errors.New("routed-vlan subtree is not valid for non-Vlan interface")
+		}
+	}
+
 	if inParams.oper == DELETE && (targetUriXpath == "/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv4" ||
 		targetUriXpath == "/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv6") {
 		errStr := "DELETE operation not allowed on this container"

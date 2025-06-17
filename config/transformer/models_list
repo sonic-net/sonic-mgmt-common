@@ -8,7 +8,6 @@ openconfig-interfaces.yang
 openconfig-interfaces-annot.yang
 openconfig-if-ip.yang
 openconfig-if-aggregate.yang
-openconfig-interfaces-annot.yang
 openconfig-mclag.yang
 openconfig-mclag-annot.yang
 openconfig-vlan.yang
