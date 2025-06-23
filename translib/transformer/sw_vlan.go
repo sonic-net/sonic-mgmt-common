@@ -339,36 +339,20 @@ func removeAllVlanMembrsForIfAndGetVlans(d *db.DB, ifName *string, ifMode intfMo
 	return err
 }
 
-/*
-	Function to compress vlan list
+func sortVlanList(vlanList []string) []string {
+	var vlanIds []int
 
-Param: string list of Vlan ids, e.g: ["Vlan1","Vlan2","Vlan30"] or ["1","2","30"]
-Return: string list of Vlan range/ids, e.g: ["1-2","30"]
-*/
-func vlanIdstoRng(vlanIdsLst []string) ([]string, error) {
-	var err error
-	var idsLst []int
-	var vlanRngLst []string
-	for _, v := range vlanIdsLst {
-		id, _ := strconv.Atoi(strings.TrimPrefix(v, "Vlan"))
-		idsLst = append(idsLst, id)
+	for _, vlanStr := range vlanList {
+		vlanIdStr := strings.TrimPrefix(vlanStr, "Vlan")
+		vlanId, _ := strconv.Atoi(vlanIdStr)
+		vlanIds = append(vlanIds, vlanId)
 	}
-	sort.Ints(idsLst)
-	for i, j := 0, 0; j < len(idsLst); j = j + 1 {
-		if (j+1 < len(idsLst) && idsLst[j+1] == idsLst[j]+1) || (j+1 < len(idsLst) && idsLst[j] == idsLst[j+1]) {
-			continue
-		}
-		if i == j {
-			vlanid := strconv.Itoa(idsLst[i])
-			vlanRngLst = append(vlanRngLst, (vlanid))
-		} else {
-			vlanidLow := strconv.Itoa(idsLst[i])
-			vlanidHigh := strconv.Itoa(idsLst[j])
-			vlanRngLst = append(vlanRngLst, (vlanidLow + "-" + vlanidHigh))
-		}
-		i = j + 1
+	sort.Ints(vlanIds)
+	sortedVlans := make([]string, len(vlanIds))
+	for i, vlanId := range vlanIds {
+		sortedVlans[i] = "Vlan" + strconv.Itoa(vlanId)
 	}
-	return vlanRngLst, err
+	return sortedVlans
 }
 
 func intfAccessModeReqConfig(d *db.DB, ifName *string,
@@ -804,31 +788,9 @@ func intfVlanMemberAdd(swVlanConfig *swVlanMemberPort_t,
 			del_res_map := make(map[string]map[string]db.Value)
 			vlanMapDel := make(map[string]db.Value)
 			vlanMemberMapDel := make(map[string]db.Value)
-			untagdVlan, err := removeUntaggedVlanAndUpdateVlanMembTbl(inParams.d, ifName, vlanMemberMapDel)
+			_, err := removeUntaggedVlanAndUpdateVlanMembTbl(inParams.d, ifName, vlanMemberMapDel)
 			if err != nil {
 				return err
-			}
-
-			// Update vlanMapDel with access VLAN
-			if untagdVlan != nil {
-				ts := db.TableSpec{Name: intTbl.cfgDb.memberTN + inParams.d.Opts.KeySeparator + *untagdVlan}
-				memberKeys, err := inParams.d.GetKeys(&ts)
-
-				memberFound := false
-				if err == nil {
-					for key := range memberKeys {
-						if memberKeys[key].Get(1) == *ifName {
-							memberFound = true
-							break
-						}
-					}
-					if memberFound {
-						vlanMapDel[*untagdVlan] = db.Value{Field: make(map[string]string)}
-					}
-				}
-
-				// // TODO: Or only this is necessary
-				// vlanMapDel[*untagdVlan] = db.Value{Field: make(map[string]string)}
 			}
 
 			if len(vlanMemberMapDel) != 0 {
@@ -1437,7 +1399,7 @@ func getIntfVlanAttr(ifName *string, ifMode intfModeType, vlanMemberMap map[stri
 				}
 			}
 		}
-		return trunkVlans, nil, nil
+		return sortVlanList(trunkVlans), nil, nil
 	}
 	return nil, nil, nil
 }
@@ -1508,6 +1470,8 @@ func getSpecificSwitchedVlanStateAttr(targetUriPath *string, ifKey *string,
 		if e != nil {
 			return true, e
 		}
+		// Sort trunk VLANs
+		trunkVlans = sortVlanList(trunkVlans)
 
 		switch intfType {
 		case IntfTypeEthernet:
@@ -1618,6 +1582,8 @@ func getSwitchedVlanState(ifKey *string, vlanMemberMap map[string]map[string]db.
 	if e != nil {
 		return e
 	}
+	// Sort trunk VLANs
+	trunkVlans = sortVlanList(trunkVlans)
 
 	switch intfType {
 	case IntfTypeEthernet:
