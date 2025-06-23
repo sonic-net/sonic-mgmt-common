@@ -43,8 +43,6 @@ func init() {
 	XlateFuncBind("DbToYang_intf_tbl_key_xfmr", DbToYang_intf_tbl_key_xfmr)
 	XlateFuncBind("YangToDb_intf_mtu_xfmr", YangToDb_intf_mtu_xfmr)
 	XlateFuncBind("DbToYang_intf_mtu_xfmr", DbToYang_intf_mtu_xfmr)
-	XlateFuncBind("YangToDb_intf_name_xfmr", YangToDb_intf_name_xfmr)
-	XlateFuncBind("DbToYang_intf_name_xfmr", DbToYang_intf_name_xfmr)
 	XlateFuncBind("DbToYang_intf_admin_status_xfmr", DbToYang_intf_admin_status_xfmr)
 	XlateFuncBind("YangToDb_intf_enabled_xfmr", YangToDb_intf_enabled_xfmr)
 	XlateFuncBind("DbToYang_intf_enabled_xfmr", DbToYang_intf_enabled_xfmr)
@@ -426,7 +424,7 @@ var intf_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) 
 	} else if intfType != IntfTypeEthernet &&
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet") {
 		//Checking interface type at container level, if not Ethernet type return nil
-		return nil, errors.New("Container not supported for given interface type")
+		return nil, tlerr.InvalidArgs("Container not supported for given interface type")
 	} else if intfType != IntfTypePortChannel &&
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-aggregate:aggregation") {
 		//Checking interface type at container level, if not PortChannel type return nil
@@ -839,8 +837,8 @@ var YangToDb_intf_eth_port_config_xfmr SubTreeXfmrYangToDb = func(inParams XfmrP
 
 			prevLagId, err := retrievePortChannelAssociatedWithIntf(&inParams, &ifName)
 			if prevLagId != nil && *prevLagId != *lagId && inParams.oper != REPLACE {
-				log.Errorf("%s Interface is already member of %s", ifName, *prevLagId)
-				return nil, errors.New(ifName + " Interface is already member of " + *prevLagId)
+				errStr := ifName + " Interface is already member of " + *prevLagId
+				return nil, tlerr.InvalidArgsError{Format: errStr}
 			}
 
 		case DELETE:
@@ -1089,7 +1087,6 @@ var DbToYangPath_intf_eth_port_config_path_xfmr PathXfmrDbToYangFunc = func(para
 }
 
 var DbToYang_intf_eth_auto_neg_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
-	var err error
 	result := make(map[string]interface{})
 
 	intfType, _, ierr := getIntfTypeByName(inParams.key)
@@ -1109,8 +1106,8 @@ var DbToYang_intf_eth_auto_neg_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams
 
 	prtInst, tblErr := d.GetEntry(&pTbl, db.Key{Comp: []string{inParams.key}})
 	if tblErr != nil {
-		log.Info("DbToYang_intf_eth_auto_neg_xfmr key not found : ", inParams.key)
-		return result, errors.New("Interface not found : " + inParams.key)
+		errStr := "Interface not found : " + inParams.key
+		return result, tlerr.InvalidArgsError{Format: errStr}
 	}
 
 	autoNeg, ok := prtInst.Field[PORT_AUTONEG]
@@ -1123,7 +1120,7 @@ var DbToYang_intf_eth_auto_neg_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams
 	} else {
 		log.Info("auto-negotiate field not found in DB")
 	}
-	return result, err
+	return result, nil
 }
 
 var DbToYang_intf_eth_port_speed_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
@@ -3220,19 +3217,17 @@ var YangToDb_intf_type_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[s
 	ifName := pathInfo.Var("name")
 	intfType, _, err := getIntfTypeByName(ifName)
 	if intfType == IntfTypeUnset || err != nil {
-		log.Info("DbToYang_intf_type_xfmr - Invalid interface type IntfTypeUnset")
-		return res_map, errors.New("Invalid interface type IntfTypeUnset")
+		return res_map, errors.New("Invalid interface type")
 	}
 
-	err = errors.New("Invalid interface type received")
 	interfaceType, ok := inParams.param.(ocbinds.E_IETFInterfaces_InterfaceType)
 	if !ok {
-		return nil, err
+		return nil, errors.New("Unsupported interface type")
 	}
 
 	if (intfType == IntfTypeEthernet && interfaceType != ocbinds.IETFInterfaces_InterfaceType_ethernetCsmacd) ||
 		(intfType == IntfTypePortChannel && interfaceType != ocbinds.IETFInterfaces_InterfaceType_ieee8023adLag) {
-		return res_map, err
+		return res_map, errors.New("Unsupported interface type")
 	}
 
 	return res_map, nil
@@ -3498,40 +3493,5 @@ var DbToYang_intf_cpu_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[st
 
 	// cpu port not supported
 	result["cpu"] = false
-	return result, nil
-}
-
-var YangToDb_intf_name_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[string]string, error) {
-	res_map := make(map[string]string)
-
-	pathInfo := NewPathInfo(inParams.uri)
-	ifName := pathInfo.Var("name")
-	intfType, _, err := getIntfTypeByName(ifName)
-	if intfType == IntfTypeUnset || err != nil {
-		log.Info("DbToYang_intf_name_xfmr - Invalid interface type IntfTypeUnset")
-		return res_map, errors.New("Invalid interface type IntfTypeUnset")
-	}
-
-	err = errors.New("Invalid interface config/name received")
-	configName, ok := inParams.param.(*string)
-	if !ok || ifName != *configName {
-		return nil, err
-	}
-
-	res_map["NULL"] = "NULL"
-	return res_map, nil
-}
-
-var DbToYang_intf_name_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
-	var err error
-	result := make(map[string]interface{})
-
-	intfType, _, err := getIntfTypeByName(inParams.key)
-	if intfType == IntfTypeUnset || err != nil {
-		log.Info("DbToYang_intf_name_xfmr - Invalid interface type IntfTypeUnset")
-		return result, errors.New("Invalid interface type IntfTypeUnset")
-	}
-
-	result["name"] = inParams.key
 	return result, nil
 }
