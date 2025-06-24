@@ -21,6 +21,7 @@ package transformer
 import (
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"regexp"
 	"sort"
@@ -1768,11 +1769,16 @@ var YangToDb_subintf_ip_addr_key_xfmr KeyXfmrYangToDb = func(inParams XfmrParams
 		log.Info("Entering YangToDb_subintf_ip_addr_key_xfmr")
 	}
 	var err error
-	var inst_key string
 	pathInfo := NewPathInfo(inParams.uri)
-	inst_key = pathInfo.Var("ip")
-	log.Infof("URI:%v Interface IP:%v", inParams.uri, inst_key)
-	return inst_key, err
+	rawIP := pathInfo.Var("ip")
+	ip := net.ParseIP(rawIP)
+	if ip == nil {
+		return "", tlerr.InvalidArgs("Invalid IP address: %v", rawIP)
+	}
+	compressedIP := ip.String()
+
+	log.Infof("URI:%v Interface IP: %v => Compressed: %v", inParams.uri, rawIP, compressedIP)
+	return compressedIP, err
 }
 var DbToYang_subintf_ip_addr_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[string]interface{}, error) {
 	if log.V(3) {
@@ -2305,6 +2311,10 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 					addr.Config.Ip = new(string)
 					*addr.Config.Ip = ip
 				}
+				parsedIP := net.ParseIP(*addr.Config.Ip)
+				if parsedIP != nil {
+					*addr.Config.Ip = parsedIP.String()
+				}
 				log.Info("Ip:=", *addr.Config.Ip)
 				if addr.Config.PrefixLength == nil {
 					log.Error("Prefix Length empty!")
@@ -2357,6 +2367,10 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 				if addr.Config.Ip == nil {
 					addr.Config.Ip = new(string)
 					*addr.Config.Ip = ip
+				}
+				parsedIP := net.ParseIP(*addr.Config.Ip)
+				if parsedIP != nil {
+					*addr.Config.Ip = parsedIP.String()
 				}
 				log.Info("Ipv6 IP:=", *addr.Config.Ip)
 				if addr.Config.PrefixLength == nil {
