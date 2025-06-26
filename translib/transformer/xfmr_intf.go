@@ -3239,8 +3239,7 @@ var DbToYang_intf_type_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[s
 
 	intfType, _, err := getIntfTypeByName(inParams.key)
 	if intfType == IntfTypeUnset || err != nil {
-		log.Info("DbToYang_intf_type_xfmr - Invalid interface type IntfTypeUnset")
-		return result, errors.New("Invalid interface type IntfTypeUnset")
+		return result, errors.New("Invalid interface type")
 	}
 
 	if intfType == IntfTypeEthernet {
@@ -3259,8 +3258,7 @@ var DbToYang_intf_description_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams)
 
 	intfType, _, ierr := getIntfTypeByName(inParams.key)
 	if intfType == IntfTypeUnset || ierr != nil {
-		log.Info("DbToYang_intf_description_xfmr - Invalid interface type IntfTypeUnset")
-		return result, errors.New("Invalid interface type IntfTypeUnset")
+		return result, errors.New("Invalid interface type")
 	}
 
 	intTbl := IntfTypeTblMap[intfType]
@@ -3295,8 +3293,7 @@ var DbToYang_intf_oper_status_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams)
 
 	intfType, _, ierr := getIntfTypeByName(inParams.key)
 	if intfType == IntfTypeUnset || ierr != nil {
-		log.Info("DbToYang_intf_oper_status_xfmr - Invalid interface type IntfTypeUnset")
-		return result, errors.New("Invalid interface type IntfTypeUnset")
+		return result, errors.New("Invalid interface type")
 	}
 
 	intTbl := IntfTypeTblMap[intfType]
@@ -3339,8 +3336,7 @@ var DbToYang_intf_ifindex_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (ma
 
 	intfType, _, ierr := getIntfTypeByName(inParams.key)
 	if intfType == IntfTypeUnset || ierr != nil {
-		log.Info("DbToYang_intf_ifindex_xfmr - Invalid interface type IntfTypeUnset")
-		return result, errors.New("Invalid interface type IntfTypeUnset")
+		return result, errors.New("Invalid interface type")
 	}
 
 	intTbl := IntfTypeTblMap[intfType]
@@ -3379,8 +3375,7 @@ var DbToYang_intf_last_change_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams)
 
 	intfType, _, ierr := getIntfTypeByName(inParams.key)
 	if intfType == IntfTypeUnset || ierr != nil {
-		log.Info("DbToYang_intf_last_change_xfmr - Invalid interface type IntfTypeUnset")
-		return result, errors.New("Invalid interface type IntfTypeUnset")
+		return result, errors.New("Invalid interface type")
 	}
 
 	intTbl := IntfTypeTblMap[intfType]
@@ -3454,8 +3449,7 @@ var DbToYang_intf_logical_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (ma
 
 	intfType, _, err := getIntfTypeByName(inParams.key)
 	if intfType == IntfTypeUnset || err != nil {
-		log.Info("DbToYang_intf_logical_xfmr - Invalid interface type IntfTypeUnset")
-		return result, errors.New("Invalid interface type IntfTypeUnset")
+		return result, errors.New("Invalid interface type")
 	}
 
 	if intfType == IntfTypeEthernet {
@@ -3473,8 +3467,7 @@ var DbToYang_intf_mgmt_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[s
 
 	intfType, _, err := getIntfTypeByName(inParams.key)
 	if intfType == IntfTypeUnset || err != nil {
-		log.Info("DbToYang_intf_mgmt_xfmr - Invalid interface type IntfTypeUnset")
-		return result, errors.New("Invalid interface type IntfTypeUnset")
+		return result, errors.New("Invalid interface type")
 	}
 
 	result["management"] = false
@@ -3487,8 +3480,7 @@ var DbToYang_intf_cpu_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[st
 
 	intfType, _, err := getIntfTypeByName(inParams.key)
 	if intfType == IntfTypeUnset || err != nil {
-		log.Info("DbToYang_intf_cpu_xfmr - Invalid interface type IntfTypeUnset")
-		return result, errors.New("Invalid interface type IntfTypeUnset")
+		return result, errors.New("Invalid interface type")
 	}
 
 	// cpu port not supported
