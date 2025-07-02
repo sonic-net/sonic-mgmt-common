@@ -1470,8 +1470,6 @@ func getSpecificSwitchedVlanStateAttr(targetUriPath *string, ifKey *string,
 		if e != nil {
 			return true, e
 		}
-		// Sort trunk VLANs
-		trunkVlans = sortVlanList(trunkVlans)
 
 		switch intfType {
 		case IntfTypeEthernet:
@@ -1582,8 +1580,6 @@ func getSwitchedVlanState(ifKey *string, vlanMemberMap map[string]map[string]db.
 	if e != nil {
 		return e
 	}
-	// Sort trunk VLANs
-	trunkVlans = sortVlanList(trunkVlans)
 
 	switch intfType {
 	case IntfTypeEthernet:

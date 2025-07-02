@@ -224,4 +224,57 @@ module openconfig-interfaces-annot {
             sonic-ext:field-transformer "ipv6_enabled_xfmr";
         }
     }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan {
+        deviate add {
+	    sonic-ext:path-transformer "intf_ip_path_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-vlan:config/oc-vlan:vlan {
+        deviate add {
+             sonic-ext:field-transformer "intf_routed_vlan_name_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-vlan:state/oc-vlan:vlan {
+        deviate add {
+            sonic-ext:field-transformer "intf_routed_vlan_name_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv4/oc-ip:addresses {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ip_addr_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:addresses {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ip_addr_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:state {
+        deviate add {
+            sonic-ext:db-name "APPL_DB";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:config/oc-ip:enabled {
+        deviate add {
+            sonic-ext:field-transformer "ipv6_enabled_xfmr";
+            sonic-ext:field-name "ipv6_use_link_local_only";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:state/oc-ip:enabled {
+        deviate add {
+            sonic-ext:field-transformer "ipv6_enabled_xfmr";
+            sonic-ext:field-name "ipv6_use_link_local_only";
+        }
+    }
+
 }
