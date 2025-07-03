@@ -294,15 +294,6 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 				}
 			}
 		}
-		if ifType == IntfTypePortChannel {
-			if (inParams.oper == UPDATE) || (inParams.oper == REPLACE) {
-				err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypePortChannel].cfgDb.portTN, *ifName)
-				if err != nil { //No Matching PortChannel to UPDATE/REPLACE
-					errStr := "PortChannel: " + *ifName + " does not exist"
-					return tlerr.InvalidArgsError{Format: errStr}
-				}
-			}
-		}
 	}
 	return err
 }
@@ -2331,7 +2322,7 @@ func convertIpMapToOC(intfIpMap map[string]db.Value, ifInfo *ocbinds.OpenconfigI
 			*ipStr = ipB.String()
 			v4Address.Ip = ipStr
 			prfxLen := new(uint8)
-			*prfxLen = ipNetB.Bits()
+			*prfxLen = uint8(ipNetB.Bits())
 			if isState {
 				v4Address.State.Ip = ipStr
 				v4Address.State.PrefixLength = prfxLen
@@ -2346,7 +2337,7 @@ func convertIpMapToOC(intfIpMap map[string]db.Value, ifInfo *ocbinds.OpenconfigI
 			*ipStr = ipB.String()
 			v6Address.Ip = ipStr
 			prfxLen := new(uint8)
-			*prfxLen = ipNetB.Bits()
+			*prfxLen = uint8(ipNetB.Bits())
 			if isState {
 				v6Address.State.Ip = ipStr
 				v6Address.State.PrefixLength = prfxLen
@@ -2388,10 +2379,12 @@ func convertRoutedVlanIpMapToOC(intfIpMap map[string]db.Value, ifInfo *ocbinds.O
 			v4Address = routedVlan.Ipv4.Addresses.Address[keyIpB]
 			v4Flag = true
 		} else if validIPv6(ipB.String()) {
-			if _, ok := routedVlan.Ipv6.Addresses.Address[keyIpB]; !ok {
-				_, err = routedVlan.Ipv6.Addresses.NewAddress(keyIpB)
+			ipv6Key := new(string)
+			*ipv6Key = keyIpB
+			if _, ok := routedVlan.Ipv6.Addresses.Address[*ipv6Key]; !ok {
+				_, err = routedVlan.Ipv6.Addresses.NewAddress(*ipv6Key)
 			}
-			v6Address = routedVlan.Ipv6.Addresses.Address[keyIpB]
+			v6Address = routedVlan.Ipv6.Addresses.Address[*ipv6Key]
 			v6Flag = true
 		} else {
 			log.Warning("Invalid IP address " + ipB.String())
@@ -2407,7 +2400,7 @@ func convertRoutedVlanIpMapToOC(intfIpMap map[string]db.Value, ifInfo *ocbinds.O
 			*ipStr = keyIpB
 			v4Address.Ip = ipStr
 			prfxLen := new(uint8)
-			*prfxLen = ipNetB.Bits()
+			*prfxLen = uint8(ipNetB.Bits())
 			if isState {
 				v4Address.State.Ip = ipStr
 				v4Address.State.PrefixLength = prfxLen

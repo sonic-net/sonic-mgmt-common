@@ -547,110 +547,110 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 	t.Log("\n\n++++++++++++ CONFIGURE IPv4 VLAN INTERFACE ++++++++++++")
 
 	t.Log("\n\n--- PATCH VLAN interface IPv4 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"ip\":\"2.2.2.2\",\"config\":{\"ip\":\"2.2.2.2\",\"prefix-length\":24}}]}}"
 	t.Run("Test configure VLAN IPv4", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv4 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=2.2.2.2"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=2.2.2.2]"
 	expected_get_json := "{\"openconfig-if-ip:address\":[{\"config\":{\"ip\":\"2.2.2.2\",\"prefix-length\":24},\"ip\":\"2.2.2.2\",\"state\":{\"ip\":\"2.2.2.2\",\"prefix-length\":24}}]}"
 	t.Run("Test GET VLAN interface IPv4 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PUT VLAN interface IPv4 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"ip\":\"4.4.4.4\",\"config\":{\"ip\":\"4.4.4.4\",\"prefix-length\":24}}]}}"
 	t.Run("Test configure VLAN IPv4", processSetRequest(url, url_input_body_json, "PUT", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv4 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=4.4.4.4"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.4.4]"
 	expected_get_json = "{\"openconfig-if-ip:address\":[{\"config\":{\"ip\":\"4.4.4.4\",\"prefix-length\":24},\"ip\":\"4.4.4.4\",\"state\":{\"ip\":\"4.4.4.4\",\"prefix-length\":24}}]}"
 	t.Run("Test GET VLAN interface IPv4 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- POST VLAN interface IPv4 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:address\":[{\"ip\":\"2.2.2.2\",\"config\":{\"ip\":\"2.2.2.2\",\"prefix-length\":24}}]}"
 	t.Run("Test configure VLAN IPv4", processSetRequest(url, url_input_body_json, "POST", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv4 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
 	expected_get_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"config\":{\"ip\":\"2.2.2.2\",\"prefix-length\":24},\"ip\":\"2.2.2.2\",\"state\":{\"ip\":\"2.2.2.2\",\"prefix-length\":24}}]}}"
 	t.Run("Test GET VLAN interface IPv4 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv4 address (routed-vlan container) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan"
 	url_input_body_json = "{\"openconfig-vlan:routed-vlan\": {\"config\": {\"vlan\": \"Vlan20\" },\"openconfig-if-ip:ipv4\": {\"addresses\": {\"address\": [{\"ip\": \"16.16.16.16\", \"config\": {\"ip\": \"16.16.16.16\", \"prefix-length\": 24}}]}}}}"
 	t.Run("Test configure VLAN IPv4", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv4 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan"
 	expected_get_json = "{\"openconfig-vlan:routed-vlan\":{\"config\":{\"vlan\":\"Vlan20\"},\"openconfig-if-ip:ipv4\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"16.16.16.16\",\"prefix-length\":24},\"ip\":\"16.16.16.16\",\"state\":{\"ip\":\"16.16.16.16\",\"prefix-length\":24}}]}},\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":true},\"state\":{\"enabled\":true}},\"state\":{\"vlan\":\"Vlan20\"}}}"
 	t.Run("Test GET VLAN interface IPv4 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface ID (config)---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/config"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/config"
 	expected_get_json = "{\"openconfig-vlan:config\":{\"vlan\":\"Vlan20\"}}"
 	t.Run("Test GET VLAN interface ID (config) ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	// t.Log("\n\n--- Verify VLAN interface ID (state leaf)---")
-	// url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/state/vlan"
+	// url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/state/vlan"
 	// expected_get_json = "{\"openconfig-vlan:vlan\":\"Vlan20\"}"
 	// t.Run("Test GET VLAN interface ID (state leaf) ", processGetRequest(url, nil, expected_get_json, false))
 	// time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv4 address (IPv4 container) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4"
 	url_input_body_json = "{\"openconfig-if-ip:ipv4\":{\"addresses\":{\"address\":[{\"ip\":\"8.8.8.8\",\"config\":{\"ip\":\"8.8.8.8\",\"prefix-length\":24}}]}}}"
 	t.Run("Test configure VLAN IPv4", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv4 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4"
 	expected_get_json = "{\"openconfig-if-ip:ipv4\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"8.8.8.8\",\"prefix-length\":24},\"ip\":\"8.8.8.8\",\"state\":{\"ip\":\"8.8.8.8\",\"prefix-length\":32}}]}}}"
 	t.Run("Test GET VLAN interface IPv4 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	// TODO (fix, also seen in ESONIC)
 	t.Log("\n\n--- PATCH VLAN interface IPv4 address (placeholder for PATCH at IP address level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"ip\":\"4.4.4.4\",\"config\":{\"ip\":\"4.4.4.4\",\"prefix-length\":32}}]}}"
 	t.Run("Test configure VLAN IPv4", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv4 address (prefix-length leaf) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=4.4.4.4/config/prefix-length"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.4.4]/config/prefix-length"
 	url_input_body_json = "{\"openconfig-if-ip:prefix-length\":24}"
 	t.Run("Test configure VLAN IPv4", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv4 address (prefix-length leaf) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=4.4.4.4/config/prefix-length"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.4.4]/config/prefix-length"
 	expected_get_json = "{\"openconfig-if-ip:prefix-length\":24}"
 	t.Run("Test GET VLAN interface IPv4 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- POST VLAN interface IPv4 address (address config level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=4.4.4.4/config"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.4.4]/config"
 	url_input_body_json = "{\"openconfig-if-ip:prefix-length\":32}"
 	t.Run("Test configure VLAN IPv4", processSetRequest(url, url_input_body_json, "POST", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv4 address (address config level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=4.4.4.4/config"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.4.4/config"
 	expected_get_json = "{\"openconfig-if-ip:config\":{\"ip\":\"4.4.4.4\",\"prefix-length\":32}}"
 	t.Run("Test GET VLAN interface IPv4 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	// t.Log("\n\n--- Verify VLAN interface IPv4 address state ---")
-	// url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=4.4.4.4/state"
+	// url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.4.4]/state"
 	// expected_get_json = "{\"openconfig-if-ip:state\":{\"ip\":\"4.4.4.4\",\"prefix-length\":32}}"
 	// t.Run("Test GET VLAN interface IPv4 config ", processGetRequest(url, nil, expected_get_json, false))
 	// time.Sleep(1 * time.Second)
@@ -658,127 +658,127 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 	t.Log("\n\n++++++++++++ CONFIGURE IPv6 VLAN INTERFACE ++++++++++++")
 
 	t.Log("\n\n--- PATCH VLAN interface IPv6 enabled ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config/enabled"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config/enabled"
 	url_input_body_json = "{\"openconfig-if-ip:prefix-length\":24}"
 	t.Run("Test configure VLAN IPv6", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 enabled ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config/enabled"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config/enabled"
 	expected_get_json = "{\"openconfig-if-ip:enabled\":true}"
 	t.Run("Test GET VLAN interface IPv6 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PUT VLAN interface IPv6 enabled ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config/enabled"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config/enabled"
 	url_input_body_json = "{\"openconfig-if-ip:enabled\":false}"
 	t.Run("Test configure VLAN IPv6", processSetRequest(url, url_input_body_json, "PUT", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 enabled ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config/enabled"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config/enabled"
 	expected_get_json = "{\"openconfig-if-ip:enabled\":false}"
 	t.Run("Test GET VLAN interface IPv6 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- POST VLAN interface IPv6 enabled (config level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config"
 	url_input_body_json = "{\"openconfig-if-ip:enabled\":true}"
 	t.Run("Test configure VLAN IPv6", processSetRequest(url, url_input_body_json, "POST", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 enabled ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/config"
 	expected_get_json = "{\"openconfig-if-ip:config\":{\"enabled\":true}}"
 	t.Run("Test GET VLAN interface IPv6 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv6 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"ip\":\"2001:4860:4860::8888\",\"config\":{\"ip\":\"2001:4860:4860::8888\",\"prefix-length\":64}}]}}"
 	t.Run("Test configure VLAN IPv6 address", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2001%3A4860%3A4860%3A%3A8888"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001%3A4860%3A4860%3A%3A8888]"
 	expected_get_json = "{\"openconfig-if-ip:address\":[{\"config\":{\"ip\":\"2001:4860:4860::8888\",\"prefix-length\":64},\"ip\":\"2001:4860:4860::8888\",\"state\":{\"ip\":\"2001:4860:4860::8888\",\"prefix-length\":64}}]}"
 	t.Run("Test GET VLAN interface IPv6 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PUT VLAN interface IPv6 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"ip\":\"2001:4860:4860::8844\",\"config\":{\"ip\":\"2001:4860:4860::8844\",\"prefix-length\":64}}]}}"
 	t.Run("Test configure VLAN IPv6 address", processSetRequest(url, url_input_body_json, "PUT", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2001%3A4860%3A4860%3A%3A8844"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001%3A4860%3A4860%3A%3A8844]"
 	expected_get_json = "{\"openconfig-if-ip:address\":[{\"config\":{\"ip\":\"2001:4860:4860::8844\",\"prefix-length\":64},\"ip\":\"2001:4860:4860::8844\",\"state\":{\"ip\":\"2001:4860:4860::8844\",\"prefix-length\":64}}]}"
 	t.Run("Test GET VLAN interface IPv6 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- POST VLAN interface IPv6 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:address\":[{\"ip\":\"2001:4860:4860::8888\",\"config\":{\"ip\":\"2001:4860:4860::8888\",\"prefix-length\":64}}]}"
 	t.Run("Test configure VLAN IPv6 address", processSetRequest(url, url_input_body_json, "POST", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 address ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	expected_get_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"config\":{\"ip\":\"2001:4860:4860::8844\",\"prefix-length\":64},\"ip\":\"2001:4860:4860::8844\",\"state\":{\"ip\":\"2001:4860:4860::8844\",\"prefix-length\":64}},{\"config\":{\"ip\":\"2001:4860:4860::8888\",\"prefix-length\":64},\"ip\":\"2001:4860:4860::8888\",\"state\":{\"ip\":\"2001:4860:4860::8888\",\"prefix-length\":64}}]}}"
 	t.Run("Test GET VLAN interface IPv6 config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv6 address (routed-vlan container) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan"
 	url_input_body_json = "{\"openconfig-vlan:routed-vlan\":{\"config\":{\"vlan\":\"Vlan30\"},\"openconfig-if-ip:ipv6\":{\"addresses\":{\"address\":[{\"ip\":\"2606:4700:4700::1111\",\"config\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64}}]}}}}"
 	t.Run("Test configure VLAN IPv6 address", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 address (routed-vlan container)---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan"
 	expected_get_json = "{\"openconfig-vlan:routed-vlan\":{\"config\":{\"vlan\":\"Vlan30\"},\"openconfig-if-ip:ipv4\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"8.8.8.8\",\"prefix-length\":24},\"ip\":\"8.8.8.8\",\"state\":{\"ip\":\"8.8.8.8\",\"prefix-length\":24}}]}},\"openconfig-if-ip:ipv6\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64},\"ip\":\"2606:4700:4700::1111\",\"state\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64}}]},\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}},\"state\":{\"vlan\":\"Vlan30\"}}}"
 	t.Run("Test GET VLAN interface IPv6 config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv6 address (IPv6 container) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6"
 	url_input_body_json = "{\"openconfig-if-ip:ipv6\":{\"addresses\":{\"address\":[{\"ip\":\"2606:4700:4700::1001\",\"config\":{\"ip\":\"2606:4700:4700::1001\",\"prefix-length\":64}}]}}}"
 	t.Run("Test configure VLAN IPv6 address", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 address (IPv6 container)---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6"
 	expected_get_json = "{\"openconfig-if-ip:ipv6\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"2606:4700:4700::1001\",\"prefix-length\":64},\"ip\":\"2606:4700:4700::1001\",\"state\":{\"ip\":\"2606:4700:4700::1001\",\"prefix-length\":64}},{\"config\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64},\"ip\":\"2606:4700:4700::1111\",\"state\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64}}]},\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}}}"
 	t.Run("Test GET VLAN interface IPv6 config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv6 address (prefix-length leaf) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2001%3A4860%3A4860%3A%3A8844/config/prefix-length"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001%3A4860%3A4860%3A%3A8844]/config/prefix-length"
 	url_input_body_json = "{\"openconfig-if-ip:prefix-length\":128}"
 	t.Run("Test configure VLAN IPv6 address", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 address (prefix-length leaf)---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2001%3A4860%3A4860%3A%3A8844/config/prefix-length"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001%3A4860%3A4860%3A%3A8844]/config/prefix-length"
 	expected_get_json = "{\"openconfig-if-ip:prefix-length\":128}"
 	t.Run("Test GET VLAN interface IPv6 config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- POST VLAN interface IPv6 address (config level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2001%3A4860%3A4860%3A%3A8844/config"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001%3A4860%3A4860%3A%3A8844]/config"
 	url_input_body_json = "{\"openconfig-if-ip:prefix-length\":64}"
 	t.Run("Test configure VLAN IPv6 address", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 address (prefix-length leaf)---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2001%3A4860%3A4860%3A%3A8844/config"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001%3A4860%3A4860%3A%3A8844]/config"
 	expected_get_json = "{\"openconfig-if-ip:config\":{\"ip\":\"2001:4860:4860::8844\",\"prefix-length\":64}}"
 	t.Run("Test GET VLAN interface IPv6 config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	// t.Log("\n\n--- Verify VLAN interface IPv6 address state---")
-	// url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2001%3A4860%3A4860%3A%3A8844/state"
+	// url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001%3A4860%3A4860%3A%3A8844/state"
 	// expected_get_json = "{\"openconfig-if-ip:state\":{\"ip\":\"2001:4860:4860::8844\",\"prefix-length\":64}}"
 	// t.Run("Test GET VLAN interface IPv6 state", processGetRequest(url, nil, expected_get_json, false))
 	// time.Sleep(1 * time.Second)
@@ -786,148 +786,148 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 	t.Log("\n\n++++++++++++ CLEAN UP VLAN INTERFACES IP CONFIG ++++++++++++")
 
 	t.Log("\n\n--- DELETE VLAN interface IPv4 (prefix-length leaf) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=8.8.8.8/config/prefix-length"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=8.8.8.8]/config/prefix-length"
 	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IP (prefix-length leaf) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=8.8.8.8/config/prefix-length"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=8.8.8.8]/config/prefix-length"
 	expected_get_json = "{\"openconfig-if-ip:prefix-length\":0}"
 	t.Run("Test GET deleted VLAN interface IP config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- DELETE VLAN interface IPv4 (specify address) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=4.4.4.4"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.4.4]"
 	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IP (specify address) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=4.4.4.4"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.4.4]"
 	expected_get_json = "{}"
 	t.Run("Test GET deleted VLAN interface IP config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- DELETE VLAN interface IPv4 (all addresses level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
 	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IP (all addresses level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan20/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
 	expected_get_json = "{}"
 	t.Run("Test GET deleted VLAN interface IP config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv4 (temp) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"ip\":\"2.2.2.2\",\"config\":{\"ip\":\"2.2.2.2\",\"prefix-length\":24}}]}}"
 	t.Run("Test configure VLAN IPv4 address", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv4 (temp) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address=2.2.2.2"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=2.2.2.2]"
 	expected_get_json = "{\"openconfig-if-ip:address\":[{\"config\":{\"ip\":\"2.2.2.2\",\"prefix-length\":24},\"ip\":\"2.2.2.2\",\"state\":{\"ip\":\"2.2.2.2\",\"prefix-length\":24}}]}"
 	t.Run("Test GET VLAN interface IPv4", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- DELETE VLAN interface IPv4 (IPv4 level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4"
 	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv4 (IPv4 level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4"
 	expected_get_json = "{}"
 	t.Run("Test GET deleted VLAN interface IP config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- DELETE VLAN interface IPv6 (prefix-length leaf) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2606%3A4700%3A4700%3A%3A1111/config/prefix-length"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2606%3A4700%3A4700%3A%3A1111]/config/prefix-length"
 	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv6 (prefix-length leaf) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2606%3A4700%3A4700%3A%3A1111/config/prefix-length"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2606%3A4700%3A4700%3A%3A1111]/config/prefix-length"
 	expected_get_json = "{\"openconfig-if-ip:prefix-length\":0}"
 	t.Run("Test GET deleted VLAN interface IP config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv6 (temp) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"ip\":\"2606:4700:4700::1111\",\"config\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64}}]}}"
 	t.Run("Test configure VLAN IPv6 address (temp)", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 (temp) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	expected_get_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"config\":{\"ip\":\"2606:4700:4700::1001\",\"prefix length\":64},\"ip\":\"2606:4700:4700::1001\",\"state\":{\"ip\":\"2606:4700:4700::1001\",\"prefix-length\":64}},{\"config\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64},\"ip\":\"2606:4700:4700::1111\",\"state\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64}}]}}"
 	t.Run("Test GET VLAN interface IPv6", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- DELETE VLAN interface IPv6 (specify address) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address=2606%3A4700%3A4700%3A%3A1111"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2606%3A4700%3A4700%3A%3A1111]"
 	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv6 (specify address) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	expected_get_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"config\":{\"ip\":\"2606:4700:4700::1001\",\"prefix-length\":6 4},\"ip\":\"2606:4700:4700::1001\",\"state\":{\"ip\":\"2606:4700:4700::1001\",\"prefix-length\":64}}]}}"
 	t.Run("Test GET deleted VLAN interface IP config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- DELETE VLAN interface IPv6 (all addresses level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv6 (all addresses level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan30/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	expected_get_json = "{}"
 	t.Run("Test GET deleted VLAN interface IP config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- DELETE VLAN interface IPv6 (IPv6 level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6"
 	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv6 (IPv6 level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6"
 	expected_get_json = "{\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}}}"
 	t.Run("Test GET deleted VLAN interface IP config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv6 (temp) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"ip\":\"2001:4860:4860::8888\",\"config\":{\"ip\":\"2001:4860:4860::8888\",\"prefix-length\":64}}]}}"
 	t.Run("Test configure VLAN IPv6 address (temp)", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv6 (temp) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
 	url_input_body_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"ip\":\"2606:4700:4700::1111\",\"config\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64}}]}}"
 	t.Run("Test configure VLAN IPv6 address (temp)", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH VLAN interface IPv4 (temp) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan"
 	url_input_body_json = "{\"openconfig-vlan:routed-vlan\": {\"config\": {\"vlan\": \"Vlan20\" },\"openconfig-if-ip:ipv4\": {\"addresses\": {\"address\": [{\"ip\": \"16.16.16.16\", \"config\": {\"ip\": \"16.16.16.16\", \"prefix-length\": 32}}]}}}}"
 	t.Run("Test configure VLAN IPv4 address (temp)", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 (temp) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan"
 	expected_get_json = "{\"openconfig-vlan:routed-vlan\":{\"config\":{\"vlan\":\"Vlan10\"},\"openconfig-if-ip:ipv4\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"16.16.16.16\",\"prefix-length\":32},\"ip\":\"16.16.16.16\",\"state\":{\"ip\":\"16.16.16.16\",\"prefix-length\":32}}]}},\"openconfig-if-ip:ipv6\":{\"addresses\":{\"address\":[{\"config\":{\"ip\":\"2001:4860:4860::8888\",\"prefix-length\":64},\"ip\":\"2001:4860:4860::8888\",\"state\":{\"ip\":\"2001:4860:4860::8888\",\"prefix-length\":64}},{\"config\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64},\"ip\":\"2606:4700:4700::1111\",\"state\":{\"ip\":\"2606:4700:4700::1111\",\"prefix-length\":64}}]},\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}},\"state\":{\"vlan\":\"Vlan10\"}}}"
 	t.Run("Test GET VLAN interface IP (temp)", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- DELETE VLAN interface all IP (routed-vlan level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan"
 	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface all IP (routed-vlan level) ---")
-	url = "/openconfig-interfaces:interfaces/interface=Vlan10/openconfig-vlan:routed-vlan"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan"
 	expected_get_json = "{\"openconfig-vlan:routed-vlan\":{\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}}}}"
 	t.Run("Test GET deleted VLAN interface IP config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
