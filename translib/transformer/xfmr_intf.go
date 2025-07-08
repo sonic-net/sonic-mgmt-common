@@ -470,7 +470,7 @@ var intf_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) 
 		//Checking interface type at container level, if not PortChannel type return nil
 		return nil, nil
 	} else if intfType != IntfTypeVlan &&
-		strings.HasPrefix(targetUriPath, "openconfig-interfaces:interfaces/interface/openconfig-vlan:routed-vlan") {
+		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-vlan:routed-vlan") {
 		//Checking interface type at container level, if not Vlan type return nil
 		return nil, nil
 	} else if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/state/counters") {
