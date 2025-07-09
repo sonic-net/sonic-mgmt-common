@@ -745,15 +745,6 @@ var YangToDb_intf_name_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[s
 	if strings.HasPrefix(ifName, VLAN) {
 		vlanId := ifName[len("Vlan"):]
 		res_map["vlanid"] = vlanId
-		// membersInDb := (&vlanDBEntry).Get("members@")
-		// if len(membersInDb) != 0 {
-		// 	membersNames := strings.Split(membersInDb, ",")
-		// 	membersNames = removeDuplicateStr(membersNames)
-		// 	membersInDb = strings.Join(membersNames, ",")
-		// 	res_map["members@"] = membersInDb
-		// 	vlanDBEntry.Field["members@"] = membersInDb
-		// 	inParams.d.SetEntry(&db.TableSpec{Name: "VLAN"}, db.Key{Comp: []string{ifName}}, vlanDBEntry)
-		// }
 	} else if strings.HasPrefix(ifName, PORTCHANNEL) {
 		res_map["NULL"] = "NULL"
 	} else if strings.HasPrefix(ifName, ETHERNET) {
