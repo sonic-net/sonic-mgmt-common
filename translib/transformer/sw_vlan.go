@@ -449,7 +449,10 @@ func processIntfVlanMemberRemoval(inParams *XfmrParams, ifVlanInfoList []*ifVlan
 		case TRUNK:
 			/* Handling trunk-vlans delete */
 			log.Info("Trunk VLAN Delete!")
-			cfgredTrunkVlanList, _, _ := getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
+			cfgredTrunkVlanList, _, err := getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
+			if err != nil {
+				return err
+			}
 			sort.Strings(cfgredTrunkVlanList)
 			sort.Strings(trunkVlans)
 			for _, trunkVlan := range trunkVlans {
@@ -475,7 +478,10 @@ func processIntfVlanMemberRemoval(inParams *XfmrParams, ifVlanInfoList []*ifVlan
 			//Access Vlan Delete
 			_, _ = removeUntaggedVlanAndUpdateVlanMembTbl(d, ifName, vlanMemberMap)
 			//Trunk Vlan Delete
-			cfgredTrunkVlanList, _, _ := getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
+			cfgredTrunkVlanList, _, err := getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
+			if err != nil {
+				return err
+			}
 			if len(cfgredTrunkVlanList) > 0 {
 				if log.V(3) {
 					log.Info("Configured Tagged Vlan list , cfgredTaggedVlan: ", cfgredTrunkVlanList)
@@ -999,11 +1005,14 @@ func intfVlanMemberReplace(swVlanConfig *swVlanMemberPort_t,
 
 	//Get existing tagged and untagged vlan config on interface
 	if !accessVlanInPath {
-		cfgredTaggedVlan, _, _ = getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
+		cfgredTaggedVlan, _, err = getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
 	} else if !trunkVlanInPath {
-		_, cfgredAccessVlan, _ = getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
+		_, cfgredAccessVlan, err = getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
 	} else {
-		cfgredTaggedVlan, cfgredAccessVlan, _ = getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
+		cfgredTaggedVlan, cfgredAccessVlan, err = getIntfVlanConfig(inParams.d, VLAN_MEMBER_TN, *ifName)
+	}
+	if err != nil {
+		return err
 	}
 
 	log.V(3).Infof("intfVlanMemberReplace, cfgredAccessVlan: %v, cfgredTaggedVlan: %v", cfgredAccessVlan, cfgredTaggedVlan)
