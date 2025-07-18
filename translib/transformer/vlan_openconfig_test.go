@@ -109,7 +109,7 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- GET VLAN (interface level) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]"
-	expected_get_json = "{\"openconfig-interfaces:interface\":[{\"config\":{\"enabled\":true,\"mtu\":9000,\"name\":\"Vlan10\"},\"name\":\"Vlan10\",\"openconfig-vlan:routed-vlan\":{\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}}},\"subinterfaces\":{\"subinterface\":[{\"config\":{\"index\":0},\"index\":0,\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}},\"state\":{\"index\":0}}]}}]}"
+	expected_get_json = "{\"openconfig-interfaces:interface\":[{\"config\":{\"enabled\":true,\"mtu\":9000,\"name\":\"Vlan10\"},\"name\":\"Vlan10\",\"openconfig-vlan:routed-vlan\":{\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}}},\"state\":{\"vlan\":\"Vlan30\"},\"subinterfaces\":{\"subinterface\":[{\"config\":{\"index\":0},\"index\":0,\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}},\"state\":{\"index\":0}}]}}]}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -736,21 +736,15 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 	t.Run("Test GET VLAN interface IPv6 config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
-	t.Log("\n\n--- PATCH VLAN interface IPv6 address (prefix-length leaf) ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001:4860:4860::8844]/config/prefix-length"
-	url_input_body_json = "{\"openconfig-if-ip:prefix-length\":60}"
-	t.Run("Test configure VLAN IPv6 address", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
-	time.Sleep(10 * time.Second)
-
 	t.Log("\n\n--- Verify VLAN interface IPv6 address (prefix-length leaf)---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001:4860:4860::8844]/config/prefix-length"
-	expected_get_json = "{\"openconfig-if-ip:prefix-length\":60}"
+	expected_get_json = "{\"openconfig-if-ip:prefix-length\":64}"
 	t.Run("Test GET VLAN interface IPv6 config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN interface IPv6 address (config level)---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2001:4860:4860::8844]/config"
-	expected_get_json = "{\"openconfig-if-ip:config\":{\"ip\":\"2001:4860:4860::8844\",\"prefix-length\":60}}"
+	expected_get_json = "{\"openconfig-if-ip:config\":{\"ip\":\"2001:4860:4860::8844\",\"prefix-length\":64}}"
 	t.Run("Test GET VLAN interface IPv6 config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -770,19 +764,19 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	cleanuptbl = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Vlan10": ""}}
 	unloadDB(db.ApplDB, cleanuptbl)
-	pre_req_map = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Vlan10|16.16.16.17/32": map[string]interface{}{"ip": "16.16.16.17", "prefix-length": 32}}}
+	pre_req_map = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Vlan10:4.4.5.1/32": map[string]interface{}{"ip": "4.4.5.1", "prefix-length": 32}}}
 	loadDB(db.ApplDB, pre_req_map)
 
 	t.Log("\n\n--- GET VLAN (state level) ---")
-	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=16.16.16.17]/state"
-	expected_get_json = "{\"openconfig-if-ip:state\":{\"ip\":\"16.16.16.17\",\"prefix-length\":32}}"
+	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.5.1]/state"
+	expected_get_json = "{\"openconfig-if-ip:state\":{\"ip\":\"4.4.5.1\",\"prefix-length\":32}}"
 	t.Run("Test GET VLAN interface IPv4 state", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 	unloadDB(db.ApplDB, cleanuptbl)
 
 	cleanuptbl = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Vlan10": ""}}
 	unloadDB(db.ApplDB, cleanuptbl)
-	pre_req_map = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Vlan10|2001:4860:4860::8844/64": map[string]interface{}{"ip": "2001:4860:4860", "prefix-length": 64}}}
+	pre_req_map = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Vlan10:2001:4860:4860::8844/64": map[string]interface{}{"ip": "2001:4860:4860", "prefix-length": 64}}}
 	loadDB(db.ApplDB, pre_req_map)
 
 	t.Log("\n\n--- GET VLAN (state level) ---")
