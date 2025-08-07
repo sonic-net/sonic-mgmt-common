@@ -21,10 +21,11 @@ package utils
 
 import (
 	"fmt"
-	//"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	log "github.com/golang/glog"
+	"strconv"
+	"strings"
 )
 
 // SortAsPerTblDeps - sort transformer result table list based on dependencies (using CVL API) tables to be used for CRUD operations
@@ -64,4 +65,41 @@ func RemoveElement(sl []string, str string) []string {
 		}
 	}
 	return sl
+}
+
+// VlanDifference returns difference between existing list of Vlans and new list of Vlans.
+func VlanDifference(vlanList1, vlanList2 []string) []string {
+	mb := make(map[string]struct{}, len(vlanList2))
+	for _, ifName := range vlanList2 {
+		mb[ifName] = struct{}{}
+	}
+	var diff []string
+	for _, ifName := range vlanList1 {
+		if _, found := mb[ifName]; !found {
+			diff = append(diff, ifName)
+		}
+	}
+	return diff
+}
+
+// ExtractVlanIdsFromRange expands given range into list of individual VLANs
+// Param: A Range e.g. 1-3 or 1..3
+// Return: Expanded list e.g. [Vlan1, Vlan2, Vlan3] */
+func ExtractVlanIdsFromRange(rngStr string, vlanLst *[]string) error {
+	var err error
+	var res []string
+	if strings.Contains(rngStr, "..") {
+		res = strings.Split(rngStr, "..")
+	}
+	if strings.Contains(rngStr, "-") {
+		res = strings.Split(rngStr, "-")
+	}
+	if len(res) != 0 {
+		low, _ := strconv.Atoi(res[0])
+		high, _ := strconv.Atoi(res[1])
+		for id := low; id <= high; id++ {
+			*vlanLst = append(*vlanLst, "Vlan"+strconv.Itoa(id))
+		}
+	}
+	return err
 }

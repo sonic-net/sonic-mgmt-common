@@ -7,12 +7,20 @@ module openconfig-interfaces-annot {
 
     import sonic-extensions { prefix sonic-ext; }
     import openconfig-interfaces { prefix oc-intf; }
+    import openconfig-vlan {prefix oc-vlan; }
     import openconfig-if-ip {prefix oc-ip; }
+    import openconfig-if-aggregate { prefix oc-lag; }
 
     deviation /oc-intf:interfaces/oc-intf:interface {
         deviate add {
             sonic-ext:key-transformer "intf_tbl_key_xfmr";
             sonic-ext:table-transformer "intf_table_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:name {
+        deviate add {
+            sonic-ext:field-transformer "intf_name_xfmr";
         }
     }
 
@@ -143,6 +151,12 @@ module openconfig-interfaces-annot {
       }
     }
 
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:name {
+        deviate add {
+            sonic-ext:field-transformer "intf_name_xfmr";
+        }
+    }
+
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:enabled {
         deviate add {
             sonic-ext:field-transformer "intf_enabled_xfmr";
@@ -163,6 +177,20 @@ module openconfig-interfaces-annot {
             sonic-ext:db-name "COUNTERS_DB";
             sonic-ext:subtree-transformer "intf_get_ether_counters_xfmr";
             sonic-ext:subscribe-on-change "disable";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan {
+        deviate add {
+            sonic-ext:subtree-transformer "sw_vlans_xfmr";
+            sonic-ext:path-transformer "sw_vlans_path_xfmr";
+        }
+    }
+
+     deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-vlan:switched-vlan {
+        deviate add {
+            sonic-ext:subtree-transformer "sw_vlans_xfmr";
+            sonic-ext:path-transformer "sw_vlans_path_xfmr";
         }
     }
     
@@ -255,4 +283,57 @@ module openconfig-interfaces-annot {
             sonic-ext:field-transformer "ipv6_enabled_xfmr";
         }
     }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan {
+        deviate add {
+	    sonic-ext:path-transformer "intf_ip_path_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-vlan:config/oc-vlan:vlan {
+        deviate add {
+             sonic-ext:field-transformer "intf_routed_vlan_name_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-vlan:state/oc-vlan:vlan {
+        deviate add {
+            sonic-ext:field-transformer "intf_routed_vlan_name_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv4/oc-ip:addresses {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ip_addr_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:addresses {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ip_addr_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:state {
+        deviate add {
+            sonic-ext:db-name "APPL_DB";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:config/oc-ip:enabled {
+        deviate add {
+            sonic-ext:field-transformer "ipv6_enabled_xfmr";
+            sonic-ext:field-name "ipv6_use_link_local_only";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:state/oc-ip:enabled {
+        deviate add {
+            sonic-ext:field-transformer "ipv6_enabled_xfmr";
+            sonic-ext:field-name "ipv6_use_link_local_only";
+        }
+    }
+
 }

@@ -310,10 +310,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-vlan:switched-vlan {
-    deviate not-supported;
-  }
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-1x:dot1x {
     deviate not-supported;
   }
@@ -390,10 +386,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan {
-    deviate not-supported;
-  }
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:lag-type {
     deviate not-supported;
   }
@@ -414,8 +406,16 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan {
-    deviate not-supported;
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan/oc-vlan:config/oc-vlan:native-vlan {
+      deviate not-supported;
+  }
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-vlan:switched-vlan/oc-vlan:state/oc-vlan:native-vlan {
+      deviate not-supported;
+  }
+  
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:unnumbered {
+        deviate not-supported;
   }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-if-rates:rates {
