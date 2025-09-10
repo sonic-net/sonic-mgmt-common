@@ -1,0 +1,180 @@
+module openconfig-system-annot {
+
+    yang-version "1";
+
+    namespace "http://openconfig.net/yang/openconfig-system-annot";
+    prefix "oc-sys-annot";
+
+    import openconfig-system-logging { prefix oc-log; }
+    import openconfig-alarms { prefix oc-alarms; }
+    import openconfig-yang-types { prefix oc-yang; }
+    import openconfig-system { prefix oc-sys; }
+    import gnsi-credentialz { prefix gnsi-credz; }
+    import gnsi-pathz { prefix gnsi-pathz; }
+    import sonic-extensions {prefix sonic-ext; }
+    import openconfig-system-grpc { prefix oc-sys-grpc; }
+
+    deviation /oc-sys:system/oc-sys:aaa/oc-sys:authorization/oc-sys:state {
+      deviate add {
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:subtree-transformer "authz_policy_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-sys:aaa/oc-sys:authentication/oc-sys:users/oc-sys:user {
+        deviate add {
+            sonic-ext:subtree-transformer "sys_aaa_auth_xfmr";
+            sonic-ext:path-transformer "sys_aaa_auth_path_xfmr";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:state {
+        deviate add {
+            sonic-ext:subtree-transformer "sys_state_xfmr";
+        }
+    }
+
+     deviation /oc-sys:system/oc-sys:config {
+        deviate add {
+            sonic-ext:key-transformer "sys_config_key_xfmr";
+            sonic-ext:table-name "DEVICE_METADATA";
+            sonic-ext:subtree-transformer "sys_config_xfmr";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:memory {
+        deviate add {
+            sonic-ext:subtree-transformer "sys_memory_xfmr";
+            sonic-ext:db-name "STATE_DB";
+            sonic-ext:table-name "MEMORY_STATS";
+            sonic-ext:key-name "system";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:cpus/oc-sys:cpu {
+        deviate add {
+            sonic-ext:subtree-transformer "sys_cpus_xfmr";
+            sonic-ext:db-name "STATE_DB";
+            sonic-ext:table-name "CPU_STATS";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:mount-points/oc-sys:mount-point {
+        deviate add {
+            sonic-ext:subtree-transformer "sys_mount_points_xfmr";
+            sonic-ext:db-name "STATE_DB";
+            sonic-ext:table-name "MOUNT_POINTS";
+        }
+    }
+    deviation /oc-sys:system/oc-sys:mount-points/oc-sys:mount-point/oc-sys:state/oc-sys:utilized {
+        deviate add {
+            sonic-ext:field-name "used";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:alarms/oc-sys:alarm {
+        deviate add {
+            sonic-ext:subtree-transformer "sys_alarms_xfmr";
+            sonic-ext:db-name "STATE_DB";
+            sonic-ext:path-transformer "sys_alarms_path_xfmr";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:processes/oc-sys:process {
+        deviate add {
+            sonic-ext:subtree-transformer "sys_procs_xfmr";
+            sonic-ext:db-name "STATE_DB";
+            sonic-ext:table-name "PROCESS_STATS";
+        }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server {
+      deviate add {
+        /* TODO(b/185940239): Remove State DB mapping after config/host path is supported by backend. */
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:table-name "SYSLOG_SERVER";
+        sonic-ext:path-transformer "remote_server_path_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:config {
+      deviate add {
+          sonic-ext:db-name "CONFIG_DB";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:state/oc-log:host {
+      deviate add {
+          sonic-ext:field-transformer "syslog_server_ip_fld_xfmr";
+      }
+    }
+
+    /*deviation /oc-sys:system/oc-sys:ntp {
+        deviate add {
+            sonic-ext:key-transformer "ntp_global_key_xfmr";
+        }
+    }*/
+
+    deviation /oc-sys:system/oc-sys:ntp/oc-sys:config/oc-sys:enabled {
+        deviate add {
+            sonic-ext:field-name "ntp_enabled";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:ntp/oc-sys:state/oc-sys:enabled {
+        deviate add {
+            sonic-ext:field-name "ntp_enabled";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:ntp/oc-sys:state/oc-sys:auth-mismatch {
+        deviate not-supported;
+    }
+
+    deviation /oc-sys:system/oc-sys:ntp/oc-sys:config/oc-sys:enable-ntp-auth {
+        deviate add {
+            sonic-ext:field-name "auth_enabled";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:ntp/oc-sys:state/oc-sys:enable-ntp-auth {
+        deviate add {
+            sonic-ext:field-name "auth_enabled";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server {
+        deviate add {
+            sonic-ext:table-name "NTP_SERVER";
+            sonic-ext:subtree-transformer "ntp_server_subtree_xfmr";
+        }
+    }
+
+    deviation /oc-sys:system/oc-sys:ssh-server/oc-sys:state {
+      deviate add {
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:subtree-transformer "ssh_server_state_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-sys-grpc:grpc-servers {
+      deviate add {
+        sonic-ext:key-transformer "grpc_server_key_xfmr";
+        sonic-ext:subtree-transformer "grpc_server_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/gnsi-credz:console {
+      deviate add {
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:subtree-transformer "console_counters_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/gnsi-pathz:gnmi-pathz-policies {
+      deviate add {
+        sonic-ext:key-transformer "pathz_policies_key_xfmr";
+        sonic-ext:subtree-transformer "pathz_policies_xfmr";
+      }
+    }
+}

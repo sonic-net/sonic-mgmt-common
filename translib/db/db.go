@@ -143,8 +143,9 @@ const (
 	SnmpDB                     // 7
 	ErrorDB                    // 8
 	EventDB                    // 9
+	ApplStateDB   DBNum = 14   // 14
 	// All DBs added above this line, please ----
-	MaxDB //  The Number of DBs
+	MaxDB DBNum = 15 //  The Number of DBs
 )
 
 func (dbNo DBNum) String() string {

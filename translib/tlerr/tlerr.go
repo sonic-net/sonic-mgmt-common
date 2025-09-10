@@ -31,10 +31,12 @@ package tlerr
 
 import (
 	//	"fmt"
+	"errors"
 	"github.com/Azure/sonic-mgmt-common/cvl"
+	lvl "github.com/Azure/sonic-mgmt-common/translib/log"
+	"github.com/golang/glog"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
-	//	"errors"
 	//	"strings"
 )
 
@@ -189,4 +191,33 @@ type TranslibBusy struct {
 
 func (e TranslibBusy) Error() string {
 	return p.Sprintf("Translib Busy")
+}
+
+func IsTranslibRedisClientEntryNotExist(err error) bool {
+	switch err.(type) {
+	case *TranslibRedisClientEntryNotExist, TranslibRedisClientEntryNotExist:
+		return true
+	}
+	return false
+}
+
+// isDBEntryNotExistError returns `true` if `err` is (or wraps around) an error
+// of type `TranslibRedisClientEntryNotExist`.
+func isDBEntryNotExistError(err error) bool {
+	if IsTranslibRedisClientEntryNotExist(err) {
+		return true
+	}
+	pdberr := &TranslibRedisClientEntryNotExist{}
+	return errors.As(err, &TranslibRedisClientEntryNotExist{}) || errors.As(err, &pdberr)
+}
+
+// ErrorSeverity based on `err` calculates the VLOG level.
+func ErrorSeverity(err error) glog.Level {
+	if err == nil {
+		return lvl.DEBUG
+	}
+	if isDBEntryNotExistError(err) {
+		return lvl.DEBUG
+	}
+	return lvl.ERROR
 }
