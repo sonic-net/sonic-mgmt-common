@@ -231,7 +231,7 @@ func Test_openconfig_interfaces(t *testing.T) {
 	t.Log("\n\n--- PATCH interfaces wrong type ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/config"
 	url_input_body_json = "{\"openconfig-interfaces:config\": { \"mtu\": 8900, \"description\": \"UT_Interface\", \"enabled\": false, \"type\": \"iana-if-type:ieee8023adLag\"}}"
-	wrong_type_err := errors.New("Invalid interface type received")
+	wrong_type_err := errors.New("Unsupported interface type")
 	t.Run("Test PATCH on interface wrong type config", processSetRequest(url, url_input_body_json, "PATCH", true, wrong_type_err))
 	time.Sleep(1 * time.Second)
 

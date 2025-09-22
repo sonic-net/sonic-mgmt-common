@@ -2079,7 +2079,7 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 										"ygNode: %v, ygot parent obj: %v; inParamsForGet.relUri: %v; error: %v", inParamsForGet.uri, parentUriPath, inParamsForGet.ygSchema.Name,
 										reflect.TypeOf(*inParamsForGet.ygParentObj), inParamsForGet.relUri, err)
 									return "", true, err
-								} else if ygotCtx.trgtYgObj != nil {
+								} else {
 									inParamsForGet.ygParentObj = ygotCtx.trgtYgObj
 									inParamsForGet.ygSchema = ygotCtx.trgtYgSchema
 									inParamsForGet.relUri = uriPathList[len(uriPathList)-1]

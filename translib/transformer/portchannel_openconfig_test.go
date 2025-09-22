@@ -110,7 +110,7 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/config/openconfig-if-aggregate:aggregate-id"
 	url_input_body_json = "{\"openconfig-if-aggregate:aggregate-id\":\"PortChannel222\"}"
-	agg_exist_err := errors.New("Ethernet0 Interface is already member of PortChannel111")
+	agg_exist_err := tlerr.InvalidArgsError{Format: "Ethernet0 Interface is already member of PortChannel111"}
 	t.Run("Test PATCH on Ethernet aggregate-id error case", processSetRequest(url, url_input_body_json, "PATCH", true, agg_exist_err))
 	time.Sleep(1 * time.Second)
 
@@ -135,7 +135,7 @@ func Test_openconfig_portchannel(t *testing.T) {
 	t.Log("\n\n--- PATCH interfaces wrong type ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/config"
 	url_input_body_json = "{\"openconfig-interfaces:config\": { \"description\": \"UT_Interface\", \"enabled\": false, \"type\": \"iana-if-type:softwareLoopback\"}}"
-	wrong_type_err := errors.New("Invalid interface type received")
+	wrong_type_err := errors.New("Unsupported interface type")
 	t.Run("Test PATCH on interface wrong type config", processSetRequest(url, url_input_body_json, "PATCH", true, wrong_type_err))
 	time.Sleep(1 * time.Second)
 

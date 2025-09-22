@@ -123,6 +123,7 @@ module openconfig-interfaces-annot {
         }
     }
 
+
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:admin-status {
         deviate add {
             sonic-ext:field-transformer "intf_admin_status_xfmr";
