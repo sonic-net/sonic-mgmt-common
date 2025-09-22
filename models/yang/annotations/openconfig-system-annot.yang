@@ -1,0 +1,660 @@
+module openconfig-system-annot {
+  yang-version "1";
+  namespace "http:/openconfig.net/yang/system/annotation";
+  prefix "oc-sys-annot";
+
+  import sonic-extensions { prefix sonic-ext; }
+
+  import openconfig-extensions { prefix oc-ext; }
+
+  import openconfig-system { prefix oc-sys; }
+
+  organization "SONiC Manageability";
+  contact "SONiC";
+
+  description
+    "Annotations for openconfig-system model.";
+
+  oc-ext:openconfig-version "0.5.0";
+
+  revision "2024-09-20" {
+    description
+      "Adding support for AAA - authentication,authorization & accounting login method";
+    reference
+      "0.5.0";
+  }
+
+  revision "2024-09-13" {
+    description
+      "Adding support for dns container";
+    reference
+      "0.4.0";
+  }
+
+  revision "2024-09-02" {
+    description
+      "Added support for ntp container";
+    reference
+      "0.3.0";
+  }
+
+  revision "2024-08-12" {
+    description
+      "Added support for login,motd banners & timezone";
+    reference
+      "0.2.0";
+  }
+
+  revision "2024-05-02" {
+    description
+      "Initial version";
+    reference
+      "0.1.0";
+  }
+
+
+  deviation /oc-sys:system {
+    deviate add {
+      sonic-ext:post-transformer "system_post_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:config {
+    deviate add {
+      sonic-ext:virtual-table "true";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:config/oc-sys:hostname {
+    deviate add {
+      sonic-ext:table-name "DEVICE_METADATA";
+      sonic-ext:key-name "localhost";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:config/oc-sys:login-banner {
+    deviate add {
+      sonic-ext:table-name "BANNER_MESSAGE";
+      sonic-ext:key-name "global";
+      sonic-ext:field-name "login";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:config/oc-sys:motd-banner {
+    deviate add {
+      sonic-ext:table-name "BANNER_MESSAGE";
+      sonic-ext:key-name "global";
+      sonic-ext:field-name "motd";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:state/oc-sys:hostname {
+    deviate add {
+      sonic-ext:field-transformer "sys_not_implemented_leaf_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:state/oc-sys:login-banner {
+    deviate add {
+      sonic-ext:field-transformer "sys_not_implemented_leaf_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:state/oc-sys:motd-banner {
+    deviate add {
+      sonic-ext:field-transformer "sys_not_implemented_leaf_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:state/oc-sys:current-datetime {
+    deviate add {
+      sonic-ext:field-transformer "sys_current_datetime_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:state/oc-sys:up-time {
+    deviate add {
+      sonic-ext:field-transformer "sys_up_time_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:state/oc-sys:boot-time {
+    deviate add {
+      sonic-ext:field-transformer "sys_boot_time_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:state/oc-sys:software-version {
+    deviate add {
+      sonic-ext:field-transformer "sys_software_version_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:clock {
+    deviate add {
+      sonic-ext:table-name "DEVICE_METADATA";
+      sonic-ext:key-name "localhost";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:clock/oc-sys:config/oc-sys:timezone-name {
+    deviate add {
+      sonic-ext:field-name "timezone";
+      sonic-ext:field-transformer "sys_clock_timezone_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:clock/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:processes/oc-sys:process {
+    deviate add {
+      sonic-ext:db-name "STATE_DB";
+      sonic-ext:table-name "PROCESS_STATS";
+      sonic-ext:key-transformer "sys_proc_pid_key_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:processes/oc-sys:process/oc-sys:pid {
+    deviate add {
+      sonic-ext:field-transformer "sys_proc_pid_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:processes/oc-sys:process/oc-sys:state/oc-sys:pid {
+    deviate add {
+      sonic-ext:field-transformer "sys_proc_pid_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:processes/oc-sys:process/oc-sys:state/oc-sys:name {
+    deviate add {
+      sonic-ext:field-name "CMD";
+      sonic-ext:field-transformer "sys_proc_name_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:processes/oc-sys:process/oc-sys:state/oc-sys:args {
+    deviate add {
+      sonic-ext:field-name "CMD";
+      sonic-ext:field-transformer "sys_proc_args_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:processes/oc-sys:process/oc-sys:state/oc-sys:cpu-utilization {
+    deviate add {
+      sonic-ext:field-name "%CPU";
+      sonic-ext:field-transformer "sys_process_cpu_utilization_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:processes/oc-sys:process/oc-sys:state/oc-sys:memory-utilization {
+    deviate add {
+      sonic-ext:field-name "%MEM";
+      sonic-ext:field-transformer "sys_process_mem_utilization_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ssh-server {
+    deviate add {
+      sonic-ext:table-name "SSH_SERVER";
+      sonic-ext:key-name "POLICIES";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ssh-server/oc-sys:config/oc-sys:timeout {
+    deviate add {
+      sonic-ext:field-name "login_timeout";
+      sonic-ext:field-transformer "sys_ssh_timeout_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ssh-server/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server {
+    deviate add {
+      sonic-ext:table-name "SYSLOG_SERVER";
+      sonic-ext:key-transformer "sys_logging_remote_server_key_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:host {
+    deviate add {
+      sonic-ext:field-name "server_address";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:config/oc-sys:host {
+    deviate add {
+      sonic-ext:field-name "server_address";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:config/oc-sys:source-address {
+    deviate add {
+      sonic-ext:field-name "source";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:config/oc-sys:network-instance {
+    deviate add {
+      sonic-ext:field-name "vrf";
+      sonic-ext:field-transformer "sys_logging_vrf_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:config/oc-sys:remote-port {
+    deviate add {
+      sonic-ext:field-name "port";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:selectors/oc-sys:selector {
+    deviate add {
+      sonic-ext:table-name "SYSLOG_SERVER";
+      sonic-ext:key-transformer "sys_logging_selector_key_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:selectors/oc-sys:selector/oc-sys:facility {
+    deviate add {
+      sonic-ext:field-transformer "sys_logging_selector_facility_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:selectors/oc-sys:selector/oc-sys:severity {
+    deviate add {
+      sonic-ext:field-transformer "sys_logging_selector_severity_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:selectors/oc-sys:selector/oc-sys:config/oc-sys:facility {
+    deviate add {
+      sonic-ext:field-transformer "sys_logging_selector_facility_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:selectors/oc-sys:selector/oc-sys:config/oc-sys:severity {
+    deviate add {
+      sonic-ext:field-transformer "sys_logging_selector_severity_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:logging/oc-sys:remote-servers/oc-sys:remote-server/oc-sys:selectors/oc-sys:selector/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:messages/oc-sys:config {
+    deviate add {
+      sonic-ext:table-name "SYSLOG_CONFIG";
+      sonic-ext:key-name "GLOBAL";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:messages/oc-sys:config/oc-sys:severity {
+    deviate add {
+      sonic-ext:field-transformer "sys_msgs_severity_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:messages/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:config {
+    deviate add {
+      sonic-ext:table-name "NTP";
+      sonic-ext:key-name "global";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:config/oc-sys:enabled {
+    deviate add {
+      sonic-ext:field-name "admin_state";
+      sonic-ext:field-transformer "sys_ntp_config_enabled_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:config/oc-sys:enable-ntp-auth {
+    deviate add {
+      sonic-ext:field-name "authentication";
+      sonic-ext:field-transformer "sys_ntp_config_enable_auth_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:ntp-keys/oc-sys:ntp-key {
+    deviate add {
+      sonic-ext:table-name "NTP_KEY";
+      sonic-ext:key-transformer "sys_ntp_key_key_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:ntp-keys/oc-sys:ntp-key/oc-sys:key-id {
+    deviate add {
+      sonic-ext:field-name "id";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:ntp-keys/oc-sys:ntp-key/oc-sys:config/oc-sys:key-id {
+    deviate add {
+      sonic-ext:field-name "id";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:ntp-keys/oc-sys:ntp-key/oc-sys:config/oc-sys:key-type {
+    deviate add {
+      sonic-ext:field-name "type";
+      sonic-ext:field-transformer "sys_ntp_key_type_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:ntp-keys/oc-sys:ntp-key/oc-sys:config/oc-sys:key-value {
+    deviate add {
+      sonic-ext:field-name "value";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:ntp-keys/oc-sys:ntp-key/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server {
+    deviate add {
+      sonic-ext:table-name "NTP_SERVER";
+      sonic-ext:key-transformer "sys_ntp_server_key_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server/oc-sys:address {
+    deviate add {
+      sonic-ext:field-name "server_address";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server/oc-sys:config/oc-sys:address {
+    deviate add {
+      sonic-ext:field-name "server_address";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server/oc-sys:config/oc-sys:association-type {
+    deviate add {
+      sonic-ext:field-name "association_type";
+      sonic-ext:field-transformer "sys_ntp_server_association_type_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server/oc-sys:config/oc-sys:iburst {
+    deviate add {
+      sonic-ext:field-transformer "sys_ntp_server_iburst_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server/oc-sys:config/oc-sys:network-instance {
+    deviate add {
+      sonic-ext:field-transformer "sys_ntp_server_vrf_xfmr";
+      sonic-ext:table-name "NTP";
+      sonic-ext:key-name "global";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server/oc-sys:config/oc-sys:source-address {
+    deviate add {
+      sonic-ext:field-transformer "sys_ntp_server_source_address_xfmr";
+      sonic-ext:table-name "NTP";
+      sonic-ext:key-name "global";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server/oc-sys:config/oc-sys:key-id {
+    deviate add {
+      sonic-ext:field-name "key";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:ntp/oc-sys:servers/oc-sys:server/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:dns/oc-sys:config {
+    deviate add {
+      sonic-ext:table-name "DNS_NAMESERVER";
+      sonic-ext:subtree-transformer "sys_dns_config_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:dns/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa {
+    deviate add {
+      sonic-ext:table-name "AAA";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:authentication {
+    deviate add {
+      sonic-ext:table-name "AAA";
+      sonic-ext:key-name "authentication";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:authentication/oc-sys:config/oc-sys:authentication-method {
+    deviate add {
+      sonic-ext:field-transformer "sys_aaa_authentication_method_xfmr";
+      sonic-ext:field-name "login";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:authentication/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:authorization {
+    deviate add {
+      sonic-ext:table-name "AAA";
+      sonic-ext:key-name "authorization";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:authorization/oc-sys:config/oc-sys:authorization-method {
+    deviate add {
+      sonic-ext:field-transformer "sys_aaa_authorization_method_xfmr";
+      sonic-ext:field-name "login";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:authorization/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:accounting {
+    deviate add {
+      sonic-ext:table-name "AAA";
+      sonic-ext:key-name "accounting";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:accounting/oc-sys:config/oc-sys:accounting-method {
+    deviate add {
+      sonic-ext:field-transformer "sys_aaa_accounting_method_xfmr";
+      sonic-ext:field-name "login";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:accounting/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups {
+    deviate add {
+      sonic-ext:table-name "NONE";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group {
+    deviate add {
+      sonic-ext:table-transformer "sys_aaa_server_groups_table_xfmr";
+      sonic-ext:key-transformer "sys_aaa_server_group_name_key_xfmr";
+      sonic-ext:virtual-table "true";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:config/oc-sys:name {
+    deviate add {
+      sonic-ext:field-transformer "sys_aaa_server_group_name_field_xfmr";
+      sonic-ext:field-name "name";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:config/oc-sys:type {
+    deviate add {
+      sonic-ext:field-transformer "sys_aaa_server_group_type_field_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:state/oc-sys:name {
+    deviate add {
+      sonic-ext:field-transformer "sys_aaa_server_group_name_field_xfmr";
+      sonic-ext:field-name "name";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:state/oc-sys:type {
+    deviate add {
+      sonic-ext:field-transformer "sys_aaa_server_group_type_field_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers {
+    deviate add {
+      sonic-ext:table-name "NONE";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server {
+    deviate add {
+      sonic-ext:table-transformer "sys_aaa_server_table_xfmr";
+      sonic-ext:key-transformer "sys_aaa_server_groups_address_key_xfmr";
+      sonic-ext:virtual-table "true";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:config/oc-sys:name {
+    deviate add {
+      sonic-ext:field-transformer "sys_aaa_server_name_field_xfmr";
+      sonic-ext:field-name "name";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:config/oc-sys:address {
+    deviate add {
+      sonic-ext:field-name "ipaddress";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:config/oc-sys:timeout {
+    deviate add {
+      sonic-ext:field-name "timeout";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:tacacs/oc-sys:config/oc-sys:port {
+    deviate add {
+      sonic-ext:field-name "tcp_port";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:tacacs/oc-sys:config/oc-sys:secret-key {
+    deviate add {
+      sonic-ext:field-name "passkey";
+      sonic-ext:field-transformer "aaa_server_secret_key_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:tacacs/oc-sys:config/oc-sys:source-address {
+    deviate add {
+      sonic-ext:field-transformer "aaa_sys_source_address_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:tacacs/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:radius/oc-sys:config/oc-sys:auth-port {
+    deviate add {
+      sonic-ext:field-name "auth_port";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:radius/oc-sys:config/oc-sys:secret-key {
+    deviate add {
+      sonic-ext:field-name "passkey";
+      sonic-ext:field-transformer "aaa_server_secret_key_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:radius/oc-sys:config/oc-sys:source-address {
+    deviate add {
+      sonic-ext:field-transformer "aaa_sys_source_address_xfmr";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:radius/oc-sys:config/oc-sys:retransmit-attempts {
+    deviate add {
+      sonic-ext:field-name "retransmit";
+    }
+  }
+
+  deviation /oc-sys:system/oc-sys:aaa/oc-sys:server-groups/oc-sys:server-group/oc-sys:servers/oc-sys:server/oc-sys:radius/oc-sys:state {
+    deviate add {
+      sonic-ext:subtree-transformer "sys_not_implemented_container_err_xfmr";
+    }
+  }
+
+}

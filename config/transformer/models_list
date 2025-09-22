@@ -11,3 +11,9 @@ openconfig-if-aggregate.yang
 openconfig-mclag.yang
 openconfig-mclag-annot.yang
 openconfig-vlan.yang
+openconfig-system.yang
+openconfig-system-annot.yang
+openconfig-system-terminal.yang
+openconfig-messages.yang
+openconfig-system-logging.yang
+openconfig-aaa.yang
