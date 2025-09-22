@@ -33,8 +33,8 @@ type reqType int
 
 type dbEntry struct {
 	op    reqType
-		entry db.Value
-		}
+	entry db.Value
+}
 
 type PlatformApp struct {
 	path        *PathInfo
