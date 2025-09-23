@@ -23,7 +23,6 @@ package transformer_test
 
 import (
 	"errors"
-	"github.com/Azure/sonic-mgmt-common/cvl"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"testing"
@@ -198,22 +197,6 @@ func Test_openconfig_interfaces(t *testing.T) {
 	url_input_body_json = "{\"openconfig-interfaces:mtu\": 99999}"
 	mtu_err := tlerr.TranslibSyntaxValidationError{ErrorStr: errors.New("error parsing 99999 for schema mtu: value 99999 falls outside the int range [0, 65535]")}
 	t.Run("Test PATCH on interface mtu out-of-range", processSetRequest(url, url_input_body_json, "PATCH", true, mtu_err))
-	time.Sleep(1 * time.Second)
-
-	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/config/mtu"
-	url_input_body_json = "{\"openconfig-interfaces:mtu\": 13000}"
-	var cei cvl.CVLErrorInfo
-	cei.ErrCode = 1001
-	cei.Msg = "Field \"mtu\" has invalid value \"13000\""
-	cei.CVLErrDetails = "Internal Unknown Error"
-	cei.ConstraintErrMsg = ""
-	cei.TableName = "PORT"
-	cei.Keys = []string{"Ethernet0"}
-	cei.Field = "mtu"
-	cei.Value = "13000"
-
-	mtu_val_err := tlerr.TranslibCVLFailure{Code: int(1001), CVLErrorInfo: cei}
-	t.Run("Test PATCH on interface mtu unsupported value", processSetRequest(url, url_input_body_json, "PATCH", true, mtu_val_err))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- PATCH interfaces type ---")

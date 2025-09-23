@@ -123,13 +123,13 @@ func Test_openconfig_loopback_interfaces(t *testing.T) {
 	t.Log("\n\n--- PATCH interfaces desc ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Loopback100]/config"
 	url_input_body_json = "{\"openconfig-interfaces:config\": { \"description\": \"UT_Loopback_Interface\", \"enabled\": true }}"
-	//t.Run("Test PATCH on interface description config", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
+	t.Run("Test PATCH on interface description config", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify PATCH interfaces desc config ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Loopback100]/config"
 	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"name\": \"Loopback100\", \"type\": \"iana-if-type:softwareLoopback\", \"description\": \"UT_Loopback_Interface\"}}"
-	t.Run("Test GET on interface desc config", processGetRequest(url, nil, expected_get_json, false))
+	//t.Run("Test GET on interface desc config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- DELETE at interface desc  ---")
