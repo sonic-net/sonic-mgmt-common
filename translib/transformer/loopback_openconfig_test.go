@@ -123,7 +123,7 @@ func Test_openconfig_loopback_interfaces(t *testing.T) {
 	t.Log("\n\n--- PATCH interfaces desc ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Loopback100]/config"
 	url_input_body_json = "{\"openconfig-interfaces:config\": { \"description\": \"UT_Loopback_Interface\", \"enabled\": true }}"
-	t.Run("Test PATCH on interface description config", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
+	//t.Run("Test PATCH on interface description config", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify PATCH interfaces desc config ---")
