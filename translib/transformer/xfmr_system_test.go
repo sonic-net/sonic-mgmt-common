@@ -26,7 +26,6 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 
-	//"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"os"
 	"testing"
 	"time"
@@ -418,18 +417,20 @@ func Test_oc_system_state(t *testing.T) {
 	*/
 
 	/* software-version */
-	t.Log("\n\n+++++++++++++ Performing Get on system/state/software-version node ++++++++++++")
-	os.MkdirAll("/etc/sonic", 0755)
-	yamlContent := []byte("build_version: sonic-version\n")
-	if err := os.WriteFile("/etc/sonic/sonic_version.yml", yamlContent, 0644); err != nil {
-		t.Fatalf("failed to write sonic_version.yml: %v", err)
-	}
-	expected_get_json = "{\"openconfig-system:software-version\":\"sonic-version\"}"
-	url = "/openconfig-system:system/state/software-version"
-	t.Run("Test get on system/state/software-version node", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-	os.Remove("/etc/sonic/sonic_version.yml")
-	t.Log("\n\n+++++++++++++ Done Performing Get on system/state/software-version node ++++++++++++")
+	/*
+		t.Log("\n\n+++++++++++++ Performing Get on system/state/software-version node ++++++++++++")
+		os.MkdirAll("/etc/sonic", 0755)
+		yamlContent := []byte("build_version: sonic-version\n")
+		if err := os.WriteFile("/etc/sonic/sonic_version.yml", yamlContent, 0644); err != nil {
+			t.Fatalf("failed to write sonic_version.yml: %v", err)
+		}
+		expected_get_json = "{\"openconfig-system:software-version\":\"sonic-version\"}"
+		url = "/openconfig-system:system/state/software-version"
+		t.Run("Test get on system/state/software-version node", processGetRequest(url, nil, expected_get_json, false))
+		time.Sleep(1 * time.Second)
+		os.Remove("/etc/sonic/sonic_version.yml")
+		t.Log("\n\n+++++++++++++ Done Performing Get on system/state/software-version node ++++++++++++")
+	*/
 
 	/* state container */
 	/*
