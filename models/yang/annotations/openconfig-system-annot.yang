@@ -1,0 +1,25 @@
+module openconfig-system-annot {
+
+    yang-version "1";
+
+    namespace "http://openconfig.net/yang/openconfig-system-annot";
+    prefix "oc-sys-annot";
+
+    import openconfig-system { prefix oc-sys; }
+    import sonic-extensions {prefix sonic-ext; }
+    import openconfig-system-grpc { prefix oc-sys-grpc; }
+
+    deviation /oc-sys:system/oc-sys:aaa/oc-sys:authorization/oc-sys:state {
+      deviate add {
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:subtree-transformer "authz_policy_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-sys-grpc:grpc-servers {
+        deviate add {
+            sonic-ext:key-transformer "grpc_server_key_xfmr";
+            sonic-ext:subtree-transformer "grpc_server_xfmr";
+        }
+    }
+}
