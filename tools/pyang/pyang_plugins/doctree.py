@@ -16,10 +16,8 @@
 #  limitations under the License.                                              #
 #                                                                              #
 ################################################################################
-
 import io
 import optparse
-import os
 import re
 import sys
 
@@ -34,10 +32,8 @@ else:
     from pyang import Context
 
 # globals
-extensionModulesList = list()
-extension_augments_list = []
-non_patched_mods_dict = dict()
-patched_mods_dict = dict()
+mods_dict = dict()
+extended_mods_dict = dict()
 
 def pyang_plugin_init():
     plugin.register_plugin(docApiPlugin())
@@ -49,110 +45,201 @@ def search_child(children, identifier):
     return False
 
 def build_mods_dict(ctx):
-    global non_patched_mods_dict
-    global patched_mods_dict
+    """Build dictionaries of non-patched and patched modules"""
+    global mods_dict
+    global extended_mods_dict
 
-    basepath = ctx.opts.basepaths
-    if basepath is not None:
-        repo = FileRepository(basepath, use_env=False, no_path_recurse=True)
-        newctx = Context(repo)
-        newctx.opts = ctx.opts
-        newctx.lax_xpath_checks = ctx.lax_xpath_checks
-        newctx.lax_quote_checks = ctx.lax_quote_checks
-        for entry in newctx.repository.modules:
+    def load_modules(path, target_dict):
+        """Helper function to load modules"""
+        if path is None:
+            return
+
+        repo = FileRepository(path, use_env=False, no_path_recurse=True)
+        new_ctx = Context(repo)
+        new_ctx.opts = ctx.opts
+        new_ctx.lax_xpath_checks = ctx.lax_xpath_checks
+        new_ctx.lax_quote_checks = ctx.lax_quote_checks
+
+        for entry in new_ctx.repository.modules:
             mod_name = entry[0]
             mod = entry[2][1]
             try:
-                fd = io.open(mod, "r", encoding="utf-8")
-                text = fd.read()
+                with io.open(mod, "r", encoding="utf-8") as fd:
+                    text = fd.read()
             except IOError as ex:
                 sys.stderr.write("error %s: %s\n" % (mod_name, str(ex)))
                 sys.exit(1)
-            mod_obj = newctx.add_module(mod_name, text)
-            if mod_name not in non_patched_mods_dict:
-                non_patched_mods_dict[mod_name] = mod_obj
-        newctx.validate()
 
-    basepath = ctx.opts.path[0]
-    repo = FileRepository(basepath, use_env=False, no_path_recurse=True)
-    newctx = Context(repo)
-    newctx.opts = ctx.opts
-    newctx.lax_xpath_checks = ctx.lax_xpath_checks
-    newctx.lax_quote_checks = ctx.lax_quote_checks
-    for entry in newctx.repository.modules:
-        mod_name = entry[0]
-        mod = entry[2][1]
-        try:
-            fd = io.open(mod, "r", encoding="utf-8")
-            text = fd.read()
-        except IOError as ex:
-            sys.stderr.write("error %s: %s\n" % (mod_name, str(ex)))
-            sys.exit(1)
-        mod_obj = newctx.add_module(mod_name, text)
-        if mod_name not in patched_mods_dict:
-            patched_mods_dict[mod_name] = mod_obj
-    newctx.validate()
+            mod_obj = new_ctx.add_module(mod_name, text)
+            if mod_name not in target_dict:
+                target_dict[mod_name] = mod_obj
 
-def get_module_name(mod_name,check_patched=True):
-    if check_patched:
-        mod = non_patched_mods_dict[mod_name]
-    else:
-        mod = patched_mods_dict[mod_name]
-    return mod.i_modulename
+        new_ctx.validate()
 
-def find_target_node(ctx, search_mod_node, target_mod):
-    arg = get_node_path(search_mod_node, True, prefix_to_module=True)
-    path = [(m[1], m[2]) for m in syntax.re_schema_node_id_part.findall(arg)]
-    (module_name, identifier) = path[0]
-    module_name = get_module_name(module_name)
-    node = statements.search_child(target_mod.i_children, module_name, identifier)
+    if not ctx.opts.basepaths or not ctx.opts.path[0]:
+        sys.stderr.write("Invalid paths provided. basepaths: %s, path: %s\n" %(ctx.opts.basepaths, ctx.opts.path[0]))
+        sys.exit(1)
+
+    # Load base modules (non-patched)
+    load_modules(ctx.opts.basepaths, mods_dict)
+
+    # Load patched modules (with extensions)
+    load_modules(ctx.opts.path[0], extended_mods_dict)
+
+def find_node_in_module(target_module, path_parts):
+    """Find a node in a module using its path parts
+
+    Args:
+        target_module: The module to search in
+        path_parts: List of (module_name, identifier) tuples
+
+    Returns:
+        The node if found, None otherwise
+    """
+    if not path_parts:
+        return None
+
+    # Start with the first path part
+    module_name, identifier = path_parts[0]
+    node = statements.search_child(target_module.i_children, module_name, identifier)
+
     if node is None:
         return None
-    for mod_name, identifier in path[1:]:
-        if hasattr(node, 'i_children'):
-            module_name = get_module_name(mod_name)
-            child = statements.search_child(node.i_children, module_name,
-                                 identifier)
-            if child is None:
-                return None
-            node = child
-        else:
+
+    # Process the rest of the path
+    for module_name, identifier in path_parts[1:]:
+        if not hasattr(node, 'i_children'):
             return None
+
+        child = statements.search_child(node.i_children, module_name, identifier)
+        if child is None:
+            return None
+
+        node = child
+
     return node
 
-def walk_child(ctx,child,check_patched=True):
-    arg = get_node_path(child, True, prefix_to_module=True)
-    target_mod_name = arg.split('/')[1].split(':')[0]
-    if check_patched:
-        target_mod = non_patched_mods_dict[target_mod_name]
+def get_node_path_parts(node):
+    """Get the path parts of a node as a list of (module_name, identifier) tuples"""
+    path_parts = []
+
+    def collect_path(node, parts):
+        if node.parent.keyword in ['module', 'submodule']:
+            parts.append((node.i_module.i_modulename, node.arg))
+            return
+
+        collect_path(node.parent, parts)
+        parts.append((node.i_module.i_modulename, node.arg))
+
+    collect_path(node, path_parts)
+    return path_parts
+
+def check_node_existence(node, non_patched_mod):
+    """Check if a node exists in a non-patched module
+
+    Args:
+        node: The node to check
+        non_patched_mod: The non-patched module to check against
+
+    Returns:
+        True if the node exists, False otherwise
+    """
+    path_parts = get_node_path_parts(node)
+    found_node = find_node_in_module(non_patched_mod, path_parts)
+    return found_node is not None
+
+def mark_node_with_diff(node, exists):
+    """Mark a node with its diff status
+
+    Args:
+        node: The node to mark
+        exists: Whether the node exists in the non-patched modules
+    """
+    if exists:
+        # The node exists in both - no special marking
+        node.diff_status = None
     else:
-        target_mod = patched_mods_dict[target_mod_name]
+        # The node is new (added) in the patched modules
+        node.diff_status = "added"
 
-    node = find_target_node(ctx,child,target_mod)
-    if node is None:
-        if check_patched:
-            child.patched = True
-        else:      
-            child.patched = False
-            while True:
-                parent = find_target_node(ctx,child.parent,target_mod)
-                if parent is not None:
-                    parent.i_children.append(child)
-                    break
-        return
-    if hasattr(child, 'i_children'):
-        for ch in child.i_children:
-            walk_child(ctx,ch,check_patched)
+def mark_children_recursively(node, status):
+    """Mark all children of a node with the same status
 
-def mark_nodes_added(ctx,search_mod):
-    if hasattr(search_mod, 'i_children'):    
-        for child in search_mod.i_children:
-            walk_child(ctx,child,True)
+    Args:
+        node: The node whose children to mark
+        status: The status to apply ("added" or "removed")
+    """
+    if hasattr(node, 'i_children'):
+        for child in node.i_children:
+            child.diff_status = status
+            mark_children_recursively(child, status)
 
-def mark_nodes_removed(ctx,search_mod):    
-    if hasattr(search_mod, 'i_children'):    
-        for child in search_mod.i_children:
-            walk_child(ctx,child,False)
+def process_modules_diff(ctx):
+    """Process the differences between patched and non-patched modules"""
+    # For each patched module
+    for mod_name, patched_mod in extended_mods_dict.items():
+        # Check if the module exists in non-patched modules
+        if mod_name not in mods_dict:
+            # If not, mark the entire module as added
+            for child in patched_mod.i_children:
+                if child.keyword in statements.data_definition_keywords + ['rpc', 'notification']:
+                    child.diff_status = "added"
+                    mark_children_recursively(child, "added")
+        else:
+            # If it exists, check each child node
+            non_patched_mod = mods_dict[mod_name]
+            process_node_diff(patched_mod, non_patched_mod)
+
+    # Process nodes that exist in non-patched but not in patched
+    for mod_name, non_patched_mod in mods_dict.items():
+        if mod_name in extended_mods_dict:
+            # We've already checked the common modules above
+            continue
+
+        # This module only exists in non-patched, mark it all as removed
+        non_patched_mod.diff_status = "removed"
+        for child in non_patched_mod.i_children:
+            if child.keyword in statements.data_definition_keywords + ['rpc', 'notification']:
+                child.diff_status = "removed"
+                mark_children_recursively(child, "removed")
+
+def process_node_diff(patched_node, non_patched_node):
+    """Process differences between corresponding nodes
+
+    Args:
+        patched_node: The node from patched modules
+        non_patched_node: The corresponding node from non-patched modules
+    """
+    if hasattr(patched_node, 'i_children'):
+        patched_children = {
+            (child.i_module.i_modulename, child.arg): child
+            for child in patched_node.i_children
+            if child.keyword in statements.data_definition_keywords + ['rpc', 'notification', 'input', 'output']
+        }
+
+        non_patched_children = {
+            (child.i_module.i_modulename, child.arg): child
+            for child in non_patched_node.i_children
+            if child.keyword in statements.data_definition_keywords + ['rpc', 'notification', 'input', 'output']
+        }
+
+        # Check for added nodes
+        for key, child in patched_children.items():
+            if key not in non_patched_children:
+                child.diff_status = "added"
+                mark_children_recursively(child, "added")
+            else:
+                # Node exists in both, check its children
+                process_node_diff(child, non_patched_children[key])
+
+        # Check for removed nodes - add them to patched with 'removed' status
+        for key, non_patched_child in non_patched_children.items():
+            if key not in patched_children:
+                # Create a copy of the node to represent the removed node
+                removed_child = non_patched_child
+                removed_child.diff_status = "removed"
+                patched_node.i_children.append(removed_child)
+                mark_children_recursively(removed_child, "removed")
 
 class docApiPlugin(plugin.PyangPlugin):
     def add_output_format(self, fmts):
@@ -161,10 +248,6 @@ class docApiPlugin(plugin.PyangPlugin):
 
     def add_opts(self, optparser):
         optlist = [
-            optparse.make_option("--extdir",
-                                 type="string",
-                                 dest="extdir",
-                                 help="Extension yangs's directory"),
             optparse.make_option("--basepaths",
                                  type="string",
                                  dest="basepaths",
@@ -177,42 +260,21 @@ class docApiPlugin(plugin.PyangPlugin):
         ctx.implicit_errors = False
 
     def emit(self, ctx, modules, fd):
-        global extensionModulesList
-        global extension_augments_list
-        global non_patched_mods_dict
-
+        # Build module dictionaries
         build_mods_dict(ctx)
 
-        if ctx.opts.extdir is None:
-            print("[Info]: Extension yangs's directory is not mentioned")
-        else:
-            extensionModulesList = list(map(lambda yn: os.path.splitext(yn)[0], os.listdir(ctx.opts.extdir)))
+        # Process diffs between patched and non-patched modules
+        process_modules_diff(ctx)
 
-        for mod in patched_mods_dict:
-            module = patched_mods_dict[mod]
-
-            if ctx.opts.basepaths:
-                mark_nodes_added(ctx,module)
-
-            if module.i_modulename in extensionModulesList:
-                for deviation in module.search('deviation'):
-                    if search_child(deviation.substmts, 'not-supported'):
-                        deviation.i_target_node.not_supported = "yes"
-                        deviation.i_target_node.parent.i_children.append(deviation.i_target_node)
-
-                for augment in module.search('augment'):
-                    extension_augments_list.append(augment)
-                
-        if ctx.opts.basepaths:
-            for np_mod in non_patched_mods_dict:
-                mark_nodes_removed(ctx, non_patched_mods_dict[np_mod])
-
+        # Generate markdown output
         fd.write("# List of Yang Modules\n")
-        for mod in sorted(patched_mods_dict):
-            fd.write("* [%s](#%s)\n" % (mod,mod))
-        emit_tree(ctx, fd, None, None, None)        
+        for mod in sorted(extended_mods_dict):
+            fd.write("* [%s](#%s)\n" % (mod, mod))
+        # Output the tree representation with diffs
+        emit_tree(ctx, fd, None, None, None)
 
 def get_sub_mods(ctx, module, submods=[]):
+    """Get submodules of a module"""
     local_mods = []
     for i in module.search('include'):
         subm = ctx.get_module(i.arg)
@@ -220,13 +282,13 @@ def get_sub_mods(ctx, module, submods=[]):
             local_mods.append(subm)
             submods.append(subm.arg)
     for local_mod in local_mods:
-        get_sub_mods(ctx,local_mod,submods)
+        get_sub_mods(ctx, local_mod, submods)
 
 def emit_tree(ctx, fd, depth, llen, path):
-    for mod in patched_mods_dict:
-        module = patched_mods_dict[mod]
+    """Output the tree representation with diff marks"""
+    for mod in extended_mods_dict:
+        module = extended_mods_dict[mod]
         fd.write("## %s\n" % (module.arg))
-
         fd.write('```diff\n')
 
         chs = [ch for ch in module.i_children
@@ -258,6 +320,7 @@ def emit_tree(ctx, fd, depth, llen, path):
                            prefix_with_modname=False)
         fd.write('\n```\n')
 
+        # Output module information
         if len(module.i_prefixes) > 0:
             fd.write("| Prefix |     Module Name    |\n")
             fd.write("|:---:|:-----------:|\n")
@@ -270,8 +333,8 @@ def emit_tree(ctx, fd, depth, llen, path):
             fd.write("\n| Submodules |\n")
             fd.write("|:---:|\n")
             for submod in submods:
-                fd.write("| %s |\n" % (submod))        
-            
+                fd.write("| %s |\n" % (submod))
+
         fd.write('\n')
 
 def print_children(i_children, module, fd, prefix, path, mode, depth,
@@ -281,6 +344,7 @@ def print_children(i_children, module, fd, prefix, path, mode, depth,
     if depth == 0:
         if i_children: fd.write(prefix + '     ...\n')
         return
+
     def get_width(w, chs):
         for ch in chs:
             if ch.keyword in ['choice', 'case']:
@@ -314,33 +378,26 @@ def print_children(i_children, module, fd, prefix, path, mode, depth,
                 mode = 'input'
             elif ch.keyword == 'output':
                 mode = 'output'
-            
-            if hasattr(ch ,'i_augment'):
-                if ch.i_augment in extension_augments_list:
-                    isExtended = True
-            if hasattr(ch ,'not_supported'):
-                not_supported = True 
+
+            # Check diff status from our new marking system
+            is_added = hasattr(ch, 'diff_status') and ch.diff_status == "added"
+            is_removed = hasattr(ch, 'diff_status') and ch.diff_status == "removed"
 
             print_node(ch, module, fd, newprefix, path, mode, depth, llen,
-                       no_expand_uses, width, isExtended,not_supported,
+                       no_expand_uses, width, is_added, is_removed,
                        prefix_with_modname=prefix_with_modname)
 
 def print_node(s, module, fd, prefix, path, mode, depth, llen,
-               no_expand_uses, width, isExtended=False, not_supported=False,
+               no_expand_uses, width, is_added=False, is_removed=False,
                prefix_with_modname=False
                ):
     line = "%s%s--" % (prefix[0:-1], get_status_str(s))
 
-    if hasattr(s ,'patched'):
-        if s.patched:
-            isExtended = True 
-        else:
-            not_supported = True
-    
-    if isExtended:
+    # Apply diff status prefixes
+    if is_added:
         line = '+' + line[1:]
-    
-    if not_supported:
+
+    if is_removed:
         line = '-' + line[1:]
 
     brcol = len(line) + 4
@@ -417,13 +474,14 @@ def print_node(s, module, fd, prefix, path, mode, depth, llen,
             path = path[1:]
         if s.keyword in ['choice', 'case']:
             print_children(chs, module, fd, prefix, path, mode, depth,
-                           llen, no_expand_uses, width - 3,isExtended, not_supported,
+                           llen, no_expand_uses, width - 3, is_added, is_removed,
                            prefix_with_modname=prefix_with_modname)
         else:
             print_children(chs, module, fd, prefix, path, mode, depth, llen,
-                           no_expand_uses, 0, isExtended, not_supported,
+                           no_expand_uses, 0, is_added, is_removed,
                            prefix_with_modname=prefix_with_modname)
 
+# Helper functions - kept mostly unchanged
 def get_status_str(s):
     status = s.search_one('status')
     if status is None or status.arg == 'current':
@@ -533,79 +591,3 @@ def get_typename(s, prefix_with_modname=False):
         return '<anyxml>'
     else:
         return ''
-
-def mk_path_list(stmt):
-    """Derives a list of tuples containing
-    (module name, prefix, xpath, keys)
-    per node in the statement.
-    """
-    resolved_names = []
-    def resolve_stmt(stmt, resolved_names):
-        def qualified_name_elements(stmt):
-            """(module name, prefix, name, keys)"""
-            return (
-                stmt.i_module.arg,
-                stmt.i_module.i_prefix,
-                stmt.arg,
-                get_keys(stmt)
-            )
-        if stmt.parent.keyword in ['module', 'submodule']:
-            resolved_names.append(qualified_name_elements(stmt))
-            return
-        else:
-            resolve_stmt(stmt.parent, resolved_names)
-            resolved_names.append(qualified_name_elements(stmt))
-            return
-    resolve_stmt(stmt, resolved_names)
-    return resolved_names
-
-def get_node_path(stmt,
-                with_prefixes=False,
-                prefix_onchange=False,
-                prefix_to_module=False,
-                resolve_top_prefix_to_module=False,
-                with_keys=False):
-    """Returns the XPath path of the node.
-    with_prefixes indicates whether or not to prefix every node.
-
-    prefix_onchange modifies the behavior of with_prefixes and
-      only adds prefixes when the prefix changes mid-XPath.
-
-    prefix_to_module replaces prefixes with the module name of the prefix.
-
-    resolve_top_prefix_to_module resolves the module-level prefix
-      to the module name.
-
-    with_keys will include "[key]" to indicate the key names in the XPath.
-
-    Prefixes may be included in the path if the prefix changes mid-path.
-    """
-    resolved_names = mk_path_list(stmt)
-    xpath_elements = []
-    last_prefix = None
-    for index, resolved_name in enumerate(resolved_names):
-        module_name, prefix, node_name, node_keys = resolved_name
-        xpath_element = node_name
-        if with_prefixes or (prefix_onchange and prefix != last_prefix):
-            new_prefix = prefix
-            if (prefix_to_module or
-                (index == 0 and resolve_top_prefix_to_module)):
-                new_prefix = module_name
-            xpath_element = '%s:%s' % (new_prefix, node_name)
-        if with_keys and node_keys:
-            for node_key in node_keys:
-                xpath_element = '%s[%s]' % (xpath_element, node_key)
-        xpath_elements.append(xpath_element)
-        last_prefix = prefix
-    return '/%s' % '/'.join(xpath_elements)
-
-def get_keys(stmt):
-    """Gets the key names for the node if present.
-    Returns a list of key name strings.
-    """
-    key_obj = stmt.search_one('key')
-    key_names = []
-    keys = getattr(key_obj, 'arg', None)
-    if keys:
-        key_names = keys.split()
-    return key_names

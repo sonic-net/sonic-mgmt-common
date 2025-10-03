@@ -81,7 +81,7 @@ module openconfig-test-xfmr-annot {
     deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sensor-groups/oc-test-xfmr:test-sensor-group/oc-test-xfmr:test-sensor-types/oc-test-xfmr:test-sensor-type/oc-test-xfmr:sensor-a-light-sensors {
       deviate add {
 	sonic-ext:table-name "NONE";
-        sonic-ext:get-validate "light_sensor_validate";
+        sonic-ext:validate-xfmr "light_sensor_validate";
       }
     }
 
@@ -108,6 +108,21 @@ module openconfig-test-xfmr-annot {
       deviate add {
             sonic-ext:table-name "TEST_SENSOR_ZONE_TABLE";
             sonic-ext:key-transformer "test_sensor_zone_key_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:system-zone-device-data {
+      deviate add {
+            sonic-ext:table-name "DEVICE_ZONE_METADATA";
+            sonic-ext:key-name "local-zonehost";
+            sonic-ext:table-owner "false";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-sets/oc-test-xfmr:transport-zone {
+      deviate add {
+            sonic-ext:table-name "TRANSPORT_ZONE";
+            sonic-ext:key-name "transport-host";
       }
     }
 
@@ -168,5 +183,100 @@ module openconfig-test-xfmr-annot {
         sonic-ext:key-name "global_sensor";
       }
     }
-}
 
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ntp {
+      deviate add {
+            sonic-ext:table-name "TEST_NTP";
+            sonic-ext:key-name "global";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ntp/oc-test-xfmr:config/oc-test-xfmr:enable-ntp-auth {
+      deviate add {
+            sonic-ext:field-name "auth-enabled";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ntp/oc-test-xfmr:test-ntp-keys {
+      deviate add {
+            sonic-ext:table-name "NONE";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ntp/oc-test-xfmr:test-ntp-keys/oc-test-xfmr:test-ntp-key {
+      deviate add {
+            sonic-ext:table-name "TEST_NTP_AUTHENTICATION_KEY";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ntp/oc-test-xfmr:test-ntp-keys/oc-test-xfmr:test-ntp-key/oc-test-xfmr:key-type {
+      deviate add {
+            sonic-ext:field-transformer "test_ntp_auth_key_type_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ntp/oc-test-xfmr:test-ntp-servers/oc-test-xfmr:test-ntp-server {
+      deviate add {
+            sonic-ext:table-name "TEST_NTP_SERVER";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance {
+      deviate add {
+            sonic-ext:table-name "TEST_VRF";
+            sonic-ext:key-transformer "test_ni_instance_key_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols {
+      deviate add {
+            sonic-ext:table-name "NONE";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol {
+      deviate add {
+            sonic-ext:table-transformer "test_ni_instance_protocol_table_xfmr";
+            sonic-ext:key-transformer "test_ni_instance_protocol_key_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:bgp {
+      deviate add {
+            sonic-ext:validate-xfmr "validate_bgp_proto";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:bgp/oc-test-xfmr:network-cfgs/oc-test-xfmr:network-cfg {
+      deviate add {
+            sonic-ext:table-name "TEST_BGP_NETWORK_CFG";
+            sonic-ext:key-transformer "test_bgp_network_cfg_key_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2 {
+      deviate add {
+            sonic-ext:validate-xfmr "validate_ospfv2_proto";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global {
+      deviate add {
+            sonic-ext:table-name "TEST_OSPFV2_ROUTER";
+            sonic-ext:key-transformer "test_ospfv2_router_key_xfmr";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global/oc-test-xfmr:route-distribution-lists {
+      deviate add {
+            sonic-ext:table-name "NONE";
+      }
+    }
+
+    deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ni-instances/oc-test-xfmr:test-ni-instance/oc-test-xfmr:test-protocols/oc-test-xfmr:test-protocol/oc-test-xfmr:ospfv2/oc-test:global/oc-test-xfmr:route-distribution-lists/oc-test-xfmr:route-distribution-list {
+      deviate add {
+            sonic-ext:table-name "TEST_OSPFV2_ROUTER_DISTRIBUTION";
+            sonic-ext:key-transformer "test_ospfv2_router_distribution_key_xfmr";
+      }
+    }
+}

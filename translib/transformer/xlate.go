@@ -612,7 +612,7 @@ func XlateFromDb(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB, data R
 	qparams := inParamsForGet.queryParams
 	ygSchema := inParamsForGet.ygSchema
 	inParamsForGet = formXlateFromDbParams(dbs[cdb], dbs, cdb, ygRoot, uri, requestUri, xpath, GET, "", "",
-		&dbData, txCache, nil, false, qparams, inParamsForGet.reqCtxt, nil)
+		&dbData, txCache, nil, qparams, inParamsForGet.reqCtxt, nil)
 	inParamsForGet.dbTblKeyGetCache = dbTblKeyGetCache
 	inParamsForGet.xfmrDbTblKeyCache = tblXfmrCache
 	inParamsForGet.ygSchema = ygSchema
@@ -895,4 +895,38 @@ func SortSncTableDbKeys(tableName string, dbKeyMap map[string]db.Value) []string
 	}
 
 	return ordDbKey
+}
+
+func IsDependentChildTable(depChildTbl string, parentTbl string, uriModuleNm string) bool {
+	/* This function checks if the input table(depChildTbl) is a dependent child of parentTbl
+	   across sonic modules based on CVL provided dependency info.
+	*/
+
+	var parentTblList []string
+	var depTblInfo depTblData
+	foundSonicMdlWithDepchildTbl := false
+	IsDependentChildTable := false
+	var sncMdlList []string = getYangMdlToSonicMdlList(uriModuleNm)
+
+	for _, sonicMdlNm := range sncMdlList {
+		if depTblInfo, foundSonicMdlWithDepchildTbl = xDbSpecTblSeqnMap[sonicMdlNm].DepTbl[depChildTbl]; foundSonicMdlWithDepchildTbl {
+			xfmrLogDebug("Found sonic module(%v) containing/defining table %v", sonicMdlNm, depChildTbl)
+			parentTblList = depTblInfo.DepTblAcrossMdl //schema level dependency
+			xfmrLogDebug("dependent table list for table %v across sonic modules is - %v", depChildTbl, parentTblList)
+			break
+		}
+	}
+	parentTblList = parentTblList[1:] //first element is the input depChildTbl itself
+	parentTblMap := make(map[string]bool, len(parentTblList))
+	for _, tblNm := range parentTblList {
+		parentTblMap[tblNm] = true
+	}
+	_, IsDependentChildTable = parentTblMap[parentTbl]
+
+	if IsDependentChildTable {
+		xfmrLogInfo("Table %v is dependent child of table %v", depChildTbl, parentTbl)
+	} else {
+		xfmrLogInfo("Table %v is not a dependent child of table %v", depChildTbl, parentTbl)
+	}
+	return IsDependentChildTable
 }
