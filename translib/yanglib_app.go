@@ -144,7 +144,7 @@ func (app *yanglibApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType)
 	glog.Infof("vars = %s", app.pathInfo.Vars)
 
 	var resp GetResponse
-	ylib, err := getYanglibInfo()
+	ylib, err := GetYanglibInfo()
 	if err != nil {
 		return resp, err
 	}
@@ -255,9 +255,9 @@ type yanglibBuilder struct {
 	ygotModules *ocbinds.IETFYangLibrary_ModulesState
 }
 
-// getYanglibInfo returns the ygot IETFYangLibrary_ModulesState object
+// GetYanglibInfo returns the ygot IETFYangLibrary_ModulesState object
 // with all yang library information.
-func getYanglibInfo() (ylib *ocbinds.IETFYangLibrary_ModulesState, err error) {
+func GetYanglibInfo() (ylib *ocbinds.IETFYangLibrary_ModulesState, err error) {
 	theYanglibMutex.Lock()
 	if theYanglibCache == nil {
 		glog.Infof("Building yanglib cache")
