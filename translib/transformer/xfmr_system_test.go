@@ -23,10 +23,7 @@ package transformer_test
 
 import (
 	"errors"
-
 	"github.com/Azure/sonic-mgmt-common/translib/db"
-
-	"os"
 	"testing"
 	"time"
 )
