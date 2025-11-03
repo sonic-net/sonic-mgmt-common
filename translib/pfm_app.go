@@ -29,6 +29,13 @@ import (
 	"strconv"
 )
 
+type reqType int
+
+type dbEntry struct {
+	op    reqType
+	entry db.Value
+}
+
 type PlatformApp struct {
 	path        *PathInfo
 	reqData     []byte

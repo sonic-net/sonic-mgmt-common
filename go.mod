@@ -18,6 +18,7 @@ require (
 	github.com/pkg/profile v1.7.0
 	golang.org/x/text v0.3.3
 	google.golang.org/grpc v1.28.0
+	gopkg.in/yaml.v2 v2.2.1
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a
 )
 

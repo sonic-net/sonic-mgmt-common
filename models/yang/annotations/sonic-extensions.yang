@@ -18,6 +18,11 @@ module sonic-extensions {
     "This module provides extensions to the YANG language to allow
     Sonic specific functionality and meta-data to be defined.";
 
+  revision "2024-08-05" {
+    description
+      "Added missing key-name extension for redis DB mappings to identify the Redis DB name.";
+  }
+
   revision "2019-08-30" {
     description
       "Add extensions for redis DB mappings to identify the Redis DB name.";
@@ -127,5 +132,11 @@ module sonic-extensions {
     argument "path-transformer-name";
     description "To mention the name of the path transformer which is to resolve the yang uri by filling the
                 yang keys in the path using the db table key information";
+  }
+
+  extension key-name {
+    argument "key-name";
+    description "Fixed key name, used for YANG container mapped to TABLE with a fixed key, processed by the default
+                 transformer method. Used to define a fixed key, mainly for container mapped to TABLE key";
   }
 }

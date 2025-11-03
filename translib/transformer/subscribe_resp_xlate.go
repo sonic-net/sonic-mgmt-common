@@ -362,20 +362,21 @@ func (dbYgXlateInfo *DbYgXlateInfo) handleDbToYangKeyXlate() error {
 		dbYgXlateInfo.tableName = *dbYgXlateInfo.ygXpathInfo.tableName
 	} else if dbYgXlateInfo.ygXpathInfo.xfmrTbl == nil {
 		return tlerr.InternalError{Format: dbYgXlateInfo.xlateReq.reqLogId + "Could not find the table information for the path", Path: dbYgXlateInfo.uriPath}
-	}
-	tblLst, err := dbYgXlateInfo.handleTableXfmrCallback()
-	if err != nil {
-		return fmt.Errorf("%v : Error: %v - in handleDbToYangKeyXlate; table name: %v",
-			dbYgXlateInfo.xlateReq.reqLogId, err, *dbYgXlateInfo.ygXpathInfo.tableName)
-	}
-	if len(tblLst) == 0 {
-		return fmt.Errorf("%v handleDbToYangKeyXlate: Error: No tables are returned by the table "+
-			"transformer: for the path: %v", dbYgXlateInfo.xlateReq.reqLogId, dbYgXlateInfo.uriPath)
-	}
-	// taking the first table, since number of keys should be same between the tables returned by table transformer
-	dbYgXlateInfo.tableName = tblLst[0]
-	if log.V(dbLgLvl) {
-		log.Info(dbYgXlateInfo.xlateReq.reqLogId, "handleDbToYangKeyXlate: Found table from the table transformer: table name: ", dbYgXlateInfo.tableName)
+	} else {
+		tblLst, err := dbYgXlateInfo.handleTableXfmrCallback()
+		if err != nil {
+			return fmt.Errorf("%v : Error: %v - in handleDbToYangKeyXlate; table name: %v",
+				dbYgXlateInfo.xlateReq.reqLogId, err, *dbYgXlateInfo.ygXpathInfo.tableName)
+		}
+		if len(tblLst) == 0 {
+			return fmt.Errorf("%v handleDbToYangKeyXlate: Error: No tables are returned by the table "+
+				"transformer: for the path: %v", dbYgXlateInfo.xlateReq.reqLogId, dbYgXlateInfo.uriPath)
+		}
+		// taking the first table, since number of keys should be same between the tables returned by table transformer
+		dbYgXlateInfo.tableName = tblLst[0]
+		if log.V(dbLgLvl) {
+			log.Info(dbYgXlateInfo.xlateReq.reqLogId, "handleDbToYangKeyXlate: Found table from the table transformer: table name: ", dbYgXlateInfo.tableName)
+		}
 	}
 	dbKeyRslvr := &DbYangKeyResolver{tableName: dbYgXlateInfo.tableName, key: dbYgXlateInfo.xlateReq.key,
 		dbs: dbYgXlateInfo.xlateReq.dbs, dbIdx: dbYgXlateInfo.xlateReq.dbNum, uriPath: dbYgXlateInfo.uriPath, reqLogId: dbYgXlateInfo.xlateReq.reqLogId}

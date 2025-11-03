@@ -131,6 +131,11 @@ func prepareDb() bool {
 		fmt.Printf("error in getDbClient(int(db.CountersDB)")
 		return false
 	}
+	rclientDBNum[db.StateDB] = getDbClient(int(db.StateDB))
+	if rclientDBNum[db.StateDB] == nil {
+		fmt.Printf("error in getDbClient(int(db.StateDB)")
+		return false
+	}
 	rclientDBNum[db.ConfigDB] = getDbClient(int(db.ConfigDB))
 	if rclientDBNum[db.ConfigDB] == nil {
 		fmt.Printf("error in getDbClient(int(db.ConfigDB)")
