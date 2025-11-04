@@ -147,7 +147,33 @@ func init() {
 			debug.FreeOSMemory()
 		}
 	}()
-	log.Info("xspec init done ...")
+}
+
+/* Returns a map where the keys are string names of the OpenConfig models which
+ * are in use.  The map values are the names of the top level containers within
+ * each of the OpenConfig modules.  For example when running three OC models,
+ * openconfig-interfaces, openconfig-platforms, and openconfig-acl, the map
+ * would be:
+ *   "openconfig-interfaces" --> "interfaces"
+ *   "openconfig-platform" --> "components"
+ *   "openconfig-acl" --> "acl" */
+func OcYangModuleGet() map[string]string {
+	rv := make(map[string]string)
+	for key, _ := range xYangSpecMap {
+		prefix, suffix, found := strings.Cut(key, ":")
+		if found == false {
+			continue
+		}
+		if !strings.HasPrefix(prefix, "/openconfig-") {
+			continue
+		}
+		// The suffix may be a path to a subtree (e.g. acl/acl-sets/acl-set/...),
+		// take only the top level container name by cutting it at the first '/'.
+		componentName, _, _ := strings.Cut(suffix, "/")
+		// Strip the leading / character when making the key for the returned map
+		rv[prefix[1:]] = componentName
+	}
+	return rv
 }
 
 /* Add module name to map storing model info for model capabilities */

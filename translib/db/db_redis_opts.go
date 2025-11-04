@@ -20,6 +20,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"reflect"
@@ -28,8 +29,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
+	"github.com/redis/go-redis/v9"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,7 +145,7 @@ func adjustRedisOpts(dbOpt *Options) *redis.Options {
 	return &redisOpts
 }
 
-func init() {
+func initializeRedisOpts() {
 	flag.StringVar(&goRedisOpts, "go_redis_opts", "", "Options for go-redis")
 }
 
@@ -197,7 +198,9 @@ func (config *_DBRedisOptsConfig) handleReconfigureSignal() error {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (config *_DBRedisOptsConfig) readFromDB() error {
-	fields, e := readRedis("TRANSLIB_DB|default")
+	rc := TransactionalRedisClient(ConfigDB)
+	defer CloseRedisClient(rc)
+	fields, e := rc.HGetAll(context.Background(), "TRANSLIB_DB|default").Result()
 	if e == nil {
 		if optsString, ok := fields["go_redis_opts"]; ok {
 			// Parse optsString into config.opts

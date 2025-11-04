@@ -44,6 +44,7 @@ type subscribeReqXlator struct {
 type subscribeReq struct {
 	reqLogId         string
 	reqUri           string
+	requestURI       string
 	ygPath           string
 	isTrgtPathWldcrd bool
 	gPath            *gnmipb.Path
@@ -478,7 +479,8 @@ func (pathXltr *subscribePathXlator) handleSubtreeNodeXlate() error {
 		log.Info(pathXltr.subReq.reqLogId, "handleSubtreeNodeXlate: handleSubtreeNodeXlate: uriSubtree: ", uriSubtree)
 	}
 
-	subInParam := XfmrSubscInParams{uriSubtree, pathXltr.subReq.dbs, make(RedisDbMap), TRANSLATE_SUBSCRIBE}
+	//subInParam := XfmrSubscInParams{uriSubtree, pathXltr.subReq.dbs, make(RedisDbMap), TRANSLATE_SUBSCRIBE}
+	subInParam := XfmrSubscInParams{uri: uriSubtree, requestURI: pathXltr.subReq.requestURI, dbs: pathXltr.subReq.dbs, dbDataMap: make(RedisDbMap), subscProc: TRANSLATE_SUBSCRIBE}
 	subOutPram, subErr := xfmrSubscSubtreeHandler(subInParam, ygXpathInfo.xfmrFunc)
 
 	if log.V(dbLgLvl) {
