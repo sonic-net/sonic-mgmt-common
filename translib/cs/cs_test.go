@@ -27,8 +27,8 @@ import (
 )
 
 var sName = ""
-var user = "sonicbld"
-var uR = []string{"sonicbld"}
+var user = "sonicso1ES-amd64"
+var uR = []string{"sonicso1ES-amd64"}
 var pid = int32(os.Getpid())
 var commitLabel = "TestCommitLabel"
 
