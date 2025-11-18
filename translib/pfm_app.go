@@ -1065,26 +1065,26 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateLaserBiasCurrentFr
 }
 
 type CompTransceiverThresholdStateDb struct {
-	temphighalarm   float64
-	templowalarm    float64
-	vcchighalarm    float64
-	vcclowalarm     float64
-	temphighwarning float64
-	templowwarning  float64
-	vcchighwarning  float64
-	vcclowwarning   float64
-	txpowerhighalarm float64
-    txpowerlowalarm  float64
-    rxpowerhighalarm float64
-    rxpowerlowalarm  float64
-    txbiashighalarm  float64
-    txbiaslowalarm   float64
-    txpowerhighwarning float64
-    txpowerlowwarning  float64
-    rxpowerhighwarning float64
-    rxpowerlowwarning  float64
-    txbiashighwarning  float64
-    txbiaslowwarning   float64
+	temphighalarm      float64
+	templowalarm       float64
+	vcchighalarm       float64
+	vcclowalarm        float64
+	temphighwarning    float64
+	templowwarning     float64
+	vcchighwarning     float64
+	vcclowwarning      float64
+	txpowerhighalarm   float64
+	txpowerlowalarm    float64
+	rxpowerhighalarm   float64
+	rxpowerlowalarm    float64
+	txbiashighalarm    float64
+	txbiaslowalarm     float64
+	txpowerhighwarning float64
+	txpowerlowwarning  float64
+	rxpowerhighwarning float64
+	rxpowerlowwarning  float64
+	txbiashighwarning  float64
+	txbiaslowwarning   float64
 }
 
 func (app *PlatformApp) getCompTransceiverThresholdStateDbObj(ifName string) CompTransceiverThresholdStateDb {
@@ -1102,18 +1102,18 @@ func (app *PlatformApp) getCompTransceiverThresholdStateDbObj(ifName string) Com
 	compTransceiverThresholdStateDbObj.templowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("templowwarning"), 64)
 	compTransceiverThresholdStateDbObj.vcchighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcchighwarning"), 64)
 	compTransceiverThresholdStateDbObj.vcclowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcclowwarning"), 64)
-    compTransceiverThresholdStateDbObj.txpowerhighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerhighalarm"), 64)
-    compTransceiverThresholdStateDbObj.txpowerlowalarm, _  = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerlowalarm"), 64)
-    compTransceiverThresholdStateDbObj.rxpowerhighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerhighalarm"), 64)
-    compTransceiverThresholdStateDbObj.rxpowerlowalarm, _  = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerlowalarm"), 64)
-    compTransceiverThresholdStateDbObj.txbiashighalarm, _  = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiashighalarm"), 64)
-    compTransceiverThresholdStateDbObj.txbiaslowalarm, _   = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiaslowalarm"), 64)
-    compTransceiverThresholdStateDbObj.txpowerhighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerhighwarning"), 64)
-    compTransceiverThresholdStateDbObj.txpowerlowwarning, _  = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerlowwarning"), 64)
-    compTransceiverThresholdStateDbObj.rxpowerhighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerhighwarning"), 64)
-    compTransceiverThresholdStateDbObj.rxpowerlowwarning, _  = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerlowwarning"), 64)
-    compTransceiverThresholdStateDbObj.txbiashighwarning, _  = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiashighwarning"), 64)
-    compTransceiverThresholdStateDbObj.txbiaslowwarning, _   = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiaslowwarning"), 64)
+	compTransceiverThresholdStateDbObj.txpowerhighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerhighalarm"), 64)
+	compTransceiverThresholdStateDbObj.txpowerlowalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerlowalarm"), 64)
+	compTransceiverThresholdStateDbObj.rxpowerhighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerhighalarm"), 64)
+	compTransceiverThresholdStateDbObj.rxpowerlowalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerlowalarm"), 64)
+	compTransceiverThresholdStateDbObj.txbiashighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiashighalarm"), 64)
+	compTransceiverThresholdStateDbObj.txbiaslowalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiaslowalarm"), 64)
+	compTransceiverThresholdStateDbObj.txpowerhighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerhighwarning"), 64)
+	compTransceiverThresholdStateDbObj.txpowerlowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerlowwarning"), 64)
+	compTransceiverThresholdStateDbObj.rxpowerhighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerhighwarning"), 64)
+	compTransceiverThresholdStateDbObj.rxpowerlowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerlowwarning"), 64)
+	compTransceiverThresholdStateDbObj.txbiashighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiashighwarning"), 64)
+	compTransceiverThresholdStateDbObj.txbiaslowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiaslowwarning"), 64)
 
 	return compTransceiverThresholdStateDbObj
 }
@@ -1228,12 +1228,12 @@ func (app *PlatformApp) getCompTransceiverThresholdStateFromDb(oc_val *ocbinds.O
 				oc_val.SupplyVoltageLower = &vcclowwarning
 			}
 		}
-	   if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/output-power-upper" {
-        transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
-        if transceiverDomThresholdTable.Has("txpowerhighwarning") {
-            v := math.Floor(compTransceiverThresholdStateDb.txpowerhighwarning*fractionDigits2) / fractionDigits2
-            oc_val.OutputPowerUpper = &v
-        }
+		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/output-power-upper" {
+			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
+			if transceiverDomThresholdTable.Has("txpowerhighwarning") {
+				v := math.Floor(compTransceiverThresholdStateDb.txpowerhighwarning*fractionDigits2) / fractionDigits2
+				oc_val.OutputPowerUpper = &v
+			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/output-power-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
@@ -1269,7 +1269,7 @@ func (app *PlatformApp) getCompTransceiverThresholdStateFromDb(oc_val *ocbinds.O
 				v := math.Floor(compTransceiverThresholdStateDb.txbiaslowwarning*fractionDigits2) / fractionDigits2
 				oc_val.LaserBiasCurrentLower = &v
 			}
-		}	
+		}
 	}
 
 	return nil
