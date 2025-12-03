@@ -13,3 +13,7 @@ openconfig-if-aggregate.yang
 openconfig-mclag.yang
 openconfig-mclag-annot.yang
 openconfig-vlan.yang
+gnsi-authz.yang
+gnsi-pathz.yang
+gnsi-certz.yang
+gnsi-credentialz.yang
