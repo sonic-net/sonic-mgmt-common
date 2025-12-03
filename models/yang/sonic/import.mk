@@ -14,3 +14,4 @@ SONICYANG_IMPORTS += sonic-mclag.yang
 SONICYANG_IMPORTS += sonic-types.yang
 SONICYANG_IMPORTS += sonic-vrf.yang
 SONICYANG_IMPORTS += sonic-igmp-snooping.yang
+SONICYANG_IMPORTS += sonic-mld-snooping.yang
