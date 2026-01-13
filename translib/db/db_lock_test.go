@@ -35,7 +35,7 @@ var stateDB *DB
 
 func setupKey(t *testing.T, ts *TableSpec, key Key, val Value) {
 	var err error
-	if stateDB, err = NewDB(Options{DBNo: StateDB}); err != nil {
+	if stateDB, err = NewDB(Options{DBNo: StateDB, KeySeparator: "|"}); err != nil {
 		t.Errorf("setupKey: NewDB(StateDB) fails: %v", err)
 	}
 	stateDB.DeleteEntry(ts, key)
@@ -316,12 +316,13 @@ func TestLockConfigDBDeleteEntryFields(t *testing.T) {
 	var pid int = os.Getpid()
 
 	d, e := NewDB(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-		ConfigDBLazyLock:   true,
-		DisableCVLCheck:    true,
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		ConfigDBLazyLock:        true,
+		DisableCVLCheck:         true,
+		ForceNewRedisConnection: true,
 	})
 
 	if d == nil {

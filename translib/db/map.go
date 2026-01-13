@@ -23,6 +23,7 @@ Package db implements a wrapper over the go-redis/redis.
 package db
 
 import (
+	"context"
 	"time"
 
 	"github.com/golang/glog"
@@ -71,7 +72,7 @@ func (d *DB) GetMap(ts *TableSpec, mapKey string) (string, error) {
 
 		glog.Info("GetMap: RedisCmd: ", d.Name(), ": ", "HGET ", ts.Name,
 			mapKey)
-		v, e = d.client.HGet(ts.Name, mapKey).Result()
+		v, e = d.client.HGet(context.Background(), ts.Name, mapKey).Result()
 
 		// If cache SetCache (i.e. a cache miss)
 		if d.dbCacheConfig.PerConnection && d.dbCacheConfig.isCacheMap(ts.Name) {
@@ -166,8 +167,8 @@ func (d *DB) GetMapAll(ts *TableSpec) (Value, error) {
 
 	if !cacheHit {
 
-		glog.Info("GetMapAll: RedisCmd: ", d.Name(), ": ", "HGETALL ", ts.Name)
-		v, e = d.client.HGetAll(ts.Name).Result()
+		glog.V(3).Info("GetMapAll: RedisCmd: ", d.Name(), ": ", "HGETALL ", ts.Name)
+		v, e = d.client.HGetAll(context.Background(), ts.Name).Result()
 
 		if len(v) != 0 {
 
@@ -248,7 +249,7 @@ func (d *DB) SetMap(ts *TableSpec, mapKey string, mapValue string) error {
 			":", mapValue)
 	}
 
-	b, e := d.client.HSet(ts.Name, mapKey, mapValue).Result()
+	b, e := d.client.HSet(context.Background(), ts.Name, mapKey, mapValue).Result()
 
 	if glog.V(3) {
 		glog.Info("GetMap: End: ", "b: ", b, " e: ", e)
@@ -267,7 +268,7 @@ func (d *DB) DeleteMapAll(ts *TableSpec) error {
 		glog.Info("DeleteMapAll: Begin: ", "ts: ", ts)
 	}
 
-	e := d.client.Del(ts.Name).Err()
+	e := d.client.Del(context.Background(), ts.Name).Err()
 
 	if glog.V(3) {
 		glog.Info("DeleteMapAll: End: ", " e: ", e)

@@ -19,6 +19,7 @@
 package transformer_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -27,7 +28,7 @@ import (
 
 	. "github.com/Azure/sonic-mgmt-common/translib"
 	db "github.com/Azure/sonic-mgmt-common/translib/db"
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 )
 
 type queryParamsUT struct {
@@ -216,7 +217,7 @@ func getConfigDb() *db.DB {
 
 func verifyDbResult(client *redis.Client, key string, expectedResult map[string]interface{}, errorCase bool) func(*testing.T) {
 	return func(t *testing.T) {
-		result, err := client.HGetAll(key).Result()
+		result, err := client.HGetAll(context.Background(), key).Result()
 		if err != nil {
 			t.Fatalf("Error %v hgetall for key: %s", err, key)
 		}

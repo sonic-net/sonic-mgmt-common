@@ -43,7 +43,7 @@ func (sess *Session) GetConfigDB(opts *db.Options) (*db.DB, bool, func(),
 		if opts != nil {
 			dopts = opts
 		} else {
-			dopts = &(db.Options{DBNo: db.ConfigDB})
+			dopts = &(db.Options{DBNo: db.ConfigDB, ForceNewRedisConnection: true})
 		}
 		dopts.DBNo = db.ConfigDB
 		d, err = db.NewDB(*dopts)

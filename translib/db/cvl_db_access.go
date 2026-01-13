@@ -20,6 +20,7 @@
 package db
 
 import (
+	"context"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -27,8 +28,8 @@ import (
 	"github.com/Azure/sonic-mgmt-common/cvl"
 	ctypes "github.com/Azure/sonic-mgmt-common/cvl/common"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	"github.com/go-redis/redis/v7"
 	log "github.com/golang/glog"
+	"github.com/redis/go-redis/v9"
 )
 
 type cvlDBAccess struct {
@@ -294,7 +295,7 @@ func (p *dbAccessPipe) Keys(pattern string) ctypes.StrSliceResult {
 		log.Infof("dbAccessPipe: Keys: for the given pattern: %v", pattern)
 	}
 
-	pr := &pipeKeysResult{pattern: pattern, rsRes: p.rp.Keys(pattern)}
+	pr := &pipeKeysResult{pattern: pattern, rsRes: p.rp.Keys(context.Background(), pattern)}
 	p.qryResList = append(p.qryResList, pr)
 	return &pr.sRes
 }
@@ -373,7 +374,7 @@ func (p *dbAccessPipe) HMGet(key string, fields ...string) ctypes.SliceResult {
 			}
 		}
 	} else {
-		pr.rsRes = p.rp.HMGet(key, fields...)
+		pr.rsRes = p.rp.HMGet(context.Background(), key, fields...)
 	}
 
 	p.qryResList = append(p.qryResList, pr)
@@ -418,7 +419,7 @@ func (p *dbAccessPipe) HGet(key, field string) ctypes.StrResult {
 	if txEntry, ok := p.dbAccess.Db.txTsEntryMap[ts.Name][key]; ok {
 		pr.val, pr.fldExist = txEntry.Field[field]
 	} else {
-		pr.rsRes = p.rp.HGet(key, field)
+		pr.rsRes = p.rp.HGet(context.Background(), key, field)
 	}
 
 	p.qryResList = append(p.qryResList, pr)
@@ -443,7 +444,7 @@ func (pr *pipeHGetResult) update(c *cvlDBAccess) {
 type pipeHGetAllResult struct {
 	key    string
 	sRes   mapResult
-	rsRes  *redis.StringStringMapCmd
+	rsRes  *redis.MapStringStringCmd
 	fnvMap map[string]string
 }
 
@@ -464,7 +465,7 @@ func (p *dbAccessPipe) HGetAll(key string) ctypes.StrMapResult {
 			pr.fnvMap[k] = v
 		}
 	} else {
-		pr.rsRes = p.rp.HGetAll(key)
+		pr.rsRes = p.rp.HGetAll(context.Background(), key)
 	}
 
 	p.qryResList = append(p.qryResList, pr)
@@ -490,7 +491,7 @@ func (p *dbAccessPipe) Exec() error {
 		log.Infof("dbAccessPipe: Exec: query list: %v", p.qryResList)
 	}
 
-	cmder, err := p.rp.Exec()
+	cmder, err := p.rp.Exec(context.Background())
 	if err != nil && err != redis.Nil {
 		log.Warningf("dbAccessPipe: Exec: error in pipeline.Exec; error: %v; "+
 			"cmder: %v; pw.qryMap: %v", err, cmder, p.qryResList)
@@ -511,7 +512,6 @@ func (p *dbAccessPipe) Close() {
 	if log.V(5) {
 		log.Infof("dbAccessPipe: Close: redis pipeliner: %v", p.rp)
 	}
-	p.rp.Close()
 }
 
 //==================================

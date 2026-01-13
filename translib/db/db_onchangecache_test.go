@@ -40,8 +40,10 @@ func TestOnChangeCacheReg(t *testing.T) {
 	ts := &TableSpec{Name: "PORT"}
 	t.Run("occDisable", func(t *testing.T) {
 		d := newTestDB(t, Options{
-			DBNo:            ConfigDB,
-			IsWriteDisabled: true,
+			DBNo:                    ConfigDB,
+			IsWriteDisabled:         true,
+			ForceNewRedisConnection: false,
+			KeySeparator:            "|",
 		})
 		if err := d.RegisterTableForOnChangeCaching(ts); err == nil {
 			t.Fatal("RegisterTableForOnChangeCaching should have failed when IsEnableOnChange=false")
@@ -53,9 +55,11 @@ func TestOnChangeCacheReg(t *testing.T) {
 
 	t.Run("occEnable", func(t *testing.T) {
 		d := newTestDB(t, Options{
-			DBNo:              ConfigDB,
-			IsWriteDisabled:   true,
-			IsOnChangeEnabled: true,
+			DBNo:                    ConfigDB,
+			IsWriteDisabled:         true,
+			IsOnChangeEnabled:       true,
+			ForceNewRedisConnection: false,
+			KeySeparator:            "|",
 		})
 		if err := d.RegisterTableForOnChangeCaching(ts); err != nil {
 			t.Fatal("RegisterTableForOnChangeCaching failed; ", err)
@@ -70,8 +74,10 @@ func TestOnChangeCacheReg(t *testing.T) {
 
 	t.Run("writeEnable", func(t *testing.T) {
 		_, err := NewDB(Options{
-			DBNo:              ConfigDB,
-			IsOnChangeEnabled: true,
+			DBNo:                    ConfigDB,
+			IsOnChangeEnabled:       true,
+			ForceNewRedisConnection: false,
+			KeySeparator:            "|",
 		})
 		if err == nil {
 			t.Error("NewDB should have failed")
@@ -81,9 +87,9 @@ func TestOnChangeCacheReg(t *testing.T) {
 
 func TestOnChangeCache(t *testing.T) {
 	// OnChange cache enabled db
-	d := newTestDB(t, Options{DBNo: ConfigDB, IsWriteDisabled: true, IsOnChangeEnabled: true})
+	d := newTestDB(t, Options{DBNo: ConfigDB, IsWriteDisabled: true, IsOnChangeEnabled: true, ForceNewRedisConnection: false, KeySeparator: "|"})
 	// Writale db to write test keys
-	dw := newTestDB(t, Options{DBNo: ConfigDB, DisableCVLCheck: true})
+	dw := newTestDB(t, Options{DBNo: ConfigDB, DisableCVLCheck: true, ForceNewRedisConnection: false, KeySeparator: "|"})
 
 	tsA := &TableSpec{Name: "TESTOCC_A"}
 	tsB := &TableSpec{Name: "TESTOCC_B"}

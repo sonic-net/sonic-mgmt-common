@@ -48,12 +48,13 @@ var unknownCCNotif bool
 
 func newCCDB(dBNum DBNum) (*DB, error) {
 	d, e := NewDB(Options{
-		DBNo:               dBNum,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-		DisableCVLCheck:    true,
-		IsSession:          true,
+		DBNo:                    dBNum,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		DisableCVLCheck:         true,
+		IsSession:               true,
+		ForceNewRedisConnection: true,
 	})
 	return d, e
 }
@@ -155,10 +156,11 @@ func TestSubscribeHFunc(t *testing.T) {
 		}})
 
 	subD, e := SubscribeDB(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		ForceNewRedisConnection: true,
 	}, sKeys, subHdlr)
 
 	if e != nil {
@@ -314,10 +316,11 @@ func TestSubscribeHFuncSA(t *testing.T) {
 		}})
 
 	subD, e := SubscribeDBSA(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		ForceNewRedisConnection: true,
 	}, sKeys, subHdlrSA)
 
 	if e != nil {
@@ -439,10 +442,11 @@ func TestSubscribeNoCCNotif2HFuncSA(t *testing.T) {
 		}})
 
 	subD, e := SubscribeDBSA(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		ForceNewRedisConnection: true,
 	}, sKeys, subHdlrSA)
 
 	if e != nil {

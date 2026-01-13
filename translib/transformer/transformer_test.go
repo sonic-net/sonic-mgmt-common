@@ -19,6 +19,7 @@
 package transformer_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -26,8 +27,8 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
-	"github.com/go-redis/redis/v7"
 	"github.com/openconfig/ygot/ytypes"
+	"github.com/redis/go-redis/v9"
 
 	"testing"
 )
@@ -106,13 +107,13 @@ func clearDb() {
 
 	for dbNum, tblList := range dbNumTblList {
 		for _, tbl := range tblList {
-			tblKeys, keysErr := rclientDBNum[dbNum].Keys(tbl + "|*").Result()
+			tblKeys, keysErr := rclientDBNum[dbNum].Keys(context.Background(), tbl+"|*").Result()
 			if keysErr != nil {
 				fmt.Printf("Couldn't fetch keys for table %v", tbl)
 				continue
 			}
 			for _, key := range tblKeys {
-				e := rclientDBNum[dbNum].Del(key).Err()
+				e := rclientDBNum[dbNum].Del(context.Background(), key).Err()
 				if e != nil {
 					fmt.Printf("Couldn't delete key %v", key)
 				}
@@ -176,7 +177,7 @@ func teardown() error {
 	clearDb()
 	for dbNum := range rclientDBNum {
 		if rclientDBNum[dbNum] != nil {
-			rclientDBNum[dbNum].Close()
+			db.CloseRedisClient(rclientDBNum[dbNum])
 		}
 	}
 
@@ -191,7 +192,7 @@ func loadDB(dbNum db.DBNum, mpi map[string]interface{}) {
 		case map[string]interface{}:
 			for subKey, subValue := range fv.(map[string]interface{}) {
 				newKey := key + opts.KeySeparator + subKey
-				_, err := client.HMSet(newKey, subValue.(map[string]interface{})).Result()
+				_, err := client.HMSet(context.Background(), newKey, subValue.(map[string]interface{})).Result()
 
 				if err != nil {
 					fmt.Printf("Invalid data for db: %v : %v %v", newKey, subValue, err)
@@ -212,7 +213,7 @@ func unloadDB(dbNum db.DBNum, mpi map[string]interface{}) {
 		case map[string]interface{}:
 			for subKey, subValue := range fv.(map[string]interface{}) {
 				newKey := key + opts.KeySeparator + subKey
-				_, err := client.Del(newKey).Result()
+				_, err := client.Del(context.Background(), newKey).Result()
 
 				if err != nil {
 					fmt.Printf("Invalid data for db: %v : %v %v", newKey, subValue, err)
@@ -227,30 +228,8 @@ func unloadDB(dbNum db.DBNum, mpi map[string]interface{}) {
 }
 
 func getDbClient(dbNum int) *redis.Client {
-	addr := "localhost:6379"
-	pass := ""
-	for _, d := range dbConfig.Databases {
-		if id, ok := d["id"]; !ok || int(id.(float64)) != dbNum {
-			continue
-		}
-
-		dbi := dbConfig.Instances[d["instance"].(string)]
-		addr = fmt.Sprintf("%v:%v", dbi["hostname"], dbi["port"])
-		if p, ok := dbi["password_path"].(string); ok {
-			pwd, _ := ioutil.ReadFile(p)
-			pass = string(pwd)
-		}
-		break
-	}
-
-	rclient := redis.NewClient(&redis.Options{
-		Network:     "tcp",
-		Addr:        addr,
-		Password:    pass,
-		DB:          dbNum,
-		DialTimeout: 0,
-	})
-	_, err := rclient.Ping().Result()
+	rclient := db.TransactionalRedisClient(db.DBNum(dbNum))
+	_, err := rclient.Ping(context.Background()).Result()
 	if err != nil {
 		fmt.Printf("failed to connect to redis server %v", err)
 	}
