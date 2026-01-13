@@ -185,7 +185,7 @@ func Create(req SetRequest) (SetResponse, error) {
 	writeMutex.Lock()
 	defer writeMutex.Unlock()
 
-	d, err := db.NewDB(getDBOptions(db.ConfigDB))
+	d, err := db.NewDB(getDBOptions(db.ConfigDB, withForceNewRedisConnection))
 
 	if err != nil {
 		resp.ErrSrc = ProtoErr
@@ -258,7 +258,7 @@ func Update(req SetRequest) (SetResponse, error) {
 	writeMutex.Lock()
 	defer writeMutex.Unlock()
 
-	d, err := db.NewDB(getDBOptions(db.ConfigDB))
+	d, err := db.NewDB(getDBOptions(db.ConfigDB, withForceNewRedisConnection))
 
 	if err != nil {
 		resp.ErrSrc = ProtoErr
@@ -332,7 +332,7 @@ func Replace(req SetRequest) (SetResponse, error) {
 	writeMutex.Lock()
 	defer writeMutex.Unlock()
 
-	d, err := db.NewDB(getDBOptions(db.ConfigDB))
+	d, err := db.NewDB(getDBOptions(db.ConfigDB, withForceNewRedisConnection))
 
 	if err != nil {
 		resp.ErrSrc = ProtoErr
@@ -405,7 +405,7 @@ func Delete(req SetRequest) (SetResponse, error) {
 	writeMutex.Lock()
 	defer writeMutex.Unlock()
 
-	d, err := db.NewDB(getDBOptions(db.ConfigDB))
+	d, err := db.NewDB(getDBOptions(db.ConfigDB, withForceNewRedisConnection))
 
 	if err != nil {
 		resp.ErrSrc = ProtoErr
@@ -474,7 +474,7 @@ func Get(req GetRequest) (GetResponse, error) {
 		return resp, err
 	}
 
-	dbs, err := getAllDbs(withWriteDisable)
+	dbs, err := getAllDbs(withWriteDisable, withForceNewRedisConnection)
 
 	if err != nil {
 		resp = GetResponse{Payload: payload, ErrSrc: ProtoErr}
@@ -530,7 +530,7 @@ func Action(req ActionRequest) (ActionResponse, error) {
 	writeMutex.Lock()
 	defer writeMutex.Unlock()
 
-	dbs, err := getAllDbs()
+	dbs, err := getAllDbs(withForceNewRedisConnection)
 
 	if err != nil {
 		resp = ActionResponse{Payload: payload, ErrSrc: ProtoErr}
@@ -571,7 +571,7 @@ func Bulk(req BulkRequest) (BulkResponse, error) {
 	writeMutex.Lock()
 	defer writeMutex.Unlock()
 
-	d, err := db.NewDB(getDBOptions(db.ConfigDB))
+	d, err := db.NewDB(getDBOptions(db.ConfigDB, withForceNewRedisConnection))
 
 	if err != nil {
 		return resp, err
@@ -783,6 +783,14 @@ func getDBOptions(dbNo db.DBNum, opts ...func(*db.Options)) db.Options {
 	for _, setopt := range opts {
 		setopt(&o)
 	}
+	switch dbNo {
+	case db.ApplDB, db.CountersDB, db.AsicDB, db.FlexCounterDB, db.LogLevelDB, db.ErrorDB:
+		o.TableNameSeparator = ":"
+		o.KeySeparator = ":"
+	case db.ConfigDB, db.StateDB, db.SnmpDB:
+		o.TableNameSeparator = "|"
+		o.KeySeparator = "|"
+	}
 	return o
 }
 
@@ -792,6 +800,9 @@ func withWriteDisable(o *db.Options) {
 
 func withOnChange(o *db.Options) {
 	o.IsOnChangeEnabled = true
+}
+func withForceNewRedisConnection(o *db.Options) {
+	o.ForceNewRedisConnection = true
 }
 
 func getAppModule(path string, clientVer Version) (*appInterface, *appInfo, error) {
