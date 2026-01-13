@@ -144,7 +144,7 @@ func adjustRedisOpts(dbOpt *Options) *redis.Options {
 	return &redisOpts
 }
 
-func init() {
+func initializeRedisOpts() {
 	flag.StringVar(&goRedisOpts, "go_redis_opts", "", "Options for go-redis")
 }
 

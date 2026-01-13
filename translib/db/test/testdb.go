@@ -43,6 +43,7 @@ func main() {
 		DBNo:               db.ConfigDB,
 		InitIndicator:      "CONFIG_DB_INITIALIZED",
 		TableNameSeparator: "|",
+		TransactionsRequired: true,
 		KeySeparator:       "|",
 	})
 
