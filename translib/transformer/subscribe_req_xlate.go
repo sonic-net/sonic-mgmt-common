@@ -478,7 +478,7 @@ func (pathXltr *subscribePathXlator) handleSubtreeNodeXlate() error {
 		log.Info(pathXltr.subReq.reqLogId, "handleSubtreeNodeXlate: handleSubtreeNodeXlate: uriSubtree: ", uriSubtree)
 	}
 
-	subInParam := XfmrSubscInParams{uriSubtree, pathXltr.subReq.dbs, make(RedisDbMap), TRANSLATE_SUBSCRIBE}
+	subInParam := XfmrSubscInParams{uri: uriSubtree, requestURI: pathXltr.subReq.reqUri, dbs: pathXltr.subReq.dbs, dbDataMap: make(RedisDbMap), subscProc: TRANSLATE_SUBSCRIBE}
 	subOutPram, subErr := xfmrSubscSubtreeHandler(subInParam, ygXpathInfo.xfmrFunc)
 
 	if log.V(dbLgLvl) {
