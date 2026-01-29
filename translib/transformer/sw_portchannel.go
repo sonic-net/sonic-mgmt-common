@@ -245,6 +245,13 @@ var YangToDb_lag_min_links_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (m
 		return res_map, err
 	}
 
+	intfType, _, err := getIntfTypeByName(ifKey)
+	if intfType != IntfTypePortChannel || err != nil {
+		errStr := "Invalid interface type: " + ifKey
+		err = tlerr.InvalidArgsError{Format: errStr}
+		return res_map, err
+	}
+
 	minLinks, _ := inParams.param.(*uint16)
 
 	if int(*minLinks) > 32 || int(*minLinks) < 0 {

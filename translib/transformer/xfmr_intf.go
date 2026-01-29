@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"inet.af/netaddr"
 
@@ -48,6 +49,16 @@ func init() {
 	XlateFuncBind("DbToYang_intf_admin_status_xfmr", DbToYang_intf_admin_status_xfmr)
 	XlateFuncBind("YangToDb_intf_enabled_xfmr", YangToDb_intf_enabled_xfmr)
 	XlateFuncBind("DbToYang_intf_enabled_xfmr", DbToYang_intf_enabled_xfmr)
+	XlateFuncBind("YangToDb_intf_type_xfmr", YangToDb_intf_type_xfmr)
+	XlateFuncBind("DbToYang_intf_type_xfmr", DbToYang_intf_type_xfmr)
+	XlateFuncBind("DbToYang_intf_description_xfmr", DbToYang_intf_description_xfmr)
+	XlateFuncBind("DbToYang_intf_ifindex_xfmr", DbToYang_intf_ifindex_xfmr)
+	XlateFuncBind("DbToYang_intf_oper_status_xfmr", DbToYang_intf_oper_status_xfmr)
+	XlateFuncBind("DbToYang_intf_last_change_xfmr", DbToYang_intf_last_change_xfmr)
+	XlateFuncBind("DbToYang_intf_mgmt_xfmr", DbToYang_intf_mgmt_xfmr)
+	XlateFuncBind("DbToYang_intf_cpu_xfmr", DbToYang_intf_cpu_xfmr)
+	XlateFuncBind("DbToYang_intf_logical_xfmr", DbToYang_intf_logical_xfmr)
+
 	XlateFuncBind("DbToYang_intf_eth_aggr_id_xfmr", DbToYang_intf_eth_aggr_id_xfmr)
 	XlateFuncBind("YangToDb_intf_eth_port_config_xfmr", YangToDb_intf_eth_port_config_xfmr)
 	XlateFuncBind("DbToYang_intf_eth_port_config_xfmr", DbToYang_intf_eth_port_config_xfmr)
@@ -84,7 +95,6 @@ func init() {
 
 	XlateFuncBind("intf_post_xfmr", intf_post_xfmr)
 	XlateFuncBind("intf_pre_xfmr", intf_pre_xfmr)
-
 	XlateFuncBind("DbToYang_intf_routed_vlan_name_xfmr", DbToYang_intf_routed_vlan_name_xfmr)
 	XlateFuncBind("YangToDb_intf_routed_vlan_name_xfmr", YangToDb_intf_routed_vlan_name_xfmr)
 	XlateFuncBind("YangToDb_routed_vlan_ip_addr_xfmr", YangToDb_routed_vlan_ip_addr_xfmr)
@@ -92,9 +102,14 @@ func init() {
 }
 
 const (
-	PORT_ADMIN_STATUS = "admin_status"
-	PORT_SPEED        = "speed"
-	PORT_AUTONEG      = "autoneg"
+	PORT_ADMIN_STATUS   = "admin_status"
+	PORT_SPEED          = "speed"
+	PORT_AUTONEG        = "autoneg"
+	PORT_OPER_STATUS    = "oper_status"
+	PORT_LAST_UP_TIME   = "last_up_time"
+	PORT_LAST_DOWN_TIME = "last_down_time"
+	PORT_IFINDEX        = "index"
+	PORT_DESCRIPTION    = "description"
 
 	PORTCHANNEL_INTERFACE_TN = "PORTCHANNEL_INTERFACE"
 	PORTCHANNEL_MEMBER_TN    = "PORTCHANNEL_MEMBER"
@@ -112,6 +127,7 @@ const (
 	ETHERNET    = "Eth"
 	PORTCHANNEL = "PortChannel"
 	VLAN        = "Vlan"
+	LOOPBACK    = "Loopback"
 )
 
 type TblData struct {
@@ -152,10 +168,15 @@ var IntfTypeTblMap = map[E_InterfaceType]IntfTblData{
 		cfgDb: TblData{portTN: "VLAN", memberTN: "VLAN_MEMBER", intfTN: "VLAN_INTERFACE", keySep: PIPE},
 		appDb: TblData{portTN: "VLAN_TABLE", memberTN: "VLAN_MEMBER_TABLE", intfTN: "INTF_TABLE", keySep: COLON},
 	},
+	IntfTypeLoopback: IntfTblData{
+		cfgDb:   TblData{portTN: "LOOPBACK_INTERFACE", intfTN: "LOOPBACK_INTERFACE", keySep: PIPE},
+		appDb:   TblData{portTN: "INTF_TABLE", intfTN: "INTF_TABLE", keySep: COLON},
+		stateDb: TblData{portTN: "INTERFACE_TABLE", intfTN: "INTERFACE_TABLE", keySep: PIPE},
+	},
 }
 
 var dbIdToTblMap = map[db.DBNum][]string{
-	db.ConfigDB: {"PORT", "PORTCHANNEL", "VLAN"},
+	db.ConfigDB: {"PORT", "PORTCHANNEL", "VLAN", "LOOPBACK_INTERFACE"},
 	db.ApplDB:   {"PORT_TABLE", "LAG_TABLE"},
 	db.StateDB:  {"PORT_TABLE", "LAG_TABLE"},
 }
@@ -183,6 +204,7 @@ const (
 	IntfTypeEthernet    E_InterfaceType = 1
 	IntfTypePortChannel E_InterfaceType = 2
 	IntfTypeVlan        E_InterfaceType = 3
+	IntfTypeLoopback    E_InterfaceType = 4
 )
 
 type E_InterfaceSubType int64
@@ -200,6 +222,8 @@ func getIntfTypeByName(name string) (E_InterfaceType, E_InterfaceSubType, error)
 		return IntfTypePortChannel, IntfSubTypeUnset, err
 	} else if strings.HasPrefix(name, VLAN) {
 		return IntfTypeVlan, IntfSubTypeUnset, err
+	} else if strings.HasPrefix(name, LOOPBACK) {
+		return IntfTypeLoopback, IntfSubTypeUnset, err
 	} else {
 		err = errors.New("Interface name prefix not matched with supported types")
 		return IntfTypeUnset, IntfSubTypeUnset, err
@@ -239,6 +263,7 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 
 		if *requestUriPath == "/openconfig-interfaces:interfaces/interface" {
 			switch ifType {
+
 			case IntfTypeVlan:
 				/* VLAN Interface Delete Handling */
 				/* Update the map for VLAN and VLAN MEMBER table */
@@ -247,12 +272,23 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 					log.Warningf("Deleting VLAN: %s failed! Err:%v", *ifName, err)
 					return tlerr.InvalidArgsError{Format: err.Error()}
 				}
+
 			case IntfTypePortChannel:
 				err := deleteLagIntfAndMembers(inParams, ifName)
 				if err != nil {
 					log.Errorf("Deleting LAG: %s failed! Err:%v", *ifName, err)
 					return tlerr.InvalidArgsError{Format: err.Error()}
 				}
+
+			case IntfTypeLoopback:
+				err = deleteAllIPsForLoopbackInterface(inParams, ifName)
+
+				if err != nil {
+					log.Errorf("Deleting Loopback Interface: %s failed! Err:%v", *ifName, err)
+					return errors.New("Loopback interface is not found " + *ifName)
+				}
+				return err
+
 			case IntfTypeEthernet:
 				err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypeEthernet].cfgDb.portTN, *ifName)
 				if err != nil {
@@ -279,18 +315,36 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 				return tlerr.InvalidArgsError{Format: errStr}
 			}
 			if inParams.oper == REPLACE {
-				if strings.Contains(*requestUriPath, "/openconfig-interfaces:interfaces/interface") {
+				if *requestUriPath == "/openconfig-interfaces:interfaces/interface" || *requestUriPath == "/openconfig-interfaces:interfaces/interface/config" || *requestUriPath == "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet" || *requestUriPath == "/openconfig-interfaces:interfaces/interface/ethernet" || *requestUriPath == "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/config" || *requestUriPath == "/openconfig-interfaces:interfaces/interface/ethernet/config" {
 					if strings.Contains(*requestUriPath, "openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan") {
 						if log.V(3) {
 							log.Infof("allow replace operation for switched-vlan")
 						}
 					} else {
-						// OC interfaces yang does not have attributes to set Physical interface critical attributes like speed, alias, lanes, index.
+						// OC interfaces yang does not have attributes to set Physical interface critical attributes like speed.
 						// Replace/PUT request without the critical attributes would end up in deletion of the same in PORT table, which cannot be allowed.
 						// Hence block the Replace/PUT request for Physical interfaces alone.
 						err_str := "Replace/PUT request not allowed for Physical interfaces"
 						return tlerr.NotSupported(err_str)
 					}
+				}
+			}
+		}
+		if ifType == IntfTypePortChannel {
+			if inParams.oper == UPDATE {
+				err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypePortChannel].cfgDb.portTN, *ifName)
+				if err != nil { //No Matching PortChannel to UPDATE/REPLACE
+					errStr := "PortChannel: " + *ifName + " does not exist"
+					return tlerr.InvalidArgsError{Format: errStr}
+				}
+			}
+		}
+		if ifType == IntfTypeLoopback {
+			if inParams.oper == UPDATE {
+				err = validateIntfExists(inParams.d, IntfTypeTblMap[IntfTypeLoopback].cfgDb.portTN, *ifName)
+				if err != nil {
+					errStr := "Loopback interface: " + *ifName + " does not exist"
+					return tlerr.InvalidArgsError{Format: errStr}
 				}
 			}
 		}
@@ -464,11 +518,14 @@ var intf_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) 
 	} else if intfType != IntfTypeEthernet &&
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet") {
 		//Checking interface type at container level, if not Ethernet type return nil
-		return nil, nil
+		return nil, tlerr.InvalidArgs("Container not supported for given interface type")
 	} else if intfType != IntfTypePortChannel &&
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-aggregate:aggregation") {
 		//Checking interface type at container level, if not PortChannel type return nil
-		return nil, nil
+		return nil, errors.New("Container not supported for given interface type")
+	} else if intfType == IntfTypePortChannel &&
+		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-aggregate:aggregation/config") {
+		tblList = append(tblList, intTbl.cfgDb.portTN)
 	} else if intfType != IntfTypeVlan &&
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-vlan:routed-vlan") {
 		//Checking interface type at container level, if not Vlan type return nil
@@ -627,6 +684,7 @@ var DbToYang_intf_tbl_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (map[
 
 var DbToYang_intf_admin_status_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
 	var err error
+	var status ocbinds.E_OpenconfigInterfaces_Interfaces_Interface_State_AdminStatus
 	result := make(map[string]interface{})
 
 	data := (*inParams.dbDataMap)[inParams.curDb]
@@ -650,7 +708,6 @@ var DbToYang_intf_admin_status_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams
 	}
 	prtInst := pTbl[inParams.key]
 	adminStatus, ok := prtInst.Field[PORT_ADMIN_STATUS]
-	var status ocbinds.E_OpenconfigInterfaces_Interfaces_Interface_State_AdminStatus
 	if ok {
 		if adminStatus == "up" {
 			status = ocbinds.OpenconfigInterfaces_Interfaces_Interface_State_AdminStatus_UP
@@ -673,12 +730,31 @@ var YangToDb_intf_enabled_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (ma
 	}
 
 	enabled, _ := inParams.param.(*bool)
+	if enabled == nil {
+		return res_map, nil
+	}
+
+	log.Infof("[YangToDb_intf_enabled_xfmr] enabled value: %v", *enabled)
 	var enStr string
 	if *enabled {
+		log.Infof("[YangToDb_intf_enabled_xfmr] enabled value: %v", *enabled)
+
 		enStr = "up"
 	} else {
 		enStr = "down"
 	}
+
+	pathInfo := NewPathInfo(inParams.uri)
+	ifName := pathInfo.Var("name")
+	intfType, _, ierr := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return res_map, errors.New("Invalid interface type")
+	}
+
+	if IntfTypeLoopback == intfType && (enStr == "down" || inParams.oper == DELETE) {
+		return res_map, errors.New("Disabling Loopback port is not supported")
+	}
+
 	res_map[PORT_ADMIN_STATUS] = enStr
 
 	return res_map, nil
@@ -742,6 +818,18 @@ var YangToDb_intf_name_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[s
 	pathInfo := NewPathInfo(inParams.uri)
 	ifName := pathInfo.Var("name")
 
+	intfType, _, err := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || err != nil {
+		log.Info("DbToYang_intf_name_xfmr - Invalid interface type IntfTypeUnset")
+		return res_map, errors.New("Invalid interface type IntfTypeUnset")
+	}
+
+	err = errors.New("Invalid interface config/name received")
+	configName, ok := inParams.param.(*string)
+	if !ok || ifName != *configName {
+		return nil, err
+	}
+
 	if strings.HasPrefix(ifName, VLAN) {
 		vlanId := ifName[len("Vlan"):]
 		res_map["vlanid"] = vlanId
@@ -749,9 +837,11 @@ var YangToDb_intf_name_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[s
 		res_map["NULL"] = "NULL"
 	} else if strings.HasPrefix(ifName, ETHERNET) {
 		res_map["NULL"] = "NULL"
+	} else if strings.HasPrefix(ifName, LOOPBACK) {
+		res_map["NULL"] = "NULL"
 	}
 	log.Info("YangToDb_intf_name_xfmr: res_map:", res_map)
-	return res_map, err
+	return res_map, nil
 }
 
 var DbToYang_intf_name_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
@@ -766,16 +856,17 @@ var DbToYang_intf_name_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[s
 
 var YangToDb_intf_mtu_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[string]string, error) {
 	res_map := make(map[string]string)
-	var ifName string
-	intfsObj := getIntfsRoot(inParams.ygRoot)
-	if intfsObj == nil || len(intfsObj.Interface) < 1 {
-		return res_map, nil
-	} else {
-		for infK := range intfsObj.Interface {
-			ifName = infK
-		}
-	}
+
+	pathInfo := NewPathInfo(inParams.uri)
+	uriIfName := pathInfo.Var("name")
+	ifName := uriIfName
+
 	intfType, _, _ := getIntfTypeByName(ifName)
+	// MTU is not supported for loopback interface in SONiC yang model
+	if IntfTypeLoopback == intfType {
+		log.Errorf("MTU configuration for Loopback type Interface: %s is NOT supported ", ifName)
+		return res_map, errors.New("Configuration for MTU is not supported for Loopback interface ")
+	}
 
 	if inParams.oper == DELETE {
 		log.Infof("Updating the Interface: %s with default MTU", ifName)
@@ -869,6 +960,12 @@ var YangToDb_intf_eth_port_config_xfmr SubTreeXfmrYangToDb = func(inParams XfmrP
 		return memMap, nil
 	}
 
+	// check for loopback interface
+	if (intfType == IntfTypeLoopback) && inParams.oper != DELETE {
+		log.Info("YangToDb_intf_eth_port_config_xfmr: Configuration for ethernet container not supported for interface.")
+		return nil, errors.New("Error: Unsupported Interface: " + ifName)
+	}
+
 	intfsObj := getIntfsRoot(inParams.ygRoot)
 	intfObj := intfsObj.Interface[uriIfName]
 
@@ -944,6 +1041,12 @@ var YangToDb_intf_eth_port_config_xfmr SubTreeXfmrYangToDb = func(inParams XfmrP
 				return nil, err
 			}
 
+			prevLagId, err := retrievePortChannelAssociatedWithIntf(&inParams, &ifName)
+			if prevLagId != nil && *prevLagId != *lagId && inParams.oper != REPLACE {
+				errStr := ifName + " Interface is already member of " + *prevLagId
+				return nil, tlerr.InvalidArgsError{Format: errStr}
+			}
+
 		case DELETE:
 			lagId, err := retrievePortChannelAssociatedWithIntf(&inParams, &ifName)
 			if lagId != nil {
@@ -971,6 +1074,10 @@ var YangToDb_intf_eth_port_config_xfmr SubTreeXfmrYangToDb = func(inParams XfmrP
 		res_map := make(map[string]string)
 		value := db.Value{Field: res_map}
 		intTbl := IntfTypeTblMap[intfType]
+
+		if intfType != IntfTypeEthernet {
+			return nil, errors.New("Speed config not supported for given Interface type")
+		}
 
 		portSpeed := intfObj.Ethernet.Config.PortSpeed
 		val, ok := intfOCToSpeedMap[portSpeed]
@@ -1042,6 +1149,12 @@ var DbToYang_intf_eth_port_config_xfmr SubTreeXfmrDbToYang = func(inParams XfmrP
 		err = tlerr.InvalidArgsError{Format: errStr}
 		return err
 	}
+
+	//Check for loopback interface type
+	if intfType == IntfTypeLoopback {
+		return nil
+	}
+
 	intTbl := IntfTypeTblMap[intfType]
 	tblName := intTbl.cfgDb.portTN
 	entry, dbErr := inParams.dbs[db.ConfigDB].GetEntry(&db.TableSpec{Name: tblName}, db.Key{Comp: []string{ifName}})
@@ -1050,8 +1163,9 @@ var DbToYang_intf_eth_port_config_xfmr SubTreeXfmrDbToYang = func(inParams XfmrP
 		err = tlerr.InvalidArgsError{Format: errStr}
 		return err
 	}
+
 	targetUriPath := pathInfo.YangPath
-	if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/config") {
+	if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/config") || strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/ethernet/config") {
 		get_cfg_obj := false
 		var intfObj *ocbinds.OpenconfigInterfaces_Interfaces_Interface
 		if intfsObj != nil && intfsObj.Interface != nil && len(intfsObj.Interface) > 0 {
@@ -1167,7 +1281,7 @@ var DbToYangPath_intf_eth_port_config_path_xfmr PathXfmrDbToYangFunc = func(para
 
 	intfRoot := "/openconfig-interfaces:interfaces/interface"
 
-	if params.tblName != "PORT" {
+	if !(params.tblName == "PORT") {
 		log.Info("DbToYangPath_intf_eth_port_config_path_xfmr: from wrong table: ", params.tblName)
 		return nil
 	}
@@ -1185,10 +1299,8 @@ var DbToYangPath_intf_eth_port_config_path_xfmr PathXfmrDbToYangFunc = func(para
 }
 
 var DbToYang_intf_eth_auto_neg_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
-	var err error
 	result := make(map[string]interface{})
 
-	data := (*inParams.dbDataMap)[inParams.curDb]
 	intfType, _, ierr := getIntfTypeByName(inParams.key)
 	if intfType == IntfTypeUnset || ierr != nil {
 		log.Info("DbToYang_intf_eth_auto_neg_xfmr - Invalid interface type IntfTypeUnset")
@@ -1199,9 +1311,17 @@ var DbToYang_intf_eth_auto_neg_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams
 	}
 	intTbl := IntfTypeTblMap[intfType]
 
-	tblName, _ := getPortTableNameByDBId(intTbl, inParams.curDb)
-	pTbl := data[tblName]
-	prtInst := pTbl[inParams.key]
+	// https://github.com/sonic-net/sonic-buildimage/issues/9595
+	tblName, _ := getPortTableNameByDBId(intTbl, db.ConfigDB)
+	d := inParams.dbs[db.ConfigDB]
+	pTbl := db.TableSpec{Name: tblName}
+
+	prtInst, tblErr := d.GetEntry(&pTbl, db.Key{Comp: []string{inParams.key}})
+	if tblErr != nil {
+		errStr := "Interface not found : " + inParams.key
+		return result, tlerr.InvalidArgsError{Format: errStr}
+	}
+
 	autoNeg, ok := prtInst.Field[PORT_AUTONEG]
 	if ok {
 		if autoNeg == "on" || autoNeg == "true" {
@@ -1212,7 +1332,7 @@ var DbToYang_intf_eth_auto_neg_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams
 	} else {
 		log.Info("auto-negotiate field not found in DB")
 	}
-	return result, err
+	return result, nil
 }
 
 var DbToYang_intf_eth_port_speed_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
@@ -1229,7 +1349,17 @@ var DbToYang_intf_eth_port_speed_xfmr FieldXfmrDbtoYang = func(inParams XfmrPara
 	intTbl := IntfTypeTblMap[intfType]
 
 	tblName, _ := getPortTableNameByDBId(intTbl, inParams.curDb)
+	if _, ok := data[tblName]; !ok {
+		log.Info("DbToYang_intf_eth_port_speed_xfmr table not found : ", tblName)
+		return result, errors.New("table not found : " + tblName)
+	}
+
 	pTbl := data[tblName]
+	if _, ok := pTbl[inParams.key]; !ok {
+		log.Info("DbToYang_intf_eth_port_speed_xfmr key not found : ", inParams.key)
+		return result, errors.New("Interface not found : " + inParams.key)
+	}
+
 	prtInst := pTbl[inParams.key]
 	speed, ok := prtInst.Field[PORT_SPEED]
 	portSpeed := ocbinds.OpenconfigIfEthernet_ETHERNET_SPEED_UNSET
@@ -1671,6 +1801,11 @@ var DbToYang_intf_get_ether_counters_xfmr SubTreeXfmrDbToYang = func(inParams Xf
 		log.Info("DbToYang_intf_get_ether_counters_xfmr - Invalid interface type IntfTypeUnset")
 		return errors.New("Invalid interface type IntfTypeUnset")
 	}
+	// Check for loopback interface type
+	if intfType == IntfTypeLoopback {
+		log.Info("DbToYang_intf_get_ether_counters_xfmr - Loopback interface not supported")
+		return nil
+	}
 
 	if !strings.Contains(targetUriPath, "/openconfig-interfaces:interfaces/interface/ethernet/state/counters") &&
 		!strings.Contains(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters") {
@@ -1761,6 +1896,21 @@ var intf_pre_xfmr PreXfmrFunc = func(inParams XfmrParams) error {
 		case "/openconfig-interfaces:interfaces/interface":
 			pathInfo := NewPathInfo(inParams.uri)
 			if len(pathInfo.Vars) == 0 {
+				errStr += requestUriPath
+				return tlerr.InvalidArgsError{Format: errStr}
+			}
+		case "/openconfig-interfaces:interfaces/interface/config":
+			fallthrough
+		case "/openconfig-interfaces:interfaces/interface/config/type":
+			fallthrough
+		case "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet":
+			fallthrough
+		case "/openconfig-interfaces:interfaces/interface/ethernet":
+			fallthrough
+		case "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/config":
+			fallthrough
+		case "/openconfig-interfaces:interfaces/interface/ethernet/config":
+			if inParams.oper == DELETE {
 				errStr += requestUriPath
 				return tlerr.InvalidArgsError{Format: errStr}
 			}
@@ -2441,7 +2591,7 @@ var DbToYang_intf_ip_addr_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) e
 			return nil
 		}
 
-		intfTypeList := [2]E_InterfaceType{IntfTypeEthernet, IntfTypePortChannel}
+		intfTypeList := [4]E_InterfaceType{IntfTypeEthernet, IntfTypePortChannel, IntfTypeLoopback, IntfTypeVlan}
 
 		// Get IP from all configDb table interfaces
 		for i := 0; i < len(intfTypeList); i++ {
@@ -2642,7 +2792,9 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 				}
 
 				intf_key := intf_intf_tbl_key_gen(ifName, *addr.Config.Ip, int(*addr.Config.PrefixLength), "|")
-				m["family"] = "IPv4"
+				if intfType != IntfTypePortChannel {
+					m["family"] = "IPv4"
+				}
 
 				value := db.Value{Field: m}
 				if _, ok := subIntfmap[tblName]; !ok {
@@ -2681,8 +2833,9 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 
 				intf_key := intf_intf_tbl_key_gen(ifName, *addr.Config.Ip, int(*addr.Config.PrefixLength), "|")
 
-				m["family"] = "IPv6"
-
+				if intfType != IntfTypePortChannel {
+					m["family"] = "IPv6"
+				}
 				value := db.Value{Field: m}
 				if _, ok := subIntfmap[tblName]; !ok {
 					subIntfmap[tblName] = make(map[string]db.Value)
@@ -2788,6 +2941,7 @@ func intf_intf_tbl_key_gen(intfName string, ip string, prefixLen int, keySep str
 	ipStr, _ := getNormalizedIpStr(ip)
 	return intfName + keySep + ipStr + "/" + strconv.Itoa(prefixLen)
 }
+
 func parseCIDR(ipPref string) (netaddr.IP, netaddr.IPPrefix, error) {
 	prefIdx := strings.LastIndexByte(ipPref, '/')
 	if prefIdx <= 0 {
@@ -2803,6 +2957,7 @@ func parseCIDR(ipPref string) (netaddr.IP, netaddr.IPPrefix, error) {
 	ipNetA, _ := ipA.Prefix(uint8(prefLen))
 	return ipA, ipNetA, nil
 }
+
 func getIntfIpByName(dbCl *db.DB, tblName string, ifName string, ipv4 bool, ipv6 bool, ip string) (map[string]db.Value, error) {
 	var err error
 	intfIpMap := make(map[string]db.Value)
@@ -3673,7 +3828,7 @@ var DbToYangPath_intf_ip_path_xfmr PathXfmrDbToYangFunc = func(params XfmrDbToYg
 	params.ygPathKeys[ifRoot+"/name"] = ifParts[0]
 
 	if params.tblName == "INTERFACE" || params.tblName == "VLAN_INTERFACE" ||
-		params.tblName == "INTF_TABLE" || params.tblName == "PORTCHANNEL_INTERFACE" {
+		params.tblName == "INTF_TABLE" || params.tblName == "PORTCHANNEL_INTERFACE" || params.tblName == "MGMT_INTERFACE" || params.tblName == "MGMT_INTERFACE" {
 
 		addrPath := "/openconfig-if-ip:ipv4/addresses/address/ip"
 
@@ -3748,6 +3903,11 @@ var YangToDb_ipv6_enabled_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (ma
 	intfType, _, ierr := getIntfTypeByName(ifUIName)
 	if ierr != nil || intfType == IntfTypeUnset {
 		return res_map, errors.New("YangToDb_ipv6_enabled_xfmr, Error: Unsupported Interface: " + ifUIName)
+	}
+	// ipv6 Enabled leaf is not available in SONiC yang model for loopback interface
+	if intfType == IntfTypeLoopback {
+		log.Info("YangToDb_ipv6_enabled_xfmr: Configuration for ipv6 enabled not supported for given interface.")
+		return res_map, nil
 	}
 
 	if ifUIName == "" {
@@ -3858,6 +4018,11 @@ var DbToYang_ipv6_enabled_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (ma
 	log.Info("Interface Name = ", *ifUIName)
 
 	intfType, _, _ := getIntfTypeByName(inParams.key)
+	// ipv6 Enabled leaf is not available in SONiC yang model for loopback interface
+	if intfType == IntfTypeLoopback {
+		log.Info("DbToYang_ipv6_enabled_xfmr not supported for given interface ")
+		return res_map, nil
+	}
 
 	intTbl := IntfTypeTblMap[intfType]
 	tblName, _ := getIntfTableNameByDBId(intTbl, inParams.curDb)
@@ -3922,6 +4087,42 @@ func retrievePortChannelAssociatedWithIntf(inParams *XfmrParams, ifName *string)
 	return nil, err
 }
 
+func deleteAllIPsForLoopbackInterface(inParams *XfmrParams, ifName *string) error {
+
+	subOpMap := make(map[db.DBNum]map[string]map[string]db.Value)
+	subIntfmap_del := make(map[string]map[string]db.Value)
+	intfType, _, ierr := getIntfTypeByName(*ifName)
+	if ierr != nil || intfType != IntfTypeLoopback {
+		return tlerr.InvalidArgsError{Format: "Invalid Loopback: " + *ifName}
+	}
+
+	intTbl := IntfTypeTblMap[intfType]
+	tblName, _ := getIntfTableNameByDBId(intTbl, inParams.curDb)
+
+	entry, dbErr := inParams.d.GetEntry(&db.TableSpec{Name: intTbl.cfgDb.intfTN}, db.Key{Comp: []string{*ifName}})
+	if dbErr != nil || !entry.IsPopulated() {
+		// Not returning error from here since mgmt infra will return "Resource not found" error in case of non-existence entries
+		return nil
+	}
+
+	subIntfmap_del[tblName] = make(map[string]db.Value)
+	subIntfmap_del[tblName][*ifName] = db.Value{Field: map[string]string{}}
+
+	intfTable := &db.TableSpec{Name: tblName}
+	intfKeys, err := inParams.d.GetKeysPattern(intfTable, db.Key{Comp: []string{*ifName, "*"}})
+
+	if err == nil && len(intfKeys) > 0 {
+		for _, intfKey := range intfKeys {
+			ipPrefix := intfKey.Comp[1]
+			key := *ifName + "|" + ipPrefix
+			subIntfmap_del[tblName][key] = db.Value{Field: map[string]string{}}
+		}
+	}
+	subOpMap[db.ConfigDB] = subIntfmap_del
+	inParams.subOpDataMap[DELETE] = &subOpMap
+	return nil
+}
+
 var DbToYang_routed_vlan_ip_addr_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
 	var err error
 	intfsObj := getIntfsRoot(inParams.ygRoot)
@@ -3966,4 +4167,289 @@ var DbToYang_routed_vlan_ip_addr_xfmr SubTreeXfmrDbToYang = func(inParams XfmrPa
 	}
 
 	return err
+}
+
+var DbToYang_intf_type_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	var err error
+	result := make(map[string]interface{})
+
+	intfType, _, err := getIntfTypeByName(inParams.key)
+	if intfType == IntfTypeUnset || err != nil {
+		log.Info("DbToYang_intf_type_xfmr - Invalid interface type IntfTypeUnset")
+		return result, errors.New("Invalid interface type IntfTypeUnset")
+	}
+
+	if intfType == IntfTypeEthernet {
+		result["type"] = "ethernetCsmacd"
+	} else if intfType == IntfTypePortChannel {
+		result["type"] = "ieee8023adLag"
+	} else if intfType == IntfTypeLoopback {
+		result["type"] = "softwareLoopback"
+	} else if intfType == IntfTypeVlan {
+		result["type"] = "l2vlan"
+	}
+
+	return result, nil
+}
+
+var YangToDb_intf_type_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[string]string, error) {
+	res_map := make(map[string]string)
+
+	pathInfo := NewPathInfo(inParams.uri)
+	ifName := pathInfo.Var("name")
+	intfType, _, err := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || err != nil {
+		return res_map, errors.New("Invalid interface type")
+	}
+
+	interfaceType, ok := inParams.param.(ocbinds.E_IETFInterfaces_InterfaceType)
+	if !ok {
+		return nil, errors.New("Unsupported interface type")
+	}
+
+	if (intfType == IntfTypeEthernet && interfaceType != ocbinds.IETFInterfaces_InterfaceType_ethernetCsmacd) ||
+		(intfType == IntfTypePortChannel && interfaceType != ocbinds.IETFInterfaces_InterfaceType_ieee8023adLag) ||
+		(intfType == IntfTypeVlan && interfaceType != ocbinds.IETFInterfaces_InterfaceType_l2vlan) ||
+		(intfType == IntfTypeLoopback && interfaceType != ocbinds.IETFInterfaces_InterfaceType_softwareLoopback) {
+		return res_map, errors.New("Unsupported interface type")
+	}
+
+	return res_map, nil
+}
+
+var DbToYang_intf_description_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+
+	data := (*inParams.dbDataMap)[inParams.curDb]
+
+	intfType, _, ierr := getIntfTypeByName(inParams.key)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return result, errors.New("Invalid interface type")
+	}
+
+	intTbl := IntfTypeTblMap[intfType]
+
+	tblName, _ := getPortTableNameByDBId(intTbl, inParams.curDb)
+	if _, ok := data[tblName]; !ok {
+		log.Info("DbToYang_intf_description_xfmr table not found : ", tblName)
+		return result, errors.New("table not found : " + tblName)
+	}
+
+	pTbl := data[tblName]
+	if _, ok := pTbl[inParams.key]; !ok {
+		log.Info("DbToYang_intf_description_xfmr Interface not found : ", inParams.key)
+		return result, errors.New("Interface not found : " + inParams.key)
+	}
+	prtInst := pTbl[inParams.key]
+	desc, ok := prtInst.Field[PORT_DESCRIPTION]
+	if ok && desc != "" {
+		result["description"] = desc
+	} else {
+		log.Info("Description field not found in DB")
+	}
+
+	return result, nil
+}
+
+var DbToYang_intf_oper_status_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	var status ocbinds.E_OpenconfigInterfaces_Interfaces_Interface_State_OperStatus
+	result := make(map[string]interface{})
+
+	data := (*inParams.dbDataMap)[inParams.curDb]
+
+	intfType, _, ierr := getIntfTypeByName(inParams.key)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return result, errors.New("Invalid interface type")
+	}
+
+	intTbl := IntfTypeTblMap[intfType]
+
+	tblName, _ := getPortTableNameByDBId(intTbl, inParams.curDb)
+	if _, ok := data[tblName]; !ok {
+		log.Info("DbToYang_intf_oper_status_xfmr table not found : ", tblName)
+		return result, errors.New("table not found : " + tblName)
+	}
+
+	pTbl := data[tblName]
+	if _, ok := pTbl[inParams.key]; !ok {
+		log.Info("DbToYang_intf_oper_status_xfmr Interface not found : ", inParams.key)
+		return result, errors.New("Interface not found : " + inParams.key)
+	}
+	prtInst := pTbl[inParams.key]
+
+	var operStatus string
+	var ok bool
+	operStatus, ok = prtInst.Field[PORT_OPER_STATUS]
+
+	if ok {
+		if operStatus == "up" {
+			status = ocbinds.OpenconfigInterfaces_Interfaces_Interface_State_OperStatus_UP
+		} else {
+			status = ocbinds.OpenconfigInterfaces_Interfaces_Interface_State_OperStatus_DOWN
+		}
+		result["oper-status"] = ocbinds.E_OpenconfigInterfaces_Interfaces_Interface_State_OperStatus.ΛMap(status)["E_OpenconfigInterfaces_Interfaces_Interface_State_OperStatus"][int64(status)].Name
+	} else {
+		log.Info("Oper status field not found in DB")
+	}
+
+	return result, nil
+}
+
+var DbToYang_intf_ifindex_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+
+	data := (*inParams.dbDataMap)[inParams.curDb]
+
+	intfType, _, ierr := getIntfTypeByName(inParams.key)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return result, errors.New("Invalid interface type")
+	}
+
+	intTbl := IntfTypeTblMap[intfType]
+
+	tblName, _ := getPortTableNameByDBId(intTbl, inParams.curDb)
+	if _, ok := data[tblName]; !ok {
+		log.Info("DbToYang_intf_ifindex_xfmr table not found : ", tblName)
+		return result, errors.New("table not found : " + tblName)
+	}
+
+	pTbl := data[tblName]
+	if _, ok := pTbl[inParams.key]; !ok {
+		log.Info("DbToYang_intf_ifindex_xfmr Interface not found : ", inParams.key)
+		return result, errors.New("Interface not found : " + inParams.key)
+	}
+	prtInst := pTbl[inParams.key]
+	indexStr, ok := prtInst.Field[PORT_IFINDEX]
+	if ok {
+		index, err := strconv.ParseUint(indexStr, 10, 32)
+		if err != nil {
+			return result, err
+		}
+		result["ifindex"] = index
+	} else {
+		log.Info("Port index field not found in DB")
+	}
+
+	return result, nil
+}
+
+var DbToYang_intf_last_change_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	var err error
+	result := make(map[string]interface{})
+
+	data := (*inParams.dbDataMap)[inParams.curDb]
+
+	intfType, _, ierr := getIntfTypeByName(inParams.key)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return result, errors.New("Invalid interface type")
+	}
+
+	intTbl := IntfTypeTblMap[intfType]
+
+	tblName, _ := getPortTableNameByDBId(intTbl, inParams.curDb)
+	if _, ok := data[tblName]; !ok {
+		log.Info("DbToYang_intf_last_change_xfmr table not found : ", tblName)
+		return result, errors.New("table not found : " + tblName)
+	}
+
+	pTbl := data[tblName]
+	if _, ok := pTbl[inParams.key]; !ok {
+		log.Info("DbToYang_intf_last_change_xfmr Interface not found : ", inParams.key)
+		return result, errors.New("Interface not found : " + inParams.key)
+	}
+	prtInst := pTbl[inParams.key]
+
+	lastUpTimeStr, okup := prtInst.Field[PORT_LAST_UP_TIME]
+	lastDownTimeStr, okdown := prtInst.Field[PORT_LAST_DOWN_TIME]
+	if okup || okdown {
+
+		// Define the layout that matches the format of the date-time strings
+		layout := "Mon Jan 02 15:04:05 2006"
+
+		var lastUpTime, lastDownTime time.Time
+		// Parse the date-time strings into time.Time objects
+		if okup {
+			lastUpTime, err = time.Parse(layout, lastUpTimeStr)
+			// Check for parsing errors
+			if err != nil {
+				return result, errors.New("Error parsing date-time strings")
+			}
+		}
+
+		if okdown {
+			lastDownTime, err = time.Parse(layout, lastDownTimeStr)
+			if err != nil {
+				return result, errors.New("Error parsing date-time strings")
+			}
+		}
+
+		// Compare the two time.Time objects
+		var recentTime time.Time
+		if okup && okdown {
+			if lastUpTime.After(lastDownTime) {
+				recentTime = lastUpTime
+			} else {
+				recentTime = lastDownTime
+			}
+		} else if okup {
+			recentTime = lastUpTime
+		} else {
+			recentTime = lastDownTime
+		}
+
+		// Calculate TimeTicks64 since Unix epoch (January 1, 1970)
+		epoch := time.Unix(0, 0)
+		durationSinceEpoch := recentTime.Sub(epoch)
+		timeTicks64 := durationSinceEpoch.Nanoseconds() / 10_000_000 // Convert nanoseconds to hundredths of a second
+
+		result["last-change"] = strconv.FormatInt(timeTicks64, 10)
+	} else {
+		log.Info("last-change field not found in DB")
+	}
+	return result, nil
+}
+
+var DbToYang_intf_logical_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	var err error
+	result := make(map[string]interface{})
+
+	intfType, _, err := getIntfTypeByName(inParams.key)
+	if intfType == IntfTypeUnset || err != nil {
+		return result, errors.New("Invalid interface type")
+	}
+
+	if intfType == IntfTypeEthernet {
+		result["logical"] = false
+	} else {
+		result["logical"] = true
+	}
+
+	return result, nil
+}
+
+var DbToYang_intf_mgmt_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	var err error
+	result := make(map[string]interface{})
+
+	intfType, _, err := getIntfTypeByName(inParams.key)
+	if intfType == IntfTypeUnset || err != nil {
+		return result, errors.New("Invalid interface type")
+	}
+
+	result["management"] = false
+	return result, nil
+}
+
+var DbToYang_intf_cpu_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	var err error
+	result := make(map[string]interface{})
+
+	intfType, _, err := getIntfTypeByName(inParams.key)
+	if intfType == IntfTypeUnset || err != nil {
+		return result, errors.New("Invalid interface type")
+	}
+
+	// cpu port not supported
+	result["cpu"] = false
+	return result, nil
 }

@@ -41,7 +41,7 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- Verify VLAN Creation (PATCH) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/config"
-	expected_get_json := "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan10\"}}"
+	expected_get_json := "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan10\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -53,19 +53,19 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- Verify VLAN Creations (PATCH) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan20\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan20\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN Creations (PATCH) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan30\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan30\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN Creations (PATCH) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan40]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan40\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan40\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -77,7 +77,7 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- Verify VLAN Creation (POST) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan50]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan50\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan50\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -89,19 +89,19 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- Verify VLAN Creations (POST) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan60]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan60\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan60\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN Creations (POST) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan70]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan70\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan70\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify VLAN Creations (POST) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan80]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan80\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan80\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -109,7 +109,7 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- GET VLAN (interface level) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]"
-	expected_get_json = "{\"openconfig-interfaces:interface\":[{\"config\":{\"enabled\":true,\"mtu\":9000,\"name\":\"Vlan10\"},\"name\":\"Vlan10\",\"openconfig-vlan:routed-vlan\":{\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}}},\"state\":{\"name\":\"Vlan10\"},\"subinterfaces\":{\"subinterface\":[{\"config\":{\"index\":0},\"index\":0,\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}},\"state\":{\"index\":0}}]}}]}"
+	expected_get_json = "{\"openconfig-interfaces:interface\":[{\"config\":{\"enabled\":true,\"mtu\":9000,\"name\":\"Vlan10\",\"type\":\"iana-if-type:l2vlan\"},\"name\":\"Vlan10\",\"openconfig-vlan:routed-vlan\":{\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}}},\"state\":{\"cpu\":false,\"logical\":true,\"management\":false,\"name\":\"Vlan10\",\"type\":\"iana-if-type:l2vlan\"},\"subinterfaces\":{\"subinterface\":[{\"config\":{\"index\":0},\"index\":0,\"openconfig-if-ip:ipv6\":{\"config\":{\"enabled\":false},\"state\":{\"enabled\":false}},\"state\":{\"index\":0}}]}}]}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -135,7 +135,7 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- Verify VLAN modification ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan10\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9100, \"name\": \"Vlan10\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -147,7 +147,7 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- Verify VLAN modification ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": false, \"mtu\": 9000, \"name\": \"Vlan10\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": false, \"mtu\": 9000, \"name\": \"Vlan10\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -159,7 +159,7 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- Verify VLAN modification ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": false, \"mtu\": 9100, \"name\": \"Vlan10\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": false, \"mtu\": 9100, \"name\": \"Vlan10\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -171,7 +171,7 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- Verify VLAN modification ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/config"
-	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan10\"}}"
+	expected_get_json = "{\"openconfig-interfaces:config\": {\"enabled\": true, \"mtu\": 9000, \"name\": \"Vlan10\", \"type\": \"iana-if-type:l2vlan\"}}"
 	t.Run("Test GET VLAN interface creation config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -184,7 +184,7 @@ func Test_openconfig_vlan_interface(t *testing.T) {
 
 	t.Log("\n\n--- GET VLAN (state level) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/state"
-	expected_get_json = "{\"openconfig-interfaces:state\":{\"admin-status\":\"UP\",\"enabled\":true,\"mtu\":9000,\"name\":\"Vlan10\"}}"
+	expected_get_json = "{\"openconfig-interfaces:state\":{\"admin-status\":\"UP\",\"enabled\":true,\"mtu\":9000,\"name\":\"Vlan10\",\"type\":\"iana-if-type:l2vlan\", \"cpu\":false,\"logical\":true,\"management\":false}}"
 	t.Run("Test GET VLAN interface state config ", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -385,7 +385,7 @@ func Test_openconfig_vlan_member(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN member (Eth, access) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config/access-vlan"
-	t.Run("Test delete VLAN member", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN member", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN member (Eth, access) ---")
@@ -403,7 +403,7 @@ func Test_openconfig_vlan_member(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN member (Eth, one trunk) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config/trunk-vlans[trunk-vlans=40]"
-	t.Run("Test delete VLAN member", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN member", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN member (Eth, one trunk) ---")
@@ -414,7 +414,7 @@ func Test_openconfig_vlan_member(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN member (Eth, all trunk) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config/trunk-vlans"
-	t.Run("Test delete VLAN member", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN member", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN member (Eth, all trunk) ---")
@@ -431,7 +431,7 @@ func Test_openconfig_vlan_member(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN member (PC, one trunk) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel12]/openconfig-if-aggregate:aggregation/openconfig-vlan:switched-vlan/config/trunk-vlans[trunk-vlans=10]"
-	t.Run("Test delete VLAN member", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN member", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN member (PC, one trunk) ---")
@@ -442,7 +442,7 @@ func Test_openconfig_vlan_member(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN member (PC, all trunk) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel12]/openconfig-if-aggregate:aggregation/openconfig-vlan:switched-vlan/config/trunk-vlans"
-	t.Run("Test delete VLAN member", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN member", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN member (PC, all trunk) ---")
@@ -459,7 +459,7 @@ func Test_openconfig_vlan_member(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN member (PC, access) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel12]/openconfig-if-aggregate:aggregation/openconfig-vlan:switched-vlan/config/access-vlan"
-	t.Run("Test delete VLAN member", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN member", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted resource at VLAN member (PC, access) ---")
@@ -497,7 +497,7 @@ func Test_openconfig_vlan_member(t *testing.T) {
 
 	t.Log("\n\n--- DELETE all VLAN members (Eth, config) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan/config"
-	t.Run("Test delete all VLAN members", processDeleteRequest(url, true))
+	t.Run("Test delete all VLAN members", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN members (Eth, switched-vlan) ---")
@@ -526,7 +526,7 @@ func Test_openconfig_vlan_member(t *testing.T) {
 
 	t.Log("\n\n--- DELETE all VLAN members (PC, switched-vlan) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel12]/openconfig-if-aggregate:aggregation/openconfig-vlan:switched-vlan"
-	t.Run("Test delete all VLAN members", processDeleteRequest(url, true))
+	t.Run("Test delete all VLAN members", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN members (PC, switched-vlan config) ---")
@@ -778,7 +778,7 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface IPv4 (prefix-length leaf) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=8.8.8.8]/config/prefix-length"
-	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IP (prefix-length leaf) ---")
@@ -789,7 +789,7 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface IPv4 (specify address) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses/address[ip=4.4.4.4]"
-	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IP (specify address) ---")
@@ -800,7 +800,7 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface IPv4 (all addresses level) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4/addresses"
-	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IP (all addresses level) ---")
@@ -823,7 +823,7 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface IPv4 (IPv4 level) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv4"
-	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv4 (IPv4 level) ---")
@@ -834,7 +834,7 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface IPv6 (prefix-length leaf) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2606:4700:4700::1111]/config/prefix-length"
-	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv6 (prefix-length leaf) ---")
@@ -857,7 +857,7 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface IPv6 (specify address) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses/address[ip=2606:4700:4700::1111]"
-	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv6 (specify address) ---")
@@ -868,7 +868,7 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface IPv6 (all addresses level) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6/addresses"
-	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv6 (all addresses level) ---")
@@ -879,7 +879,7 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface IPv6 (IPv6 level) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan/openconfig-if-ip:ipv6"
-	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface IPv6 (IPv6 level) ---")
@@ -914,7 +914,7 @@ func Test_openconfig_vlan_interface_ip(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface all IP (routed-vlan level) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/openconfig-vlan:routed-vlan"
-	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface IP config", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface all IP (routed-vlan level) ---")
@@ -937,7 +937,7 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 
 	t.Log("\n\n--- DELETE VLAN interface attribute (description) ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]/config/description"
-	t.Run("Test delete VLAN interface attribute", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface attribute", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface attribute (mtu) ---")
@@ -949,7 +949,7 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 
 	t.Log("\n\n--- Delete Vlan 10 ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan10]"
-	t.Run("Test delete VLAN interface", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface ---")
@@ -961,7 +961,7 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 
 	t.Log("\n\n--- Delete Vlan 20 ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan20]"
-	t.Run("Test delete VLAN interface", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface ---")
@@ -973,7 +973,7 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 
 	t.Log("\n\n--- Delete Vlan 30 ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan30]"
-	t.Run("Test delete VLAN interface", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface ---")
@@ -985,7 +985,7 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 
 	t.Log("\n\n--- Delete Vlan 40 ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan40]"
-	t.Run("Test delete VLAN interface", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface ---")
@@ -997,7 +997,7 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 
 	t.Log("\n\n--- Delete Vlan 50 ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan50]"
-	t.Run("Test delete VLAN interface", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface ---")
@@ -1009,7 +1009,7 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 
 	t.Log("\n\n--- Delete Vlan 60 ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan60]"
-	t.Run("Test delete VLAN interface", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface ---")
@@ -1021,7 +1021,7 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 
 	t.Log("\n\n--- Delete Vlan 70 ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan70]"
-	t.Run("Test delete VLAN interface", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface ---")
@@ -1033,7 +1033,7 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 
 	t.Log("\n\n--- Delete Vlan 80 ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Vlan80]"
-	t.Run("Test delete VLAN interface", processDeleteRequest(url, true))
+	t.Run("Test delete VLAN interface", processDeleteRequest(url, false))
 	time.Sleep(1 * time.Second)
 
 	t.Log("\n\n--- Verify deleted VLAN interface ---")
