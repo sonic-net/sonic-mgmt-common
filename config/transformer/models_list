@@ -1,15 +1,16 @@
 #List yang models transformer need to load
-openconfig-acl.yang
 openconfig-acl-annot.yang
-openconfig-sampling-sflow.yang
-openconfig-sampling-sflow-annot.yang
-openconfig-if-ethernet.yang
-openconfig-interfaces.yang
-openconfig-interfaces-annot.yang
-openconfig-if-ip.yang
+openconfig-acl.yang
 openconfig-if-aggregate.yang
-openconfig-mclag.yang
+openconfig-if-ethernet.yang
+openconfig-if-ip.yang
+openconfig-interfaces-annot.yang
+openconfig-interfaces.yang
 openconfig-mclag-annot.yang
+openconfig-mclag.yang
+openconfig-sampling-sflow-annot.yang
+openconfig-sampling-sflow.yang
+openconfig-system-annot.yang
 openconfig-vlan.yang
 gnsi-authz.yang
 gnsi-pathz.yang
