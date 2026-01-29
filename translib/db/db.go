@@ -168,6 +168,11 @@ type Options struct {
 	KeySeparator       string //Overriden by the DB config file's separator.
 	IsWriteDisabled    bool   //Is write/set mode disabled ?
 	IsCacheEnabled     bool   //Is cache (Per Connection) allowed?
+	// Redis connection pools do not support transactional Redis operations.
+	// If the DB object will be used to perform transactions, the Transacation
+	// flag must be set to request a unique Redis client. Transactions include
+	// SCAN and MULTI.
+	TransactionsRequired bool
 
 	// OnChange caching for the DBs passed from Translib's Subscribe Infra
 	// to the Apps. SDB is the SubscribeDB() returned handle on which

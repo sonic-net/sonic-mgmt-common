@@ -140,6 +140,8 @@ func iSubscribeDB(opt Options, skeys []*SKey, handler interface{}) (*DB, error) 
 	}
 
 	opt.IsSubscribeDB = true
+	// PSubscribe is a transactional operation in Redis.
+	opt.TransactionsRequired = true
 
 	// NewDB
 	d, e := NewDB(opt)
