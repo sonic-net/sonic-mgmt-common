@@ -8,6 +8,7 @@ module openconfig-system-annot {
     import openconfig-system { prefix oc-sys; }
     import sonic-extensions {prefix sonic-ext; }
     import openconfig-system-grpc { prefix oc-sys-grpc; }
+    import openconfig-gnsi-credentialz { prefix oc-gnsi-credz; }
 
     deviation /oc-sys:system/oc-sys:ssh-server/oc-sys:state {
       deviate add {
@@ -21,6 +22,39 @@ module openconfig-system-annot {
             sonic-ext:key-transformer "grpc_server_key_xfmr";
             sonic-ext:subtree-transformer "grpc_server_xfmr";
         }
+    }
+
+    deviation /oc-sys:system/oc-sys:aaa/oc-sys:authentication/oc-sys:glome/oc-sys:state {
+      deviate add {
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:table-name "CREDENTIALS";
+        sonic-ext:key-name "GLOME_CONFIG";
+      }
+    }
+
+    deviation /oc-sys:system/oc-sys:aaa/oc-sys:authentication/oc-sys:glome/oc-sys:state/oc-gnsi-credz:active-glome-key-version {
+      deviate add {
+        sonic-ext:field-name "key_version";
+      }
+    }
+
+    deviation /oc-sys:system/oc-sys:aaa/oc-sys:authentication/oc-sys:glome/oc-sys:state/oc-gnsi-credz:active-glome-key-created-on {
+      deviate add {
+        sonic-ext:field-name "last_updated";
+      }
+    }
+
+    deviation /oc-sys:system/oc-sys:aaa/oc-sys:authentication/oc-sys:glome/oc-sys:state/oc-gnsi-credz:enabled {
+      deviate add {
+        sonic-ext:field-name "enabled";
+      }
+    }
+
+    deviation /oc-sys:system/oc-gnsi-credz:console {
+      deviate add {
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:subtree-transformer "console_counters_xfmr";
+      }
     }
 }
 
