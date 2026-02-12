@@ -20,6 +20,7 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -70,7 +71,7 @@ func verifyGetConfigAllTables(t *testing.T, db *DB, opts *GetConfigOptions) {
 
 	// Count the keys in all the tables
 	tsM := make(map[TableSpec]int, 10)
-	redisKeys, e := db.client.Keys("*").Result()
+	redisKeys, e := db.client.Keys(context.Background(), "*").Result()
 	if e != nil {
 		t.Errorf("client.Keys() returns err: %v", e)
 	}

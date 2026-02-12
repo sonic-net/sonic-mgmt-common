@@ -615,32 +615,14 @@ func findInMap(m map[string]string, str string) string {
 	return ""
 }
 
-func getDBOptions(dbNo db.DBNum, opts ...func(*db.Options)) db.Options {
+func getDBOptions(dbNo db.DBNum) db.Options {
 	var opt db.Options
-	separator := ""
 
-	if dbConfigMap != nil {
-		dbName := db.GetDBInstName(dbNo)
-		dbList, ok := dbConfigMap["DATABASES"].(map[string]interface{})
-		if ok {
-			dbSep, ok := dbList[dbName].(map[string]interface{})["separator"]
-			if ok {
-				separator = dbSep.(string)
-			}
-		}
-	}
-
-	if separator == "" {
-		switch dbNo {
-		case db.ApplDB, db.CountersDB, db.ErrorDB, db.FlexCounterDB, db.AsicDB, db.LogLevelDB:
-			separator = ":"
-		case db.SnmpDB, db.ConfigDB, db.StateDB, db.EventDB:
-			separator = "|"
-		}
-	}
-	opt = getDBOptionsWithSeparator(dbNo, "", separator, separator)
-	for _, setopt := range opts {
-		setopt(&opt)
+	switch dbNo {
+	case db.ApplDB, db.ApplStateDB, db.CountersDB, db.FlexCounterDB, db.AsicDB:
+		opt = getDBOptionsWithSeparator(dbNo, "", ":", ":")
+	case db.ConfigDB, db.StateDB:
+		opt = getDBOptionsWithSeparator(dbNo, "", "|", "|")
 	}
 
 	return opt

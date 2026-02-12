@@ -28,10 +28,11 @@ var hValue = map[string]string{"a": "1", "b": "2"}
 
 func newEnableCVLDB(dBNum DBNum) (*DB, error) {
 	d, e := NewDB(Options{
-		DBNo:               dBNum,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
+		DBNo:                    dBNum,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		ForceNewRedisConnection: false,
 	})
 	return d, e
 }
