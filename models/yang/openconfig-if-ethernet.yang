@@ -9,7 +9,7 @@ module openconfig-if-ethernet {
 
   // import some basic types
   import openconfig-interfaces { prefix oc-if; }
-  import iana-if-type { prefix ift; }
+  import iana-if-type { prefix ianaift; }
   import openconfig-yang-types { prefix oc-yang; }
   import openconfig-extensions { prefix oc-ext; }
 
@@ -24,14 +24,90 @@ module openconfig-if-ethernet {
     "Model for managing Ethernet interfaces -- augments the OpenConfig
     model for interface configuration and state.";
 
-  oc-ext:openconfig-version "2.7.0";
+  oc-ext:openconfig-version "2.14.0";
 
-  revision "2024-02-22" {
+  revision "2024-09-17" {
     description
-      "Add 200G, 400G, 600G, and 800G Ethernet Speeds. 
-      Minor formatting fix and fixed a typo in 
-      hardware MAC addr description.";
-    reference "2.7.0";
+      "Refactor config/state nodes to account for physical ethernet vs.
+      aggregate interface characteristics along with description updates
+      to indicate applicability.";
+    reference "2.14.0";
+  }
+
+  revision "2023-03-10" {
+    description
+      "Allow Ethernet configuration parameters to be
+      used for aggregate (LAG) interfaces.";
+    reference "2.13.0";
+  }
+
+  revision "2022-04-20" {
+    description
+      "Remove unused import";
+    reference "2.12.2";
+  }
+
+  revision "2021-07-20" {
+    description
+      "Fix typo in hardware MAC address description.";
+    reference "2.12.1";
+  }
+
+  revision "2021-07-07" {
+    description
+      "Add support for configuring fec-mode per interface.";
+    reference "2.12.0";
+  }
+
+  revision "2021-06-16" {
+    description
+      "Remove trailing whitespace.";
+    reference "2.11.1";
+  }
+
+  revision "2021-06-09" {
+    description
+      "Add support for standalone link training.";
+    reference "2.11.0";
+  }
+
+  revision "2021-05-17" {
+    description
+      "Add ethernet counters: in-carrier-errors,
+      in-interrupted-tx, in-late-collision, in-mac-errors-rx,
+      in-single-collision, in-symbol-error and out-mac-errors-tx";
+    reference "2.10.0";
+  }
+
+  revision "2021-03-30" {
+    description
+      "Add counter for drops due to oversized frames.";
+    reference "2.9.0";
+  }
+
+  revision "2020-05-06" {
+    description
+      "Minor formatting fix.";
+    reference "2.8.1";
+  }
+
+  revision "2020-05-06" {
+    description
+      "Add 200G, 400G, 600G and 800G Ethernet speeds.";
+    reference "2.8.0";
+  }
+
+  revision "2020-05-05" {
+    description
+      "Fix when statement checks to use rw paths when
+      from a rw context.";
+    reference "2.7.3";
+  }
+
+  revision "2019-04-16" {
+    description
+      "Update import prefix for iana-if-type module";
+    reference "2.7.2";
   }
 
   revision "2018-11-21" {
@@ -98,6 +174,44 @@ module openconfig-if-ethernet {
   oc-ext:origin "openconfig";
 
   // identity statements
+  identity INTERFACE_FEC {
+    description
+      "Base type to specify FEC modes that can be configured on the interface.
+       These are FEC modes defined for applying to logical interfaces and their
+       underlying electrical channels.";
+  }
+
+  identity FEC_FC {
+    base INTERFACE_FEC;
+    description
+      "Firecode is used for channels with NRZ modulation and speeds less than 100G.
+      This FEC is designed to comply with the IEEE 802.3, Clause 74.";
+  }
+
+  identity FEC_RS528 {
+    base INTERFACE_FEC;
+    description
+      "RS528 is used for channels with NRZ modulation. This FEC is designed to
+      comply with IEEE 802.3, Clause 91.";
+  }
+
+  identity FEC_RS544 {
+    base INTERFACE_FEC;
+    description
+      "RS544 is used for channels with PAM4 modulation.";
+  }
+
+  identity FEC_RS544_2X_INTERLEAVE {
+    base INTERFACE_FEC;
+    description
+      "RS544-2x-interleave is used for channels with PAM4 modulation.";
+  }
+
+  identity FEC_DISABLED {
+    base INTERFACE_FEC;
+    description
+      "FEC is administratively disabled.";
+  }
 
   identity ETHERNET_SPEED {
     description "base type to specify available Ethernet link
@@ -188,7 +302,9 @@ module openconfig-if-ethernet {
   // grouping statements
 
   grouping ethernet-interface-config {
-    description "Configuration items for Ethernet interfaces";
+    description
+      "Common interface configuration for physical ethernet + logical
+      aggregate interfaces";
 
     leaf mac-address {
       type oc-yang:mac-address;
@@ -197,6 +313,31 @@ module openconfig-if-ethernet {
         specified, the corresponding operational state leaf is
         expected to show the system-assigned MAC address.";
     }
+
+    leaf enable-flow-control {
+      type boolean;
+      default false;
+      description
+        "Enable or disable flow control for this interface.
+        Ethernet flow control is a mechanism by which a receiver
+        may send PAUSE frames to a sender to stop transmission for
+        a specified time.
+
+        This setting should override auto-negotiated flow control
+        settings.  If left unspecified, and auto-negotiate is TRUE,
+        flow control mode is negotiated with the peer interface.";
+      reference
+        "IEEE 802.3x";
+    }
+  }
+
+  grouping physical-interface-config {
+    description
+      "Configuration specific to physical ethernet interfaces.  Note
+      that this grouping is to only apply when the interface `type` is
+      set to 'ianaift:ethernetCsmacd'.  This is not currently restricted
+      by YANG language statements (must/when) due to uses of this module
+      within other domains (e.g. wifi).";
 
     leaf auto-negotiate {
       type boolean;
@@ -208,6 +349,24 @@ module openconfig-if-ethernet {
         manually.";
       reference
         "IEEE 802.3-2012 auto-negotiation transmission parameters";
+    }
+
+    leaf standalone-link-training {
+      type boolean;
+      default false;
+      description
+        "Link training is automatic tuning of the SerDes transmit and
+        receive parameters to ensure an optimal connection over copper
+        links. It is normally run as part of the auto negotiation
+        sequence as specified in IEEE 802.3 Clause 73.
+
+        Standalone link training is used when full auto negotiation is
+        not desired on an Ethernet link but link training is needed.
+        It is configured by setting the standalone-link-training leaf
+        to TRUE and augo-negotiate leaf to FALSE.
+
+        Note: If auto-negotiate is true, then the value of standalone
+        link training leaf will be ignored.";
     }
 
     leaf duplex-mode {
@@ -241,20 +400,13 @@ module openconfig-if-ethernet {
         by ETHERNET_SPEED identities";
     }
 
-    leaf enable-flow-control {
-      type boolean;
-      default false;
+    leaf fec-mode {
+      type identityref {
+        base INTERFACE_FEC;
+      }
       description
-        "Enable or disable flow control for this interface.
-        Ethernet flow control is a mechanism by which a receiver
-        may send PAUSE frames to a sender to stop transmission for
-        a specified time.
-
-        This setting should override auto-negotiated flow control
-        settings.  If left unspecified, and auto-negotiate is TRUE,
-        flow control mode is negotiated with the peer interface.";
-      reference
-        "IEEE 802.3x";
+        "The FEC mode applied to the physical channels associated with
+        the interface.";
     }
   }
 
@@ -349,6 +501,86 @@ module openconfig-if-ethernet {
         bits within the block";
     }
 
+    leaf in-carrier-errors {
+      type oc-yang:counter64;
+      description
+        "The number of received errored frames due to a carrier issue.
+        The value refers to MIB counter for
+        dot3StatsCarrierSenseErrors
+        oid=1.3.6.1.2.1.10.7.2.1.11";
+      reference
+        "RFC 1643 Definitions of Managed
+        Objects for the Ethernet-like Interface Types.";
+    }
+
+    leaf in-interrupted-tx {
+      type oc-yang:counter64;
+      description
+        "The number of received errored frames due to interrupted
+        transmission issue. The value refers to MIB counter for
+        dot3StatsDeferredTransmissions
+        oid=1.3.6.1.2.1.10.7.2.1.7";
+      reference
+        "RFC 1643 Definitions of Managed
+        Objects for the Ethernet-like Interface Types.";
+    }
+
+    leaf in-late-collision {
+      type oc-yang:counter64;
+      description
+        "The number of received errored frames due to late collision
+        issue. The value refers to MIB counter for
+        dot3StatsLateCollisions
+        oid=1.3.6.1.2.1.10.7.2.1.8";
+      reference
+        "RFC 1643 Definitions of Managed
+        Objects for the Ethernet-like Interface Types.";
+    }
+
+    leaf in-mac-errors-rx {
+      type oc-yang:counter64;
+      description
+        "The number of received errored frames due to MAC errors
+        received. The value refers to MIB counter for
+        dot3StatsInternalMacReceiveErrors
+        oid=1.3.6.1.2.1.10.7.2.1.16";
+      reference
+        "RFC 1643 Definitions of Managed
+        Objects for the Ethernet-like Interface Types.";
+    }
+
+    leaf in-single-collision {
+      type oc-yang:counter64;
+      description
+        "The number of received errored frames due to single collision
+        issue. The value refers to MIB counter for
+        dot3StatsSingleCollisionFrames
+        oid=1.3.6.1.2.1.10.7.2.1.4";
+      reference
+        "RFC 1643 Definitions of Managed
+        Objects for the Ethernet-like Interface Types.";
+     }
+
+    leaf in-symbol-error {
+      type oc-yang:counter64;
+      description
+        "The number of received errored frames due to symbol error.
+        The value refers to MIB counter for
+        in-symbol-error
+        oid=1.3.6.1.2.1.10.7.2.1.18";
+      reference
+        "RFC 1643 Definitions of Managed
+        Objects for the Ethernet-like Interface Types.";
+    }
+
+    leaf in-maxsize-exceeded {
+      type oc-yang:counter64;
+      description
+        "The total number frames received that are well-formed but
+        dropped due to exceeding the maximum frame size on the interface
+        (e.g., MTU or MRU)";
+    }
+
     // egress counters
 
     leaf out-mac-control-frames {
@@ -368,11 +600,28 @@ module openconfig-if-ethernet {
       description
         "Number of 802.1q tagged frames sent on the interface";
     }
+
+     leaf out-mac-errors-tx {
+      type oc-yang:counter64;
+      description
+        "The number of sent errored frames due to MAC errors
+         transmitted. The value refers to MIB counter for
+         dot3StatsInternalMacTransmitErrors
+         oid=1.3.6.1.2.1.10.7.2.1.10";
+      reference
+        "RFC 1643 Definitions of Managed
+        Objects for the Ethernet-like Interface Types.";
+     }
+
   }
 
-  grouping ethernet-interface-state {
+  grouping physical-interface-state {
     description
-      "Grouping for defining Ethernet-specific operational state";
+      "Grouping for operational state specific to physical ethernet
+      interfaces.  Note that this grouping is to only apply when the
+      interface `type` is set to 'ianaift:ethernetCsmacd'.  This is not
+      currently restricted by YANG language statements (must/when) due
+      to uses of this module within other domains (e.g. wifi).";
 
     leaf hw-mac-address {
       type oc-yang:mac-address;
@@ -405,14 +654,17 @@ module openconfig-if-ethernet {
         completed auto-negotiation with the remote peer, this value
         shows the interface speed that has been negotiated.";
     }
+  }
+
+  grouping ethernet-interface-state {
+    description
+      "Common state for physical ethernet and aggregate interfaces";
 
     container counters {
       description "Ethernet interface counters";
 
       uses ethernet-interface-state-counters;
-      
     }
-    
   }
 
   // data definition statements
@@ -429,7 +681,7 @@ module openconfig-if-ethernet {
         description "Configuration data for ethernet interfaces";
 
         uses ethernet-interface-config;
-
+        uses physical-interface-config;
       }
 
       container state {
@@ -438,6 +690,8 @@ module openconfig-if-ethernet {
         description "State variables for Ethernet interfaces";
 
         uses ethernet-interface-config;
+        uses physical-interface-config;
+        uses physical-interface-state;
         uses ethernet-interface-state;
 
       }
@@ -452,9 +706,12 @@ module openconfig-if-ethernet {
     interfaces model";
 
     uses ethernet-top {
-      when "oc-if:state/oc-if:type = 'ift:ethernetCsmacd'" {
-      description "Additional interface configuration parameters when
-      the interface type is Ethernet";
+      when "oc-if:config/oc-if:type = 'ianaift:ethernetCsmacd' or " +
+           "oc-if:config/oc-if:type = 'ianaift:ieee8023adLag'" {
+      description
+        "Additional interface configuration parameters when
+        the interface type is Ethernet, or the interface is an aggregate
+        interface.";
       }
     }
   }
