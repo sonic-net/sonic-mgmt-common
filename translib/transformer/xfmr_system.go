@@ -19,6 +19,9 @@ const (
 	CREDENTIALS_TBL = "CREDENTIALS"
 	CRED_PATHZ_TBL  = "CREDENTIALS|PATHZ_POLICY"
 	CERT_TBL        = "CREDENTIALS|CERT"
+	ACCOUNT_TBL     = "CREDENTIALS|SSH_ACCOUNT"
+	CONSOLE_TBL     = "CREDENTIALS|CONSOLE_ACCOUNT"
+	SSH_TBL         = "CREDENTIALS|SSH_HOST"
 )
 
 type sshState struct {
@@ -46,6 +49,8 @@ func init() {
 	XlateFuncBind("DbToYang_grpc_server_key_xfmr", DbToYang_grpc_server_key_xfmr)
 	XlateFuncBind("DbToYang_ssh_server_state_xfmr", DbToYang_ssh_server_state_xfmr)
 	XlateFuncBind("Subscribe_ssh_server_state_xfmr", Subscribe_ssh_server_state_xfmr)
+	XlateFuncBind("DbToYang_console_counters_xfmr", DbToYang_console_counters_xfmr)
+	XlateFuncBind("Subscribe_console_counters_xfmr", Subscribe_console_counters_xfmr)
 }
 
 type grpcState struct {
@@ -298,4 +303,54 @@ var DbToYang_grpc_server_key_xfmr KeyXfmrDbToYang = func(inParams XfmrParams) (m
 	log.V(3).Info("DbToYang_grpc_server_key_xfmr root, uri: ", inParams.ygRoot, inParams.uri)
 
 	return map[string]interface{}{"name": NewPathInfo(inParams.uri).Var("name")}, nil
+}
+
+var DbToYang_console_counters_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
+	var counters accessCounters
+
+	table, err := inParams.dbs[inParams.curDb].GetEntry(&db.TableSpec{Name: "CREDENTIALS"}, db.Key{Comp: []string{"CONSOLE_METRICS"}})
+	if err != nil {
+		log.V(0).Infof("Failed to read from StateDB: %v", inParams.table)
+		return err
+	}
+
+	accepts := table.Get("access_accepts")
+	if counters.accessAccepts, err = strconv.ParseUint(accepts, 10, 64); err != nil && accepts != "" {
+		log.V(0).Infof("Couldn't find access_accepts: %v", err)
+	}
+	lastAccept := table.Get("last_access_accept")
+	if counters.lastAccessAccept, err = strconv.ParseUint(lastAccept, 10, 64); err != nil && lastAccept != "" {
+		log.V(0).Infof("Couldn't find last_access_accept: %v", err)
+	}
+	rejects := table.Get("access_rejects")
+	if counters.accessRejects, err = strconv.ParseUint(rejects, 10, 64); err != nil && rejects != "" {
+		log.V(0).Infof("Couldn't find access_rejects: %v", err)
+	}
+	lastReject := table.Get("last_access_reject")
+	if counters.lastAccessReject, err = strconv.ParseUint(lastReject, 10, 64); err != nil && lastReject != "" {
+		log.V(0).Infof("Couldn't find last_access_reject: %v", err)
+	}
+
+	sysObj := getAppRootObject(inParams)
+	ygot.BuildEmptyTree(sysObj)
+	ygot.BuildEmptyTree(sysObj.Console)
+	ygot.BuildEmptyTree(sysObj.Console.State)
+
+	sysObj.Console.State.Counters.AccessAccepts = &counters.accessAccepts
+	sysObj.Console.State.Counters.AccessRejects = &counters.accessRejects
+	sysObj.Console.State.Counters.LastAccessAccept = &counters.lastAccessAccept
+	sysObj.Console.State.Counters.LastAccessReject = &counters.lastAccessReject
+
+	return nil
+}
+
+var Subscribe_console_counters_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubscInParams) (XfmrSubscOutParams, error) {
+	log.V(0).Infof("Subscribe_console_counters_xfmr:%s", inParams.requestURI)
+
+	return XfmrSubscOutParams{
+		dbDataMap: RedisDbSubscribeMap{
+			db.StateDB: {"CREDENTIALS": {"CONSOLE_METRICS": {}}}},
+		onChange: OnchangeEnable,
+		nOpts:    &notificationOpts{mInterval: 0, pType: OnChange},
+	}, nil
 }
