@@ -168,6 +168,21 @@ module sonic-acl {
 							type inet:ipv6-prefix;    
 						}
 					}
+					case l2_src_dst {
+						when "(/sonic-acl/ACL_TABLE/ACL_TABLE_LIST[aclname=current()/aclname]/type = 'L2')";
+						leaf SRC_MAC {
+							mandatory true;
+							type string {
+								pattern "[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}|[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}/[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}";
+							}
+						}
+						leaf DST_MAC {
+							mandatory true;
+							type string {
+								pattern "[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}|[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}/[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}";
+							}
+						}
+					}
 				}
 
 				choice src_port {
@@ -214,6 +229,30 @@ module sonic-acl {
 
 				leaf DSCP { 
 					type inet:dscp;
+				}
+
+				leaf VLAN_ID {
+					type uint16 {
+						range "1..4094" {
+							error-app-tag vlan-id-invalid;
+						}
+					}
+				}
+
+				leaf VLAN_PCP {
+					type string {
+						pattern "[0-7]|[0-7]/[0-7]" {
+							error-app-tag vlan-pcp-invalid;
+						}
+					}
+				}
+
+				leaf VLAN_DEI {
+					type uint8 {
+						range "0..1" {
+							error-app-tag vlan-dei-invalid;
+						}
+					}
 				}
 			}
 		}
