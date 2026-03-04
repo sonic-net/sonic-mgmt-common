@@ -57,6 +57,12 @@ module openconfig-system-annot {
         sonic-ext:subtree-transformer "console_counters_xfmr";
       }
     }
+    deviation /oc-sys:system/oc-sys:aaa/oc-sys:authorization/oc-sys:state {
+      deviate add {
+        sonic-ext:db-name "STATE_DB";
+        sonic-ext:subtree-transformer "authz_policy_xfmr";
+      }
+    }
 
     deviation /oc-sys:system/gnsi-pathz:gnmi-pathz-policies {
       deviate add {
