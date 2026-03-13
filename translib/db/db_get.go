@@ -20,6 +20,7 @@
 package db
 
 import (
+	"context"
 	"strings"
 
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
@@ -49,8 +50,8 @@ func (d *DB) Get(key string) (string, error) {
 		return "", UseGetEntry
 	}
 
-	glog.Info("Get: RedisCmd: ", d.Name(), ": ", "GET ", key)
-	val, e := d.client.Get(key).Result()
+	glog.V(2).Info("Get: RedisCmd: ", d.Name(), ": ", "GET ", key)
+	val, e := d.client.Get(context.Background(), key).Result()
 
 	if glog.V(3) {
 		glog.Info("Get: End: key: ", key, " val: ", val, " e: ", e)
