@@ -40,21 +40,118 @@ import (
 #include <stdio.h>
 #include <string.h>
 
-extern int lyd_check_mandatory_tree(struct lyd_node *root, struct ly_ctx *ctx, const struct lys_module **modules, int mod_count, int options);
-
-int lyd_data_validate(struct lyd_node **node, int options, struct ly_ctx *ctx)
+size_t golysc_ext_instance_array_count(struct lysc_ext_instance *arr)
 {
-	int ret = -1;
+	return LY_ARRAY_COUNT(arr);
+}
 
-	//Check mandatory elements as it is skipped for LYD_OPT_EDIT
-	ret = lyd_check_mandatory_tree(*node, ctx, NULL, 0, LYD_OPT_CONFIG | LYD_OPT_NOEXTDEPS);
+struct lysc_ext_instance *golysc_ext_instance_array_idx(struct lysc_ext_instance *arr, size_t idx)
+{
+	return &arr[idx];
+}
 
-	if (ret != 0)
-	{
-		return ret;
+size_t golysc_must_array_count(struct lysc_must *arr)
+{
+	return LY_ARRAY_COUNT(arr);
+}
+
+size_t golyd_value_array_count(struct lyd_value **arr)
+{
+	return LY_ARRAY_COUNT(arr);
+}
+
+struct lyd_value *golyd_value_array_idx(struct lyd_value **arr, size_t idx)
+{
+	return arr[idx];
+}
+
+struct ly_ctx *goly_ctx_new(const char *search_dir, uint16_t options)
+{
+	struct ly_ctx *ctx = NULL;
+	if (ly_ctx_new(search_dir, options, &ctx) != LY_SUCCESS) {
+		return NULL;
+	}
+	return ctx;
+}
+
+struct lyd_node *golyd_new_inner(struct lyd_node *parent, const struct lys_module *module, const char *name)
+{
+	struct lyd_node *node = NULL;
+	if (lyd_new_inner(parent, module, name, 0, &node) != LY_SUCCESS) {
+		return NULL;
+	}
+	return node;
+}
+
+struct lyd_node *golyd_new_list2(struct lyd_node *parent, const struct lys_module *module, const char *name, const char *keylist, uint32_t options)
+{
+	struct lyd_node *node = NULL;
+
+	if (lyd_new_list2(parent, module, name, keylist, options, &node) != LY_SUCCESS) {
+		return NULL;
+	}
+	return node;
+}
+
+size_t golysc_node_list_keys_count(const struct lysc_node *node)
+{
+	const struct lysc_node *n;
+	const struct lysc_node_list *l;
+	size_t cnt = 0;
+
+	if (node->nodetype != LYS_LIST) {
+		return 0;
 	}
 
-	return lyd_validate(node, options, ctx);
+	l = (const struct lysc_node_list *)node;
+
+	for (n=l->child; n != NULL; n = n->next) {
+		if (n->flags & LYS_KEY) {
+			cnt++;
+		}
+	}
+	return cnt;
+}
+
+const char *golysc_node_get_when(const struct lysc_node *node)
+{
+	struct lysc_when **when = NULL;
+
+	switch (node->nodetype) {
+	case LYS_CHOICE:
+		const struct lysc_node_choice *ch = (const struct lysc_node_choice *)node;
+		when = ch->when;
+	case LYS_CASE:
+		const struct lysc_node_case *ca = (const struct lysc_node_case *)node;
+		when = ca->when;
+	}
+
+	if (when == NULL || LY_ARRAY_COUNT(when) == 0) {
+		return NULL;
+	}
+	return lyxp_get_expr(when[0]->cond);
+}
+
+static ly_bool lysc_node_is_union(const struct lysc_node *node)
+{
+	struct lysc_type *type;
+
+	if (node == NULL) {
+		return 0;
+	}
+	if (node->nodetype == LYS_LEAF) {
+		type = ((struct lysc_node_leaf *)node)->type;
+	} else if (node->nodetype == LYS_LEAFLIST) {
+		type = ((struct lysc_node_leaflist *)node)->type;
+	} else {
+		return 0;
+	}
+
+	if (type->basetype != LY_TYPE_UNION) {
+		return 0;
+	}
+
+	return 1;
 }
 
 struct leaf_value {
@@ -65,9 +162,9 @@ struct leaf_value {
 int lyd_multi_new_leaf(struct lyd_node *parent, const struct lys_module *module,
 	struct leaf_value *leafValArr, int size)
 {
-        const char *name, *val;
+	const char *name, *val;
 	struct lyd_node *leaf;
-	struct lys_type *type = NULL;
+	struct lysc_type *type = NULL;
 	int has_ptr_type = 0;
 	int idx = 0;
 
@@ -81,162 +178,140 @@ int lyd_multi_new_leaf(struct lyd_node *parent, const struct lys_module *module,
 		name = leafValArr[idx].name;
 		val = leafValArr[idx].value;
 
-		if (NULL == (leaf = lyd_new_leaf(parent, module, name, val)))
+		if (lyd_new_term(parent, module, name, val, 0, &leaf) != LY_SUCCESS)
 		{
+			fprintf(stderr, "lyd_multi_new_leaf(): lyd_new_term(%s, %s) failed\n", name, val);
 			return -1;
 		}
-
-		//Validate all union types as it is skipped for LYD_OPT_EDIT
-		if (((struct lys_node_leaflist*)leaf->schema)->type.base == LY_TYPE_UNION)
-		{
-			type = &((struct lys_node_leaflist*)leaf->schema)->type;
-
-			//save the has_ptr_type field
-			has_ptr_type = type->info.uni.has_ptr_type;
-
-			//Work around, set to 0 to check all union types
-			type->info.uni.has_ptr_type = 0;
-
-			if (lyd_validate_value(leaf->schema, val))
-			{
-				return -1;
-			}
-
-			//Restore has_ptr_type
-			type->info.uni.has_ptr_type = has_ptr_type;
-		}
 	}
-
 	return 0;
 }
 
-struct lyd_node *lyd_find_node(struct lyd_node *root, const char *xpath)
+int lyd_node_leafref_match_in_union(const struct lys_module *module, const char *xpath, const char *value)
 {
-	struct ly_set *set = NULL;
-	struct lyd_node *node = NULL;
-
-	if (root == NULL)
-	{
-		return NULL;
-	}
-
-	set = lyd_find_path(root, xpath);
-	if (set == NULL || set->number == 0) {
-		return  NULL;
-	}
-
-	node = set->set.d[0];
-	ly_set_free(set);
-
-	return node;
-}
-
-int lyd_node_leafref_match_in_union(struct lys_module *module, const char *xpath, const char *value)
-{
-	struct ly_set *set = NULL;
-	struct lys_node *node = NULL;
+	const struct lysc_node *node = NULL;
 	int idx = 0;
-	struct lys_node_leaflist* lNode;
+	struct ly_set *set = NULL;
 
 	if (module == NULL)
 	{
 		return -1;
 	}
 
-	set = lys_find_path(module, NULL, xpath);
-	if (set == NULL || set->number == 0) {
-		return  -1;
+	if (lys_find_xpath(module->ctx, NULL, xpath, 0, &set) != LY_SUCCESS || set == NULL) {
+		return -1;
 	}
 
-	node = set->set.s[0];
-	ly_set_free(set);
+	if (set->count == 0) {
+		ly_set_free(set, NULL);
+		return -1;
+	}
 
-	//Now check if it matches with any leafref node
-	lNode = (struct lys_node_leaflist*)node;
+	node = set->snodes[0];
+	ly_set_free(set, NULL);
 
-	for (idx = 0; idx < lNode->type.info.uni.count; idx++)
+	if (!lysc_node_is_union(node)) {
+		return -1;
+	}
+
+	if (lysc_node_lref_targets(node, &set) != LY_SUCCESS || set == NULL)
 	{
-		if (lNode->type.info.uni.types[idx].base != LY_TYPE_LEAFREF)
-		{
-			//Look for leafref type only
-			continue;
-		}
+		return -1;
+	}
 
-		if (0 == lyd_validate_value((struct lys_node*)
-		    lNode->type.info.uni.types[idx].info.lref.target, value))
+	for (idx = 0; idx < set->count; idx++) {
+		if (lyd_value_validate(module->ctx, set->snodes[idx], value, strlen(value), NULL, NULL, NULL) == LY_SUCCESS)
 		{
+			ly_set_free(set, NULL);
 			return 0;
 		}
 	}
 
+	ly_set_free(set, NULL);
 	return -1;
 }
 
-struct lys_node* lys_get_snode(struct ly_set *set, int idx) {
-	if (set == NULL || set->number == 0) {
+struct lysc_xpath_targets {
+	const char **xpathlist; // path list
+	size_t count; // actual path count
+};
+
+void golys_xpath_targets_free(struct lysc_xpath_targets *paths)
+{
+	size_t i;
+
+	if (paths == NULL) {
+		return;
+	}
+
+	free(paths->xpathlist);
+	free(paths);
+}
+
+static struct lysc_xpath_targets *golys_xpath_targets_alloc(size_t cnt)
+{
+	struct lysc_xpath_targets *paths = malloc(sizeof(*paths));
+	paths->xpathlist = malloc(sizeof(*paths->xpathlist) * cnt);
+	paths->count = cnt;
+	return paths;
+}
+
+static const char *nonLeafRef = "non-leafref";
+struct lysc_xpath_targets *golys_xpath_targets_get(const struct lysc_node *node)
+{
+	struct lysc_type *type;
+	struct lysc_xpath_targets *paths = NULL;
+	LY_ARRAY_COUNT_TYPE u;
+
+	if (node == NULL) {
 		return NULL;
 	}
 
-	return set->set.s[idx];
-}
+	type = ((struct lysc_node_leaf *)node)->type;
+	if (type->basetype == LY_TYPE_UNION) {
+		// union with possible leafrefs
+		struct lysc_type_union *type_un = (struct lysc_type_union *)type;
 
-int lyd_change_leaf_data(struct lyd_node *leaf, const char *val_str) {
-  return lyd_change_leaf((struct lyd_node_leaf_list *)leaf, val_str);
-}
+		paths = golys_xpath_targets_alloc(LY_ARRAY_COUNT(type_un->types));
 
-struct lys_leaf_ref_path {
-	const char *path[10]; //max 10 path
-	int count; //actual path count
-};
+		LY_ARRAY_FOR(type_un->types, u) {
+			struct lysc_type_leafref *lref_type;
 
-const char *nonLeafRef = "non-leafref";
-struct lys_leaf_ref_path* lys_get_leafrefs(struct lys_node_leaf *node) {
-	static struct lys_leaf_ref_path leafrefs;
-	memset(&leafrefs, 0, sizeof(leafrefs));
-
-	int nonLeafRefCnt = 0;
-
-	if (node->type.base == LY_TYPE_LEAFREF) {
-		leafrefs.path[0] = node->type.info.lref.path;
-		leafrefs.count = 1;
-
-	} else if (node->type.base == LY_TYPE_UNION) {
-		int typeCnt = 0;
-		for (; typeCnt < node->type.info.uni.count; typeCnt++) {
-			if (node->type.info.uni.types[typeCnt].base != LY_TYPE_LEAFREF) {
-				if (nonLeafRefCnt == 0) {
-					leafrefs.path[leafrefs.count] = nonLeafRef; //data type, not leafref
-					leafrefs.count += 1;
-					nonLeafRefCnt++;
-				}
-
+			if (type_un->types[u]->basetype != LY_TYPE_LEAFREF) {
+				paths->xpathlist[u] = nonLeafRef;
 				continue;
 			}
 
-			leafrefs.path[leafrefs.count] = node->type.info.uni.types[typeCnt].info.lref.path;
-			leafrefs.count += 1;
+			lref_type = (struct lysc_type_leafref *)type_un->types[u];
+
+			if (lref_type->path && lyxp_get_expr(lref_type->path) != NULL) {
+				paths->xpathlist[u] = lyxp_get_expr(lref_type->path);
+			} else {
+				paths->xpathlist[u] = nonLeafRef;
+			}
+		}
+	} else if (type->basetype == LY_TYPE_LEAFREF) {
+		struct lysc_type_leafref *lref_type = (struct lysc_type_leafref *)type;
+
+		paths = golys_xpath_targets_alloc(1);
+
+		if (lref_type->path && lyxp_get_expr(lref_type->path) != NULL) {
+			paths->xpathlist[0] = lyxp_get_expr(lref_type->path);
+		} else {
+			paths->xpathlist[0] = nonLeafRef;
 		}
 	}
-
-	if ((leafrefs.count - nonLeafRefCnt) > 0) {
-		return &leafrefs;
-	} else {
-		return NULL;
-	}
+	return paths;
 }
-
 */
 import "C"
 
 type YParserCtx C.struct_ly_ctx
 type YParserNode C.struct_lyd_node
-type YParserSNode C.struct_lys_node
+type YParserSNode C.struct_lysc_node
 type YParserModule C.struct_lys_module
 
 var ypCtx *YParserCtx
-var ypOpModule *YParserModule
-var ypOpRoot *YParserNode //Operation root
-var ypOpNode *YParserNode //Operation node
 
 type XpathExpression struct {
 	Expr    string
@@ -278,9 +353,7 @@ type YParserLeafValue struct {
 }
 
 type YParser struct {
-	//ctx *YParserCtx    //Parser context
-	root      *YParserNode //Top evel root for validation
-	operation string       //Edit operation
+	// Empty
 }
 
 // YParserError YParser Error Structure
@@ -321,13 +394,6 @@ const (
 	YP_INTERNAL_UNKNOWN
 )
 
-const (
-	YP_NOP = 1 + iota
-	YP_OP_CREATE
-	YP_OP_UPDATE
-	YP_OP_DELETE
-)
-
 // cvl-yin generator adds this prefix to all user defined error messages.
 const customErrorPrefix = "[Error]"
 
@@ -350,9 +416,9 @@ func init() {
 
 func Debug(on bool) {
 	if on {
-		C.ly_verb(C.LY_LLDBG)
+		C.ly_log_level(C.LY_LLDBG)
 	} else {
-		C.ly_verb(C.LY_LLERR)
+		C.ly_log_level(C.LY_LLERR)
 	}
 }
 
@@ -360,45 +426,70 @@ func Initialize() {
 	if !yparserInitialized {
 		cs := C.CString(CVL_SCHEMA)
 		defer C.free(unsafe.Pointer(cs))
-		ypCtx = (*YParserCtx)(C.ly_ctx_new(cs, 0))
-		C.ly_verb(C.LY_LLERR)
+		ypCtx = (*YParserCtx)(C.goly_ctx_new(cs, 0))
+		C.ly_log_level(C.LY_LLERR)
 		//	yparserInitialized = true
 	}
 }
 
 func Finish() {
 	if yparserInitialized {
-		C.ly_ctx_destroy((*C.struct_ly_ctx)(ypCtx), nil)
+		C.ly_ctx_destroy((*C.struct_ly_ctx)(ypCtx))
 		//	yparserInitialized = false
 	}
 }
 
 // ParseSchemaFile Parse YIN schema file
 func ParseSchemaFile(modelFile string) (*YParserModule, YParserError) {
-	module := C.lys_parse_path((*C.struct_ly_ctx)(ypCtx), C.CString(modelFile), C.LYS_IN_YIN)
-	if module == nil {
+	var module *C.struct_lys_module
+	csModelFile := C.CString(modelFile)
+	defer C.free(unsafe.Pointer(csModelFile))
+	if C.lys_parse_path((*C.struct_ly_ctx)(ypCtx), csModelFile, C.LYS_IN_YIN, &module) != C.LY_SUCCESS {
 		return nil, getErrorDetails()
-	}
-
-	if strings.Contains(modelFile, "sonic-common.yin") {
-		ypOpModule = (*YParserModule)(module)
-		ypOpRoot = (*YParserNode)(C.lyd_new(nil, (*C.struct_lys_module)(ypOpModule), C.CString("operation")))
-		ypOpNode = (*YParserNode)(C.lyd_new_leaf((*C.struct_lyd_node)(ypOpRoot), (*C.struct_lys_module)(ypOpModule), C.CString("operation"), C.CString("NOP")))
 	}
 
 	return (*YParserModule)(module), YParserError{ErrCode: YP_SUCCESS}
 }
 
-// AddChildNode Add child node to a parent node
-func (yp *YParser) AddChildNode(module *YParserModule, parent *YParserNode, name string) *YParserNode {
+func (yp *YParser) AddContainerNode(module *YParserModule, parent *YParserNode, name string) (*YParserNode, YParserError) {
 	nameCStr := C.CString(name)
 	defer C.free(unsafe.Pointer(nameCStr))
-	ret := (*YParserNode)(C.lyd_new((*C.struct_lyd_node)(parent), (*C.struct_lys_module)(module), (*C.char)(nameCStr)))
+	ret := (*YParserNode)(C.golyd_new_inner((*C.struct_lyd_node)(parent), (*C.struct_lys_module)(module), (*C.char)(nameCStr)))
 	if ret == nil {
 		TRACE_LOG(TRACE_YPARSER, "Failed parsing node %s", name)
+		return ret, getErrorDetails()
 	}
 
-	return ret
+	return ret, YParserError{ErrCode: YP_SUCCESS}
+}
+
+func (yp *YParser) AddListNode(module *YParserModule, parent *YParserNode, name string, keys []*YParserLeafValue) (*YParserNode, YParserError) {
+	var keylist string
+
+	// All key values predicate in the form of "[key1='val1'][key2='val2']...", they do not have to be ordered.
+	for index := 0; index < len(keys); index++ {
+		if (keys[index] == nil) || (keys[index].Name == "") {
+			break
+		}
+
+		keylist += "["
+		keylist += keys[index].Name
+		keylist += "='"
+		keylist += keys[index].Value
+		keylist += "']"
+	}
+
+	nameCStr := C.CString(name)
+	defer C.free(unsafe.Pointer(nameCStr))
+	keylistCStr := C.CString(keylist)
+	defer C.free(unsafe.Pointer(keylistCStr))
+	ret := (*YParserNode)(C.golyd_new_list2((*C.struct_lyd_node)(parent), (*C.struct_lys_module)(module), (*C.char)(nameCStr), (*C.char)(keylistCStr), 0))
+	if ret == nil {
+		TRACE_LOG(TRACE_YPARSER, "Failed parsing node %s", name)
+		return ret, getErrorDetails()
+	}
+
+	return ret, YParserError{ErrCode: YP_SUCCESS}
 }
 
 // IsLeafrefMatchedInUnion Check if value matches with leafref node in union
@@ -414,6 +505,9 @@ func (yp *YParser) IsLeafrefMatchedInUnion(module *YParserModule, xpath, value s
 
 // AddMultiLeafNodes dd child node to a parent node
 func (yp *YParser) AddMultiLeafNodes(module *YParserModule, parent *YParserNode, multiLeaf []*YParserLeafValue) YParserError {
+	if len(multiLeaf) == 0 {
+		return YParserError{ErrCode: YP_SUCCESS}
+	}
 
 	leafValArr := make([]C.struct_leaf_value, len(multiLeaf))
 	tmpArr := make([]*C.char, len(multiLeaf)*2)
@@ -423,7 +517,6 @@ func (yp *YParser) AddMultiLeafNodes(module *YParserModule, parent *YParserNode,
 		if (multiLeaf[index] == nil) || (multiLeaf[index].Name == "") {
 			break
 		}
-
 		//Accumulate all name/value in array to be passed in lyd_multi_new_leaf()
 		nameCStr := C.CString(multiLeaf[index].Name)
 		valCStr := C.CString(multiLeaf[index].Value)
@@ -458,7 +551,8 @@ func (yp *YParser) NodeDump(root *YParserNode) string {
 		return ""
 	} else {
 		var outBuf *C.char
-		C.lyd_print_mem(&outBuf, (*C.struct_lyd_node)(root), C.LYD_XML, C.LYP_WITHSIBLINGS)
+		C.lyd_print_mem(&outBuf, (*C.struct_lyd_node)(root), C.LYD_JSON, C.LYD_PRINT_WITHSIBLINGS)
+		defer C.free(unsafe.Pointer(outBuf))
 		return C.GoString(outBuf)
 	}
 }
@@ -476,7 +570,7 @@ func (yp *YParser) MergeSubtree(root, node *YParserNode) (*YParserNode, YParserE
 		TRACE_LOG(TRACE_YPARSER, "Root subtree = %v\n", rootdumpStr)
 	}
 
-	if C.lyd_merge_to_ctx(&rootTmp, (*C.struct_lyd_node)(node), C.LYD_OPT_DESTRUCT, (*C.struct_ly_ctx)(ypCtx)) != 0 {
+	if C.lyd_merge_siblings(&rootTmp, (*C.struct_lyd_node)(node), C.LYD_MERGE_DESTRUCT) != C.LY_SUCCESS {
 		return (*YParserNode)(rootTmp), getErrorDetails()
 	}
 
@@ -488,34 +582,16 @@ func (yp *YParser) MergeSubtree(root, node *YParserNode) (*YParserNode, YParserE
 	return (*YParserNode)(rootTmp), YParserError{ErrCode: YP_SUCCESS}
 }
 
-func (yp *YParser) DestroyCache() YParserError {
-
-	if yp.root != nil {
-		C.lyd_free_withsiblings((*C.struct_lyd_node)(yp.root))
-		yp.root = nil
-	}
-
-	return YParserError{ErrCode: YP_SUCCESS}
-}
-
-// SetOperation Set operation
-func (yp *YParser) SetOperation(op string) YParserError {
-	if ypOpNode == nil {
-		return YParserError{ErrCode: YP_INTERNAL_UNKNOWN}
-	}
-
-	if C.lyd_change_leaf_data((*C.struct_lyd_node)(ypOpNode), C.CString(op)) != 0 {
-		return YParserError{ErrCode: YP_INTERNAL_UNKNOWN}
-	}
-
-	yp.operation = op
-	return YParserError{ErrCode: YP_SUCCESS}
-}
-
 // createTempDepData merge depdata and data to create temp data. used in syntax, semantic and custom validation
-func (yp *YParser) createTempDepData(dataTmp *(*C.struct_lyd_node), depData *YParserNode) YParserError {
+func (yp *YParser) mergeDepData(data *(*C.struct_lyd_node), depData *YParserNode, destruct bool) YParserError {
+	var flags C.uint16_t
 
-	if C.lyd_merge_to_ctx(dataTmp, (*C.struct_lyd_node)(depData), C.LYD_OPT_DESTRUCT, (*C.struct_ly_ctx)(ypCtx)) != 0 {
+	flags = 0
+	if destruct {
+		flags |= C.LYD_MERGE_DESTRUCT
+	}
+
+	if C.lyd_merge_siblings(data, (*C.struct_lyd_node)(depData), flags) != C.LY_SUCCESS {
 		TRACE_LOG((TRACE_SYNTAX | TRACE_LIBYANG), "Unable to merge dependent data\n")
 		return getErrorDetails()
 	}
@@ -523,21 +599,23 @@ func (yp *YParser) createTempDepData(dataTmp *(*C.struct_lyd_node), depData *YPa
 }
 
 // ValidateSyntax Perform syntax checks
-func (yp *YParser) ValidateSyntax(data, depData *YParserNode) YParserError {
-	dataTmp := (*C.struct_lyd_node)(data)
+func (yp *YParser) ValidateSyntax(data *YParserNode, depData *YParserNode) YParserError {
+	dataPtr := (*C.struct_lyd_node)(data)
 
-	if data != nil && depData != nil {
-		//merge ependent data for synatx validation - Update/Delete case
-		err := yp.createTempDepData(&dataTmp, depData)
+	if depData != nil {
+		// merge dependent data for syntax validation - Update/Delete case
+		// This is a destructive merge, depData is no longer valid.
+		err := yp.mergeDepData(&dataPtr, depData, true)
+		depData = nil
 		if err.ErrCode != YP_SUCCESS {
 			return err
 		}
 	}
 
 	//Just validate syntax
-	if C.lyd_data_validate(&dataTmp, C.LYD_OPT_EDIT|C.LYD_OPT_NOEXTDEPS, (*C.struct_ly_ctx)(ypCtx)) != 0 {
+	if C.lyd_validate_all(&dataPtr, (*C.struct_ly_ctx)(ypCtx), C.LYD_VALIDATE_PRESENT|C.LYD_VALIDATE_NO_STATE|C.LYD_VALIDATE_NOEXTDEPS, nil) != C.LY_SUCCESS {
 		if IsTraceAllowed(TRACE_ONERROR) {
-			strData := yp.NodeDump((*YParserNode)(dataTmp))
+			strData := yp.NodeDump((*YParserNode)(dataPtr))
 			TRACE_LOG(TRACE_ONERROR, "Failed to validate Syntax, data = %v", strData)
 		}
 		return getErrorDetails()
@@ -548,7 +626,7 @@ func (yp *YParser) ValidateSyntax(data, depData *YParserNode) YParserError {
 
 func (yp *YParser) FreeNode(node *YParserNode) YParserError {
 	if node != nil {
-		C.lyd_free_withsiblings((*C.struct_lyd_node)(node))
+		C.lyd_free_all((*C.struct_lyd_node)(node))
 		node = nil
 	}
 
@@ -556,47 +634,65 @@ func (yp *YParser) FreeNode(node *YParserNode) YParserError {
 }
 
 /* This function translates LIBYANG error code to valid YPARSER error code. */
-func translateLYErrToYParserErr(LYErrcode int) YParserRetCode {
+func translateLYErrToYParserErr(LYErrcode int, apptag string, msg string) YParserRetCode {
 	var ypErrCode YParserRetCode
+
+	// YP_SYNTAX_MISSING_FIELD
+	// YP_SYNTAX_INVALID_FIELD            /* Invalid Field  */
+	// YP_SYNTAX_INVALID_INPUT_DATA       /* Invalid Input Data */
+	// YP_SYNTAX_MULTIPLE_INSTANCE        /* Multiple Field Instances */
+	// YP_SYNTAX_DUPLICATE                /* Duplicate Fields  */
+	// YP_SYNTAX_ENUM_INVALID             /* Invalid enum value */
+	// YP_SYNTAX_ENUM_INVALID_NAME        /* Invalid enum name  */
+	// YP_SYNTAX_ENUM_WHITESPACE          /* Enum name with leading/trailing whitespaces */
+	// YP_SYNTAX_OUT_OF_RANGE             /* Value out of range/length/pattern (data) */
+	// YP_SYNTAX_MINIMUM_INVALID          /* min-elements constraint not honored  */
+	// YP_SYNTAX_MAXIMUM_INVALID          /* max-elements constraint not honored */
+	// YP_SEMANTIC_DEPENDENT_DATA_MISSING /* Dependent Data is missing */
+	// YP_SEMANTIC_MANDATORY_DATA_MISSING /* Mandatory Data is missing */
+	// YP_SEMANTIC_KEY_ALREADY_EXIST      /* Key already existing */
+	// YP_SEMANTIC_KEY_NOT_EXIST          /* Key is missing */
+	// YP_SEMANTIC_KEY_DUPLICATE          /* Duplicate key */
+	// YP_SEMANTIC_KEY_INVALID            /* Invalid key */
+	// YP_INTERNAL_UNKNOWN
 
 	switch LYErrcode {
 	case C.LYVE_SUCCESS: /**< no error */
 		ypErrCode = YP_SUCCESS
-	case C.LYVE_XML_MISS, C.LYVE_INARG, C.LYVE_MISSELEM: /**< missing XML object */
-		ypErrCode = YP_SYNTAX_MISSING_FIELD
-	case C.LYVE_XML_INVAL, C.LYVE_XML_INCHAR, C.LYVE_INMOD, C.LYVE_INELEM, C.LYVE_INVAL, C.LYVE_MCASEDATA: /**< invalid XML object */
-		ypErrCode = YP_SYNTAX_INVALID_FIELD
-	case C.LYVE_EOF, C.LYVE_INSTMT, C.LYVE_INPAR, C.LYVE_INID, C.LYVE_MISSSTMT, C.LYVE_MISSARG: /**< invalid statement (schema) */
+	case C.LYVE_SYNTAX: /**< generic syntax error */
 		ypErrCode = YP_SYNTAX_INVALID_INPUT_DATA
-	case C.LYVE_TOOMANY: /**< too many instances of some object */
-		ypErrCode = YP_SYNTAX_MULTIPLE_INSTANCE
-	case C.LYVE_DUPID, C.LYVE_DUPLEAFLIST, C.LYVE_DUPLIST, C.LYVE_NOUNIQ: /**< duplicated identifier (schema) */
-		ypErrCode = YP_SYNTAX_DUPLICATE
-	case C.LYVE_ENUM_INVAL: /**< invalid enum value (schema) */
-		ypErrCode = YP_SYNTAX_ENUM_INVALID
-	case C.LYVE_ENUM_INNAME: /**< invalid enum name (schema) */
-		ypErrCode = YP_SYNTAX_ENUM_INVALID_NAME
-	case C.LYVE_ENUM_WS: /**< enum name with leading/trailing whitespaces (schema) */
-		ypErrCode = YP_SYNTAX_ENUM_WHITESPACE
-	case C.LYVE_KEY_NLEAF, C.LYVE_KEY_CONFIG, C.LYVE_KEY_TYPE: /**< list key is not a leaf (schema) */
-		ypErrCode = YP_SEMANTIC_KEY_INVALID
-	case C.LYVE_KEY_MISS, C.LYVE_PATH_MISSKEY: /**< list key not found (schema) */
-		ypErrCode = YP_SEMANTIC_KEY_NOT_EXIST
-	case C.LYVE_KEY_DUP: /**< duplicated key identifier (schema) */
-		ypErrCode = YP_SEMANTIC_KEY_DUPLICATE
-	case C.LYVE_NOMIN: /**< min-elements constraint not honored (data) */
-		ypErrCode = YP_SYNTAX_MINIMUM_INVALID
-	case C.LYVE_NOMAX: /**< max-elements constraint not honored (data) */
-		ypErrCode = YP_SYNTAX_MAXIMUM_INVALID
-	case C.LYVE_NOMUST, C.LYVE_NOWHEN, C.LYVE_INWHEN, C.LYVE_NOLEAFREF: /**< unsatisfied must condition (data) */
+	case C.LYVE_SYNTAX_YANG: /**< YANG-related syntax error */
+		ypErrCode = YP_SYNTAX_INVALID_INPUT_DATA
+	case C.LYVE_SYNTAX_YIN: /**< YIN-related syntax error */
+		ypErrCode = YP_SYNTAX_INVALID_INPUT_DATA
+	case C.LYVE_REFERENCE: /**< invalid referencing or using an item */
 		ypErrCode = YP_SEMANTIC_DEPENDENT_DATA_MISSING
-	case C.LYVE_NOMANDCHOICE: /**< max-elements constraint not honored (data) */
-		ypErrCode = YP_SEMANTIC_MANDATORY_DATA_MISSING
-	case C.LYVE_PATH_EXISTS: /**< target node already exists (path) */
-		ypErrCode = YP_SEMANTIC_KEY_ALREADY_EXIST
+	case C.LYVE_XPATH: /**< invalid XPath expression */
+		ypErrCode = YP_SEMANTIC_KEY_NOT_EXIST
+	case C.LYVE_SEMANTICS: /**< generic semantic error */
+		ypErrCode = YP_SEMANTIC_KEY_INVALID
+	case C.LYVE_SYNTAX_XML: /**< XML-related syntax error */
+		ypErrCode = YP_SYNTAX_INVALID_FIELD
+	case C.LYVE_SYNTAX_JSON: /**< JSON-related syntax error */
+		ypErrCode = YP_SYNTAX_INVALID_FIELD
+	case C.LYVE_DATA: /**< YANG data does not reflect some of the module restrictions */
+		if apptag == "too-few-elements" {
+			ypErrCode = YP_SYNTAX_MINIMUM_INVALID
+		} else if apptag == "too-many-elements" {
+			ypErrCode = YP_SYNTAX_MAXIMUM_INVALID
+		} else if strings.HasPrefix(msg, "Invalid enumeration value") {
+			ypErrCode = YP_SYNTAX_ENUM_INVALID
+		} else if strings.HasPrefix(msg, "Unsatisfied") {
+			ypErrCode = YP_SYNTAX_OUT_OF_RANGE
+		} else if strings.HasPrefix(msg, "Mandatory") {
+			ypErrCode = YP_SYNTAX_MISSING_FIELD
+		} else {
+			ypErrCode = YP_SYNTAX_INVALID_INPUT_DATA
+		}
+	case C.LYVE_OTHER:
+		ypErrCode = YP_INTERNAL_UNKNOWN
 	default:
 		ypErrCode = YP_INTERNAL_UNKNOWN
-
 	}
 	return ypErrCode
 }
@@ -613,34 +709,36 @@ func getErrorDetails() YParserError {
 	var errMsg, errPath, errAppTag string
 
 	ctx := (*C.struct_ly_ctx)(ypCtx)
-	ypErrFirst := C.ly_err_first(ctx)
+	ypErrLast := C.ly_err_last(ctx)
 
-	if ypErrFirst == nil {
+	if ypErrLast == nil {
 		return YParserError{
 			ErrCode: ypErrCode,
 		}
 	}
 
-	if (ypErrFirst != nil) && ypErrFirst.prev.no == C.LY_SUCCESS {
+	if ypErrLast.err == C.LY_SUCCESS {
 		return YParserError{
 			ErrCode: YP_SUCCESS,
 		}
 	}
 
-	if ypErrFirst != nil {
-		errMsg = C.GoString(ypErrFirst.prev.msg)
-		errPath = C.GoString(ypErrFirst.prev.path)
-		errAppTag = C.GoString(ypErrFirst.prev.apptag)
+	errMsg = C.GoString(ypErrLast.msg)
+	if ypErrLast.data_path != nil {
+		errPath = C.GoString(ypErrLast.data_path)
+	} else {
+		errPath = C.GoString(ypErrLast.schema_path)
 	}
+	errAppTag = C.GoString(ypErrLast.apptag)
 
 	// Try to resolve table, keys and field name from the error path.
 	errtableName, key, ElemName = parseLyPath(errPath)
 
 	if !strings.HasPrefix(errMsg, customErrorPrefix) {
 		// libyang generated error message.. try to extract the field value & name
-		ElemVal = parseLyMessage(errMsg, lyBadValue)
+		ElemVal = parseLyMessage(errMsg, lyBadValue, lyUnsatisfied)
 		if len(ElemName) == 0 { // if not resolved from path
-			ElemName = parseLyMessage(errMsg, lyElemPrefix, lyElemSuffix)
+			ElemName = parseLyMessage(errMsg, lyMandatory)
 		}
 	} else {
 		/* Custom contraint error message like in must statement.
@@ -649,10 +747,10 @@ func getErrorDetails() YParserError {
 		errText = errMsg[len(customErrorPrefix):]
 	}
 
-	switch C.ly_errno {
+	switch ypErrLast.err {
 	case C.LY_EVALID:
 		// validation failure
-		ypErrCode = translateLYErrToYParserErr(int(ypErrFirst.prev.vecode))
+		ypErrCode = translateLYErrToYParserErr(int(ypErrLast.vecode), errAppTag, errMsg)
 		if len(ElemName) != 0 {
 			errMessage = "Field \"" + ElemName + "\" has invalid value"
 			if len(ElemVal) != 0 {
@@ -695,110 +793,82 @@ func getErrorDetails() YParserError {
 	return errObj
 }
 
-func FindNode(root *YParserNode, xpath string) *YParserNode {
-	return (*YParserNode)(C.lyd_find_node((*C.struct_lyd_node)(root), C.CString(xpath)))
-}
-
 func GetModelNs(module *YParserModule) (ns, prefix string) {
 	return C.GoString(((*C.struct_lys_module)(module)).ns),
 		C.GoString(((*C.struct_lys_module)(module)).prefix)
 }
 
 // Get model details for child under list/choice/case
-func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
+func getModelChildInfo(l *YParserListInfo, node *C.struct_lysc_node, module *YParserModule,
 	underWhen bool, whenExpr *WhenExpression) {
 
-	for sChild := node.child; sChild != nil; sChild = sChild.next {
+	for sChild := C.lysc_node_child(node); sChild != nil; sChild = sChild.next {
 		switch sChild.nodetype {
 		case C.LYS_LIST:
-			nodeInnerList := (*C.struct_lys_node_list)(unsafe.Pointer(sChild))
-			innerListkeys := (*[10]*C.struct_lys_node_leaf)(unsafe.Pointer(nodeInnerList.keys))
-			if nodeInnerList.keys_size == 1 {
-				keyName := C.GoString(innerListkeys[0].name)
-				l.MapLeaf = append(l.MapLeaf, keyName)
+			keysCnt := C.golysc_node_list_keys_count(sChild)
+			if keysCnt == 1 {
+				// fetch key leaf
+				for sChildInner := C.lysc_node_child(sChild); sChildInner != nil; sChildInner = sChildInner.next {
+					if sChildInner.nodetype == C.LYS_LEAF && (sChildInner.flags&C.LYS_KEY) != 0 {
+						keyName := C.GoString(sChildInner.name)
+						l.MapLeaf = append(l.MapLeaf, keyName)
+						break
+					}
+				}
 				// Now, find and add the first non-key leaf.
-				for sChildInner := nodeInnerList.child; sChildInner != nil; sChildInner = sChildInner.next {
-					if sChildInner.nodetype == C.LYS_LEAF {
-						// Check if the leaf is not a key.
-						if name := C.GoString(sChildInner.name); name != keyName {
-							l.MapLeaf = append(l.MapLeaf, name)
-							break
-						}
+				for sChildInner := C.lysc_node_child(sChild); sChildInner != nil; sChildInner = sChildInner.next {
+					if sChildInner.nodetype == C.LYS_LEAF && (sChildInner.flags&C.LYS_KEY) == 0 {
+						name := C.GoString(sChildInner.name)
+						l.MapLeaf = append(l.MapLeaf, name)
+						break
 					}
 				}
 			} else { // should never hit here, as linter does the validation
-				listName := C.GoString(nodeInnerList.name)
-				TRACE_LOG(TRACE_YPARSER, "Inner List %s for Dynamic fields has %d keys", listName, nodeInnerList.keys_size)
+				listName := C.GoString(sChild.name)
+				TRACE_LOG(TRACE_YPARSER, "Inner List %s for Dynamic fields has %d keys", listName, keysCnt)
 			}
-		case C.LYS_USES:
-			nodeUses := (*C.struct_lys_node_uses)(unsafe.Pointer(sChild))
-			if nodeUses.when != nil {
-				usesWhenExp := WhenExpression{
-					Expr: C.GoString(nodeUses.when.cond),
+		case C.LYS_CHOICE, C.LYS_CASE:
+			when := C.golysc_node_get_when(sChild)
+			if when != nil {
+				cWhenExp := WhenExpression{
+					Expr: C.GoString(when),
 				}
 				listName := l.ListName + "_LIST"
 				l.WhenExpr[listName] = append(l.WhenExpr[listName],
-					&usesWhenExp)
-				getModelChildInfo(l, sChild, true, &usesWhenExp)
+					&cWhenExp)
+				getModelChildInfo(l, sChild, module, true, &cWhenExp)
 			} else {
-				getModelChildInfo(l, sChild, false, nil)
-			}
-		case C.LYS_CHOICE:
-			nodeChoice := (*C.struct_lys_node_choice)(unsafe.Pointer(sChild))
-			if nodeChoice.when != nil {
-				chWhenExp := WhenExpression{
-					Expr: C.GoString(nodeChoice.when.cond),
-				}
-				listName := l.ListName + "_LIST"
-				l.WhenExpr[listName] = append(l.WhenExpr[listName],
-					&chWhenExp)
-				getModelChildInfo(l, sChild, true, &chWhenExp)
-			} else {
-				getModelChildInfo(l, sChild, false, nil)
-			}
-		case C.LYS_CASE:
-			nodeCase := (*C.struct_lys_node_case)(unsafe.Pointer(sChild))
-			if nodeCase.when != nil {
-				csWhenExp := WhenExpression{
-					Expr: C.GoString(nodeCase.when.cond),
-				}
-				listName := l.ListName + "_LIST"
-				l.WhenExpr[listName] = append(l.WhenExpr[listName],
-					&csWhenExp)
-				getModelChildInfo(l, sChild, true, &csWhenExp)
-			} else {
-				if underWhen {
-					getModelChildInfo(l, sChild, underWhen, whenExpr)
+				if underWhen && sChild.nodetype == C.LYS_CASE {
+					// Why only nodetype == C.LYS_CASE? old code was like that
+					getModelChildInfo(l, sChild, module, underWhen, whenExpr)
 				} else {
-					getModelChildInfo(l, sChild, false, nil)
+					getModelChildInfo(l, sChild, module, false, nil)
 				}
 			}
 		case C.LYS_LEAF, C.LYS_LEAFLIST:
-			sleaf := (*C.struct_lys_node_leaf)(unsafe.Pointer(sChild))
-			if sleaf == nil {
-				continue
-			}
-
-			leafName := C.GoString(sleaf.name)
-
+			leafName := C.GoString(sChild.name)
+			var nodeMusts (*C.struct_lysc_must)
+			var nodeWhen (**C.struct_lysc_when)
 			if sChild.nodetype == C.LYS_LEAF {
+				sleaf := (*C.struct_lysc_node_leaf)(unsafe.Pointer(sChild))
+				nodeMusts = sleaf.musts
+				nodeWhen = sleaf.when
 				if sleaf.dflt != nil {
-					l.DfltLeafVal[leafName] = C.GoString(sleaf.dflt)
+					l.DfltLeafVal[leafName] = C.GoString(C.lyd_value_get_canonical((*C.struct_ly_ctx)(ypCtx), sleaf.dflt))
 				}
 			} else {
-				sLeafList := (*C.struct_lys_node_leaflist)(unsafe.Pointer(sChild))
-				if sleaf.dflt != nil {
-					//array of default values
-					dfltValArr := (*[256]*C.char)(unsafe.Pointer(sLeafList.dflt))
-
+				sLeafList := (*C.struct_lysc_node_leaflist)(unsafe.Pointer(sChild))
+				nodeMusts = sLeafList.musts
+				nodeWhen = sLeafList.when
+				if sLeafList.dflts != nil {
 					tmpValStr := ""
-					for idx := 0; idx < int(sLeafList.dflt_size); idx++ {
+					for idx := 0; idx < int(C.golyd_value_array_count(sLeafList.dflts)); idx++ {
 						if idx > 0 {
 							//Separate multiple values by ,
 							tmpValStr = tmpValStr + ","
 						}
 
-						tmpValStr = tmpValStr + C.GoString(dfltValArr[idx])
+						tmpValStr = tmpValStr + C.GoString(C.lyd_value_get_canonical((*C.struct_ly_ctx)(ypCtx), C.golyd_value_array_idx(sLeafList.dflts, (C.size_t)(idx))))
 					}
 
 					//Remove last ','
@@ -821,21 +891,22 @@ func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 			}
 
 			//Check for leafref expression
-			leafRefs := C.lys_get_leafrefs(sleaf)
+			leafRefs := C.golys_xpath_targets_get(sChild)
+			defer C.golys_xpath_targets_free(leafRefs)
 			if leafRefs != nil {
-				leafRefPaths := (*[10]*C.char)(unsafe.Pointer(&leafRefs.path))
+				leafRefPaths := (*[256]*C.char)(unsafe.Pointer(leafRefs.xpathlist))
 				for idx := 0; idx < int(leafRefs.count); idx++ {
-					l.LeafRef[leafName] = append(l.LeafRef[leafName],
-						C.GoString(leafRefPaths[idx]))
+					path := rewriteXPathPrefix(module, C.GoString(leafRefPaths[idx]))
+					l.LeafRef[leafName] = append(l.LeafRef[leafName], path)
 				}
 			}
 
 			//Check for must expression; one must expession only per leaf
-			if sleaf.must_size > 0 {
-				must := (*[20]C.struct_lys_restr)(unsafe.Pointer(sleaf.must))
-				for idx := 0; idx < int(sleaf.must_size); idx++ {
-					exp := XpathExpression{Expr: C.GoString(must[idx].expr)}
-
+			if nodeMusts != nil {
+				must := (*[20]C.struct_lysc_must)(unsafe.Pointer(nodeMusts))
+				for idx := 0; idx < int(C.golysc_must_array_count(nodeMusts)); idx++ {
+					mustexpr := rewriteXPathPrefix(module, C.GoString(C.lyxp_get_expr(must[idx].cond)))
+					exp := XpathExpression{Expr: mustexpr}
 					if must[idx].eapptag != nil {
 						exp.ErrCode = C.GoString(must[idx].eapptag)
 					}
@@ -849,20 +920,22 @@ func getModelChildInfo(l *YParserListInfo, node *C.struct_lys_node,
 			}
 
 			//Check for when expression
-			if sleaf.when != nil {
+			if nodeWhen != nil {
+				when := (*[20]*C.struct_lysc_when)(unsafe.Pointer(nodeWhen))
+				whenexpr := rewriteXPathPrefix(module, C.GoString(C.lyxp_get_expr(when[0].cond)))
 				l.WhenExpr[leafName] = append(l.WhenExpr[leafName],
 					&WhenExpression{
-						Expr:      C.GoString(sleaf.when.cond),
+						Expr:      whenexpr,
 						NodeNames: []string{leafName},
 					})
 			}
 
 			//Check for custom extension
-			if sleaf.ext_size > 0 {
-				exts := (*[10]*C.struct_lys_ext_instance)(unsafe.Pointer(sleaf.ext))
-				for idx := 0; idx < int(sleaf.ext_size); idx++ {
-					if C.GoString(exts[idx].def.name) == "custom-validation" {
-						argVal := C.GoString(exts[idx].arg_value)
+			if sChild.exts != nil {
+				for idx := 0; idx < int(C.golysc_ext_instance_array_count(sChild.exts)); idx++ {
+					ext := C.golysc_ext_instance_array_idx(sChild.exts, (C.size_t)(idx))
+					if C.GoString(ext.def.name) == "custom-validation" {
+						argVal := C.GoString(ext.argument)
 						if argVal != "" {
 							l.CustValidation[leafName] = append(l.CustValidation[leafName], argVal)
 						}
@@ -885,24 +958,29 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 	var list []*YParserListInfo
 
 	mod := (*C.struct_lys_module)(module)
-	set := C.lys_find_path(mod, nil,
-		C.CString(fmt.Sprintf("/%s/*", C.GoString(mod.name))))
-
-	if set == nil {
+	if mod == nil || mod.compiled == nil || mod.compiled.data == nil {
 		return nil
 	}
 
-	for idx := 0; idx < int(set.number); idx++ { //for each container
+	// Each container has a base container, then a set of containers under that.
+	// We need to skip over the base container
+	if mod.compiled.data.nodetype != C.LYS_CONTAINER {
+		return nil
+	}
+	cbase := (*C.struct_lysc_node_container)(unsafe.Pointer(mod.compiled.data))
 
-		snode := C.lys_get_snode(set, C.int(idx))
-		snodec := (*C.struct_lys_node_container)(unsafe.Pointer(snode))
-		slist := (*C.struct_lys_node_list)(unsafe.Pointer(snodec.child))
+	for snode := cbase.child; snode != nil; snode = snode.next { //for each container
+		if snode.nodetype != C.LYS_CONTAINER {
+			continue
+		}
+		snodec := (*C.struct_lysc_node_container)(unsafe.Pointer(snode))
 
 		//for each list
-		for ; slist != nil; slist = (*C.struct_lys_node_list)(unsafe.Pointer(slist.next)) {
+		for n := snodec.child; n != nil; n = n.next {
 			var l YParserListInfo
-			listName := C.GoString(slist.name)
-			l.RedisTableName = C.GoString(snodec.name)
+			slist := (*C.struct_lysc_node_list)(unsafe.Pointer(n))
+			listName := C.GoString(n.name)
+			l.RedisTableName = C.GoString(snode.name)
 
 			tableName := listName
 			if strings.HasSuffix(tableName, "_LIST") {
@@ -929,17 +1007,18 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 			l.MandatoryNodes = make(map[string]bool)
 
 			//Add keys
-			keys := (*[10]*C.struct_lys_node_leaf)(unsafe.Pointer(slist.keys))
-			for idx := 0; idx < int(slist.keys_size); idx++ {
-				keyName := C.GoString(keys[idx].name)
-				l.Keys = append(l.Keys, keyName)
+			for child := slist.child; child != nil; child = child.next {
+				if (child.flags & C.LYS_KEY) != 0 {
+					l.Keys = append(l.Keys, C.GoString(child.name))
+				}
 			}
 
 			//Check for must expression
-			if slist.must_size > 0 {
-				must := (*[10]C.struct_lys_restr)(unsafe.Pointer(slist.must))
-				for idx := 0; idx < int(slist.must_size); idx++ {
-					exp := XpathExpression{Expr: C.GoString(must[idx].expr)}
+			if slist.musts != nil {
+				must := (*[10]C.struct_lysc_must)(unsafe.Pointer(slist.musts))
+				for idx := 0; idx < int(C.golysc_must_array_count(slist.musts)); idx++ {
+					mustexp := rewriteXPathPrefix(module, C.GoString(C.lyxp_get_expr(must[idx].cond)))
+					exp := XpathExpression{Expr: mustexp}
 					if must[idx].eapptag != nil {
 						exp.ErrCode = C.GoString(must[idx].eapptag)
 					}
@@ -953,13 +1032,11 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 			}
 
 			//Check for custom extension
-			if slist.ext_size > 0 {
-				exts := (*[10]*C.struct_lys_ext_instance)(unsafe.Pointer(slist.ext))
-				for idx := 0; idx < int(slist.ext_size); idx++ {
-
-					extName := C.GoString(exts[idx].def.name)
-					argVal := C.GoString(exts[idx].arg_value)
-
+			if n.exts != nil {
+				for idx := 0; idx < int(C.golysc_ext_instance_array_count(n.exts)); idx++ {
+					ext := C.golysc_ext_instance_array_idx(n.exts, (C.size_t)(idx))
+					extName := C.GoString(ext.def.name)
+					argVal := C.GoString(ext.argument)
 					switch extName {
 					case "custom-validation":
 						if argVal != "" {
@@ -990,12 +1067,10 @@ func GetModelListInfo(module *YParserModule) []*YParserListInfo {
 			}
 
 			getModelChildInfo(&l,
-				(*C.struct_lys_node)(unsafe.Pointer(slist)), false, nil)
+				(*C.struct_lysc_node)(unsafe.Pointer(slist)), module, false, nil)
 
 			list = append(list, &l)
 		} //each list inside a container
 	} //each container
-
-	C.free(unsafe.Pointer(set))
 	return list
 }
