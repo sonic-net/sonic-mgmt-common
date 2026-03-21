@@ -35,11 +35,12 @@ import (
 
 func newDB(dBNum DBNum) (*DB, error) {
 	d, e := NewDB(Options{
-		DBNo:               dBNum,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-		DisableCVLCheck:    true,
+		DBNo:                    dBNum,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		DisableCVLCheck:         true,
+		ForceNewRedisConnection: true,
 	})
 	return d, e
 }
