@@ -54,6 +54,7 @@ stages:
             target/debs/trixie/libpcre16-3_*.deb
             target/debs/trixie/libpcre32-3_*.deb
             target/debs/trixie/libpcrecpp0v5_*.deb
+            target/debs/trixie/libpcre3-dev_*.deb
             target/debs/trixie/libyang*.deb
             target/python-wheels/trixie/sonic_yang_models*.whl
       displayName: "Download sonic buildimage"
@@ -72,6 +73,9 @@ stages:
                      ../target/debs/trixie/libpcre16-3_*.deb \
                      ../target/debs/trixie/libpcre32-3_*.deb \
                      ../target/debs/trixie/libpcrecpp0v5_*.deb
+
+        # LIBPCRE3-DEV (required by libyang-dev)
+        sudo dpkg -i ../target/debs/trixie/libpcre3-dev_*.deb
 
         # LIBYANG
         sudo dpkg -i ../target/debs/trixie/libyang*1.0.73*.deb
