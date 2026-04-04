@@ -328,7 +328,7 @@ func loadSchemaFiles() CVLRetCode {
 		// Now parse each schema file
 		var module *yparser.YParserModule
 		if module, _ = yparser.ParseSchemaFile(modelFilePath); module == nil {
-			CVL_LOG(FATAL, fmt.Sprintf("Unable to parse schema file %s", modelFile))
+			CVL_LOG(FATAL, "Unable to parse schema file %s", modelFile)
 			return CVL_ERROR
 		}
 
