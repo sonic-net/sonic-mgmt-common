@@ -48,6 +48,10 @@ module openconfig-sampling-sflow-deviation {
          deviate not-supported;
     }
 
+    deviation /oc-sampling:sampling/oc-sampling:sflow/oc-sampling:state/oc-sampling:sampling-rate {
+         deviate not-supported;
+    }
+
     deviation /oc-sampling:sampling/oc-sampling:sflow/oc-sampling:collectors/oc-sampling:collector/oc-sampling:state/oc-sampling:packets-sent {
 	 deviate not-supported;
     }    

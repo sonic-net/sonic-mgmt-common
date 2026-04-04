@@ -276,9 +276,14 @@ var YangToDb_sflow_collector_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams
 	log.V(3).Info("sFlow Collector YangToDBSubTreeXfmr: ", inParams.uri)
 	col_map := make(map[string]db.Value)
 	sflowObj := getSflowRootObject(inParams.ygRoot)
+	targetUriPath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
 
 	key := makeColKey(inParams.uri)
 	if inParams.oper == DELETE {
+		if strings.HasPrefix(targetUriPath, SAMPLING_SFLOW_COLS_COL_CONFIG) {
+			return res_map, errors.New("Delete operation not supported for this xpath")
+		}
+
 		if key != "" {
 			col_map[key] = db.Value{Field: make(map[string]string)}
 		}
@@ -378,7 +383,7 @@ var YangToDb_sflow_interface_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams
 	intf_map := make(map[string]db.Value)
 	sflowObj := getSflowRootObject(inParams.ygRoot)
 	targetUriPath, _, _ := XfmrRemoveXPATHPredicates(inParams.requestUri)
-	log.V(3).Infof("Subscribe_sflow_xfmr: targetUri %v ", targetUriPath)
+	log.V(3).Infof("YangToDb_sflow_interface_xfmr: targetUri %v ", targetUriPath)
 
 	if inParams.oper == DELETE {
 		if !strings.Contains(targetUriPath, SAMPLING_SFLOW_INTFS_INTF) {

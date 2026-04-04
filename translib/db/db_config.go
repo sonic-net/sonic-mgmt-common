@@ -159,3 +159,7 @@ func getDbPassword(dbName string) string {
 	}
 	return password
 }
+
+func GetDbConfigMap() map[string]interface{} {
+	return dbConfigMap
+}

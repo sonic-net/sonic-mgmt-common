@@ -75,9 +75,10 @@ module sonic-extensions {
     description "Transformer name that will perform post-translation tasks.";
   }
 
-  extension get-validate {
-	    argument "get-validate-name";
-	    description "Validation callpoint used to validate a YANG node during data translation back to YANG as a response to GET.";
+  extension validate-xfmr {
+    argument "validate-xfmr-name";
+    description "Validation callpoint used to validate a YANG node during data translation.
+		 Equivalent to XPath evaluation on when statement";
   }
 
   extension db-name {
@@ -107,7 +108,9 @@ module sonic-extensions {
 
   extension table-owner {
     argument "table-owner-flag";
-    description "Owner of the redis-db table.";
+    description  "Indicates table ownership of the redis-db table annotated at the node.
+                  The extension is applicable to the nodes annotated with table-name or table-transformer and having no subtree-transformer annotation.
+                  The table-owner is deemed to be true unless it is annotated with its value to 'false'.";
   }
 
   extension virtual-table {

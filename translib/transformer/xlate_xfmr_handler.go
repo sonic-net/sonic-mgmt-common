@@ -339,36 +339,25 @@ func keyXfmrHandler(inParams XfmrParams, xfmrFuncNm string) (string, error) {
 }
 
 /* Invoke the post tansformer */
-func postXfmrHandlerFunc(xfmrPost string, inParams XfmrParams) (map[string]map[string]db.Value, error) {
-	const (
-		POST_XFMR_RET_ARGS     = 2
-		POST_XFMR_RET_VAL_INDX = 0
-		POST_XFMR_RET_ERR_INDX = 1
-	)
-	retData := make(map[string]map[string]db.Value)
+func postXfmrHandlerFunc(xfmrPost string, inParams XfmrParams) error {
+	const POST_XFMR_RET_ERR_INDX = 0
 	xfmrLogDebug("Before calling post xfmr %v, inParams %v", xfmrPost, inParams)
 	ret, err := XlateFuncCall(xfmrPost, inParams)
 	xfmrLogDebug("After calling post xfmr %v, inParams %v", xfmrPost, inParams)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if (ret != nil) && (len(ret) > 0) {
-		if len(ret) == POST_XFMR_RET_ARGS {
-			// post xfmr returns err as second value in return data list from <xfmr_func>.Call()
-			if ret[POST_XFMR_RET_ERR_INDX].Interface() != nil {
-				err = ret[POST_XFMR_RET_ERR_INDX].Interface().(error)
-				if err != nil {
-					log.Warningf("Transformer function(\"%v\") returned error - %v.", xfmrPost, err)
-					return retData, err
-				}
+		// post xfmr returns err as the only value in return data list from <xfmr_func>.Call()
+		if ret[POST_XFMR_RET_ERR_INDX].Interface() != nil {
+			err = ret[POST_XFMR_RET_ERR_INDX].Interface().(error)
+			if err != nil {
+				log.Warningf("Transformer function(\"%v\") returned error - %v.", xfmrPost, err)
+				return err
 			}
 		}
-		if ret[POST_XFMR_RET_VAL_INDX].Interface() != nil {
-			retData = ret[POST_XFMR_RET_VAL_INDX].Interface().(map[string]map[string]db.Value)
-			xfmrLogDebug("Post xfmr function : %v retData : %v", xfmrPost, retData)
-		}
 	}
-	return retData, err
+	return err
 }
 
 /* Invoke the pre tansformer */
