@@ -281,7 +281,10 @@ func (c *CVL) generateYangListData(jsonNode *jsonquery.Node,
 			listConatinerNode = c.addYangNode(origTableName, topNode, origTableName, "")
 			topNodesAdded = true
 		}
-		keyValuePair := getRedisToYangKeys(tableName, redisKey)
+		keyValuePair, cvlErrObj := getRedisToYangKeys(tableName, redisKey)
+		if cvlErrObj.ErrCode != CVL_SUCCESS {
+			return nil, cvlErrObj
+		}
 		keyCompCount := len(keyValuePair)
 		totalKeyComb := 1
 		var keyIndices []int
@@ -1527,8 +1530,8 @@ func (c *CVL) checkDepDataCompatible(tblName, key, reftblName, refTblKey, leafRe
 	}
 
 	// Fetch key value pair for both current table and ref table
-	tblKeysKVP := getRedisToYangKeys(tblName, key)
-	refTblKeysKVP := getRedisToYangKeys(reftblName, refTblKey)
+	tblKeysKVP, _ := getRedisToYangKeys(tblName, key)
+	refTblKeysKVP, _ := getRedisToYangKeys(reftblName, refTblKey)
 
 	// Determine the leafref
 	leafRef := getLeafRefInfo(reftblName, leafRefField, tblName)
