@@ -69,17 +69,6 @@ $(TRANSFORMER_TEST_APP_BIN): $(TRANSFORMER_ALL_SRCS) $(TRANSLIB_MAIN_SRCS) $(YGO
 
 $(YGOT_BINDS): $(YANG_FILES)
 	$(RM) $@
-	# Go 1.24+ changed 'go mod vendor' to only include packages directly
-	# imported by the module. The ygot tool packages and their dependencies
-	# are used by 'go run' below but not directly imported, so they are no
-	# longer vendored automatically. Add them to vendor/modules.txt.
-	@grep -q 'github.com/openconfig/ygot/ygen' $(TOPDIR)/vendor/modules.txt 2>/dev/null || \
-		( echo "github.com/openconfig/gnmi/ctree" >> $(TOPDIR)/vendor/modules.txt && \
-		  echo "github.com/openconfig/gnmi/errlist" >> $(TOPDIR)/vendor/modules.txt && \
-		  echo "github.com/openconfig/gnmi/proto/gnmi" >> $(TOPDIR)/vendor/modules.txt && \
-		  echo "github.com/openconfig/ygot/genutil" >> $(TOPDIR)/vendor/modules.txt && \
-		  echo "github.com/openconfig/ygot/generator" >> $(TOPDIR)/vendor/modules.txt && \
-		  echo "github.com/openconfig/ygot/ygen" >> $(TOPDIR)/vendor/modules.txt )
 	$(GO) run \
 		--mod=vendor \
 		$(TOPDIR)/vendor/github.com/openconfig/ygot/generator/generator.go \
