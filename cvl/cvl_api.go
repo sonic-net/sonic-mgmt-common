@@ -390,6 +390,13 @@ func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErr
 				return cvlErrObj, CVL_SYNTAX_ERROR
 			}
 
+			//Check mandatory fields for OP_CREATE (Fixes issue #2283)
+			//Enforce YANG "mandatory true" constraint during CREATE operations
+			yangListName := getRedisTblToYangList(tbl, key)
+			if cvlErrObj := c.checkMandatoryFieldsForCreate(cfgData[i], yangListName, tbl, key); cvlErrObj.ErrCode != CVL_SUCCESS {
+				return cvlErrObj, cvlErrObj.ErrCode
+			}
+
 		case cmn.OP_UPDATE:
 			//Get the existing data from Redis to cache, so that final
 			//validation can be done after merging this dependent data
@@ -602,6 +609,47 @@ func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErr
 	}
 
 	return cvlErrObj, CVL_SUCCESS
+}
+
+// checkMandatoryFieldsForCreate checks if all mandatory fields are present during OP_CREATE
+// This function enforces YANG "mandatory true" constraint for CREATE operations
+// Fixes issue: https://github.com/sonic-net/SONiC/issues/2283
+func (c *CVL) checkMandatoryFieldsForCreate(cfgData cmn.CVLEditConfigData, yangListName, tbl, key string) CVLErrorInfo {
+	var cvlErrObj CVLErrorInfo
+	cvlErrObj.ErrCode = CVL_SUCCESS
+
+	// Get YANG schema information for this table
+	listInfo, exists := modelInfo.tableInfo[tbl]
+	if !exists {
+		CVL_LOG(INFO_DEBUG, "No YANG model found for table %s, skipping mandatory check", tbl)
+		return cvlErrObj
+	}
+
+	// Iterate through all leaf nodes in the YANG model
+	for fieldName, fieldInfo := range listInfo.mapLeaf {
+		// Check if this is a mandatory field
+		if fieldInfo.yangEntry != nil && fieldInfo.yangEntry.Mandatory {
+			// Check if the mandatory field is present in the data
+			if _, exists := cfgData.Data[fieldName]; !exists {
+				// Mandatory field is missing
+				CVL_LOG(WARNING, "Mandatory field '%s' missing for CREATE operation on table %s, key %s",
+					fieldName, tbl, key)
+				
+				cvlErrObj.ErrCode = CVL_SEMANTIC_ERROR
+				cvlErrObj.TableName = tbl
+				cvlErrObj.Keys = splitKeyComponents(tbl, key)
+				cvlErrObj.Field = fieldName
+				cvlErrObj.Msg = fmt.Sprintf("Mandatory field '%s' is missing", fieldName)
+				cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
+				cvlErrObj.ErrAppTag = "missing-mandatory-field"
+				cvlErrObj.ConstraintErrMsg = cvlErrObj.Msg
+				
+				return cvlErrObj
+			}
+		}
+	}
+
+	return cvlErrObj
 }
 
 func (c *CVL) markCfgDataValidated(cfgData *cmn.CVLEditConfigData, tbl, key string) {
