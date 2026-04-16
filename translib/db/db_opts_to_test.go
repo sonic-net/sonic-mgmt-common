@@ -29,7 +29,9 @@ import (
 
 	// "github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	// "os/exec"
+	"context"
 	"os"
+
 	// "reflect"
 	"strconv"
 	"strings"
@@ -37,7 +39,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 )
 
 func TestDefaultTimeout(t *testing.T) {
@@ -47,12 +49,13 @@ func TestDefaultTimeout(t *testing.T) {
 	t.Logf("TestDefaultTimeout: %s: begin", time.Now().String())
 
 	d, e := NewDB(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-		IsWriteDisabled:    true,
-		DisableCVLCheck:    true,
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		IsWriteDisabled:         true,
+		DisableCVLCheck:         true,
+		ForceNewRedisConnection: false,
 	})
 
 	if d == nil {
@@ -113,12 +116,13 @@ func blockLUAScript(wg *sync.WaitGroup, secs int, t *testing.T) {
 	t.Logf("blockLUAScript: %s: begin: secs: %v", time.Now().String(), secs)
 
 	d, e := NewDB(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-		IsWriteDisabled:    true,
-		DisableCVLCheck:    true,
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		IsWriteDisabled:         true,
+		DisableCVLCheck:         true,
+		ForceNewRedisConnection: false,
 	})
 
 	if e != nil {
@@ -135,7 +139,7 @@ end
 return i
 `)
 
-	if _, e := luaScript.Run(d.client, []string{}, secs).Int(); e != nil {
+	if _, e := luaScript.Run(context.Background(), d.client, []string{}, secs).Int(); e != nil {
 		t.Logf("blockLUAScript: luaScript.Run() fails e = %v", e)
 	}
 

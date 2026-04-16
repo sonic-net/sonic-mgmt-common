@@ -22,6 +22,7 @@ package db
 // DB Layer Lock
 
 import (
+	"context"
 	"flag"
 	"os"
 	"path/filepath"
@@ -31,9 +32,8 @@ import (
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-
-	"github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -76,13 +76,13 @@ func (lt *LockStruct) tryLock() error {
 	if client, err = getStateDB(); err != nil {
 		return err
 	}
-	defer client.Close()
+	defer CloseRedisClient(client)
 
 	// HSETNX: Set Hash Field if Not Exist
 	args := []interface{}{"HSETNX", lockTableKey, lt.Name,
 		lt.comm + ":" + lt.Id}
-	glog.Info("tryLock: RedisCmd: STATE_DB: ", args)
-	if reply, err = client.Do(args...).Result(); err == nil {
+	glog.V(3).Info("tryLock: RedisCmd: STATE_DB: ", args)
+	if reply, err = client.Do(context.Background(), args...).Result(); err == nil {
 		if intReply, ok := reply.(int64); !ok {
 			glog.Errorf("tryLock: Reply %v Not int64: %v Type: %v",
 				args, reply, reflect.TypeOf(reply))
@@ -116,10 +116,10 @@ func (lt *LockStruct) unlock() error {
 	if client, err = getStateDB(); err != nil {
 		return err
 	}
-	defer client.Close()
+	defer CloseRedisClient(client)
 
 	// Run the LUA Script to HDEL if we set the key
-	if reply, err = luaScriptUnlock.Run(client,
+	if reply, err = luaScriptUnlock.Run(context.Background(), client,
 		[]string{lockTableKey},
 		[]string{lt.Name, lt.comm, lt.Id}).Result(); err == nil {
 
@@ -152,7 +152,7 @@ func (lt *LockStruct) dbLockedError(c *redis.Client) error {
 		lockId = lt.Id
 	} else if c == nil {
 		glog.Warningf("dbLockedError: nil db connection; assuming generic lock")
-	} else if v, err := c.HGet(lockTableKey, lt.Name).Result(); err != nil {
+	} else if v, err := c.HGet(context.Background(), lockTableKey, lt.Name).Result(); err != nil {
 		glog.Warningf("dbLockedError: 'HGET %s %s' failed; err=%v", lockTableKey, lt.Name, err)
 	} else if parts := strings.SplitN(v, ":", 2); len(parts) != 2 {
 		glog.Warningf("dbLockedError: 'HGET %s %s' returned unknown value %q", lockTableKey, lt.Name, v)
@@ -265,8 +265,7 @@ func dumpStack(begin, end int) {
 func getStateDB() (*redis.Client, error) {
 	var client *redis.Client
 	var err error
-	if client = redis.NewClient(adjustRedisOpts(&Options{
-		DBNo: StateDB})); client == nil {
+	if client = TransactionalRedisClient(StateDB); client == nil {
 
 		glog.Error("getStateDB: Could not create redis client: STATE_DB")
 		err = tlerr.TranslibDBCannotOpen{}
