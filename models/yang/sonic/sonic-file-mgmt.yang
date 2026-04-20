@@ -1,0 +1,31 @@
+module sonic-file-mgmt {
+    namespace "http://github.com/Azure/sonic-file-mgmt";
+    prefix sfilemgmt;
+    yang-version 1.1;
+
+	organization
+		"SONiC";
+
+	contact
+		"SONiC";
+
+	description
+		"SONiC RPCs definition for file module";
+
+	revision 2025-01-23 {
+		description
+			"Initial revision.";
+	}
+
+	rpc remove {
+		description
+			"Remove removes the specified file from the target";
+		input {
+			leaf remote_file {
+				type string;
+				description
+					"Path of the file to remove";
+			}
+		}
+	}
+}
