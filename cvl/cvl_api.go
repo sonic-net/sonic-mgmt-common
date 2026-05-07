@@ -854,6 +854,13 @@ func (c *CVL) GetOrderedDepTables(yangModule, tableName string) ([]string, CVLRe
 		for _, tn := range tblLists {
 			for _, depTblName := range modelInfo.tableInfo[tn].dependentTables {
 				if tbl == depTblName {
+					toName, exists := dupEdgeCheck[depTblName]
+					if exists && (toName == redisTblTo) {
+						// Skip duplicate edge already added via leafref block.
+						// Duplicate AddEdge corrupts g.outputs index in go-toposort causing panic.
+						CVL_LOG(INFO_DEBUG, "GetOrderedDepTables(): Skipping duplicate edge %s -> %s", depTblName, redisTblTo)
+						continue
+					}
 					graph.AddNodes(depTblName)
 					graph.AddEdge(depTblName, redisTblTo)
 					dupEdgeCheck[depTblName] = redisTblTo
