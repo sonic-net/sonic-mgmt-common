@@ -191,10 +191,16 @@ type SubTreeXfmrSubscribe func(inParams XfmrSubscInParams) (XfmrSubscOutParams, 
 // Return :  bool
 type ValidateCallpoint func(inParams XfmrParams) bool
 
-// RpcCallpoint is used to invoke a callback for action
+// RpcCallpoint is used to invoke a callback for top-level YANG RPC operations.
 // Param : []byte input payload, dbi indices
 // Return :  []byte output payload, error
 type RpcCallpoint func(body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error)
+
+// ActionCallpoint is used to invoke a callback for YANG 1.1 action
+// statements (RFC 7950 Section 7.15) or RPCs that need URI path context.
+// Param : vars contains path variables extracted from the URI predicates, body is the JSON input payload, dbs are the DB indices.
+// Return : []byte output payload, error
+type ActionCallpoint func(vars map[string]string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error)
 
 // PostXfmrFunc type is defined to use for handling any default handling operations required as part of the CREATE
 // Transformer function definition.

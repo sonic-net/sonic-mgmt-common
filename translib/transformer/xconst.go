@@ -50,6 +50,7 @@ const (
 	YANG_CHOICE
 	YANG_CASE
 	YANG_RPC
+	YANG_ACTION
 	YANG_NOTIF
 )
 const (
