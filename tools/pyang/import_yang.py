@@ -77,6 +77,8 @@ class Preprocessor(object):
         ctx.keep_comments = options.keep_comments
 
         excludes = [f.stem for f in options.to_dir.glob("*.yang")]
+        # Exclude common yang-models since they are already included in sonic-mgmt-common
+        excludes += [f.stem for f in options.to_dir.glob("common/*.yang")]
         if options.exclude:
             excludes += [f.stem for f in options.exclude]
 
