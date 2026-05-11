@@ -337,4 +337,10 @@ module openconfig-interfaces-annot {
         }
     }
 
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-plat-port:hardware-port {
+        deviate add {
+            sonic-ext:field-transformer "intf_hardware_port_xfmr";
+            sonic-ext:field-name "index";
+        }
+    }
 }

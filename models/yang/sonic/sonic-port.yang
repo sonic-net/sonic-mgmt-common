@@ -78,6 +78,10 @@ module sonic-port {
 					default 9100;
 				}
 
+				leaf id {
+                    			type uint32;
+                		}
+
 				leaf lanes {
 					type string;
 					mandatory true;

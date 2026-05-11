@@ -58,6 +58,7 @@ func init() {
 	XlateFuncBind("DbToYang_intf_mgmt_xfmr", DbToYang_intf_mgmt_xfmr)
 	XlateFuncBind("DbToYang_intf_cpu_xfmr", DbToYang_intf_cpu_xfmr)
 	XlateFuncBind("DbToYang_intf_logical_xfmr", DbToYang_intf_logical_xfmr)
+	XlateFuncBind("DbToYang_intf_hardware_port_xfmr", DbToYang_intf_hardware_port_xfmr)
 
 	XlateFuncBind("DbToYang_intf_eth_aggr_id_xfmr", DbToYang_intf_eth_aggr_id_xfmr)
 	XlateFuncBind("YangToDb_intf_eth_port_config_xfmr", YangToDb_intf_eth_port_config_xfmr)
@@ -128,6 +129,11 @@ const (
 	PORTCHANNEL = "PortChannel"
 	VLAN        = "Vlan"
 	LOOPBACK    = "Loopback"
+)
+
+const (
+	HARDWARE_PORT = "hardware-port"
+	PORT_INDEX    = "index"
 )
 
 type TblData struct {
@@ -213,6 +219,7 @@ const (
 	IntfSubTypeUnset E_InterfaceSubType = 0
 )
 
+/*aliya*/
 func getIntfTypeByName(name string) (E_InterfaceType, E_InterfaceSubType, error) {
 
 	var err error
@@ -4451,5 +4458,60 @@ var DbToYang_intf_cpu_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[st
 
 	// cpu port not supported
 	result["cpu"] = false
+	return result, nil
+}
+
+func getDBValues(inParams XfmrParams, tblName string) (db.Value, error) {
+	if tblName == "" {
+		return db.Value{Field: map[string]string{}}, errors.New("Invalid inParams or invalid tableName")
+	}
+	ifName := keyFromInParamsOrUri(inParams, "name")
+	prtInst, dbErr := inParams.dbs[inParams.curDb].GetEntry(&db.TableSpec{Name: tblName}, db.Key{Comp: []string{ifName}})
+	if dbErr != nil {
+		return db.Value{Field: map[string]string{}}, dbErr
+	}
+	return prtInst, nil
+}
+
+func getPortIndex(inParams XfmrParams, funcName string) (string, error) {
+	ifName := keyFromInParamsOrUri(inParams, "name")
+	intfType, _, ierr := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return "", tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
+	}
+	if intfType != IntfTypeEthernet {
+		return "", errors.New("interface type is not IntfTypeEthernet")
+	}
+	intTbl, ok := IntfTypeTblMap[intfType]
+	if !ok {
+		log.Errorf("%s type not found : %v", funcName, intfType)
+		return "", errors.New("interface type not found.")
+	}
+	tblName, err := getPortTableNameByDBId(intTbl, inParams.curDb)
+	if err != nil {
+		log.Errorf("%s table name not found", funcName)
+		return "", errors.New("table name not found. Err: " + err.Error())
+	}
+	prtInst, dbErr := getDBValues(inParams, tblName)
+	if dbErr != nil {
+		return "", dbErr
+	}
+	index, ok := prtInst.Field[PORT_INDEX]
+	if !ok {
+		return "", errors.New(funcName + " index not found in DB")
+	}
+	return index, nil
+}
+
+var DbToYang_intf_hardware_port_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	log.V(3).Infof("DEBUG: Entered xfmr with params: %v", inParams)
+	result := make(map[string]interface{})
+	index, err := getPortIndex(inParams, "DbToYang_intf_hardware_port_xfmr")
+	if err != nil {
+		log.V(3).Infof("DEBUG: getPortIndex failed with error: %v", err)
+		return nil, err
+	}
+	result[HARDWARE_PORT] = "1/" + index
+	log.V(3).Infof("DbToYang_intf_hardware_port_xfmr: Generated result map: %v", result)
 	return result, nil
 }
