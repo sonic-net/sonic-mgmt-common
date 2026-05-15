@@ -40,9 +40,20 @@ import (
 #include <stdio.h>
 #include <string.h>
 
-// Canonical typedefs over libyang's schema node, must, when, ext_instance
-// and per-nodetype subtype structs, so the rest of the file refers to each
-// type by a single yp_* name.
+// Version detection. libyang3's <libyang/tree.h> defines LY_ARRAY_COUNT;
+// libyang1 has no such macro. <libyang/libyang.h> pulls in tree.h, so the
+// macro is reliably visible by the time we test it.
+#if defined(LY_ARRAY_COUNT)
+enum { yp_is_libyang1 = 0 };
+#else
+enum { yp_is_libyang1 = 1 };
+#endif
+
+// Canonical typedefs over libyang's schema node, must, when, ext_instance and
+// per-nodetype subtype structs. libyang3 renamed everything to lysc_* once it
+// introduced parsed/compiled schema separation. Using these typedefs lets the
+// rest of the file refer to types by a single name in both builds.
+#if defined(LY_ARRAY_COUNT)
 typedef struct lysc_node yp_snode_t;
 typedef struct lysc_node_leaf yp_snode_leaf_t;
 typedef struct lysc_node_leaflist yp_snode_leaflist_t;
@@ -51,6 +62,16 @@ typedef struct lysc_node_container yp_snode_container_t;
 typedef struct lysc_must yp_must_t;
 typedef struct lysc_when yp_when_t;
 typedef struct lysc_ext_instance yp_ext_t;
+#else
+typedef struct lys_node yp_snode_t;
+typedef struct lys_node_leaf yp_snode_leaf_t;
+typedef struct lys_node_leaflist yp_snode_leaflist_t;
+typedef struct lys_node_list yp_snode_list_t;
+typedef struct lys_node_container yp_snode_container_t;
+typedef struct lys_restr yp_must_t;
+typedef struct lys_when yp_when_t;
+typedef struct lys_ext_instance yp_ext_t;
+#endif
 
 // YPC_* mirrors of YParser{Ret,Err}Code values for use from C in
 // yp_translate_validation_code(). Values must match the Go constants in
@@ -77,6 +98,7 @@ typedef struct lysc_ext_instance yp_ext_t;
 #define YPC_SEMANTIC_KEY_INVALID            1019
 #define YPC_INTERNAL_UNKNOWN                1020
 
+#if defined(LY_ARRAY_COUNT)
 struct ly_ctx *goly_ctx_new(const char *search_dir, uint16_t options)
 {
 	struct ly_ctx *ctx = NULL;
@@ -85,14 +107,34 @@ struct ly_ctx *goly_ctx_new(const char *search_dir, uint16_t options)
 	}
 	return ctx;
 }
+#else
+struct ly_ctx *goly_ctx_new(const char *search_dir, uint16_t options)
+{
+	return ly_ctx_new(search_dir, options);
+}
+#endif
 
-// Thin wrapper around lys_parse_path so the caller does not have to deal
-// with libyang's return-value-vs-out-param convention directly.
+// Workaround the libyang3 lys_parse_path signature change (return value
+// vs. out-param). Kept as a single wrapper so the Go caller does not have
+// to care which version is in use.
+#if defined(LY_ARRAY_COUNT)
 int goly_parse_path(struct ly_ctx *ctx, const char *path, struct lys_module **module)
 {
 	return lys_parse_path(ctx, path, LYS_IN_YIN, module);
 }
+#else
+int goly_parse_path(struct ly_ctx *ctx, const char *path, struct lys_module **module)
+{
+	const struct lys_module *m = lys_parse_path(ctx, path, LYS_IN_YIN);
+	if (m == NULL) {
+		return 1;
+	}
+	*module = (struct lys_module *)m;
+	return 0;
+}
+#endif
 
+#if defined(LY_ARRAY_COUNT)
 struct lyd_node *golyd_new_inner(struct lyd_node *parent, const struct lys_module *module, const char *name)
 {
 	struct lyd_node *node = NULL;
@@ -101,7 +143,18 @@ struct lyd_node *golyd_new_inner(struct lyd_node *parent, const struct lys_modul
 	}
 	return node;
 }
+#else
+struct lyd_node *golyd_new_inner(struct lyd_node *parent, const struct lys_module *module, const char *name)
+{
+	return lyd_new(parent, (struct lys_module *)module, name);
+}
+#endif
 
+// In libyang3 lyd_new_list2 expects a keylist string of the form
+// "[k1='v1'][k2='v2']...". libyang1 has no equivalent, so the libyang1 path
+// creates the bare list node and the Go-side AddListNode adds the key leaves
+// afterward via AddMultiLeafNodes.
+#if defined(LY_ARRAY_COUNT)
 struct lyd_node *golyd_new_list2(struct lyd_node *parent, const struct lys_module *module, const char *name, const char *keylist, uint32_t options)
 {
 	struct lyd_node *node = NULL;
@@ -111,7 +164,16 @@ struct lyd_node *golyd_new_list2(struct lyd_node *parent, const struct lys_modul
 	}
 	return node;
 }
+#else
+struct lyd_node *golyd_new_list2(struct lyd_node *parent, const struct lys_module *module, const char *name, const char *keylist, uint32_t options)
+{
+	(void)keylist;
+	(void)options;
+	return lyd_new(parent, (struct lys_module *)module, name);
+}
+#endif
 
+#if defined(LY_ARRAY_COUNT)
 size_t golysc_node_list_keys_count(const struct lysc_node *node)
 {
 	const struct lysc_node *n;
@@ -131,7 +193,17 @@ size_t golysc_node_list_keys_count(const struct lysc_node *node)
 	}
 	return cnt;
 }
+#else
+size_t golysc_node_list_keys_count(const struct lys_node *node)
+{
+	if (node->nodetype != LYS_LIST) {
+		return 0;
+	}
+	return ((const struct lys_node_list *)node)->keys_size;
+}
+#endif
 
+#if defined(LY_ARRAY_COUNT)
 const char *golysc_node_get_when(const struct lysc_node *node)
 {
 	struct lysc_when **when = NULL;
@@ -150,12 +222,35 @@ const char *golysc_node_get_when(const struct lysc_node *node)
 	}
 	return lyxp_get_expr(when[0]->cond);
 }
+#else
+const char *golysc_node_get_when(const struct lys_node *node)
+{
+	struct lys_when *when = NULL;
+
+	switch (node->nodetype) {
+	case LYS_CHOICE:
+		when = ((const struct lys_node_choice *)node)->when;
+		break;
+	case LYS_CASE:
+		when = ((const struct lys_node_case *)node)->when;
+		break;
+	case LYS_USES:
+		when = ((const struct lys_node_uses *)node)->when;
+		break;
+	}
+	if (when == NULL) {
+		return NULL;
+	}
+	return when->cond;
+}
+#endif
 
 struct leaf_value {
 	const char *name;
 	const char *value;
 };
 
+#if defined(LY_ARRAY_COUNT)
 int lyd_multi_new_leaf(struct lyd_node *parent, const struct lys_module *module,
 	struct leaf_value *leafValArr, int size)
 {
@@ -181,7 +276,54 @@ int lyd_multi_new_leaf(struct lyd_node *parent, const struct lys_module *module,
 	}
 	return 0;
 }
+#else
+int lyd_multi_new_leaf(struct lyd_node *parent, const struct lys_module *module,
+	struct leaf_value *leafValArr, int size)
+{
+	const char *name, *val;
+	struct lyd_node *leaf;
+	struct lys_type *type;
+	int has_ptr_type;
+	int idx;
 
+	for (idx = 0; idx < size; idx++)
+	{
+		if ((leafValArr[idx].name == NULL) || (leafValArr[idx].value == NULL))
+		{
+			continue;
+		}
+
+		name = leafValArr[idx].name;
+		val = leafValArr[idx].value;
+
+		leaf = lyd_new_leaf(parent, (struct lys_module *)module, name, val);
+		if (leaf == NULL)
+		{
+			return -1;
+		}
+
+		// Validate union members explicitly; libyang1 skips union validation
+		// when LYD_OPT_EDIT is in effect, so we work around it by forcing it
+		// here. Toggling has_ptr_type makes lyd_validate_value check every
+		// alternative.
+		if (((struct lys_node_leaflist *)leaf->schema)->type.base == LY_TYPE_UNION)
+		{
+			type = &((struct lys_node_leaflist *)leaf->schema)->type;
+			has_ptr_type = type->info.uni.has_ptr_type;
+			type->info.uni.has_ptr_type = 0;
+			if (lyd_validate_value(leaf->schema, val))
+			{
+				type->info.uni.has_ptr_type = has_ptr_type;
+				return -1;
+			}
+			type->info.uni.has_ptr_type = has_ptr_type;
+		}
+	}
+	return 0;
+}
+#endif
+
+#if defined(LY_ARRAY_COUNT)
 static ly_bool lysc_node_is_union(const struct lysc_node *node)
 {
 	struct lysc_type *type;
@@ -247,6 +389,46 @@ int lyd_node_leafref_match_in_union(const struct lys_module *module, const char 
 	ly_set_free(set, NULL);
 	return -1;
 }
+#else
+int lyd_node_leafref_match_in_union(struct lys_module *module, const char *xpath, const char *value)
+{
+	struct ly_set *set = NULL;
+	struct lys_node *node = NULL;
+	struct lys_node_leaflist *lNode;
+	int idx = 0;
+
+	if (module == NULL)
+	{
+		return -1;
+	}
+
+	set = lys_find_path(module, NULL, xpath);
+	if (set == NULL || set->number == 0) {
+		return -1;
+	}
+
+	node = set->set.s[0];
+	ly_set_free(set);
+
+	// Walk union members looking for a leafref whose target accepts value.
+	lNode = (struct lys_node_leaflist *)node;
+	for (idx = 0; idx < lNode->type.info.uni.count; idx++)
+	{
+		if (lNode->type.info.uni.types[idx].base != LY_TYPE_LEAFREF)
+		{
+			continue;
+		}
+
+		if (lyd_validate_value((struct lys_node *)
+		    lNode->type.info.uni.types[idx].info.lref.target, value) == 0)
+		{
+			return 0;
+		}
+	}
+
+	return -1;
+}
+#endif
 
 // Result type for golys_xpath_targets_get. The struct itself is not
 // libyang-specific so it lives outside the #if; the path-extraction logic
@@ -276,6 +458,7 @@ static struct lysc_xpath_targets *golys_xpath_targets_alloc(size_t cnt)
 
 static const char *nonLeafRef = "non-leafref";
 
+#if defined(LY_ARRAY_COUNT)
 struct lysc_xpath_targets *golys_xpath_targets_get(const struct lysc_node *node)
 {
 	struct lysc_type *type;
@@ -322,25 +505,121 @@ struct lysc_xpath_targets *golys_xpath_targets_get(const struct lysc_node *node)
 	}
 	return paths;
 }
+#else
+struct lysc_xpath_targets *golys_xpath_targets_get(const struct lys_node *node)
+{
+	const struct lys_node_leaf *leaf;
+	struct lysc_xpath_targets *paths = NULL;
+	int u;
+	int non_leafref_cnt = 0;
+	size_t out;
+
+	if (node == NULL) {
+		return NULL;
+	}
+	leaf = (const struct lys_node_leaf *)node;
+
+	if (leaf->type.base == LY_TYPE_LEAFREF) {
+		paths = golys_xpath_targets_alloc(1);
+		paths->xpathlist[0] = leaf->type.info.lref.path;
+		return paths;
+	}
+	if (leaf->type.base != LY_TYPE_UNION) {
+		return NULL;
+	}
+
+	// Union: include each leafref alternative's xpath; collapse all non-leafref
+	// alternatives into a single "non-leafref" marker, mirroring the libyang3
+	// path so the Go caller sees a consistent view.
+	paths = golys_xpath_targets_alloc(leaf->type.info.uni.count);
+	out = 0;
+	for (u = 0; u < leaf->type.info.uni.count; u++) {
+		if (leaf->type.info.uni.types[u].base != LY_TYPE_LEAFREF) {
+			if (non_leafref_cnt == 0) {
+				paths->xpathlist[out++] = nonLeafRef;
+				non_leafref_cnt++;
+			}
+			continue;
+		}
+		paths->xpathlist[out++] = leaf->type.info.uni.types[u].info.lref.path;
+	}
+	paths->count = out;
+	if ((paths->count - non_leafref_cnt) == 0) {
+		golys_xpath_targets_free(paths);
+		return NULL;
+	}
+	return paths;
+}
+#endif
 
 // ----- yp_* accessors ----------------------------------------------------
-// Thin accessors over libyang's schema structs. They keep Go from poking at
-// libyang struct fields directly; signatures use the yp_* typedefs defined
-// above.
+// Thin accessors over libyang's schema structs. They exist so that Go does
+// not poke directly at version-specific struct fields, which lets the same
+// Go code compile against either libyang3 or libyang1. Signatures use the
+// yp_* typedefs defined above; bodies are #if-gated where the libyang APIs
+// diverge.
 
 // Get first child of a schema node (container/list/choice/case).
+#if defined(LY_ARRAY_COUNT)
 const yp_snode_t *yp_node_child(const yp_snode_t *n)
 {
 	return lysc_node_child(n);
 }
+#else
+const yp_snode_t *yp_node_child(const yp_snode_t *n)
+{
+	if (n == NULL) {
+		return NULL;
+	}
+	switch (n->nodetype) {
+	case LYS_CONTAINER:
+	case LYS_LIST:
+	case LYS_CHOICE:
+	case LYS_CASE:
+	case LYS_USES:
+	case LYS_GROUPING:
+	case LYS_INPUT:
+	case LYS_OUTPUT:
+	case LYS_NOTIF:
+	case LYS_RPC:
+	case LYS_ACTION:
+		return n->child;
+	}
+	return NULL;
+}
+#endif
 
-// Is this leaf node a key of its parent list?
+// Is this leaf node a key of its parent list? libyang3 stores this as a
+// LYS_KEY flag bit directly on the node; libyang1 has no such flag and we
+// instead walk up to the parent list and search its keys[] array.
+#if defined(LY_ARRAY_COUNT)
 int yp_node_is_key(const yp_snode_t *n)
 {
 	return (n != NULL && (n->flags & LYS_KEY)) ? 1 : 0;
 }
+#else
+int yp_node_is_key(const yp_snode_t *n)
+{
+	const struct lys_node_list *list;
+	uint8_t i;
+	if (n == NULL || n->nodetype != LYS_LEAF) {
+		return 0;
+	}
+	if (n->parent == NULL || n->parent->nodetype != LYS_LIST) {
+		return 0;
+	}
+	list = (const struct lys_node_list *)n->parent;
+	for (i = 0; i < list->keys_size; i++) {
+		if ((const struct lys_node *)list->keys[i] == n) {
+			return 1;
+		}
+	}
+	return 0;
+}
+#endif
 
 // Extensions on a schema node.
+#if defined(LY_ARRAY_COUNT)
 size_t yp_node_exts_count(const yp_snode_t *n)
 {
 	if (n == NULL || n->exts == NULL) {
@@ -362,8 +641,32 @@ const char *yp_node_ext_argument(const yp_snode_t *n, size_t idx)
 	}
 	return n->exts[idx].argument;
 }
+#else
+size_t yp_node_exts_count(const yp_snode_t *n)
+{
+	if (n == NULL) {
+		return 0;
+	}
+	return n->ext_size;
+}
+const char *yp_node_ext_def_name(const yp_snode_t *n, size_t idx)
+{
+	if (n == NULL || n->ext == NULL) {
+		return NULL;
+	}
+	return n->ext[idx]->def->name;
+}
+const char *yp_node_ext_argument(const yp_snode_t *n, size_t idx)
+{
+	if (n == NULL || n->ext == NULL) {
+		return NULL;
+	}
+	return n->ext[idx]->arg_value;
+}
+#endif
 
 // Must arrays on leaf / leaflist / list / container nodes.
+#if defined(LY_ARRAY_COUNT)
 yp_must_t *yp_node_musts(const yp_snode_t *n)
 {
 	if (n == NULL) {
@@ -398,8 +701,59 @@ const char *yp_node_must_emsg_at(yp_must_t *musts, size_t idx)
 {
 	return musts[idx].emsg;
 }
+#else
+yp_must_t *yp_node_musts(const yp_snode_t *n)
+{
+	if (n == NULL) {
+		return NULL;
+	}
+	switch (n->nodetype) {
+	case LYS_LEAF:
+		return ((const yp_snode_leaf_t *)n)->must;
+	case LYS_LEAFLIST:
+		return ((const yp_snode_leaflist_t *)n)->must;
+	case LYS_LIST:
+		return ((const yp_snode_list_t *)n)->must;
+	case LYS_CONTAINER:
+		return ((const yp_snode_container_t *)n)->must;
+	}
+	return NULL;
+}
+size_t yp_node_musts_count(const yp_snode_t *n)
+{
+	if (n == NULL) {
+		return 0;
+	}
+	switch (n->nodetype) {
+	case LYS_LEAF:
+		return ((const yp_snode_leaf_t *)n)->must_size;
+	case LYS_LEAFLIST:
+		return ((const yp_snode_leaflist_t *)n)->must_size;
+	case LYS_LIST:
+		return ((const yp_snode_list_t *)n)->must_size;
+	case LYS_CONTAINER:
+		return ((const yp_snode_container_t *)n)->must_size;
+	}
+	return 0;
+}
+const char *yp_node_must_cond_at(yp_must_t *musts, size_t idx)
+{
+	return musts[idx].expr;
+}
+const char *yp_node_must_apptag_at(yp_must_t *musts, size_t idx)
+{
+	return musts[idx].eapptag;
+}
+const char *yp_node_must_emsg_at(yp_must_t *musts, size_t idx)
+{
+	return musts[idx].emsg;
+}
+#endif
 
-// Default value of a leaf as the canonical string (NULL if none).
+// Default value of a leaf (NULL if none). libyang3 returns the canonical
+// representation via lyd_value_get_canonical; libyang1 stores the original
+// string directly on the schema node.
+#if defined(LY_ARRAY_COUNT)
 const char *yp_leaf_dflt(struct ly_ctx *ctx, const yp_snode_t *n)
 {
 	const yp_snode_leaf_t *leaf;
@@ -433,6 +787,31 @@ const char *yp_leaflist_dflt_at(struct ly_ctx *ctx, const yp_snode_t *n, size_t 
 	ll = (const yp_snode_leaflist_t *)n;
 	return lyd_value_get_canonical(ctx, ll->dflts[idx]);
 }
+#else
+const char *yp_leaf_dflt(struct ly_ctx *ctx, const yp_snode_t *n)
+{
+	(void)ctx;
+	if (n == NULL || n->nodetype != LYS_LEAF) {
+		return NULL;
+	}
+	return ((const yp_snode_leaf_t *)n)->dflt;
+}
+size_t yp_leaflist_dflts_count(const yp_snode_t *n)
+{
+	if (n == NULL || n->nodetype != LYS_LEAFLIST) {
+		return 0;
+	}
+	return ((const yp_snode_leaflist_t *)n)->dflt_size;
+}
+const char *yp_leaflist_dflt_at(struct ly_ctx *ctx, const yp_snode_t *n, size_t idx)
+{
+	(void)ctx;
+	if (n == NULL || n->nodetype != LYS_LEAFLIST) {
+		return NULL;
+	}
+	return ((const yp_snode_leaflist_t *)n)->dflt[idx];
+}
+#endif
 
 // min-elements and max-elements field names are stable across libyang
 // versions; just need the typedef-aware cast.
@@ -453,6 +832,9 @@ uint32_t yp_list_max(const yp_snode_t *n)
 }
 
 // Returns the first "when" expression on a leaf/leaflist (NULL if none).
+// libyang3 stores when as a LY_ARRAY of pointers; libyang1 stores a single
+// pointer to a struct lys_when.
+#if defined(LY_ARRAY_COUNT)
 const char *yp_leaf_when_cond(const yp_snode_t *n)
 {
 	yp_when_t **when = NULL;
@@ -472,9 +854,35 @@ const char *yp_leaf_when_cond(const yp_snode_t *n)
 	}
 	return lyxp_get_expr(when[0]->cond);
 }
+#else
+const char *yp_leaf_when_cond(const yp_snode_t *n)
+{
+	yp_when_t *when = NULL;
+	if (n == NULL) {
+		return NULL;
+	}
+	switch (n->nodetype) {
+	case LYS_LEAF:
+		when = ((const yp_snode_leaf_t *)n)->when;
+		break;
+	case LYS_LEAFLIST:
+		when = ((const yp_snode_leaflist_t *)n)->when;
+		break;
+	}
+	if (when == NULL) {
+		return NULL;
+	}
+	return when->cond;
+}
+#endif
 
-// Returns the top-level container under module that holds the data lists,
-// or NULL if the module's top isn't a container.
+// Returns the top-level container under module that holds the data lists.
+// libyang3 exposes a compiled-tree pointer; libyang1 keeps top-level nodes
+// directly on the module via lys_find_path("/$module/*"). The libyang1
+// variant returns the parent of the first matched node — which is exactly
+// the top container we want — so callers can iterate its children the same
+// way as in libyang3.
+#if defined(LY_ARRAY_COUNT)
 const yp_snode_t *yp_module_top_container(const struct lys_module *mod)
 {
 	if (mod == NULL || mod->compiled == NULL || mod->compiled->data == NULL) {
@@ -485,6 +893,25 @@ const yp_snode_t *yp_module_top_container(const struct lys_module *mod)
 	}
 	return mod->compiled->data;
 }
+#else
+const yp_snode_t *yp_module_top_container(const struct lys_module *mod)
+{
+	const yp_snode_t *n;
+	if (mod == NULL) {
+		return NULL;
+	}
+	// Walk mod->data forward looking for the first container. libyang1
+	// keeps top-level uses/augment expansions and other non-container
+	// schema nodes in this same list, so a simple "first node must be a
+	// container" check would miss the container we actually want.
+	for (n = mod->data; n != NULL; n = n->next) {
+		if (n->nodetype == LYS_CONTAINER) {
+			return n;
+		}
+	}
+	return NULL;
+}
+#endif
 
 // Aggregated error info filled in by yp_get_last_error.
 struct yp_error_info {
@@ -499,6 +926,7 @@ struct yp_error_info {
 //   0  no error item available
 //   1  last error item is LY_SUCCESS (no real error)
 //   2  real error, *info populated
+#if defined(LY_ARRAY_COUNT)
 int yp_get_last_error(struct ly_ctx *ctx, struct yp_error_info *info)
 {
 	const struct ly_err_item *err = ly_err_last(ctx);
@@ -515,21 +943,53 @@ int yp_get_last_error(struct ly_ctx *ctx, struct yp_error_info *info)
 	info->apptag = err->apptag;
 	return 2;
 }
+#else
+int yp_get_last_error(struct ly_ctx *ctx, struct yp_error_info *info)
+{
+	// libyang1 returns the head of a list; the most recent error is on
+	// .prev (a circular list trick).
+	const struct ly_err_item *head = ly_err_first(ctx);
+	const struct ly_err_item *last;
+	if (head == NULL) {
+		return 0;
+	}
+	last = head->prev;
+	if (last->no == LY_SUCCESS) {
+		return 1;
+	}
+	info->err = last->no;
+	info->vecode = last->vecode;
+	info->msg = last->msg;
+	info->path = last->path;
+	info->apptag = last->apptag;
+	return 2;
+}
+#endif
 
-// ---- yp_* wrappers for the data-tree functions used by Go ----
-// Wrap the libyang functions whose flag enums and out-param conventions are
-// awkward to spell directly from Go, so the Go-side call sites stay short.
+// ---- libyang3/libyang1 wrappers for the data-tree functions used by Go ----
+// These hide the changes in API names, flag enums and out-param conventions
+// between the two libyang versions so the Go-side call sites stay version-
+// agnostic.
 
 void yp_ly_set_loglevel(int level)
 {
+#if defined(LY_ARRAY_COUNT)
 	ly_log_level(level);
+#else
+	ly_verb(level);
+#endif
 }
 
 void yp_ly_ctx_destroy(struct ly_ctx *ctx)
 {
+#if defined(LY_ARRAY_COUNT)
 	ly_ctx_destroy(ctx);
+#else
+	ly_ctx_destroy(ctx, NULL);
+#endif
 }
 
+#if defined(LY_ARRAY_COUNT)
 void yp_lyd_free(struct lyd_node *node)
 {
 	if (node != NULL) {
@@ -554,10 +1014,47 @@ int yp_lyd_validate_edit(struct ly_ctx *ctx, struct lyd_node **data)
 		LYD_VALIDATE_PRESENT | LYD_VALIDATE_NO_STATE | LYD_VALIDATE_NOEXTDEPS,
 		NULL);
 }
+#else
+// libyang1 doesn't export lyd_check_mandatory_tree in its public header but
+// it is a symbol in the shared library; declare it manually so the validate
+// wrapper can call it.
+extern int lyd_check_mandatory_tree(struct lyd_node *root, struct ly_ctx *ctx, const struct lys_module **modules, int mod_count, int options);
+
+void yp_lyd_free(struct lyd_node *node)
+{
+	if (node != NULL) {
+		lyd_free_withsiblings(node);
+	}
+}
+char *yp_lyd_print_mem(struct lyd_node *node)
+{
+	char *out = NULL;
+	lyd_print_mem(&out, node, LYD_XML, LYP_WITHSIBLINGS);
+	return out;
+}
+int yp_lyd_merge(struct lyd_node **dst, struct lyd_node *src, int destruct, struct ly_ctx *ctx)
+{
+	int flags = destruct ? LYD_OPT_DESTRUCT : 0;
+	return lyd_merge_to_ctx(dst, src, flags, ctx);
+}
+int yp_lyd_validate_edit(struct ly_ctx *ctx, struct lyd_node **data)
+{
+	// libyang1 skips the mandatory-tree check under LYD_OPT_EDIT, so we
+	// invoke it explicitly first to keep behavior consistent with libyang3.
+	int ret = lyd_check_mandatory_tree(*data, ctx, NULL, 0,
+		LYD_OPT_CONFIG | LYD_OPT_NOEXTDEPS);
+	if (ret != 0) {
+		return ret;
+	}
+	return lyd_validate(data, LYD_OPT_EDIT | LYD_OPT_NOEXTDEPS, ctx);
+}
+#endif
 
 // Map a libyang validation error code to one of the YPC_* mirror values.
-// The Go side casts the result to YParserRetCode directly. Lives in C so
-// the switch on libyang's LYVE_* enumeration is self-contained.
+// The Go side casts the result to YParserRetCode directly. The two switch
+// statements look different because libyang1 and libyang3 use entirely
+// different LYVE_* enumerations.
+#if defined(LY_ARRAY_COUNT)
 int yp_translate_validation_code(int vecode, const char *apptag, const char *msg)
 {
 	switch (vecode) {
@@ -596,6 +1093,71 @@ int yp_translate_validation_code(int vecode, const char *apptag, const char *msg
 	}
 	return YPC_INTERNAL_UNKNOWN;
 }
+#else
+int yp_translate_validation_code(int vecode, const char *apptag, const char *msg)
+{
+	(void)apptag;
+	(void)msg;
+	switch (vecode) {
+	case LYVE_SUCCESS:
+		return YPC_SUCCESS;
+	case LYVE_XML_MISS:
+	case LYVE_INARG:
+	case LYVE_MISSELEM:
+		return YPC_SYNTAX_MISSING_FIELD;
+	case LYVE_XML_INVAL:
+	case LYVE_XML_INCHAR:
+	case LYVE_INMOD:
+	case LYVE_INELEM:
+	case LYVE_INVAL:
+	case LYVE_MCASEDATA:
+		return YPC_SYNTAX_INVALID_FIELD;
+	case LYVE_EOF:
+	case LYVE_INSTMT:
+	case LYVE_INPAR:
+	case LYVE_INID:
+	case LYVE_MISSSTMT:
+	case LYVE_MISSARG:
+		return YPC_SYNTAX_INVALID_INPUT_DATA;
+	case LYVE_TOOMANY:
+		return YPC_SYNTAX_MULTIPLE_INSTANCE;
+	case LYVE_DUPID:
+	case LYVE_DUPLEAFLIST:
+	case LYVE_DUPLIST:
+	case LYVE_NOUNIQ:
+		return YPC_SYNTAX_DUPLICATE;
+	case LYVE_ENUM_INVAL:
+		return YPC_SYNTAX_ENUM_INVALID;
+	case LYVE_ENUM_INNAME:
+		return YPC_SYNTAX_ENUM_INVALID_NAME;
+	case LYVE_ENUM_WS:
+		return YPC_SYNTAX_ENUM_WHITESPACE;
+	case LYVE_KEY_NLEAF:
+	case LYVE_KEY_CONFIG:
+	case LYVE_KEY_TYPE:
+		return YPC_SEMANTIC_KEY_INVALID;
+	case LYVE_KEY_MISS:
+	case LYVE_PATH_MISSKEY:
+		return YPC_SEMANTIC_KEY_NOT_EXIST;
+	case LYVE_KEY_DUP:
+		return YPC_SEMANTIC_KEY_DUPLICATE;
+	case LYVE_NOMIN:
+		return YPC_SYNTAX_MINIMUM_INVALID;
+	case LYVE_NOMAX:
+		return YPC_SYNTAX_MAXIMUM_INVALID;
+	case LYVE_NOMUST:
+	case LYVE_NOWHEN:
+	case LYVE_INWHEN:
+	case LYVE_NOLEAFREF:
+		return YPC_SEMANTIC_DEPENDENT_DATA_MISSING;
+	case LYVE_NOMANDCHOICE:
+		return YPC_SEMANTIC_MANDATORY_DATA_MISSING;
+	case LYVE_PATH_EXISTS:
+		return YPC_SEMANTIC_KEY_ALREADY_EXIST;
+	}
+	return YPC_INTERNAL_UNKNOWN;
+}
+#endif
 
 */
 import "C"
@@ -604,6 +1166,11 @@ type YParserCtx C.struct_ly_ctx
 type YParserNode C.struct_lyd_node
 type YParserSNode C.yp_snode_t
 type YParserModule C.struct_lys_module
+
+// Libyang1 is true when this package was built against libyang v1 headers.
+// Callers (e.g. tests) can branch on this to handle version-specific
+// behavior without needing build tags themselves.
+const Libyang1 = C.yp_is_libyang1 != 0
 
 var ypCtx *YParserCtx
 
@@ -760,17 +1327,24 @@ func (yp *YParser) AddContainerNode(module *YParserModule, parent *YParserNode, 
 func (yp *YParser) AddListNode(module *YParserModule, parent *YParserNode, name string, keys []*YParserLeafValue) (*YParserNode, YParserError) {
 	var keylist string
 
-	// All key values predicate in the form of "[key1='val1'][key2='val2']...", they do not have to be ordered.
-	for index := 0; index < len(keys); index++ {
-		if (keys[index] == nil) || (keys[index].Name == "") {
-			break
-		}
+	// libyang3 wants the keys baked into the call as a predicate-string of
+	// the form "[key1='val1'][key2='val2']..."; libyang1 has no equivalent
+	// and instead expects the list node to be created bare and the key
+	// leaves appended afterwards. golyd_new_list2 ignores keylist under
+	// libyang1, so we keep the predicate-build only when it actually has
+	// somewhere to land.
+	if !Libyang1 {
+		for index := 0; index < len(keys); index++ {
+			if (keys[index] == nil) || (keys[index].Name == "") {
+				break
+			}
 
-		keylist += "["
-		keylist += keys[index].Name
-		keylist += "='"
-		keylist += keys[index].Value
-		keylist += "']"
+			keylist += "["
+			keylist += keys[index].Name
+			keylist += "='"
+			keylist += keys[index].Value
+			keylist += "']"
+		}
 	}
 
 	nameCStr := C.CString(name)
@@ -781,6 +1355,12 @@ func (yp *YParser) AddListNode(module *YParserModule, parent *YParserNode, name 
 	if ret == nil {
 		TRACE_LOG(TRACE_YPARSER, "Failed parsing node %s", name)
 		return ret, getErrorDetails()
+	}
+
+	if Libyang1 {
+		if err := yp.AddMultiLeafNodes(module, ret, keys); err.ErrCode != YP_SUCCESS {
+			return nil, err
+		}
 	}
 
 	return ret, YParserError{ErrCode: YP_SUCCESS}
@@ -920,7 +1500,8 @@ func (yp *YParser) FreeNode(node *YParserNode) YParserError {
 
 /* This function translates LIBYANG error code to valid YPARSER error code.
  * The translation table itself lives in C (yp_translate_validation_code)
- * so the switch over libyang's LYVE_* enum stays in one place. */
+ * because the LYVE_* enum values differ entirely between libyang versions
+ * and would not compile against the wrong header set if left in Go. */
 func translateLYErrToYParserErr(LYErrcode int, apptag string, msg string) YParserRetCode {
 	var apptagCstr, msgCstr *C.char
 	if apptag != "" {

@@ -29,6 +29,7 @@ package util
 typedef const char const_char_t;
 extern void customLogCallback(LY_LOG_LEVEL, const_char_t* msg, const_char_t* path);
 
+#if defined(LY_ARRAY_COUNT)
 static void customLogCb(LY_LOG_LEVEL level, const char* msg, const char* data_path, const char * schema_path, uint64_t line) {
 	(void)line;
 	customLogCallback(level, msg, data_path ? data_path : schema_path);
@@ -42,6 +43,20 @@ static void ly_set_log_callback(int enable) {
 		ly_log_level(LY_LLERR);
 	}
 }
+#else
+static void customLogCb(LY_LOG_LEVEL level, const char* msg, const char* path) {
+	customLogCallback(level, msg, path);
+}
+
+static void ly_set_log_callback(int enable) {
+	ly_set_log_clb(customLogCb, 1);
+	if (enable == 1) {
+		ly_verb(LY_LLDBG);
+	} else {
+		ly_verb(LY_LLERR);
+	}
+}
+#endif
 
 */
 import "C"

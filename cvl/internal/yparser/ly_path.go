@@ -33,6 +33,7 @@ import (
 #include <stdio.h>
 #include <string.h>
 
+#if defined(LY_ARRAY_COUNT)
 const char *golys_module_from_prefix(const struct lys_module *module, const char *prefix)
 {
 	const struct lysp_module *mod;
@@ -51,6 +52,17 @@ const char *golys_module_from_prefix(const struct lys_module *module, const char
 
 	return NULL;
 }
+#else
+// Stub - libyang1 already stores fully-qualified prefixes in must / when /
+// leafref expressions, so rewriteXPathPrefix early-returns for libyang1 and
+// never reaches this helper.
+const char *golys_module_from_prefix(const struct lys_module *module, const char *prefix)
+{
+	(void)module;
+	(void)prefix;
+	return NULL;
+}
+#endif
 */
 import "C"
 
@@ -214,7 +226,10 @@ var lyPredicatePattern = regexp.MustCompile(`^\[([^=]*)=('[^']*'|"[^"]*")]`)
  *  - "No memory."
  */
 
-// Regex patterns to extract target node name and value from libyang error message.
+// Regex patterns to extract target node name and value from libyang error
+// message. Defaults match libyang3; init() rewrites the version-specific
+// patterns under libyang1 (which phrases things differently — e.g.
+// "Failed to find …" instead of "Term node … not found").
 var (
 	lyBadValue    = regexp.MustCompile(`[Vv]alue "([^"]*)"[ \.]`)
 	lyUnsatisfied = regexp.MustCompile(`Unsatisfied (?:pattern|range|length) - (?:value |string |)"([^"]*)" `)
@@ -223,6 +238,13 @@ var (
 	lyUnknownElem = regexp.MustCompile(`Term node "([^"]*)" not found\.`)
 	lyMandatory   = regexp.MustCompile(`Mandatory node "([^"]*)" instance does not exist\.`)
 )
+
+func init() {
+	if Libyang1 {
+		lyBadValue = regexp.MustCompile(`[Vv]alue "([^"]*)" `)
+		lyUnknownElem = regexp.MustCompile(`Failed to find "([^"]*)" `)
+	}
+}
 
 // parseLyMessage matches a libyang returned log message using given
 // regex patterns and returns the first matched group.
@@ -267,6 +289,10 @@ func parseLyMessage(s string, regex ...*regexp.Regexp) string {
 var lyXPathPrefix = regexp.MustCompile("[[/][A-Za-z0-9_-]+:")
 
 func rewriteXPathPrefix(module *YParserModule, xpath string) string {
+	if Libyang1 {
+		// libyang1 already stores fully-qualified prefixes; nothing to do.
+		return xpath
+	}
 	hasPrefix := make(map[string]bool)
 	prefixes := lyXPathPrefix.FindAllString(xpath, -1)
 
