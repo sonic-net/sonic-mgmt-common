@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "log",
+    srcs = ["level.go"],
+    importpath = "github.com/Azure/sonic-mgmt-common/translib/log",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_golang_glog//:glog"],
+)
+
+go_test(
+    name = "log_test",
+    srcs = ["level_test.go"],
+    embed = [":log"],
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "go_default_library",
+    actual = ":log",
+    visibility = ["//visibility:public"],
+)

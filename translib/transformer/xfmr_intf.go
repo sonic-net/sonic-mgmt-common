@@ -33,6 +33,7 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/platform"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
 	"github.com/openconfig/ygot/ygot"
@@ -58,6 +59,11 @@ func init() {
 	XlateFuncBind("DbToYang_intf_mgmt_xfmr", DbToYang_intf_mgmt_xfmr)
 	XlateFuncBind("DbToYang_intf_cpu_xfmr", DbToYang_intf_cpu_xfmr)
 	XlateFuncBind("DbToYang_intf_logical_xfmr", DbToYang_intf_logical_xfmr)
+	XlateFuncBind("DbToYang_intf_hardware_port_xfmr", DbToYang_intf_hardware_port_xfmr)
+	XlateFuncBind("DbToYang_intf_transceiver_xfmr", DbToYang_intf_transceiver_xfmr)
+	XlateFuncBind("DbToYang_intf_physical_channel_xfmr", DbToYang_intf_physical_channel_xfmr)
+	XlateFuncBind("YangToDb_pins_if_id_xfmr", YangToDb_pins_if_id_xfmr)
+	XlateFuncBind("DbToYang_pins_if_id_xfmr", DbToYang_pins_if_id_xfmr)
 
 	XlateFuncBind("DbToYang_intf_eth_aggr_id_xfmr", DbToYang_intf_eth_aggr_id_xfmr)
 	XlateFuncBind("YangToDb_intf_eth_port_config_xfmr", YangToDb_intf_eth_port_config_xfmr)
@@ -130,6 +136,11 @@ const (
 	LOOPBACK    = "Loopback"
 )
 
+const (
+	HARDWARE_PORT = "hardware-port"
+	PORT_INDEX    = "index"
+)
+
 type TblData struct {
 	portTN   string
 	memberTN string
@@ -176,9 +187,10 @@ var IntfTypeTblMap = map[E_InterfaceType]IntfTblData{
 }
 
 var dbIdToTblMap = map[db.DBNum][]string{
-	db.ConfigDB: {"PORT", "PORTCHANNEL", "VLAN", "LOOPBACK_INTERFACE"},
-	db.ApplDB:   {"PORT_TABLE", "LAG_TABLE"},
-	db.StateDB:  {"PORT_TABLE", "LAG_TABLE"},
+	db.ConfigDB:    {"PORT", "PORTCHANNEL", "VLAN", "LOOPBACK_INTERFACE"},
+	db.ApplDB:      {"PORT_TABLE", "LAG_TABLE"},
+	db.StateDB:     {"PORT_TABLE", "LAG_TABLE"},
+	db.ApplStateDB: {"PORT_TABLE"},
 }
 
 var intfOCToSpeedMap = map[ocbinds.E_OpenconfigIfEthernet_ETHERNET_SPEED]string{
@@ -205,6 +217,8 @@ const (
 	IntfTypePortChannel E_InterfaceType = 2
 	IntfTypeVlan        E_InterfaceType = 3
 	IntfTypeLoopback    E_InterfaceType = 4
+	IntfTypeSubIntf     E_InterfaceType = 5
+	IntfTypeCpu         E_InterfaceType = 6
 )
 
 type E_InterfaceSubType int64
@@ -4452,4 +4466,208 @@ var DbToYang_intf_cpu_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[st
 	// cpu port not supported
 	result["cpu"] = false
 	return result, nil
+}
+
+func getDBValues(inParams XfmrParams, tblName string) (db.Value, error) {
+	if tblName == "" {
+		return db.Value{Field: map[string]string{}}, errors.New("Invalid inParams or invalid tableName")
+	}
+	ifName := keyFromInParamsOrUri(inParams, "name")
+	prtInst, dbErr := inParams.dbs[inParams.curDb].GetEntry(&db.TableSpec{Name: tblName}, db.Key{Comp: []string{ifName}})
+	if dbErr != nil {
+		return db.Value{Field: map[string]string{}}, dbErr
+	}
+	return prtInst, nil
+}
+
+func getPortIndex(inParams XfmrParams, funcName string) (string, error) {
+	ifName := keyFromInParamsOrUri(inParams, "name")
+	intfType, _, ierr := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return "", tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
+	}
+	if intfType != IntfTypeEthernet {
+		return "", errors.New("interface type is not IntfTypeEthernet")
+	}
+	intTbl, ok := IntfTypeTblMap[intfType]
+	if !ok {
+		log.Errorf("%s type not found : %v", funcName, intfType)
+		return "", errors.New("interface type not found.")
+	}
+	tblName, err := getPortTableNameByDBId(intTbl, inParams.curDb)
+	if err != nil {
+		log.Errorf("%s table name not found", funcName)
+		return "", errors.New("table name not found. Err: " + err.Error())
+	}
+	prtInst, dbErr := getDBValues(inParams, tblName)
+	if dbErr != nil {
+		return "", dbErr
+	}
+	index, ok := prtInst.Field[PORT_INDEX]
+	if !ok {
+		return "", errors.New(funcName + " index not found in DB")
+	}
+	return index, nil
+}
+
+// sfp_type_to_max_lanes_map mapping pulled from third_party/sonic-platform-daemons/sonic-xcvrd/xcvrd/xcvrd.py
+var sfpTypeToMaxLanesMap = map[string]int{
+	"SFP/SFP+/SFP28":                1,
+	"QSFP":                          4,
+	"QSFP+ or later":                4,
+	"QSFP28 or later":               4,
+	"OSFP 8X Pluggable Transceiver": 8,
+	"QSFP-DD Double Density 8X Pluggable Transceiver": 8,
+}
+
+var DbToYang_intf_hardware_port_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	log.V(3).Infof("DEBUG: Entered xfmr with params: %v", inParams)
+	result := make(map[string]interface{})
+	index, err := getPortIndex(inParams, "DbToYang_intf_hardware_port_xfmr")
+	if err != nil {
+		log.V(3).Infof("DEBUG: getPortIndex failed with error: %v", err)
+		return nil, err
+	}
+	result[HARDWARE_PORT] = "1/" + index
+	log.V(3).Infof("DbToYang_intf_hardware_port_xfmr: Generated result map: %v", result)
+	return result, nil
+}
+
+var DbToYang_intf_transceiver_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	index, err := getPortIndex(inParams, "DbToYang_intf_transceiver_xfmr")
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"transceiver": "Ethernet" + index}, nil
+}
+
+var DbToYang_intf_physical_channel_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	ifName := keyFromInParamsOrUri(inParams, "name")
+	intfType, _, ierr := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return nil, tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
+	}
+	if intfType != IntfTypeEthernet {
+		return nil, errors.New("interface type is not IntfTypeEthernet")
+	}
+	intTbl, ok := IntfTypeTblMap[intfType]
+	if !ok {
+		return nil, errors.New("interface type not found.")
+	}
+	tblName, err := getPortTableNameByDBId(intTbl, inParams.curDb)
+	if err != nil {
+		return nil, errors.New("table name not found. Err: " + err.Error())
+	}
+	prtInst, err := getDBValues(inParams, tblName)
+	if err != nil {
+		return nil, err
+	}
+	lanes, ok := prtInst.Field["lanes"]
+	if !ok {
+		return nil, errors.New("DbToYang_intf_physical_channel_xfmr: lanes not found in DB")
+	}
+
+	index, err := getPortIndex(inParams, "DbToYang_intf_physical_channel_xfmr")
+	if err != nil {
+		return nil, err
+	}
+	xcvrName := "Ethernet" + index
+	stateDB := inParams.dbs[db.StateDB]
+	xcvrEntry, err := stateDB.GetEntry(&db.TableSpec{Name: "TRANSCEIVER_INFO"}, db.Key{Comp: []string{xcvrName}})
+	if err != nil {
+		return nil, err
+	}
+	xcvrType := xcvrEntry.Get("type")
+	if xcvrType == "" {
+		return nil, errors.New("DbToYang_intf_physical_channel_xfmr: empty transceiver type for physical-channel")
+	}
+	maxLanes, ok := sfpTypeToMaxLanesMap[xcvrType]
+	if !ok {
+		return nil, errors.New("DbToYang_intf_physical_channel_xfmr: could not find the max number of lanes for transceiver type " + xcvrType)
+	}
+	offset, err := platform.ChannelOffset(ifName)
+	if err != nil {
+		return nil, errors.New("DbToYang_intf_physical_channel_xfmr: could not find the channel offset for " + ifName)
+	}
+
+	lanesSplit := strings.Split(lanes, ",")
+	channels := make([]uint16, 0, len(lanesSplit))
+	for _, str := range lanesSplit {
+		val, err := strconv.ParseUint(str, 10, 16)
+		if err != nil {
+			return nil, errors.New("DbToYang_intf_physical_channel_xfmr: err in strconv")
+		}
+		channels = append(channels, (uint16(val)-offset)%uint16(maxLanes))
+	}
+	return map[string]interface{}{"physical-channel": channels}, nil
+}
+
+var YangToDb_pins_if_id_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[string]string, error) {
+	pathInfo := NewPathInfo(inParams.uri)
+	ifName := pathInfo.Var("name")
+	if ifName == "" {
+		return nil, errors.New("YangToDb_pins_if_id_xfmr: Interface KEY not present")
+	}
+
+	intfType, _, ierr := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return nil, tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
+	}
+
+	if intfType == IntfTypeUnset || (intfType != IntfTypeEthernet && intfType != IntfTypePortChannel && intfType != IntfTypeCpu) {
+		return nil, errors.New("YangToDb_pins_if_id_xfmr: interface type " + strconv.Itoa(int(intfType)) + " not supported for Config Id.")
+	}
+
+	idVal, ok := inParams.param.(*uint32)
+	if !ok {
+		return nil, tlerr.InvalidArgsError{Format: "YangToDb_pins_if_id_xfmr: Config Id doesn't exist"}
+	}
+	log.V(2).Info("YangToDb_pins_if_id_xfmr : URI:", inParams.uri, " Id: ", idVal)
+	resMap := make(map[string]string)
+
+	resMap["id"] = strconv.FormatUint(uint64(*idVal), 10)
+	return resMap, nil
+}
+
+var DbToYang_pins_if_id_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[string]interface{}, error) {
+	ifName := keyFromInParamsOrUri(inParams, "name")
+	intfType, _, ierr := getIntfTypeByName(ifName)
+	if intfType == IntfTypeUnset || ierr != nil {
+		return nil, tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
+	}
+	if intfType == IntfTypeUnset || (intfType != IntfTypeEthernet && intfType != IntfTypePortChannel && intfType != IntfTypeCpu) {
+		return nil, errors.New("DbToYang_pins_if_id_xfmr: interface type " + strconv.Itoa(int(intfType)) + " not supported for Config Id.")
+	}
+
+	intTbl, ok := IntfTypeTblMap[intfType]
+	if !ok {
+		return nil, errors.New("DbToYang_pins_if_id_xfmr: interface type not found " + strconv.Itoa(int(intfType)))
+	}
+
+	// By default we assume P4RT_PORT_ID_TABLE which is used when reading out state
+	// for Ethernet and PortChannels.
+	tblName := "P4RT_PORT_ID_TABLE"
+	var err error
+	if inParams.curDb != db.ApplStateDB || (intfType != IntfTypeEthernet && intfType != IntfTypePortChannel && intfType != IntfTypeCpu) {
+		tblName, err = getPortTableNameByDBId(intTbl, inParams.curDb)
+		if err != nil {
+			return nil, errors.New("DbToYang_pins_if_id_xfmr: Port table name not found.")
+		}
+	}
+
+	prtInst, dbErr := getDBValues(inParams, tblName)
+	if dbErr != nil {
+		return nil, dbErr
+	}
+
+	resMap := make(map[string]interface{})
+	if idStr, ok := prtInst.Field["id"]; ok && idStr != "" {
+		if idVal, err := strconv.ParseUint(idStr, 10, 32); err == nil {
+			resMap["id"] = uint32(idVal)
+			return resMap, nil
+		}
+		return nil, err
+	}
+	log.V(2).Info("DbToYang_pins_if_id_xfmr: Config Id field not found in DB.")
+	return nil, tlerr.NotFound("config id field not found in DB.")
 }

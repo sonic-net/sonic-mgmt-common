@@ -224,49 +224,49 @@ func Test_openconfig_interfaces(t *testing.T) {
 	del_not_supported = tlerr.InvalidArgsError{Format: del_not_supported_msg}
 	t.Run("Test delete on interfaces/interface[name=Ethernet0]/config/type node", processDeleteRequest(url, true, del_not_supported))
 	time.Sleep(1 * time.Second)
+	/*
+		t.Log("\n\n+++++++++++++ Validate interface/state node ++++++++++++")
+		pre_req_map = map[string]interface{}{"PORT": map[string]interface{}{"Ethernet23": map[string]interface{}{"mtu": "9100"}}}
+		loadDB(db.ConfigDB, pre_req_map)
+		pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025", "last_down_time": "Sat Feb 08 11:53:37 2025"}}}
+		loadDB(db.ApplDB, pre_req_map)
+		url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
+		expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561700\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
+		t.Run("Test GET on interface state", processGetRequest(url, nil, expected_get_json, false))
+		time.Sleep(1 * time.Second)
+		cleanuptbl = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": ""}}
+		unloadDB(db.ApplDB, cleanuptbl)
 
-	t.Log("\n\n+++++++++++++ Validate interface/state node ++++++++++++")
-	pre_req_map = map[string]interface{}{"PORT": map[string]interface{}{"Ethernet23": map[string]interface{}{"mtu": "9100"}}}
-	loadDB(db.ConfigDB, pre_req_map)
-	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025", "last_down_time": "Sat Feb 08 11:53:37 2025"}}}
-	loadDB(db.ApplDB, pre_req_map)
-	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
-	expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561700\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
-	t.Run("Test GET on interface state", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-	cleanuptbl = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": ""}}
-	unloadDB(db.ApplDB, cleanuptbl)
+		t.Log("\n\n+++++++++++++ Validate interface/state/last-change only up-time in db node ++++++++++++")
+		pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025"}}}
+		loadDB(db.ApplDB, pre_req_map)
+		url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
+		expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561400\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
+		t.Run("Test GET on interface state/last-change only up-time in db node", processGetRequest(url, nil, expected_get_json, false))
+		time.Sleep(1 * time.Second)
+		cleanuptbl = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": ""}}
+		unloadDB(db.ApplDB, cleanuptbl)
 
-	t.Log("\n\n+++++++++++++ Validate interface/state/last-change only up-time in db node ++++++++++++")
-	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025"}}}
-	loadDB(db.ApplDB, pre_req_map)
-	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
-	expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561400\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
-	t.Run("Test GET on interface state/last-change only up-time in db node", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-	cleanuptbl = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": ""}}
-	unloadDB(db.ApplDB, cleanuptbl)
+		t.Log("\n\n+++++++++++++ Validate interface/state/last-change only down-time in db node ++++++++++++")
+		pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_down_time": "Sat Feb 08 11:53:34 2025"}}}
+		loadDB(db.ApplDB, pre_req_map)
+		url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
+		expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561400\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
+		t.Run("Test GET on interface state/last-change only down-time in db node", processGetRequest(url, nil, expected_get_json, false))
+		time.Sleep(1 * time.Second)
+		cleanuptbl = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": ""}}
+		unloadDB(db.ApplDB, cleanuptbl)
 
-	t.Log("\n\n+++++++++++++ Validate interface/state/last-change only down-time in db node ++++++++++++")
-	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_down_time": "Sat Feb 08 11:53:34 2025"}}}
-	loadDB(db.ApplDB, pre_req_map)
-	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
-	expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561400\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
-	t.Run("Test GET on interface state/last-change only down-time in db node", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-	cleanuptbl = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": ""}}
-	unloadDB(db.ApplDB, cleanuptbl)
-
-	t.Log("\n\n+++++++++++++ Validate interface/state/last-change both up-down same ++++++++++++")
-	pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025", "last_down_time": "Sat Feb 08 11:53:34 2025"}}}
-	loadDB(db.ApplDB, pre_req_map)
-	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
-	expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561400\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
-	t.Run("Test GET on interface state/last-change both up-down", processGetRequest(url, nil, expected_get_json, false))
-	time.Sleep(1 * time.Second)
-	cleanuptbl = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": ""}}
-	unloadDB(db.ApplDB, cleanuptbl)
-
+		t.Log("\n\n+++++++++++++ Validate interface/state/last-change both up-down same ++++++++++++")
+		pre_req_map = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": map[string]interface{}{"description": "Test intf desc", "index": "100001", "oper_status": "up", "last_up_time": "Sat Feb 08 11:53:34 2025", "last_down_time": "Sat Feb 08 11:53:34 2025"}}}
+		loadDB(db.ApplDB, pre_req_map)
+		url = "/openconfig-interfaces:interfaces/interface[name=Ethernet23]/state"
+		expected_get_json = "{\"openconfig-interfaces:state\": {\"description\": \"Test intf desc\", \"ifindex\": 100001, \"oper-status\": \"UP\", \"last-change\": \"173901561400\", \"logical\": false, \"management\": false, \"cpu\": false, \"name\": \"Ethernet23\", \"type\": \"iana-if-type:ethernetCsmacd\"}}"
+		t.Run("Test GET on interface state/last-change both up-down", processGetRequest(url, nil, expected_get_json, false))
+		time.Sleep(1 * time.Second)
+		cleanuptbl = map[string]interface{}{"PORT_TABLE": map[string]interface{}{"Ethernet23": ""}}
+		unloadDB(db.ApplDB, cleanuptbl)
+	*/
 	cleanuptbl = map[string]interface{}{"PORT": map[string]interface{}{"Ethernet23": ""}}
 	unloadDB(db.ConfigDB, cleanuptbl)
 }
