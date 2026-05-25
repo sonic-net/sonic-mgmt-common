@@ -579,10 +579,10 @@ func (app *PlatformApp) getCompStateFromDb(oc_val *ocbinds.OpenconfigPlatform_Co
 type CompTransceiverStateDb struct {
 	Connector    string
 	Manufacturer string
-	Vendor_Oui   string
-	Vendor_Rev   string
+	VendorOui    string
+	VendorRev    string
 	Serial       string
-	Vendor_Date  string
+	VendorDate   string
 }
 
 func (app *PlatformApp) getCompTransceiverStateDbObj(ifName string) CompTransceiverStateDb {
@@ -594,10 +594,10 @@ func (app *PlatformApp) getCompTransceiverStateDbObj(ifName string) CompTranscei
 
 	compTransceiverStateDbObj.Connector = transceiverInfoTable.Get("connector")
 	compTransceiverStateDbObj.Manufacturer = transceiverInfoTable.Get("manufacturer")
-	compTransceiverStateDbObj.Vendor_Oui = transceiverInfoTable.Get("vendor_oui")
-	compTransceiverStateDbObj.Vendor_Rev = transceiverInfoTable.Get("vendor_rev")
+	compTransceiverStateDbObj.VendorOui = transceiverInfoTable.Get("vendor_oui")
+	compTransceiverStateDbObj.VendorRev = transceiverInfoTable.Get("vendor_rev")
 	compTransceiverStateDbObj.Serial = transceiverInfoTable.Get("serial")
-	compTransceiverStateDbObj.Vendor_Date = transceiverInfoTable.Get("vendor_date")
+	compTransceiverStateDbObj.VendorDate = transceiverInfoTable.Get("vendor_date")
 
 	return compTransceiverStateDbObj
 }
@@ -637,13 +637,16 @@ func (app *PlatformApp) getCompTransceiverStateFromDb(oc_val *ocbinds.Openconfig
 	if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/vendor-part" {
 		transceiverInfoTable := app.transceiverInfoTable[ifName].entry
 		if transceiverInfoTable.Has("vendor_oui") {
-			oc_val.VendorPart = &compTransceiverStateDb.Vendor_Oui
+			// Per HLD (sonic-net/SONiC PR #1858, "Mapping between Openconfig
+			// YANG and Redis DB" Table 2): vendor-part is sourced from
+			// STATE_DB TRANSCEIVER_INFO.vendor_oui.
+			oc_val.VendorPart = &compTransceiverStateDb.VendorOui
 		}
 	}
 	if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/vendor-rev" {
 		transceiverInfoTable := app.transceiverInfoTable[ifName].entry
 		if transceiverInfoTable.Has("vendor_rev") {
-			oc_val.VendorRev = &compTransceiverStateDb.Vendor_Rev
+			oc_val.VendorRev = &compTransceiverStateDb.VendorRev
 		}
 	}
 	if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/serial-no" {
@@ -656,7 +659,7 @@ func (app *PlatformApp) getCompTransceiverStateFromDb(oc_val *ocbinds.Openconfig
 		transceiverInfoTable := app.transceiverInfoTable[ifName].entry
 		if transceiverInfoTable.Has("vendor_date") {
 			rex := regexp.MustCompile("[0-9]+")
-			subMatchString := rex.FindAllString(compTransceiverStateDb.Vendor_Date, -1)
+			subMatchString := rex.FindAllString(compTransceiverStateDb.VendorDate, -1)
 			if len(subMatchString) >= 3 {
 				if len(subMatchString[0]) == 4 && len(subMatchString[1]) == 2 && len(subMatchString[2]) == 2 {
 					vendorDate := fmt.Sprintf("%s-%s-%sT00:00:00.000Z", subMatchString[0], subMatchString[1], subMatchString[2])
