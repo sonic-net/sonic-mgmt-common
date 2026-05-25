@@ -31,6 +31,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	log "github.com/golang/glog"
@@ -122,15 +123,20 @@ func (app *PlatformApp) getCompTransceiverStateFromDb(oc_val *ocbinds.Openconfig
 	if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/date-code" {
 		transceiverInfoTable := app.transceiverInfoTable[ifName].entry
 		if transceiverInfoTable.Has("vendor_date") {
+			// xcvrd writes vendor_date as a string with a YYYY-MM-DD prefix
+			// (followed by an optional time portion). Pull the leading three
+			// digit groups and feed them through time.Parse so a calendar
+			// impossibility such as Feb 30 is rejected rather than passed
+			// through the previous regex which accepted any 30/31-day month.
 			rex := regexp.MustCompile("[0-9]+")
 			subMatchString := rex.FindAllString(compTransceiverStateDb.VendorDate, -1)
-			if len(subMatchString) >= 3 {
-				if len(subMatchString[0]) == 4 && len(subMatchString[1]) == 2 && len(subMatchString[2]) == 2 {
-					vendorDate := fmt.Sprintf("%s-%s-%sT00:00:00.000Z", subMatchString[0], subMatchString[1], subMatchString[2])
-					formatMatch, _ := regexp.MatchString("[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])[Tt]00:00:00\\.000Z", vendorDate)
-					if formatMatch {
-						oc_val.DateCode = &vendorDate
-					}
+			if len(subMatchString) >= 3 && len(subMatchString[0]) == 4 && len(subMatchString[1]) == 2 && len(subMatchString[2]) == 2 {
+				rawDate := fmt.Sprintf("%s-%s-%s", subMatchString[0], subMatchString[1], subMatchString[2])
+				if t, err := time.Parse("2006-01-02", rawDate); err == nil {
+					vendorDate := t.UTC().Format("2006-01-02T15:04:05.000Z")
+					oc_val.DateCode = &vendorDate
+				} else {
+					log.Warningf("getCompTransceiverStateFromDb: invalid date-code %q for ifName=%s: %v", compTransceiverStateDb.VendorDate, ifName, err)
 				}
 			}
 		}
