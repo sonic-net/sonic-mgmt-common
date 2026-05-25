@@ -880,26 +880,26 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateLaserBiasCurrentFr
 }
 
 type CompTransceiverThresholdStateDb struct {
-	temphighalarm      float64
-	templowalarm       float64
-	vcchighalarm       float64
-	vcclowalarm        float64
-	temphighwarning    float64
-	templowwarning     float64
-	vcchighwarning     float64
-	vcclowwarning      float64
-	txpowerhighalarm   float64
-	txpowerlowalarm    float64
-	rxpowerhighalarm   float64
-	rxpowerlowalarm    float64
-	txbiashighalarm    float64
-	txbiaslowalarm     float64
-	txpowerhighwarning float64
-	txpowerlowwarning  float64
-	rxpowerhighwarning float64
-	rxpowerlowwarning  float64
-	txbiashighwarning  float64
-	txbiaslowwarning   float64
+	TempHighAlarm      float64
+	TempLowAlarm       float64
+	VccHighAlarm       float64
+	VccLowAlarm        float64
+	TempHighWarning    float64
+	TempLowWarning     float64
+	VccHighWarning     float64
+	VccLowWarning      float64
+	TxPowerHighAlarm   float64
+	TxPowerLowAlarm    float64
+	RxPowerHighAlarm   float64
+	RxPowerLowAlarm    float64
+	TxBiasHighAlarm    float64
+	TxBiasLowAlarm     float64
+	TxPowerHighWarning float64
+	TxPowerLowWarning  float64
+	RxPowerHighWarning float64
+	RxPowerLowWarning  float64
+	TxBiasHighWarning  float64
+	TxBiasLowWarning   float64
 }
 
 func (app *PlatformApp) getCompTransceiverThresholdStateDbObj(ifName string) CompTransceiverThresholdStateDb {
@@ -909,26 +909,26 @@ func (app *PlatformApp) getCompTransceiverThresholdStateDbObj(ifName string) Com
 
 	transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 
-	compTransceiverThresholdStateDbObj.temphighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("temphighalarm"), 64)
-	compTransceiverThresholdStateDbObj.templowalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("templowalarm"), 64)
-	compTransceiverThresholdStateDbObj.vcchighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcchighalarm"), 64)
-	compTransceiverThresholdStateDbObj.vcclowalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcclowalarm"), 64)
-	compTransceiverThresholdStateDbObj.temphighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("temphighwarning"), 64)
-	compTransceiverThresholdStateDbObj.templowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("templowwarning"), 64)
-	compTransceiverThresholdStateDbObj.vcchighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcchighwarning"), 64)
-	compTransceiverThresholdStateDbObj.vcclowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcclowwarning"), 64)
-	compTransceiverThresholdStateDbObj.txpowerhighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerhighalarm"), 64)
-	compTransceiverThresholdStateDbObj.txpowerlowalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerlowalarm"), 64)
-	compTransceiverThresholdStateDbObj.rxpowerhighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerhighalarm"), 64)
-	compTransceiverThresholdStateDbObj.rxpowerlowalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerlowalarm"), 64)
-	compTransceiverThresholdStateDbObj.txbiashighalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiashighalarm"), 64)
-	compTransceiverThresholdStateDbObj.txbiaslowalarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiaslowalarm"), 64)
-	compTransceiverThresholdStateDbObj.txpowerhighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerhighwarning"), 64)
-	compTransceiverThresholdStateDbObj.txpowerlowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerlowwarning"), 64)
-	compTransceiverThresholdStateDbObj.rxpowerhighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerhighwarning"), 64)
-	compTransceiverThresholdStateDbObj.rxpowerlowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerlowwarning"), 64)
-	compTransceiverThresholdStateDbObj.txbiashighwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiashighwarning"), 64)
-	compTransceiverThresholdStateDbObj.txbiaslowwarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiaslowwarning"), 64)
+	compTransceiverThresholdStateDbObj.TempHighAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("temphighalarm"), 64)
+	compTransceiverThresholdStateDbObj.TempLowAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("templowalarm"), 64)
+	compTransceiverThresholdStateDbObj.VccHighAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcchighalarm"), 64)
+	compTransceiverThresholdStateDbObj.VccLowAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcclowalarm"), 64)
+	compTransceiverThresholdStateDbObj.TempHighWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("temphighwarning"), 64)
+	compTransceiverThresholdStateDbObj.TempLowWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("templowwarning"), 64)
+	compTransceiverThresholdStateDbObj.VccHighWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcchighwarning"), 64)
+	compTransceiverThresholdStateDbObj.VccLowWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("vcclowwarning"), 64)
+	compTransceiverThresholdStateDbObj.TxPowerHighAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerhighalarm"), 64)
+	compTransceiverThresholdStateDbObj.TxPowerLowAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerlowalarm"), 64)
+	compTransceiverThresholdStateDbObj.RxPowerHighAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerhighalarm"), 64)
+	compTransceiverThresholdStateDbObj.RxPowerLowAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerlowalarm"), 64)
+	compTransceiverThresholdStateDbObj.TxBiasHighAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiashighalarm"), 64)
+	compTransceiverThresholdStateDbObj.TxBiasLowAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiaslowalarm"), 64)
+	compTransceiverThresholdStateDbObj.TxPowerHighWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerhighwarning"), 64)
+	compTransceiverThresholdStateDbObj.TxPowerLowWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txpowerlowwarning"), 64)
+	compTransceiverThresholdStateDbObj.RxPowerHighWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerhighwarning"), 64)
+	compTransceiverThresholdStateDbObj.RxPowerLowWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("rxpowerlowwarning"), 64)
+	compTransceiverThresholdStateDbObj.TxBiasHighWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiashighwarning"), 64)
+	compTransceiverThresholdStateDbObj.TxBiasLowWarning, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("txbiaslowwarning"), 64)
 
 	return compTransceiverThresholdStateDbObj
 }
@@ -945,70 +945,70 @@ func (app *PlatformApp) getCompTransceiverThresholdStateFromDb(oc_val *ocbinds.O
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/laser-temperature-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("temphighalarm") {
-				temphighalarm := math.Floor(compTransceiverThresholdStateDb.temphighalarm*fractionDigits1) / fractionDigits1
+				temphighalarm := math.Floor(compTransceiverThresholdStateDb.TempHighAlarm*fractionDigits1) / fractionDigits1
 				oc_val.LaserTemperatureUpper = &temphighalarm
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/laser-temperature-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("templowalarm") {
-				templowalarm := math.Floor(compTransceiverThresholdStateDb.templowalarm*fractionDigits1) / fractionDigits1
+				templowalarm := math.Floor(compTransceiverThresholdStateDb.TempLowAlarm*fractionDigits1) / fractionDigits1
 				oc_val.LaserTemperatureLower = &templowalarm
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/supply-voltage-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("vcchighalarm") {
-				vcchighalarm := math.Floor(compTransceiverThresholdStateDb.vcchighalarm*fractionDigits2) / fractionDigits2
+				vcchighalarm := math.Floor(compTransceiverThresholdStateDb.VccHighAlarm*fractionDigits2) / fractionDigits2
 				oc_val.SupplyVoltageUpper = &vcchighalarm
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/supply-voltage-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("vcclowalarm") {
-				vcclowalarm := math.Floor(compTransceiverThresholdStateDb.vcclowalarm*fractionDigits2) / fractionDigits2
+				vcclowalarm := math.Floor(compTransceiverThresholdStateDb.VccLowAlarm*fractionDigits2) / fractionDigits2
 				oc_val.SupplyVoltageLower = &vcclowalarm
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/output-power-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("txpowerhighalarm") {
-				txpowerhighalarm := math.Floor(compTransceiverThresholdStateDb.txpowerhighalarm*fractionDigits2) / fractionDigits2
+				txpowerhighalarm := math.Floor(compTransceiverThresholdStateDb.TxPowerHighAlarm*fractionDigits2) / fractionDigits2
 				oc_val.OutputPowerUpper = &txpowerhighalarm
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/output-power-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("txpowerlowalarm") {
-				txpowerlowalarm := math.Floor(compTransceiverThresholdStateDb.txpowerlowalarm*fractionDigits2) / fractionDigits2
+				txpowerlowalarm := math.Floor(compTransceiverThresholdStateDb.TxPowerLowAlarm*fractionDigits2) / fractionDigits2
 				oc_val.OutputPowerLower = &txpowerlowalarm
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/input-power-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("rxpowerhighalarm") {
-				rxpowerhighalarm := math.Floor(compTransceiverThresholdStateDb.rxpowerhighalarm*fractionDigits2) / fractionDigits2
+				rxpowerhighalarm := math.Floor(compTransceiverThresholdStateDb.RxPowerHighAlarm*fractionDigits2) / fractionDigits2
 				oc_val.InputPowerUpper = &rxpowerhighalarm
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/input-power-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("rxpowerlowalarm") {
-				rxpowerlowalarm := math.Floor(compTransceiverThresholdStateDb.rxpowerlowalarm*fractionDigits2) / fractionDigits2
+				rxpowerlowalarm := math.Floor(compTransceiverThresholdStateDb.RxPowerLowAlarm*fractionDigits2) / fractionDigits2
 				oc_val.InputPowerLower = &rxpowerlowalarm
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/laser-bias-current-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("txbiashighalarm") {
-				txbiashighalarm := math.Floor(compTransceiverThresholdStateDb.txbiashighalarm*fractionDigits2) / fractionDigits2
+				txbiashighalarm := math.Floor(compTransceiverThresholdStateDb.TxBiasHighAlarm*fractionDigits2) / fractionDigits2
 				oc_val.LaserBiasCurrentUpper = &txbiashighalarm
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/laser-bias-current-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("txbiaslowalarm") {
-				txbiaslowalarm := math.Floor(compTransceiverThresholdStateDb.txbiaslowalarm*fractionDigits2) / fractionDigits2
+				txbiaslowalarm := math.Floor(compTransceiverThresholdStateDb.TxBiasLowAlarm*fractionDigits2) / fractionDigits2
 				oc_val.LaserBiasCurrentLower = &txbiaslowalarm
 			}
 		}
@@ -1018,70 +1018,70 @@ func (app *PlatformApp) getCompTransceiverThresholdStateFromDb(oc_val *ocbinds.O
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/laser-temperature-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("temphighwarning") {
-				temphighwarning := math.Floor(compTransceiverThresholdStateDb.temphighwarning*fractionDigits1) / fractionDigits1
+				temphighwarning := math.Floor(compTransceiverThresholdStateDb.TempHighWarning*fractionDigits1) / fractionDigits1
 				oc_val.LaserTemperatureUpper = &temphighwarning
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/laser-temperature-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("templowwarning") {
-				templowwarning := math.Floor(compTransceiverThresholdStateDb.templowwarning*fractionDigits1) / fractionDigits1
+				templowwarning := math.Floor(compTransceiverThresholdStateDb.TempLowWarning*fractionDigits1) / fractionDigits1
 				oc_val.LaserTemperatureLower = &templowwarning
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/supply-voltage-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("vcchighwarning") {
-				vcchighwarning := math.Floor(compTransceiverThresholdStateDb.vcchighwarning*fractionDigits2) / fractionDigits2
+				vcchighwarning := math.Floor(compTransceiverThresholdStateDb.VccHighWarning*fractionDigits2) / fractionDigits2
 				oc_val.SupplyVoltageUpper = &vcchighwarning
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/supply-voltage-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("vcclowwarning") {
-				vcclowwarning := math.Floor(compTransceiverThresholdStateDb.vcclowwarning*fractionDigits2) / fractionDigits2
+				vcclowwarning := math.Floor(compTransceiverThresholdStateDb.VccLowWarning*fractionDigits2) / fractionDigits2
 				oc_val.SupplyVoltageLower = &vcclowwarning
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/output-power-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("txpowerhighwarning") {
-				v := math.Floor(compTransceiverThresholdStateDb.txpowerhighwarning*fractionDigits2) / fractionDigits2
+				v := math.Floor(compTransceiverThresholdStateDb.TxPowerHighWarning*fractionDigits2) / fractionDigits2
 				oc_val.OutputPowerUpper = &v
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/output-power-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("txpowerlowwarning") {
-				v := math.Floor(compTransceiverThresholdStateDb.txpowerlowwarning*fractionDigits2) / fractionDigits2
+				v := math.Floor(compTransceiverThresholdStateDb.TxPowerLowWarning*fractionDigits2) / fractionDigits2
 				oc_val.OutputPowerLower = &v
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/input-power-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("rxpowerhighwarning") {
-				v := math.Floor(compTransceiverThresholdStateDb.rxpowerhighwarning*fractionDigits2) / fractionDigits2
+				v := math.Floor(compTransceiverThresholdStateDb.RxPowerHighWarning*fractionDigits2) / fractionDigits2
 				oc_val.InputPowerUpper = &v
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/input-power-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("rxpowerlowwarning") {
-				v := math.Floor(compTransceiverThresholdStateDb.rxpowerlowwarning*fractionDigits2) / fractionDigits2
+				v := math.Floor(compTransceiverThresholdStateDb.RxPowerLowWarning*fractionDigits2) / fractionDigits2
 				oc_val.InputPowerLower = &v
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/laser-bias-current-upper" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("txbiashighwarning") {
-				v := math.Floor(compTransceiverThresholdStateDb.txbiashighwarning*fractionDigits2) / fractionDigits2
+				v := math.Floor(compTransceiverThresholdStateDb.TxBiasHighWarning*fractionDigits2) / fractionDigits2
 				oc_val.LaserBiasCurrentUpper = &v
 			}
 		}
 		if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state/laser-bias-current-lower" {
 			transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
 			if transceiverDomThresholdTable.Has("txbiaslowwarning") {
-				v := math.Floor(compTransceiverThresholdStateDb.txbiaslowwarning*fractionDigits2) / fractionDigits2
+				v := math.Floor(compTransceiverThresholdStateDb.TxBiasLowWarning*fractionDigits2) / fractionDigits2
 				oc_val.LaserBiasCurrentLower = &v
 			}
 		}
