@@ -754,14 +754,7 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateLaserTemperatureFr
 }
 
 type CompTransceiverPhysicalChannelStateOutputPowerDb struct {
-	tx1power float64
-	tx2power float64
-	tx3power float64
-	tx4power float64
-	tx5power float64
-	tx6power float64
-	tx7power float64
-	tx8power float64
+	TxPower [8]float64
 }
 
 func (app *PlatformApp) getCompTransceiverPhysicalChannelStateOutputPowerDbObj(ifName string) CompTransceiverPhysicalChannelStateOutputPowerDb {
@@ -771,14 +764,9 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateOutputPowerDbObj(i
 
 	transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
 
-	compTransceiverPhysicalChannelStateOutputPowerDbObj.tx1power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx1power"), 64)
-	compTransceiverPhysicalChannelStateOutputPowerDbObj.tx2power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx2power"), 64)
-	compTransceiverPhysicalChannelStateOutputPowerDbObj.tx3power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx3power"), 64)
-	compTransceiverPhysicalChannelStateOutputPowerDbObj.tx4power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx4power"), 64)
-	compTransceiverPhysicalChannelStateOutputPowerDbObj.tx5power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx5power"), 64)
-	compTransceiverPhysicalChannelStateOutputPowerDbObj.tx6power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx6power"), 64)
-	compTransceiverPhysicalChannelStateOutputPowerDbObj.tx7power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx7power"), 64)
-	compTransceiverPhysicalChannelStateOutputPowerDbObj.tx8power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx8power"), 64)
+	for i := 0; i < 8; i++ {
+		compTransceiverPhysicalChannelStateOutputPowerDbObj.TxPower[i], _ = strconv.ParseFloat(transceiverDomSensorTable.Get(fmt.Sprintf("tx%dpower", i+1)), 64)
+	}
 
 	return compTransceiverPhysicalChannelStateOutputPowerDbObj
 }
@@ -792,54 +780,12 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateOutputPowerFromDb(
 	targetUriPath, _ := getYangPathFromUri(app.path.Path)
 
 	if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/output-power/instant" {
-		switch laneIndex {
-		case 0:
+		if int(laneIndex) < 8 {
+			fieldName := fmt.Sprintf("tx%dpower", laneIndex+1)
 			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx1power") {
-				tx1power := math.Floor(compTransceiverPhysicalChannelStateOutputPowerDb.tx1power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx1power
-			}
-		case 1:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx2power") {
-				tx2power := math.Floor(compTransceiverPhysicalChannelStateOutputPowerDb.tx2power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx2power
-			}
-		case 2:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx3power") {
-				tx3power := math.Floor(compTransceiverPhysicalChannelStateOutputPowerDb.tx3power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx3power
-			}
-		case 3:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx4power") {
-				tx4power := math.Floor(compTransceiverPhysicalChannelStateOutputPowerDb.tx4power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx4power
-			}
-		case 4:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx5power") {
-				tx5power := math.Floor(compTransceiverPhysicalChannelStateOutputPowerDb.tx5power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx5power
-			}
-		case 5:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx6power") {
-				tx6power := math.Floor(compTransceiverPhysicalChannelStateOutputPowerDb.tx6power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx6power
-			}
-		case 6:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx7power") {
-				tx7power := math.Floor(compTransceiverPhysicalChannelStateOutputPowerDb.tx7power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx7power
-			}
-		case 7:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx8power") {
-				tx8power := math.Floor(compTransceiverPhysicalChannelStateOutputPowerDb.tx8power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx8power
+			if transceiverDomSensorTable.Has(fieldName) {
+				txpower := math.Floor(compTransceiverPhysicalChannelStateOutputPowerDb.TxPower[laneIndex]*fractionDigits2) / fractionDigits2
+				oc_val.Instant = &txpower
 			}
 		}
 	}
@@ -848,14 +794,7 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateOutputPowerFromDb(
 }
 
 type CompTransceiverPhysicalChannelStateInputPowerDb struct {
-	rx1power float64
-	rx2power float64
-	rx3power float64
-	rx4power float64
-	rx5power float64
-	rx6power float64
-	rx7power float64
-	rx8power float64
+	RxPower [8]float64
 }
 
 func (app *PlatformApp) getCompTransceiverPhysicalChannelStateInputPowerDbObj(ifName string) CompTransceiverPhysicalChannelStateInputPowerDb {
@@ -865,14 +804,9 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateInputPowerDbObj(if
 
 	transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
 
-	compTransceiverPhysicalChannelStateInputPowerDbObj.rx1power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("rx1power"), 64)
-	compTransceiverPhysicalChannelStateInputPowerDbObj.rx2power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("rx2power"), 64)
-	compTransceiverPhysicalChannelStateInputPowerDbObj.rx3power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("rx3power"), 64)
-	compTransceiverPhysicalChannelStateInputPowerDbObj.rx4power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("rx4power"), 64)
-	compTransceiverPhysicalChannelStateInputPowerDbObj.rx5power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("rx5power"), 64)
-	compTransceiverPhysicalChannelStateInputPowerDbObj.rx6power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("rx6power"), 64)
-	compTransceiverPhysicalChannelStateInputPowerDbObj.rx7power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("rx7power"), 64)
-	compTransceiverPhysicalChannelStateInputPowerDbObj.rx8power, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("rx8power"), 64)
+	for i := 0; i < 8; i++ {
+		compTransceiverPhysicalChannelStateInputPowerDbObj.RxPower[i], _ = strconv.ParseFloat(transceiverDomSensorTable.Get(fmt.Sprintf("rx%dpower", i+1)), 64)
+	}
 
 	return compTransceiverPhysicalChannelStateInputPowerDbObj
 }
@@ -886,54 +820,12 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateInputPowerFromDb(o
 	targetUriPath, _ := getYangPathFromUri(app.path.Path)
 
 	if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/input-power/instant" {
-		switch laneIndex {
-		case 0:
+		if int(laneIndex) < 8 {
+			fieldName := fmt.Sprintf("rx%dpower", laneIndex+1)
 			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("rx1power") {
-				rx1power := math.Floor(compTransceiverPhysicalChannelStateInputPowerDb.rx1power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &rx1power
-			}
-		case 1:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("rx2power") {
-				rx2power := math.Floor(compTransceiverPhysicalChannelStateInputPowerDb.rx2power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &rx2power
-			}
-		case 2:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("rx3power") {
-				rx3power := math.Floor(compTransceiverPhysicalChannelStateInputPowerDb.rx3power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &rx3power
-			}
-		case 3:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("rx4power") {
-				rx4power := math.Floor(compTransceiverPhysicalChannelStateInputPowerDb.rx4power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &rx4power
-			}
-		case 4:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("rx5power") {
-				rx5power := math.Floor(compTransceiverPhysicalChannelStateInputPowerDb.rx5power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &rx5power
-			}
-		case 5:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("rx6power") {
-				rx6power := math.Floor(compTransceiverPhysicalChannelStateInputPowerDb.rx6power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &rx6power
-			}
-		case 6:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("rx7power") {
-				rx7power := math.Floor(compTransceiverPhysicalChannelStateInputPowerDb.rx7power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &rx7power
-			}
-		case 7:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("rx8power") {
-				rx8power := math.Floor(compTransceiverPhysicalChannelStateInputPowerDb.rx8power*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &rx8power
+			if transceiverDomSensorTable.Has(fieldName) {
+				rxpower := math.Floor(compTransceiverPhysicalChannelStateInputPowerDb.RxPower[laneIndex]*fractionDigits2) / fractionDigits2
+				oc_val.Instant = &rxpower
 			}
 		}
 	}
@@ -942,14 +834,7 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateInputPowerFromDb(o
 }
 
 type CompTransceiverPhysicalChannelStateLaserBiasCurrentDb struct {
-	tx1bias float64
-	tx2bias float64
-	tx3bias float64
-	tx4bias float64
-	tx5bias float64
-	tx6bias float64
-	tx7bias float64
-	tx8bias float64
+	TxBias [8]float64
 }
 
 func (app *PlatformApp) getCompTransceiverPhysicalChannelStateLaserBiasCurrentDbObj(ifName string) CompTransceiverPhysicalChannelStateLaserBiasCurrentDb {
@@ -959,45 +844,14 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateLaserBiasCurrentDb
 
 	transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
 
-	if transceiverDomSensorTable.Get("tx1bias") != "N/A" {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx1bias, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx1bias"), 64)
-	} else {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx1bias, _ = strconv.ParseFloat("NaN", 64)
-	}
-	if transceiverDomSensorTable.Get("tx2bias") != "N/A" {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx2bias, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx2bias"), 64)
-	} else {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx2bias, _ = strconv.ParseFloat("NaN", 64)
-	}
-	if transceiverDomSensorTable.Get("tx3bias") != "N/A" {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx3bias, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx3bias"), 64)
-	} else {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx3bias, _ = strconv.ParseFloat("NaN", 64)
-	}
-	if transceiverDomSensorTable.Get("tx4bias") != "N/A" {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx4bias, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx4bias"), 64)
-	} else {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx4bias, _ = strconv.ParseFloat("NaN", 64)
-	}
-	if transceiverDomSensorTable.Get("tx5bias") != "N/A" {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx5bias, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx5bias"), 64)
-	} else {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx5bias, _ = strconv.ParseFloat("NaN", 64)
-	}
-	if transceiverDomSensorTable.Get("tx6bias") != "N/A" {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx6bias, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx6bias"), 64)
-	} else {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx6bias, _ = strconv.ParseFloat("NaN", 64)
-	}
-	if transceiverDomSensorTable.Get("tx7bias") != "N/A" {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx7bias, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx7bias"), 64)
-	} else {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx7bias, _ = strconv.ParseFloat("NaN", 64)
-	}
-	if transceiverDomSensorTable.Get("tx8bias") != "N/A" {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx8bias, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("tx8bias"), 64)
-	} else {
-		compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.tx8bias, _ = strconv.ParseFloat("NaN", 64)
+	for i := 0; i < 8; i++ {
+		field := fmt.Sprintf("tx%dbias", i+1)
+		raw := transceiverDomSensorTable.Get(field)
+		if raw != "N/A" {
+			compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.TxBias[i], _ = strconv.ParseFloat(raw, 64)
+		} else {
+			compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.TxBias[i] = math.NaN()
+		}
 	}
 
 	return compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj
@@ -1012,54 +866,12 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateLaserBiasCurrentFr
 	targetUriPath, _ := getYangPathFromUri(app.path.Path)
 
 	if all || targetUriPath == "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/laser-bias-current/instant" {
-		switch laneIndex {
-		case 0:
+		if int(laneIndex) < 8 {
+			fieldName := fmt.Sprintf("tx%dbias", laneIndex+1)
 			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx1bias") {
-				tx1bias := math.Floor(compTransceiverPhysicalChannelStateLaserBiasCurrentDb.tx1bias*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx1bias
-			}
-		case 1:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx2bias") {
-				tx2bias := math.Floor(compTransceiverPhysicalChannelStateLaserBiasCurrentDb.tx2bias*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx2bias
-			}
-		case 2:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx3bias") {
-				tx3bias := math.Floor(compTransceiverPhysicalChannelStateLaserBiasCurrentDb.tx3bias*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx3bias
-			}
-		case 3:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx4bias") {
-				tx4bias := math.Floor(compTransceiverPhysicalChannelStateLaserBiasCurrentDb.tx4bias*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx4bias
-			}
-		case 4:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx5bias") {
-				tx5bias := math.Floor(compTransceiverPhysicalChannelStateLaserBiasCurrentDb.tx5bias*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx5bias
-			}
-		case 5:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx6bias") {
-				tx6bias := math.Floor(compTransceiverPhysicalChannelStateLaserBiasCurrentDb.tx6bias*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx6bias
-			}
-		case 6:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx7bias") {
-				tx7bias := math.Floor(compTransceiverPhysicalChannelStateLaserBiasCurrentDb.tx7bias*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx7bias
-			}
-		case 7:
-			transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
-			if transceiverDomSensorTable.Has("tx8bias") {
-				tx8bias := math.Floor(compTransceiverPhysicalChannelStateLaserBiasCurrentDb.tx8bias*fractionDigits2) / fractionDigits2
-				oc_val.Instant = &tx8bias
+			if transceiverDomSensorTable.Has(fieldName) {
+				txbias := math.Floor(compTransceiverPhysicalChannelStateLaserBiasCurrentDb.TxBias[laneIndex]*fractionDigits2) / fractionDigits2
+				oc_val.Instant = &txbias
 			}
 		}
 	}
