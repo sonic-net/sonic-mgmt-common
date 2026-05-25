@@ -675,6 +675,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 						break
 					}
 					err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+					if err != nil {
+						break
+					}
 				}
 			}
 		}
@@ -737,6 +740,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 							break
 						}
 						err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
 					}
 				}
 			}
@@ -796,6 +802,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 								break
 							}
 							err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
 						}
 					}
 				}
@@ -870,6 +879,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 							break
 						}
 						err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
 					}
 				}
 			} else {
@@ -947,6 +959,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 							break
 						}
 						err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
 					}
 				}
 			} else {
@@ -994,6 +1009,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 								break
 							}
 							err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
 						}
 					}
 				} else {
@@ -1030,6 +1048,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 										break
 									}
 									err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+									if err != nil {
+										break
+									}
 								} else {
 									err = errors.New("Invalid input component index")
 								}
@@ -1086,6 +1107,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 									break
 								}
 								err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+								if err != nil {
+									break
+								}
 							} else {
 								err = errors.New("Invalid input component index")
 							}
@@ -1225,6 +1249,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 						if pf_channel != nil {
 							ygot.BuildEmptyTree(pf_channel.State)
 							err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
 						} else {
 							err = errors.New("Invalid input component index")
 						}
@@ -1437,6 +1464,9 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 							if pf_channel != nil {
 								ygot.BuildEmptyTree(pf_channel.State)
 								err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, false, compName, uint16(index))
+								if err != nil {
+									break
+								}
 							} else {
 								err = errors.New("Invalid input component index")
 							}
