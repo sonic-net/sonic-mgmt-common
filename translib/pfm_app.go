@@ -534,6 +534,38 @@ func (app *PlatformApp) getSysEepromFromDb(eeprom *ocbinds.OpenconfigPlatform_Co
 	return nil
 }
 
+// getTransceiverInfoEntry returns the cached TRANSCEIVER_INFO entry for ifName
+// and a boolean indicating whether the interface was present in STATE_DB.
+// The returned db.Value is still safe to call .Has / .Get on if ok is false
+// (both return zero values for a nil Field map), but callers SHOULD inspect
+// ok and short-circuit so a missing entry is not silently treated as a row
+// with every field absent.
+func (app *PlatformApp) getTransceiverInfoEntry(ifName string) (db.Value, bool) {
+	e, ok := app.transceiverInfoTable[ifName]
+	return e.entry, ok
+}
+
+// getTransceiverDomSensorEntry returns the cached TRANSCEIVER_DOM_SENSOR entry
+// for ifName. See getTransceiverInfoEntry for ok semantics.
+func (app *PlatformApp) getTransceiverDomSensorEntry(ifName string) (db.Value, bool) {
+	e, ok := app.transceiverDomSensorTable[ifName]
+	return e.entry, ok
+}
+
+// getTransceiverDomThresholdEntry returns the cached TRANSCEIVER_DOM_THRESHOLD
+// entry for ifName. See getTransceiverInfoEntry for ok semantics.
+func (app *PlatformApp) getTransceiverDomThresholdEntry(ifName string) (db.Value, bool) {
+	e, ok := app.transceiverDomThresholdTable[ifName]
+	return e.entry, ok
+}
+
+// getApplPortEntry returns the cached APPL_DB PORT_TABLE entry for ifName.
+// See getTransceiverInfoEntry for ok semantics.
+func (app *PlatformApp) getApplPortEntry(ifName string) (db.Value, bool) {
+	e, ok := app.applPortTable[ifName]
+	return e.entry, ok
+}
+
 type CompStateDb struct {
 	Serial string
 	Model  string
@@ -544,7 +576,11 @@ func (app *PlatformApp) getCompStateDbObj(ifName string) CompStateDb {
 
 	var compStateDbObj CompStateDb
 
-	transceiverInfoTable := app.transceiverInfoTable[ifName].entry
+	transceiverInfoTable, ok := app.getTransceiverInfoEntry(ifName)
+	if !ok {
+		log.Warningf("getCompStateDbObj: TRANSCEIVER_INFO entry missing for ifName=%s", ifName)
+		return compStateDbObj
+	}
 
 	compStateDbObj.Serial = transceiverInfoTable.Get("serial")
 	compStateDbObj.Model = transceiverInfoTable.Get("model")
@@ -590,7 +626,11 @@ func (app *PlatformApp) getCompTransceiverStateDbObj(ifName string) CompTranscei
 
 	var compTransceiverStateDbObj CompTransceiverStateDb
 
-	transceiverInfoTable := app.transceiverInfoTable[ifName].entry
+	transceiverInfoTable, ok := app.getTransceiverInfoEntry(ifName)
+	if !ok {
+		log.Warningf("getCompTransceiverStateDbObj: TRANSCEIVER_INFO entry missing for ifName=%s", ifName)
+		return compTransceiverStateDbObj
+	}
 
 	compTransceiverStateDbObj.Connector = transceiverInfoTable.Get("connector")
 	compTransceiverStateDbObj.Manufacturer = transceiverInfoTable.Get("manufacturer")
@@ -684,12 +724,17 @@ func (app *PlatformApp) getCompTransceiverStateSupplyVoltageDbObj(ifName string)
 
 	var compTransceiverStateSupplyVoltageDbObj CompTransceiverStateSupplyVoltageDb
 
-	transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
+	transceiverDomSensorTable, ok := app.getTransceiverDomSensorEntry(ifName)
+	if !ok {
+		log.Warningf("getCompTransceiverStateSupplyVoltageDbObj: TRANSCEIVER_DOM_SENSOR entry missing for ifName=%s", ifName)
+		compTransceiverStateSupplyVoltageDbObj.voltage = math.NaN()
+		return compTransceiverStateSupplyVoltageDbObj
+	}
 
 	if transceiverDomSensorTable.Get("voltage") != "N/A" {
 		compTransceiverStateSupplyVoltageDbObj.voltage, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("voltage"), 64)
 	} else {
-		compTransceiverStateSupplyVoltageDbObj.voltage, _ = strconv.ParseFloat("NaN", 64)
+		compTransceiverStateSupplyVoltageDbObj.voltage = math.NaN()
 	}
 
 	return compTransceiverStateSupplyVoltageDbObj
@@ -723,12 +768,17 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateLaserTemperatureDb
 
 	var compTransceiverPhysicalChannelStateLaserTemperatureDbObj CompTransceiverPhysicalChannelStateLaserTemperatureDb
 
-	transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
+	transceiverDomSensorTable, ok := app.getTransceiverDomSensorEntry(ifName)
+	if !ok {
+		log.Warningf("getCompTransceiverPhysicalChannelStateLaserTemperatureDbObj: TRANSCEIVER_DOM_SENSOR entry missing for ifName=%s", ifName)
+		compTransceiverPhysicalChannelStateLaserTemperatureDbObj.temperature = math.NaN()
+		return compTransceiverPhysicalChannelStateLaserTemperatureDbObj
+	}
 
 	if transceiverDomSensorTable.Get("temperature") != "N/A" {
 		compTransceiverPhysicalChannelStateLaserTemperatureDbObj.temperature, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("temperature"), 64)
 	} else {
-		compTransceiverPhysicalChannelStateLaserTemperatureDbObj.temperature, _ = strconv.ParseFloat("NaN", 64)
+		compTransceiverPhysicalChannelStateLaserTemperatureDbObj.temperature = math.NaN()
 	}
 
 	return compTransceiverPhysicalChannelStateLaserTemperatureDbObj
@@ -762,7 +812,11 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateOutputPowerDbObj(i
 
 	var compTransceiverPhysicalChannelStateOutputPowerDbObj CompTransceiverPhysicalChannelStateOutputPowerDb
 
-	transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
+	transceiverDomSensorTable, ok := app.getTransceiverDomSensorEntry(ifName)
+	if !ok {
+		log.Warningf("getCompTransceiverPhysicalChannelStateOutputPowerDbObj: TRANSCEIVER_DOM_SENSOR entry missing for ifName=%s", ifName)
+		return compTransceiverPhysicalChannelStateOutputPowerDbObj
+	}
 
 	for i := 0; i < 8; i++ {
 		compTransceiverPhysicalChannelStateOutputPowerDbObj.TxPower[i], _ = strconv.ParseFloat(transceiverDomSensorTable.Get(fmt.Sprintf("tx%dpower", i+1)), 64)
@@ -802,7 +856,11 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateInputPowerDbObj(if
 
 	var compTransceiverPhysicalChannelStateInputPowerDbObj CompTransceiverPhysicalChannelStateInputPowerDb
 
-	transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
+	transceiverDomSensorTable, ok := app.getTransceiverDomSensorEntry(ifName)
+	if !ok {
+		log.Warningf("getCompTransceiverPhysicalChannelStateInputPowerDbObj: TRANSCEIVER_DOM_SENSOR entry missing for ifName=%s", ifName)
+		return compTransceiverPhysicalChannelStateInputPowerDbObj
+	}
 
 	for i := 0; i < 8; i++ {
 		compTransceiverPhysicalChannelStateInputPowerDbObj.RxPower[i], _ = strconv.ParseFloat(transceiverDomSensorTable.Get(fmt.Sprintf("rx%dpower", i+1)), 64)
@@ -842,7 +900,14 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateLaserBiasCurrentDb
 
 	var compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj CompTransceiverPhysicalChannelStateLaserBiasCurrentDb
 
-	transceiverDomSensorTable := app.transceiverDomSensorTable[ifName].entry
+	transceiverDomSensorTable, ok := app.getTransceiverDomSensorEntry(ifName)
+	if !ok {
+		log.Warningf("getCompTransceiverPhysicalChannelStateLaserBiasCurrentDbObj: TRANSCEIVER_DOM_SENSOR entry missing for ifName=%s", ifName)
+		for i := 0; i < 8; i++ {
+			compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj.TxBias[i] = math.NaN()
+		}
+		return compTransceiverPhysicalChannelStateLaserBiasCurrentDbObj
+	}
 
 	for i := 0; i < 8; i++ {
 		field := fmt.Sprintf("tx%dbias", i+1)
@@ -907,7 +972,11 @@ func (app *PlatformApp) getCompTransceiverThresholdStateDbObj(ifName string) Com
 
 	var compTransceiverThresholdStateDbObj CompTransceiverThresholdStateDb
 
-	transceiverDomThresholdTable := app.transceiverDomThresholdTable[ifName].entry
+	transceiverDomThresholdTable, ok := app.getTransceiverDomThresholdEntry(ifName)
+	if !ok {
+		log.Warningf("getCompTransceiverThresholdStateDbObj: TRANSCEIVER_DOM_THRESHOLD entry missing for ifName=%s", ifName)
+		return compTransceiverThresholdStateDbObj
+	}
 
 	compTransceiverThresholdStateDbObj.TempHighAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("temphighalarm"), 64)
 	compTransceiverThresholdStateDbObj.TempLowAlarm, _ = strconv.ParseFloat(transceiverDomThresholdTable.Get("templowalarm"), 64)
@@ -1127,7 +1196,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				break
 			}
 			ifName := strings.Replace(compName, "transceiver_", "", -1)
-			applPortTable := app.applPortTable[ifName].entry
+			applPortTable, _ := app.getApplPortEntry(ifName)
 
 			pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
 			if pf_channel_0 != nil {
@@ -1185,7 +1254,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					break
 				}
 				ifName := strings.Replace(compName, "transceiver_", "", -1)
-				applPortTable := app.applPortTable[ifName].entry
+				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
 				if pf_channel_0 != nil {
@@ -1240,7 +1309,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 						break
 					}
 					ifName := strings.Replace(compName, "transceiver_", "", -1)
-					applPortTable := app.applPortTable[ifName].entry
+					applPortTable, _ := app.getApplPortEntry(ifName)
 
 					pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
 					if pf_channel_0 != nil {
@@ -1310,7 +1379,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					break
 				}
 				ifName := strings.Replace(compName, "transceiver_", "", -1)
-				applPortTable := app.applPortTable[ifName].entry
+				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
 				if pf_channel_0 != nil {
@@ -1383,7 +1452,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 			if pf_comp != nil {
 				ygot.BuildEmptyTree(pf_comp)
 				ifName := strings.Replace(compName, "transceiver_", "", -1)
-				applPortTable := app.applPortTable[ifName].entry
+				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
 				if pf_channel_0 != nil {
@@ -1426,7 +1495,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				indexName := app.path.Var("index")
 				if indexName == "" {
 					ifName := strings.Replace(compName, "transceiver_", "", -1)
-					applPortTable := app.applPortTable[ifName].entry
+					applPortTable, _ := app.getApplPortEntry(ifName)
 
 					pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
 					if pf_channel_0 != nil {
@@ -1457,7 +1526,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					compIndex, _ := strconv.ParseUint(indexName, 10, 16)
 					log.Info("compIndex =", compIndex)
 					ifName := strings.Replace(compName, "transceiver_", "", -1)
-					applPortTable := app.applPortTable[ifName].entry
+					applPortTable, _ := app.getApplPortEntry(ifName)
 
 					if compIndex == 0 {
 						pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
@@ -1509,7 +1578,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
 				log.Info("compIndex =", compIndex)
 				ifName := strings.Replace(compName, "transceiver_", "", -1)
-				applPortTable := app.applPortTable[ifName].entry
+				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				if compIndex == 0 {
 					pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
@@ -1587,7 +1656,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
 				log.Info("compIndex =", compIndex)
 				ifName := strings.Replace(compName, "transceiver_", "", -1)
-				applPortTable := app.applPortTable[ifName].entry
+				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
 					laneNum, _ := strconv.ParseUint(lane, 10, 16)
@@ -1620,7 +1689,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
 				log.Info("compIndex =", compIndex)
 				ifName := strings.Replace(compName, "transceiver_", "", -1)
-				applPortTable := app.applPortTable[ifName].entry
+				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
 					laneNum, _ := strconv.ParseUint(lane, 10, 16)
@@ -1653,7 +1722,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
 				log.Info("compIndex =", compIndex)
 				ifName := strings.Replace(compName, "transceiver_", "", -1)
-				applPortTable := app.applPortTable[ifName].entry
+				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
 					laneNum, _ := strconv.ParseUint(lane, 10, 16)
@@ -1791,7 +1860,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					ygot.BuildEmptyTree(pf_comp)
 					compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
 					ifName := strings.Replace(compName, "transceiver_", "", -1)
-					applPortTable := app.applPortTable[ifName].entry
+					applPortTable, _ := app.getApplPortEntry(ifName)
 
 					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
 						laneNum, _ := strconv.ParseUint(lane, 10, 16)
@@ -1822,7 +1891,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					ygot.BuildEmptyTree(pf_comp)
 					compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
 					ifName := strings.Replace(compName, "transceiver_", "", -1)
-					applPortTable := app.applPortTable[ifName].entry
+					applPortTable, _ := app.getApplPortEntry(ifName)
 
 					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
 						laneNum, _ := strconv.ParseUint(lane, 10, 16)
@@ -1853,7 +1922,7 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					ygot.BuildEmptyTree(pf_comp)
 					compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
 					ifName := strings.Replace(compName, "transceiver_", "", -1)
-					applPortTable := app.applPortTable[ifName].entry
+					applPortTable, _ := app.getApplPortEntry(ifName)
 
 					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
 						laneNum, _ := strconv.ParseUint(lane, 10, 16)
