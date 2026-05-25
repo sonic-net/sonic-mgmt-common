@@ -155,9 +155,13 @@ func (app *PlatformApp) getCompTransceiverStateSupplyVoltageDbObj(ifName string)
 		return compTransceiverStateSupplyVoltageDbObj
 	}
 
-	if transceiverDomSensorTable.Get("voltage") != "N/A" {
-		compTransceiverStateSupplyVoltageDbObj.voltage, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("voltage"), 64)
+	v := transceiverDomSensorTable.Get("voltage")
+	if v == "N/A" {
+		compTransceiverStateSupplyVoltageDbObj.voltage = math.NaN()
+	} else if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+		compTransceiverStateSupplyVoltageDbObj.voltage = parsed
 	} else {
+		log.Warningf("getCompTransceiverStateSupplyVoltageDbObj: ifName=%s field=voltage value=%q parse error: %v", ifName, v, err)
 		compTransceiverStateSupplyVoltageDbObj.voltage = math.NaN()
 	}
 
@@ -199,9 +203,13 @@ func (app *PlatformApp) getCompTransceiverPhysicalChannelStateLaserTemperatureDb
 		return compTransceiverPhysicalChannelStateLaserTemperatureDbObj
 	}
 
-	if transceiverDomSensorTable.Get("temperature") != "N/A" {
-		compTransceiverPhysicalChannelStateLaserTemperatureDbObj.temperature, _ = strconv.ParseFloat(transceiverDomSensorTable.Get("temperature"), 64)
+	v := transceiverDomSensorTable.Get("temperature")
+	if v == "N/A" {
+		compTransceiverPhysicalChannelStateLaserTemperatureDbObj.temperature = math.NaN()
+	} else if parsed, err := strconv.ParseFloat(v, 64); err == nil {
+		compTransceiverPhysicalChannelStateLaserTemperatureDbObj.temperature = parsed
 	} else {
+		log.Warningf("getCompTransceiverPhysicalChannelStateLaserTemperatureDbObj: ifName=%s field=temperature value=%q parse error: %v", ifName, v, err)
 		compTransceiverPhysicalChannelStateLaserTemperatureDbObj.temperature = math.NaN()
 	}
 
