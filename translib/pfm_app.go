@@ -658,7 +658,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 			}
 
 			for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-				laneNum, _ := strconv.ParseUint(lane, 10, 16)
+				laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+				if parseErr != nil {
+					log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+					continue
+				}
 				pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
 				if pf_channel != nil {
 					ygot.BuildEmptyTree(pf_channel)
@@ -716,7 +720,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				}
 
 				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-					laneNum, _ := strconv.ParseUint(lane, 10, 16)
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
 					pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
 					if pf_channel != nil {
 						ygot.BuildEmptyTree(pf_channel)
@@ -771,7 +779,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					}
 
 					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-						laneNum, _ := strconv.ParseUint(lane, 10, 16)
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
 						pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
 						if pf_channel != nil {
 							ygot.BuildEmptyTree(pf_channel)
@@ -841,7 +853,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				}
 
 				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-					laneNum, _ := strconv.ParseUint(lane, 10, 16)
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
 					pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
 					if pf_channel != nil {
 						ygot.BuildEmptyTree(pf_channel)
@@ -914,7 +930,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				}
 
 				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-					laneNum, _ := strconv.ParseUint(lane, 10, 16)
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
 					pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
 					if pf_channel != nil {
 						ygot.BuildEmptyTree(pf_channel)
@@ -957,7 +977,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					}
 
 					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-						laneNum, _ := strconv.ParseUint(lane, 10, 16)
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
 						pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
 						if pf_channel != nil {
 							ygot.BuildEmptyTree(pf_channel)
@@ -988,7 +1012,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 						}
 					} else {
 						for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-							laneNum, _ := strconv.ParseUint(lane, 10, 16)
+							laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+							if parseErr != nil {
+								log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+								continue
+							}
 							if uint16(laneNum) == uint16(compIndex) {
 								pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
 								if pf_channel != nil {
@@ -1040,7 +1068,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					}
 				} else {
 					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-						laneNum, _ := strconv.ParseUint(lane, 10, 16)
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
 						if uint16(laneNum) == uint16(compIndex) {
 							pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
 							if pf_channel != nil {
@@ -1109,7 +1141,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-					laneNum, _ := strconv.ParseUint(lane, 10, 16)
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
 					if uint16(laneNum) == uint16(compIndex) {
 						pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
 						if pf_channel != nil {
@@ -1142,7 +1178,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-					laneNum, _ := strconv.ParseUint(lane, 10, 16)
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
 					if uint16(laneNum) == uint16(compIndex) {
 						pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
 						if pf_channel != nil {
@@ -1175,7 +1215,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 				applPortTable, _ := app.getApplPortEntry(ifName)
 
 				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-					laneNum, _ := strconv.ParseUint(lane, 10, 16)
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
 					if uint16(laneNum) == uint16(compIndex) {
 						pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
 						if pf_channel != nil {
@@ -1313,7 +1357,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					applPortTable, _ := app.getApplPortEntry(ifName)
 
 					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-						laneNum, _ := strconv.ParseUint(lane, 10, 16)
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
 						if uint16(laneNum) == uint16(compIndex) {
 							pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
 							if pf_channel != nil {
@@ -1344,7 +1392,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					applPortTable, _ := app.getApplPortEntry(ifName)
 
 					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-						laneNum, _ := strconv.ParseUint(lane, 10, 16)
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
 						if uint16(laneNum) == uint16(compIndex) {
 							pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
 							if pf_channel != nil {
@@ -1375,7 +1427,11 @@ func (app *PlatformApp) doGetPlatformInfo() error {
 					applPortTable, _ := app.getApplPortEntry(ifName)
 
 					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
-						laneNum, _ := strconv.ParseUint(lane, 10, 16)
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
 						if uint16(laneNum) == uint16(compIndex) {
 							pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
 							if pf_channel != nil {
