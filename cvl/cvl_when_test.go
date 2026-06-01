@@ -22,6 +22,7 @@ package cvl_test
 import (
 	"testing"
 
+	"github.com/Azure/sonic-mgmt-common/cvl"
 	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 )
 
@@ -44,7 +45,8 @@ func TestValidateEditConfig_When_Exp_In_Choice_Negative(t *testing.T) {
 			map[string]string{
 				"PACKET_ACTION":     "FORWARD",
 				"IP_TYPE":           "IPV6",
-				"SRC_IP":            "10.1.1.1/32", //Invalid field
+				"SRC_IP":            "10.1.1.1/32", //Invalid field due to IP_TYPE
+				"DST_IP":            "10.1.1.2/32", //Invalid too
 				"L4_SRC_PORT":       "1909",
 				"IP_PROTOCOL":       "103",
 				"L4_DST_PORT_RANGE": "9000-12000",
@@ -54,11 +56,11 @@ func TestValidateEditConfig_When_Exp_In_Choice_Negative(t *testing.T) {
 	}
 
 	verifyValidateEditConfig(t, cfgDataRule, CVLErrorInfo{
-		ErrCode:   CVL_SEMANTIC_ERROR,
+		ErrCode:   cvl.CVL_SEMANTIC_ERROR,
 		TableName: "ACL_RULE",
-		//Keys:      []string{"TestACL1", "Rule1"},  <<< BUG: cvl is not populating the key
-		Field: "SRC_IP",
-		Value: "10.1.1.1/32",
+		//Keys: []string{"TestACL1", "Rule1"}, <<< BUG: cvl is not populating the key
+		Field: "DST_IP",
+		Value: "10.1.1.2/32",
 		Msg:   whenExpressionErrMessage,
 	})
 }
