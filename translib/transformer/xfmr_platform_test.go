@@ -28,48 +28,139 @@ func TestCompRoot_ComponentTypeString(t *testing.T) {
 		}
 	}
 }
-func TestCompRoot_ValidICName(t *testing.T) {
-	strPtr := func(s string) *string { return &s }
 
+func TestCompRoot_ValidICName(t *testing.T) {
 	tests := []struct {
 		name     string
-		input    *string
+		input    string
 		expected bool
 	}{
 		{
+			name:     "Empty string",
+			input:    "",
+			expected: false,
+		},
+		{
 			name:     "Fails HasPrefix check",
-			input:    strPtr("invalid-prefix-123"),
+			input:    "invalid-prefix-123",
 			expected: false,
 		},
 		{
-			name:     "Fails len(sp) < 2 check (Prefix matches exactly, but nothing follows)",
-			input:    strPtr("integrated_circuit"),
+			name:     "Prefix matches exactly, but nothing follows",
+			input:    "integrated_circuit",
 			expected: false,
 		},
 		{
-			name:     "Fails Atoi check (Suffix is not a valid integer)",
-			input:    strPtr("integrated_circuitABC"),
+			name:     "Suffix is not a valid integer (letters)",
+			input:    "integrated_circuitABC",
 			expected: false,
 		},
 		{
-			name:     "Fails Atoi check (Suffix is not a valid integer)",
-			input:    strPtr("integrated_circuitf"),
+			name:     "Suffix is not a valid integer (single letter)",
+			input:    "integrated_circuitf",
 			expected: false,
 		},
 		{
-			name:     "Passes all checks (Valid IC name)",
-			input:    strPtr("integrated_circuit42"),
+			name:     "Valid IC name",
+			input:    "integrated_circuit42",
 			expected: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := validICName(tt.input)
+			got := validICName(tt.input) // Pass tt.input directly as a string
 			if got != tt.expected {
-				t.Errorf("validICName() = %v, want %v for input %v", got, tt.expected, *tt.input)
+				t.Errorf("validICName() = %v, want %v for input %q", got, tt.expected, tt.input)
 			}
 		})
+	}
+}
+
+func TestIC_FillICInfo_Coverage(t *testing.T) {
+	comp := &ocbinds.OpenconfigPlatform_Components_Component{
+		IntegratedCircuit: &ocbinds.OpenconfigPlatform_Components_Component_IntegratedCircuit{
+			Config: &ocbinds.OpenconfigPlatform_Components_Component_IntegratedCircuit_Config{},
+			State:  &ocbinds.OpenconfigPlatform_Components_Component_IntegratedCircuit_State{},
+		},
+	}
+	var dbs [db.MaxDB]*db.DB
+	_ = fillICInfo(comp, "integrated_circuit1", COMP_IC_CFG, dbs, nil)
+	_ = fillICInfo(comp, "integrated_circuit1", COMP_IC_ST, dbs, nil)
+}
+
+func TestIC_FillICInfoErrorPath(t *testing.T) {
+	comp := &ocbinds.OpenconfigPlatform_Components_Component{
+		IntegratedCircuit: &ocbinds.OpenconfigPlatform_Components_Component_IntegratedCircuit{
+			Config: &ocbinds.OpenconfigPlatform_Components_Component_IntegratedCircuit_Config{},
+		},
+	}
+
+	var dummyDbs [db.MaxDB]*db.DB
+
+	err := fillICInfo(comp, "integrated_circuit1", COMP_IC_CFG, dummyDbs, nil)
+	if err != nil {
+		t.Errorf("fillICInfo returned unexpected error: %v", err)
+	}
+}
+
+func TestIC_YangToDbInvalidComponentType(t *testing.T) {
+	device := &ocbinds.Device{}
+	ygot.BuildEmptyTree(device)
+	device.Components.NewComponent("unknown_comp_type")
+
+	var root ygot.GoStruct = device
+	params := XfmrParams{
+		ygRoot: &root,
+		uri:    "/openconfig-platform:components/component[name=unknown_comp_type]",
+	}
+
+	_, err := YangToDb_pfm_components_xfmr(params)
+	if err == nil {
+		t.Error("Expected error for unidentified component type, got nil")
+	}
+}
+
+func TestIC_YangToDb__MemMapCoverage(t *testing.T) {
+	device := &ocbinds.Device{}
+	ygot.BuildEmptyTree(device)
+
+	// 'integrated_circuit42' passes validICName()
+	validKey := "integrated_circuit42"
+
+	comp, err := device.Components.NewComponent(validKey)
+	if err != nil {
+		t.Fatalf("Failed to create component: %v", err)
+	}
+
+	comp.Config = &ocbinds.OpenconfigPlatform_Components_Component_Config{
+		Name: ygot.String(validKey),
+	}
+	comp.IntegratedCircuit = &ocbinds.OpenconfigPlatform_Components_Component_IntegratedCircuit{
+		Config: &ocbinds.OpenconfigPlatform_Components_Component_IntegratedCircuit_Config{
+			NodeId: ygot.Uint64(100),
+		},
+	}
+
+	var root ygot.GoStruct = device
+	params := XfmrParams{
+		uri:        "/components/component[name=" + validKey + "]",
+		requestUri: "/components/component",
+		ygRoot:     &root,
+		oper:       UPDATE, // Triggers the 'else' block (not DELETE)
+		key:        validKey,
+	}
+
+	memMap, err := YangToDb_pfm_components_xfmr(params)
+
+	if err != nil {
+		t.Fatalf("Expected success, but got error: %v", err)
+	}
+	if memMap == nil {
+		t.Fatal("Expected memMap to be populated, but it was nil")
+	}
+	if _, ok := memMap[NODE_CFG_TBL]; !ok {
+		t.Errorf("Expected NODE_CFG_TBL in result, but it was missing")
 	}
 }
 
@@ -140,6 +231,34 @@ func TestCompRoot_GetSysComponentsWithUnknownComponentType(t *testing.T) {
 			t.Fatal("getSysComponents returned an error with an unknown component type")
 		}
 	}
+}
+
+func TestIC_GetSysComponentsFullCoverage(t *testing.T) {
+	device := &ocbinds.Device{}
+	ygot.BuildEmptyTree(device)
+	inParams := XfmrParams{dbs: [db.MaxDB]*db.DB{}}
+
+	t.Run("CompLoop", func(t *testing.T) {
+		getSysComponents(device.Components, COMP, inParams, "", "")
+	})
+
+	t.Run("CompSpecific", func(t *testing.T) {
+		device.Components.NewComponent("integrated_circuit1")
+		getSysComponents(device.Components, COMP, inParams, "integrated_circuit1", "")
+	})
+
+	t.Run("CompState", func(t *testing.T) {
+		device.Components.NewComponent("integrated_circuit1")
+		getSysComponents(device.Components, COMP_ST, inParams, "integrated_circuit1", "")
+	})
+
+	t.Run("CompCfg", func(t *testing.T) {
+		getSysComponents(device.Components, COMP_CFG, inParams, "integrated_circuit1", "")
+	})
+
+	t.Run("DefaultFillIC", func(t *testing.T) {
+		getSysComponents(device.Components, "/some/other/path", inParams, "integrated_circuit1", "")
+	})
 }
 
 func TestCompRoot_Subscribe_pfm_components_xfmr(t *testing.T) {
@@ -461,6 +580,46 @@ func TestCompRoot_CreateCompAndFuncCall_Success(t *testing.T) {
 		})
 	}
 }
+
+func TestCompRoot_CreateCompAndFuncCall_Branches(t *testing.T) {
+	var mockDbs [db.MaxDB]*db.DB
+
+	inParams := XfmrParams{
+		dbs: mockDbs,
+	}
+
+	pfCpts := &ocbinds.OpenconfigPlatform_Components{}
+	ygot.BuildEmptyTree(pfCpts)
+
+	tests := []struct {
+		name     string
+		compType componentType
+		tblName  string
+	}{
+		{
+			name:     "Branch: Loop continues on mismatching type",
+			compType: CompTypeIC,
+			tblName:  "TABLE_WITH_WRONG_TYPE",
+		},
+		{
+			name:     "Branch: Component creation (pfComp == nil)",
+			compType: CompTypeIC,
+			tblName:  "TABLE_WITH_NEW_COMP",
+		},
+		{
+			name:     "Branch: Error logging when table fetch fails",
+			compType: CompTypeIC,
+			tblName:  "", // Force an error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			createCompAndFuncCall(pfCpts, "/test", tt.compType, inParams, tt.tblName, "key")
+		})
+	}
+}
+
 func TestCompRoot_Subscribe_pfm_components_xfmr_TranslateExists(t *testing.T) {
 	inParams := XfmrSubscInParams{
 		uri:        "/components/component[name=integrated_circuit78]",
@@ -470,9 +629,10 @@ func TestCompRoot_Subscribe_pfm_components_xfmr_TranslateExists(t *testing.T) {
 
 	_, err := Subscribe_pfm_components_xfmr(inParams)
 	if err == nil {
-		t.Errorf("Expectimg error since DB is not filled\n")
+		t.Errorf("Expecting error since DB is not filled\n")
 	}
 }
+
 func TestCompRoot_Subscribe_pfm_components_xfmr_TranslateSubscribe(t *testing.T) {
 	inParams := XfmrSubscInParams{
 		uri:        "/components/component[name=integrated_circuit78]",
@@ -482,7 +642,7 @@ func TestCompRoot_Subscribe_pfm_components_xfmr_TranslateSubscribe(t *testing.T)
 
 	_, err := Subscribe_pfm_components_xfmr(inParams)
 	if err != nil {
-		t.Errorf("Expectimg Success for Subscribe_pfm_components_xfmr\n")
+		t.Errorf("Expecting Success for Subscribe_pfm_components_xfmr\n")
 	}
 }
 
@@ -505,6 +665,7 @@ func TestCompRoot_TranslateExistsInvalidKey(t *testing.T) {
 		t.Errorf("translateExists(%q) returned isVirtualTbl = true, want false", key)
 	}
 }
+
 func TestCompRoot_TranslateExistsValidKey(t *testing.T) {
 	dbNum := db.StateDB
 	d, err := db.NewDB(getDBOptions(dbNum))
@@ -524,6 +685,7 @@ func TestCompRoot_TranslateExistsValidKey(t *testing.T) {
 		t.Errorf("translateExists(%q) returned isVirtualTbl = true, want false", key)
 	}
 }
+
 func TestCompRoot_TranslateSubscribeValidKey(t *testing.T) {
 	dbNum := db.StateDB
 	d, err := db.NewDB(getDBOptions(dbNum))
@@ -541,6 +703,66 @@ func TestCompRoot_TranslateSubscribeValidKey(t *testing.T) {
 		t.Fatalf("translateSubscribe(%q) returned unexpected error: %v", key, err)
 	}
 	if got.isVirtualTbl {
-		t.Errorf("translateSubsribe(%q) returned isVirtualTbl = true, want false", key)
+		t.Errorf("translateSubscribe(%q) returned isVirtualTbl = true, want false", key)
+	}
+}
+
+func TestCompRoot_PathType_String(t *testing.T) {
+	if AllPaths.String() != "AllPaths" {
+		t.Errorf("Expected AllPaths, got %s", AllPaths.String())
+	}
+	invalidPath := PathType(99)
+	if invalidPath.String() != "99" {
+		t.Errorf("Expected 99, got %s", invalidPath.String())
+	}
+}
+
+func TestCompRoot_CompTypesForSubscriptionUri(t *testing.T) {
+	uri := "/openconfig-platform:components/component/integrated-circuit/config"
+	res := compTypesForSubscriptionUri(uri)
+	if len(res) == 0 {
+		t.Error("Expected CompTypeIC, got empty slice")
+	}
+
+	res2 := compTypesForSubscriptionUri("/invalid/path")
+	if len(res2) != 0 {
+		t.Errorf("Expected empty slice, got %v", res2)
+	}
+}
+
+func TestCompRoot_GetICInfoFromDb(t *testing.T) {
+	info := getICInfoFromDb("test", nil, "WRONG_TABLE")
+	if info.NodeID != "" {
+		t.Error("Expected empty NodeID for wrong table")
+	}
+
+	info2 := getICInfoFromDb("test", nil, NODE_CFG_TBL)
+	if info2.NodeID != "" {
+		t.Error("Expected empty NodeID for failed DB lookup")
+	}
+}
+
+func TestCompRoot_GetICInfoFromDbSuccessPath(t *testing.T) {
+	dbNum := db.StateDB
+	d, err := db.NewDB(getDBOptions(dbNum))
+	if err != nil {
+		t.Fatalf("NewDB failed: %v", err)
+	}
+	defer d.DeleteDB()
+
+	key := "integrated_circuit1"
+	tableSpec := &db.TableSpec{Name: NODE_CFG_TBL}
+	dbKey := db.Key{Comp: []string{key}}
+	val := db.Value{Field: map[string]string{"node-id": "123"}}
+
+	err = d.SetEntry(tableSpec, dbKey, val)
+	if err != nil {
+		t.Fatalf("Failed to seed DB: %v", err)
+	}
+
+	nodeInfo := getICInfoFromDb(key, d, NODE_CFG_TBL)
+
+	if nodeInfo.NodeID != "123" {
+		t.Errorf("Expected NodeID '123', got '%s'", nodeInfo.NodeID)
 	}
 }

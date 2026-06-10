@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
 	"github.com/openconfig/ygot/ygot"
 )
@@ -20,8 +21,9 @@ const (
 	CHASSIS_PREFIX = "chassis"
 
 	/** Upper-level URIs **/
-	COMP    = "/openconfig-platform:components/component"
-	COMP_ST = "/openconfig-platform:components/component/state"
+	COMP     = "/openconfig-platform:components/component"
+	COMP_ST  = "/openconfig-platform:components/component/state"
+	COMP_CFG = "/openconfig-platform:components/component/config"
 
 	/** Supported oc-platform component state URIs **/
 	COMP_STATE_EMPTY             = "/openconfig-platform:components/component/state/empty"
@@ -37,6 +39,11 @@ const (
 	COMP_STATE_TYPE              = "/openconfig-platform:components/component/state/type"
 	COMP_STATE_PARENT            = "/openconfig-platform:components/component/state/parent"
 	COMP_STATE_TEMP_CTR          = "/openconfig-platform:components/component/state/temperature"
+
+	/** Supported Integrated Circuit URIs **/
+	COMP_IC     = "/openconfig-platform:components/component/integrated-circuit"
+	COMP_IC_CFG = "/openconfig-platform:components/component/integrated-circuit/config"
+	COMP_IC_ST  = "/openconfig-platform:components/component/integrated-circuit/state"
 )
 
 type componentType int64
@@ -46,11 +53,18 @@ const (
 	CompTypeIC
 )
 
+/*ICInfo structure read from State DB*/
+type ICInfo struct {
+	NodeID string
+}
+
 type PathType int
 
 const (
 	/* Represents all paths under /components/component */
 	AllPaths PathType = iota
+	/* Represents all paths under /components/component/config */
+	ConfigPaths
 	/* Represents all paths under /components/component/state */
 	StatePaths
 )
@@ -62,7 +76,7 @@ func (pt PathType) String() string {
 	case StatePaths:
 		return "StatePaths"
 	}
-	return fmt.Sprintf("%s", pt)
+	return strconv.Itoa(int(pt))
 }
 
 func (ct componentType) String() string {
@@ -72,49 +86,53 @@ func (ct componentType) String() string {
 	case CompTypeIC:
 		return "CompTypeIC"
 	}
-	return fmt.Sprintf("%s", ct)
+	return strconv.Itoa(int(ct))
 }
 
 var compTblMap = map[componentType][]string{
-	CompTypeIC: {NODE_CFG_TBL, IC_NAME_PREFIX + "*"},
+	CompTypeIC: {NODE_CFG_TBL, "*"},
 }
 
 func init() {
+	XlateFuncBind("DbToYangPath_pfm_components_path_xfmr", DbToYangPath_pfm_components_path_xfmr)
 	XlateFuncBind("Subscribe_pfm_components_xfmr", Subscribe_pfm_components_xfmr)
 	XlateFuncBind("DbToYang_pfm_components_xfmr", DbToYang_pfm_components_xfmr)
+	XlateFuncBind("YangToDb_pfm_components_xfmr", YangToDb_pfm_components_xfmr)
 }
 
 var compTypeCache sync.Map
 
-func validICName(name *string) bool {
-	if name == nil || *name == "" {
+func validICName(name string) bool {
+	suffix := strings.TrimPrefix(name, IC_NAME_PREFIX)
+	if suffix == name {
 		return false
 	}
-	// Expect node name of form integrated_circuitX, where X is an integer
-	if !strings.HasPrefix(*name, IC_NAME_PREFIX) {
-		return false
-	}
-
-	sp := strings.SplitAfter(*name, IC_NAME_PREFIX)
-	if len(sp) < 2 {
-		return false
-	}
-
-	if _, err := strconv.Atoi(sp[1]); err != nil {
-		return false
-	}
-	return true
+	_, err := strconv.Atoi(suffix)
+	return err == nil
 }
 
 func getCompTypeByName(compName string) (componentType, error) {
 	switch {
-	case validICName(&compName):
+	case validICName(compName):
 		return CompTypeIC, nil
 
 	default:
 		return CompTypeInvalid, fmt.Errorf("component name %s did not match with supported types.", compName)
 	}
 }
+
+func keyInDbTable(tableName, key string, d *db.DB) bool {
+	if d == nil {
+		return false
+	}
+	log.V(3).Infof("keyInDbTable: tableName=%s, key=%s, db=%s", tableName, key, d.Name())
+	keys, err := d.GetKeysPattern(&db.TableSpec{Name: tableName}, db.Key{Comp: []string{key}})
+	if err != nil {
+		return false
+	}
+	return len(keys) > 0
+}
+
 func getCompType(name string, d *db.DB) componentType {
 	if name == "*" {
 		return CompTypeInvalid
@@ -127,7 +145,32 @@ func getCompType(name string, d *db.DB) componentType {
 		compTypeCache.Store(name, compType)
 		return compType
 	}
+	if d != nil {
+		if keyInDbTable(NODE_CFG_TBL, name, d) {
+			compTypeCache.Store(name, CompTypeIC)
+			return CompTypeIC
+		}
+	}
 	return CompTypeInvalid
+}
+
+var DbToYangPath_pfm_components_path_xfmr PathXfmrDbToYangFunc = func(inParams XfmrDbToYgPathParams) error {
+	rootPath := COMP
+
+	log.V(3).Infof("DbToYangPath_pfm_path_xfmr: inParams: %#v", inParams)
+
+	if len(inParams.tblKeyComp) == 0 {
+		return fmt.Errorf("Invalid tblKeyComp for pfm path xmfr:%v", inParams.tblKeyComp)
+	}
+
+	tblKey := inParams.tblKeyComp[0]
+	switch inParams.tblName {
+	default:
+		inParams.ygPathKeys[rootPath+"/name"] = tblKey
+	}
+
+	log.V(3).Info("DbToYangPath_pfm_path_xfmr:- params.ygPathKeys: ", inParams.ygPathKeys)
+	return nil
 }
 
 var Subscribe_pfm_components_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubscInParams) (XfmrSubscOutParams, error) {
@@ -168,11 +211,31 @@ func getPfmRootObject(s *ygot.GoStruct) *ocbinds.OpenconfigPlatform_Components {
 	return deviceObj.Components
 }
 
+/* Given a URI for a subscription, return a list of component types which apply
+ * to it.  For example a URI of "/components/component/port" would return
+ * [CompTypePort] while a URI of "/components/component/state/software-version"
+ * would return a list of all component types which report software version. */
+func compTypesForSubscriptionUri(uri string) []componentType {
+	cTypes := []componentType{}
+	if strings.HasPrefix(uri, "/openconfig-platform:components/component/integrated-circuit") {
+		cTypes = []componentType{CompTypeIC}
+	}
+	return cTypes
+}
+
 /* Helper for the main subscribe transformer handling the TRANSLATE_EXISTS case. */
 func translateExists(inParams XfmrSubscInParams, key string) (XfmrSubscOutParams, error) {
 	var result XfmrSubscOutParams
+	if key == "*" {
+		result.isVirtualTbl = true
+		return result, nil
+	}
 	dbNum := db.StateDB
 	d := inParams.dbs[dbNum]
+	if d == nil {
+		dbNum := db.ConfigDB
+		d = inParams.dbs[dbNum]
+	}
 	if d == nil {
 		return result, fmt.Errorf("translateExists: No usable DB client in inParams (checked %v and %v)", db.StateDB.Name(), db.ConfigDB.Name())
 	}
@@ -181,11 +244,15 @@ func translateExists(inParams XfmrSubscInParams, key string) (XfmrSubscOutParams
 		return result, nil
 	}
 	tblInfo, ok := compTblMap[compType]
-	if !ok || len(tblInfo) == 0 {
-		return result, errors.New("table not found or is empty.")
+	if !ok {
+		return result, errors.New("table not found.")
 	}
 	tblName := tblInfo[0]
 	tblKey := key
+	switch compType {
+	case CompTypeIC:
+		dbNum = db.ConfigDB
+	}
 	result.dbDataMap = RedisDbSubscribeMap{dbNum: {tblName: {tblKey: {}}}}
 	log.V(3).Infof("+++ Subscribe_pfm_components_xfmr result: %v %v %v +++", dbNum, tblName, tblKey)
 	return result, nil
@@ -207,15 +274,17 @@ func translateSubscribe(inParams XfmrSubscInParams, key, targetUriPath string) (
 	 * process.  Note that a completely empty filter means no filtering is
 	 * required. */
 	compTypeFilter := []componentType{}
-	cType := getCompType(key, inParams.dbs[db.StateDB])
-	if cType == CompTypeInvalid {
-		return result, nil
-	}
-	compTypeFilter = []componentType{cType}
-	for cType, tblNames := range compTblMap {
-		if len(tblNames) < 2 {
-			continue
+	if key == "*" {
+		compTypeFilter = compTypesForSubscriptionUri(targetUriPath)
+	} else {
+		cType := getCompType(key, inParams.dbs[db.StateDB])
+		if cType == CompTypeInvalid {
+			return result, nil
 		}
+		compTypeFilter = []componentType{cType}
+	}
+
+	for cType, tblNames := range compTblMap {
 		/* An empty filter means no filtering is required. */
 		if len(compTypeFilter) > 0 {
 			/* Filtering is required, skip all component types not present in the
@@ -234,13 +303,31 @@ func translateSubscribe(inParams XfmrSubscInParams, key, targetUriPath string) (
 		tblName := tblNames[0]
 		tblKey := tblNames[1]
 		tblDb := db.StateDB
-		tblKey = key
+		if key != "*" {
+			/* Generally the DB key will be the component name (yang key), for
+			 * the cases where it is not (e.g. Port components) there will be
+			 * special casing just below to handle it. */
+			tblKey = key
+		}
+
+		if cType == CompTypeIC {
+			/* The integrated-circuit subtree is backed by multiple DB tables but
+			 * our compTblMap only captures one.  The special handling here is to
+			 * cover all tables.
+			 * For wildcard expansion we use the NODE_CFG_TBL in ConfigDB but for
+			 * sample cases on the specific counter paths we need the counter
+			 * tables. */
+			tblDb = db.ConfigDB
+		}
+
 		if result.dbDataMap[tblDb] == nil {
 			result.dbDataMap[tblDb] = make(map[string]map[string]map[string]string)
 		}
 		if result.dbDataMap[tblDb][tblName] == nil {
 			result.dbDataMap[tblDb][tblName] = make(map[string]map[string]string)
 		}
+
+		/* Add the DB table and key to the result. */
 		if result.dbDataMap[tblDb][tblName][tblKey] == nil {
 			result.dbDataMap[tblDb][tblName][tblKey] = map[string]string{}
 		}
@@ -255,6 +342,76 @@ func translateSubscribe(inParams XfmrSubscInParams, key, targetUriPath string) (
 		}
 	}
 	return result, nil
+}
+
+var YangToDb_pfm_components_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[string]map[string]db.Value, error) {
+	pathInfo := NewPathInfo(inParams.uri)
+	key := pathInfo.Var("name")
+	if key == "" {
+		return nil, nil
+	}
+
+	log.V(3).Infof("YangToDb_pfm_components_xfmr: uri %s, name %s, requestURI %s, op %v", inParams.uri, key, inParams.requestUri, inParams.oper)
+	pfmObj := getPfmRootObject(inParams.ygRoot)
+	if pfmObj == nil || pfmObj.Component == nil || len(pfmObj.Component) < 1 {
+		return nil, tlerr.NotSupported("YangToDb_pfm_components_xfmr: Empty component.")
+	}
+
+	comp, ok := pfmObj.Component[key]
+	if !ok || comp == nil {
+		return nil, fmt.Errorf("YangToDb_pfm_components_xfmr: Invalid component name: %s", key)
+	}
+
+	inParams.key = key
+	var tblName string
+	cType := CompTypeInvalid
+	if validICName(key) {
+		tblName = NODE_CFG_TBL
+		cType = CompTypeIC
+	} else {
+		return nil, fmt.Errorf("YangToDb_pfm_components_xfmr: Unable to identify component type for key: %s", key)
+	}
+	inParams.table = tblName
+
+	memMap := make(map[string]map[string]db.Value)
+	if inParams.oper == DELETE {
+		switch cType {
+		case CompTypeIC:
+			/* We only support deletion on the following path:
+			 * /components/component/integrated-circuit/config/node-id */
+			memMap[NODE_CFG_TBL] = map[string]db.Value{key: db.Value{Field: map[string]string{"node-id": ""}}}
+		}
+	} else {
+		if comp.Config != nil {
+			fields := db.Value{Field: make(map[string]string)}
+			if comp.Config.Name != nil {
+				if inParams.key != *comp.Config.Name {
+					return nil, fmt.Errorf("Mismatch between component name key: (%s) and name to be configured: (%s)", inParams.key, *comp.Config.Name)
+				}
+				fields.Set("name", *comp.Config.Name)
+			}
+			memMap[tblName] = map[string]db.Value{key: fields}
+		}
+		if comp.IntegratedCircuit != nil && comp.IntegratedCircuit.Config != nil && comp.IntegratedCircuit.Config.NodeId != nil {
+			if cType != CompTypeIC {
+				return nil, fmt.Errorf("Component name \"%s\" not identified as an Integrated Circuit but contains an integrated-circuit subtree..", key)
+			}
+			dbVal := db.Value{Field: make(map[string]string)}
+			if _, ok := memMap[NODE_CFG_TBL]; !ok {
+				memMap[NODE_CFG_TBL] = make(map[string]db.Value)
+			}
+			if _, ok := memMap[NODE_CFG_TBL][key]; !ok {
+				memMap[NODE_CFG_TBL][key] = dbVal
+			} else {
+				dbVal = memMap[NODE_CFG_TBL][key]
+			}
+			nodeID := *comp.IntegratedCircuit.Config.NodeId
+			dbVal.Set("node-id", strconv.FormatUint(nodeID, 10))
+		}
+	}
+
+	log.V(3).Infof("YangToDb_pfm_components_xfmr: result %v", memMap)
+	return memMap, nil
 }
 
 /* Get a list of all table entries available */
@@ -276,25 +433,60 @@ func getAllTableEntries(d *db.DB, tblName string, key string) ([]string, error) 
 	return ret, nil
 }
 
+func getICInfoFromDb(name string, d *db.DB, tblName string) ICInfo {
+	var nodeInfo ICInfo
+
+	// Only proceed if the table is the one we are interested in
+	if d == nil || tblName != NODE_CFG_TBL {
+		return nodeInfo
+	}
+
+	nodeEntry, err := d.GetEntry(&db.TableSpec{Name: tblName}, db.Key{Comp: []string{name}})
+	if err != nil {
+		log.V(3).Infof("Cant get entry: %s; Error: %v", name, err)
+		return nodeInfo
+	}
+
+	nodeInfo.NodeID = nodeEntry.Get("node-id")
+
+	return nodeInfo
+}
+
 /* Filling in the config and state info for integrated circuits available in Redis DB */
 func fillICInfo(comp *ocbinds.OpenconfigPlatform_Components_Component,
 	name string, targetUriPath string, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct) error {
 	/* Integrated-circuits have the following subtrees to populate:
-	 *   ...component/config
-	 *   ...component/state
-	 *   ...component/integrated-circuit
-	 *   ...component/integrated-circuit/config
-	 *   ...component/integrated-circuit/state
+	 * ...component/config
+	 * ...component/state
+	 * ...component/integrated-circuit
+	 * ...component/integrated-circuit/config
+	 * ...component/integrated-circuit/state
 	 * Decide now which subtrees to fill based on the request. */
-	var all, compSt bool
+	var all, compSt, icCfg, icSt bool
 	if targetUriPath == COMP {
 		all = true
 	} else if strings.HasPrefix(targetUriPath, COMP_ST) {
 		compSt = true
+	} else if strings.HasPrefix(targetUriPath, COMP_IC_CFG) {
+		icCfg = true
+	} else if strings.HasPrefix(targetUriPath, COMP_IC_ST) {
+		icSt = true
 	}
 	log.V(3).Infof("dbToYangIC: name %s targetUriPath %s", name, targetUriPath)
-	ygot.BuildEmptyTree(comp.IntegratedCircuit)
-	ygot.BuildEmptyTree(comp.IntegratedCircuit.State)
+
+	// Build the integrated-circuit container and sub-containers when explicitly requested or during a full get
+	if all || icCfg || icSt {
+		ygot.BuildEmptyTree(comp.IntegratedCircuit)
+		if all || icCfg {
+			ygot.BuildEmptyTree(comp.IntegratedCircuit.Config)
+		}
+		if all || icSt {
+			ygot.BuildEmptyTree(comp.IntegratedCircuit.State)
+		}
+	}
+	cfgDb := dbs[db.ConfigDB]
+	nodeCfg := getICInfoFromDb(name, cfgDb, NODE_CFG_TBL)
+
 	/* Handle component state paths: name, type, parent, fully-qualified-name */
 	if all || compSt {
 		var stName, stType, stParent bool
@@ -322,6 +514,25 @@ func fillICInfo(comp *ocbinds.OpenconfigPlatform_Components_Component,
 			comp.State.Parent = &parentChassis
 		}
 	}
+
+	/* Handle component integrated-circuit config and state paths */
+	if nodeCfg.NodeID != "" {
+		nodeID, err := strconv.ParseUint(nodeCfg.NodeID, 10, 64)
+		if err != nil {
+			log.Warningf("string conversion failed for IC %s node-id \"%s\": %v", name, nodeCfg.NodeID, err)
+		} else {
+			/* Handle component integrated-circuit config paths */
+			if all || icCfg {
+				comp.IntegratedCircuit.Config.NodeId = &nodeID
+			}
+
+			/* Handle component integrated-circuit state paths */
+			if all || icSt {
+				comp.IntegratedCircuit.State.NodeId = &nodeID
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -401,7 +612,6 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 	switch targetUriPath {
 	case COMP:
 		log.V(3).Infof("compName: %v", compName)
-		subCompName := "" /* Get all subcomponents */
 		if compName == "" {
 			/* Handle all component types except for ports, they will be handled just below. */
 			for cType, tbl := range compTblMap {
@@ -418,7 +628,8 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 				return fmt.Errorf("invalid input component name: %s", compName)
 			}
 			ygot.BuildEmptyTree(pf_comp)
-			if err = compTypeToFuncCall(compType, compName, subCompName, pf_comp, targetUriPath, dbs, AllPaths, ygRoot); err != nil {
+			/* The third arument in compTypeToFuncCall() is passed asempty as subcomp is not supported */
+			if err = compTypeToFuncCall(compType, compName, "", pf_comp, targetUriPath, dbs, AllPaths, ygRoot); err != nil {
 				log.V(3).Info(err)
 			}
 		}
@@ -435,6 +646,22 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 		ygot.BuildEmptyTree(pf_comp.State)
 		if err = compTypeToFuncCall(compType, compName, subKey, pf_comp, targetUriPath, dbs, StatePaths, ygRoot); err != nil {
 			log.V(3).Info(err)
+		}
+	case COMP_CFG:
+		compType := getCompType(compName, d)
+		if compType == CompTypeInvalid {
+			return nil
+		}
+		if compType == CompTypeIC {
+			pf_comp, ok := pf_cpts.Component[compName]
+			if !ok || pf_comp == nil {
+				return fmt.Errorf("Invalid component name: %s", compName)
+			}
+			ygot.BuildEmptyTree(pf_comp)
+			if err = compTypeToFuncCall(compType, compName, subKey, pf_comp, targetUriPath, dbs, ConfigPaths, ygRoot); err != nil {
+				log.V(3).Info(err)
+			}
+			break
 		}
 	default:
 		/* The following cases are handled above:
