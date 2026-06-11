@@ -800,7 +800,9 @@ func getRedisTblToYangList(tableName, key string) (yangList string) {
 
 // Convert Redis key to Yang keys, if multiple key components are there,
 // they are separated based on Yang schema
-func getRedisToYangKeys(tableName string, redisKey string) []keyValuePairStruct {
+func getRedisToYangKeys(tableName string, redisKey string) ([]keyValuePairStruct, CVLErrorInfo) {
+	var cvlErrObj CVLErrorInfo
+
 	keyNames := modelInfo.tableInfo[tableName].keys
 	//First split all the keys components
 	keyVals := strings.Split(redisKey, modelInfo.tableInfo[tableName].redisKeyDelim) //split by DB separator
@@ -809,7 +811,16 @@ func getRedisToYangKeys(tableName string, redisKey string) []keyValuePairStruct 
 		modelInfo.tableInfo[tableName].redisKeyDelim) //split by DB separator
 
 	if len(keyNames) != len(keyVals) {
-		return nil //number key names and values does not match
+		cvlErrObj.ErrCode = CVL_SEMANTIC_KEY_INVALID
+		cvlErrObj.TableName = tableName
+		cvlErrObj.Keys = keyNames
+		if len(keyNames) < len(keyVals) {
+			cvlErrObj.Msg = "Too many keys specified."
+		} else {
+			cvlErrObj.Msg = "Missing Key \"" + keyNames[len(keyVals)] + "\"."
+			cvlErrObj.Field = keyNames[len(keyVals)]
+		}
+		return nil, cvlErrObj //number key names and values does not match
 	}
 
 	mkeys := []keyValuePairStruct{}
@@ -829,7 +840,7 @@ func getRedisToYangKeys(tableName string, redisKey string) []keyValuePairStruct 
 	TRACE_LOG(TRACE_SYNTAX, "getRedisToYangKeys() returns %v "+
 		"from Redis Table '%s', Key '%s'", mkeys, tableName, redisKey)
 
-	return mkeys
+	return mkeys, cvlErrObj
 }
 
 // Checks field map values and removes "NULL" entry, create array for leaf-list
@@ -885,6 +896,7 @@ func (c *CVL) generateYangParserData(jsonNode *jsonquery.Node, root **yparser.YP
 		if *root, errObj = c.yp.MergeSubtree(*root, topNode); errObj.ErrCode != yparser.YP_SUCCESS {
 			CVL_LOG(WARNING, "Unable to merge translated YANG data(libyang) "+
 				"while translating from request data to YANG format")
+			defer c.yp.FreeNode(topNode)
 			cvlErrObj.ErrCode = CVL_SYNTAX_ERROR
 			return cvlErrObj
 		}
@@ -945,6 +957,7 @@ func (c *CVL) translateToYang(jsonMap *map[string]interface{}, buildSyntaxDOM bo
 			//Visit each top level list in a loop for creating table data
 			cvlError = c.generateYangParserData(jsonNode, &root)
 			if cvlError.ErrCode != CVL_SUCCESS {
+				defer c.yp.FreeNode(root)
 				return nil, cvlError
 			}
 		}
@@ -961,9 +974,10 @@ func (c *CVL) validate(data *yparser.YParserNode) CVLRetCode {
 	if IsTraceAllowed(TRACE_LIBYANG) {
 		TRACE_LOG(TRACE_LIBYANG, "\nValidate1 data=%v\n", c.yp.NodeDump(data))
 	}
-	errObj := c.yp.ValidateSyntax(data, depData)
-	if yparser.YP_SUCCESS != errObj.ErrCode {
-		return CVL_FAILURE
+
+	errObj, _ := c.validateSyntax(data, depData)
+	if CVL_SUCCESS != errObj.ErrCode {
+		return errObj.ErrCode
 	}
 
 	cvlErrObj := c.validateCfgSemantics(c.yv.root)
@@ -1041,6 +1055,7 @@ func (c *CVL) addCfgDataItem(configData *map[string]interface{},
 	var cfgData map[string]interface{} = *configData
 
 	tblName, key := splitRedisKey(cfgDataItem.Key)
+	CVL_LOG(WARNING, "addCfgDataItem(): table: %s, key: %s", tblName, key)
 	if tblName == "" || key == "" {
 		//Bad redis key
 		return "", ""
