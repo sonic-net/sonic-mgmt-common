@@ -77,10 +77,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }   
   
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters/oc-intf:in-fcs-errors {
-    deviate not-supported;
-  }   
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters/oc-intf:carrier-transitions {
     deviate not-supported;
   }
