@@ -65,6 +65,9 @@ var redisPayload2sEventMap map[string]SEvent = map[string]SEvent{
 	"hset": SEventHSet,
 	"hdel": SEventHDel,
 	"del":  SEventDel,
+	// Redis keyspace expiration is a logical delete for subscribers.  This is
+	// required for retained inactive FAULT_INFO rows with a TTL.
+	"expired": SEventDel,
 }
 
 var txOp2sEventMap map[_txOp]SEvent = map[_txOp]SEvent{

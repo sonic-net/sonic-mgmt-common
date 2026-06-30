@@ -20,13 +20,13 @@ package translib
 
 import (
 	"errors"
-	"github.com/Azure/sonic-mgmt-common/translib/db"
-	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
-	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	log "github.com/golang/glog"
-	"github.com/openconfig/ygot/ygot"
 	"reflect"
 	"strconv"
+
+	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
 type PlatformApp struct {
@@ -35,6 +35,7 @@ type PlatformApp struct {
 	ygotRoot    *ygot.GoStruct
 	ygotTarget  *interface{}
 	eepromTs    *db.TableSpec
+	faultInfoTs *db.TableSpec
 	eepromTable map[string]dbEntry
 }
 
@@ -54,6 +55,13 @@ func init() {
 	if err != nil {
 		log.Fatal("Adding model data to appinterface failed with error=", err)
 	}
+
+	err = addModel(&ModelData{Name: "openconfig-platform-healthz-fault",
+		Org: "OpenConfig working group",
+		Ver: "0.1.0"})
+	if err != nil {
+		log.Fatal("Adding Healthz fault model data to appinterface failed with error=", err)
+	}
 }
 
 func (app *PlatformApp) initialize(data appData) {
@@ -64,6 +72,7 @@ func (app *PlatformApp) initialize(data appData) {
 	app.ygotRoot = data.ygotRoot
 	app.ygotTarget = data.ygotTarget
 	app.eepromTs = &db.TableSpec{Name: "EEPROM_INFO"}
+	app.faultInfoTs = &db.TableSpec{Name: "FAULT_INFO", CompCt: 2}
 
 }
 
@@ -78,11 +87,11 @@ func (app *PlatformApp) translateAction(dbs [db.MaxDB]*db.DB) error {
 }
 
 func (app *PlatformApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
-	return emptySubscribeResponse(req.path)
+	return app.translateFaultSubscribe(req)
 }
 
 func (app *PlatformApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
-	return processSubResponse{}, tlerr.New("not implemented")
+	return app.processFaultSubscribe(req)
 }
 
 func (app *PlatformApp) translateCreate(d *db.DB) ([]db.WatchKeys, error) {
@@ -159,29 +168,7 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
 	log.Infof("Received GET for PlatformApp Template: %s ,path: %s, vars: %v",
 		pathInfo.Template, pathInfo.Path, pathInfo.Vars)
 
-	stateDb := dbs[db.StateDB]
-
 	var payload []byte
-
-	// Read eeprom info from DB
-	app.eepromTable = make(map[string]dbEntry)
-
-	tbl, derr := stateDb.GetTable(app.eepromTs)
-	if derr != nil {
-		log.Error("EEPROM_INFO table get failed!")
-		return GetResponse{Payload: payload}, derr
-	}
-
-	keys, _ := tbl.GetKeys()
-	for _, key := range keys {
-		e, kerr := tbl.GetEntry(key)
-		if kerr != nil {
-			log.Error("EEPROM_INFO entry get failed!")
-			return GetResponse{Payload: payload}, kerr
-		}
-
-		app.eepromTable[key.Get(0)] = dbEntry{entry: e}
-	}
 
 	targetUriPath, perr := getYangPathFromUri(app.path.Path)
 	if perr != nil {
@@ -189,18 +176,48 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
 		return GetResponse{Payload: payload}, perr
 	}
 
+	if !isSubtreeRequest(targetUriPath, "/openconfig-platform:components") {
+		return GetResponse{Payload: payload}, errors.New("Not supported component")
+	}
+
+	stateDb := dbs[db.StateDB]
 	var err error
 
-	if isSubtreeRequest(targetUriPath, "/openconfig-platform:components") {
-		err = app.doGetSysEeprom()
-	} else {
-		err = errors.New("Not supported component")
+	if platformPathNeedsEeprom(targetUriPath, app.path.Var("name")) {
+		if err = app.loadEepromTable(stateDb); err == nil {
+			err = app.doGetSysEeprom()
+		}
+	}
+
+	if err == nil && platformPathNeedsFaults(targetUriPath) {
+		err = app.doGetFaults(stateDb)
 	}
 
 	if err == nil {
 		return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
 	}
 	return GetResponse{Payload: payload}, err
+}
+
+func (app *PlatformApp) loadEepromTable(stateDb *db.DB) error {
+	app.eepromTable = make(map[string]dbEntry)
+
+	tbl, err := stateDb.GetTable(app.eepromTs)
+	if err != nil {
+		log.Error("EEPROM_INFO table get failed!")
+		return err
+	}
+
+	keys, _ := tbl.GetKeys()
+	for _, key := range keys {
+		entry, err := tbl.GetEntry(key)
+		if err != nil {
+			log.Error("EEPROM_INFO entry get failed!")
+			return err
+		}
+		app.eepromTable[key.Get(0)] = dbEntry{entry: entry}
+	}
+	return nil
 }
 
 func (app *PlatformApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {
