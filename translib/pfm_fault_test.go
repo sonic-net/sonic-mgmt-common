@@ -138,7 +138,7 @@ func TestParseInactivePlatformFaultWithNoRemediations(t *testing.T) {
 
 func TestAddPlatformFaultRowsIsolatesMalformedRows(t *testing.T) {
 	bad := validPlatformFaultEntry()
-	bad.Field["component_info"] = `{"name":`
+	bad.Field["component_name"] = ""
 
 	rows := []platformFaultRow{
 		{key: db.Key{Comp: []string{"BROKEN", "SYMPTOM_OVER_THRESHOLD"}}, entry: bad},
@@ -180,7 +180,7 @@ func TestFaultKeyComponentCodecMatchesProducer(t *testing.T) {
 	}
 
 	entry := validPlatformFaultEntry()
-	entry.Field["component_info"] = `{"component":"PSU","name":"PSU+0:A","serial_number":"serial"}`
+	entry.Field["component_name"] = "PSU+0:A"
 	fault, err := parsePlatformFault(
 		db.Key{Comp: []string{"PSU%2B0%3AA", "SYMPTOM_OVER_THRESHOLD"}}, entry)
 	if err != nil {
@@ -198,8 +198,9 @@ func TestParsePlatformFaultRejectsInvalidMappings(t *testing.T) {
 		value string
 		key   db.Key
 	}{
-		{name: "nested component json", field: "component_info", value: `{"name":`, key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
-		{name: "key mismatch", field: "component_info", value: `{"name":"PSU1"}`, key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "empty component type", field: "component_type", value: "", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "empty component name", field: "component_name", value: "", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "key mismatch", field: "component_name", value: "PSU1", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
 		{name: "unknown symptom", field: "symptom", value: "VENDOR_SYMPTOM", key: db.Key{Comp: []string{"PSU0", "VENDOR_SYMPTOM"}}},
 		{name: "wrong symptom namespace", field: "symptom", value: "vendor:SYMPTOM_OVER_THRESHOLD", key: db.Key{Comp: []string{"PSU0", "vendor%3ASYMPTOM_OVER_THRESHOLD"}}},
 		{name: "unknown status", field: "status", value: "BROKEN", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
@@ -221,6 +222,43 @@ func TestParsePlatformFaultRejectsInvalidMappings(t *testing.T) {
 				t.Fatal("parsePlatformFault succeeded, want error")
 			}
 		})
+	}
+}
+
+func TestPlatformFaultActionValueSupportsCompiledVendorIdentity(t *testing.T) {
+	identities := map[int64]ygot.EnumDefinition{
+		1: {Name: "ACTION_RESEAT", DefiningModule: platformFaultModule},
+		7: {Name: "ACTION_REPAIR_FABRIC", DefiningModule: "vendor-healthz"},
+	}
+	tests := []struct {
+		value string
+		want  int64
+	}{
+		{value: "ACTION_RESEAT", want: 1},
+		{value: platformFaultModule + ":ACTION_RESEAT", want: 1},
+		{value: platformFaultModulePrefix + ":ACTION_RESEAT", want: 1},
+		{value: "vendor-healthz:ACTION_REPAIR_FABRIC", want: 7},
+	}
+	for _, test := range tests {
+		got, err := platformFaultActionValue(test.value, identities)
+		if err != nil {
+			t.Errorf("platformFaultActionValue(%q) failed: %v", test.value, err)
+			continue
+		}
+		if got != test.want {
+			t.Errorf("platformFaultActionValue(%q) = %d, want %d", test.value, got, test.want)
+		}
+	}
+
+	for _, value := range []string{
+		"ACTION_REPAIR_FABRIC",
+		"vendor-healthz:ACTION_RESEAT",
+		"vendor-healthz:",
+		"vendor:extra:ACTION_RESEAT",
+	} {
+		if _, err := platformFaultActionValue(value, identities); err == nil {
+			t.Errorf("platformFaultActionValue(%q) succeeded, want error", value)
+		}
 	}
 }
 
@@ -325,7 +363,7 @@ func TestProcessPlatformFaultOnChange(t *testing.T) {
 
 	sender.notifications = nil
 	bad := validPlatformFaultEntry()
-	bad.Field["component_info"] = "not-json"
+	bad.Field["component_name"] = ""
 	processPlatformFaultOnChange(&apis.NotificationContext{
 		Path: subscribePath,
 		Key:  &key,
@@ -373,13 +411,15 @@ func (s *recordingNotificationSender) Send(notification *apis.Notification) {
 
 func validPlatformFaultEntry() db.Value {
 	return db.Value{Field: map[string]string{
-		"component_info":      `{"component":"PSU","name":"PSU0","serial_number":"serial"}`,
-		"symptom":             "openconfig-platform-healthz-fault:SYMPTOM_OVER_THRESHOLD",
-		"status":              "ACTIVE",
-		"origin_time":         "1745614206.0123456",
-		"last_detection_time": "1745614206.987654321",
-		"occurrences":         "2",
-		"description":         "PSU output voltage is above threshold",
-		"repair_actions":      `[{"action":"ACTION_RESEAT"}]`,
+		"component_type":          "PSU",
+		"component_name":          "PSU0",
+		"component_serial_number": "serial",
+		"symptom":                 "openconfig-platform-healthz-fault:SYMPTOM_OVER_THRESHOLD",
+		"status":                  "ACTIVE",
+		"origin_time":             "1745614206.0123456",
+		"last_detection_time":     "1745614206.987654321",
+		"occurrences":             "2",
+		"description":             "PSU output voltage is above threshold",
+		"repair_actions":          `[{"action":"ACTION_RESEAT"}]`,
 	}}
 }

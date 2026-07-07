@@ -60,10 +60,6 @@ type platformFaultRow struct {
 	entry db.Value
 }
 
-type faultComponentInfo struct {
-	Name string `json:"name"`
-}
-
 type faultRepairAction struct {
 	Action string `json:"action"`
 }
@@ -142,12 +138,12 @@ func parsePlatformFault(key db.Key, entry db.Value) (*platformFault, error) {
 		return nil, fmt.Errorf("expected two key components, got %d", key.Len())
 	}
 
-	var component faultComponentInfo
-	if err := json.Unmarshal([]byte(entry.Get("component_info")), &component); err != nil {
-		return nil, fmt.Errorf("invalid component_info: %w", err)
+	if strings.TrimSpace(entry.Get("component_type")) == "" {
+		return nil, errors.New("component_type is empty")
 	}
-	if component.Name == "" {
-		return nil, errors.New("component_info.name is empty")
+	componentName := strings.TrimSpace(entry.Get("component_name"))
+	if componentName == "" {
+		return nil, errors.New("component_name is empty")
 	}
 
 	symptomName, err := platformFaultIdentityName(entry.Get("symptom"))
@@ -166,8 +162,8 @@ func parsePlatformFault(key db.Key, entry db.Value) (*platformFault, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid symptom key: %w", err)
 	}
-	if keyComponent != component.Name || keySymptomName != symptomName {
-		return nil, errors.New("key does not match component_info.name and symptom")
+	if keyComponent != componentName || keySymptomName != symptomName {
+		return nil, errors.New("key does not match component_name and symptom")
 	}
 
 	symptom, err := platformFaultSymptom(symptomName)
@@ -207,7 +203,7 @@ func parsePlatformFault(key db.Key, entry db.Value) (*platformFault, error) {
 	}
 
 	return &platformFault{
-		component:         component.Name,
+		component:         componentName,
 		symptomName:       symptomName,
 		symptom:           symptom,
 		status:            status,
@@ -267,11 +263,7 @@ func parsePlatformRepairActions(value string) ([]ocbinds.E_OpenconfigPlatformHea
 
 	actions := make([]ocbinds.E_OpenconfigPlatformHealthzFault_ACTION_BASE, 0, len(raw))
 	for i, item := range raw {
-		actionName, err := platformFaultIdentityName(item.Action)
-		if err != nil {
-			return nil, fmt.Errorf("invalid repair_actions[%d]: %w", i, err)
-		}
-		action, err := platformFaultAction(actionName)
+		action, err := platformFaultAction(item.Action)
 		if err != nil {
 			return nil, fmt.Errorf("invalid repair_actions[%d]: %w", i, err)
 		}
@@ -426,23 +418,45 @@ func platformFaultSymptom(value string) (ocbinds.E_OpenconfigPlatformHealthzFaul
 }
 
 func platformFaultAction(value string) (ocbinds.E_OpenconfigPlatformHealthzFault_ACTION_BASE, error) {
-	switch value {
-	case "ACTION_RESEAT":
-		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_ACTION_RESEAT, nil
-	case "ACTION_WARM_REBOOT":
-		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_ACTION_WARM_REBOOT, nil
-	case "ACTION_COLD_REBOOT":
-		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_ACTION_COLD_REBOOT, nil
-	case "ACTION_POWER_CYCLE":
-		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_ACTION_POWER_CYCLE, nil
-	case "ACTION_FACTORY_RESET":
-		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_ACTION_FACTORY_RESET, nil
-	case "ACTION_REPLACE":
-		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_ACTION_REPLACE, nil
-	default:
+	const enumName = "E_OpenconfigPlatformHealthzFault_ACTION_BASE"
+	identities, ok := ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_UNSET.ΛMap()[enumName]
+	if !ok {
 		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_UNSET,
-			fmt.Errorf("unsupported action %q", value)
+			fmt.Errorf("generated identity map %q is unavailable", enumName)
 	}
+	identityValue, err := platformFaultActionValue(value, identities)
+	if err != nil {
+		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_UNSET, err
+	}
+	return ocbinds.E_OpenconfigPlatformHealthzFault_ACTION_BASE(identityValue), nil
+}
+
+func platformFaultActionValue(value string, identities map[int64]ygot.EnumDefinition) (int64, error) {
+	value = strings.TrimSpace(value)
+	parts := strings.Split(value, ":")
+	module := platformFaultModule
+	identity := ""
+	switch len(parts) {
+	case 1:
+		identity = parts[0]
+	case 2:
+		module = parts[0]
+		identity = parts[1]
+		if module == platformFaultModulePrefix {
+			module = platformFaultModule
+		}
+	default:
+		return 0, fmt.Errorf("invalid action identity %q", value)
+	}
+	if module == "" || identity == "" {
+		return 0, fmt.Errorf("invalid action identity %q", value)
+	}
+	for enumValue, definition := range identities {
+		if definition.Name == identity && definition.DefiningModule == module {
+			return enumValue, nil
+		}
+	}
+	return 0, fmt.Errorf("unsupported action identity %q", value)
 }
 
 func platformFaultStatus(value string) (ocbinds.E_OpenconfigPlatform_Components_Component_Healthz_Faults_Fault_State_Status, error) {
