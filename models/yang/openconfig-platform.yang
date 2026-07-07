@@ -1283,6 +1283,21 @@ revision "2024-05-29" {
           "Operational state data for controller card components";
       }
     }
+    container boot-loader {
+      description
+        "Data for boot-loader components";
+
+      container config {
+        description
+          "Configuration data for boot-loader components";
+      }
+
+      container state {
+        config false;
+        description
+          "Operational state data for boot-loader components";
+      }
+    }
   }
 
   grouping platform-component-top {
