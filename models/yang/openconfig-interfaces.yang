@@ -568,8 +568,29 @@ module openconfig-interfaces {
         channel on the system.";
       oc-ext:telemetry-on-change;
     }
-  }
 
+    leaf management {
+      type boolean;
+      description
+        "When set to true, the interface is a dedicated
+        management interface that is not connected to dataplane
+        interfaces.  It may be used to connect the system to an
+        out-of-band management network, for example.";
+      oc-ext:telemetry-on-change;
+    }
+
+    leaf cpu {
+      type boolean;
+      description
+        "When set to true, the interface is for traffic
+        that is handled by the system CPU, sometimes also called the
+        control plane interface.  On systems that represent the CPU
+        interface as an Ethernet interface, for example, this leaf
+        should be used to distinguish the CPU interface from dataplane
+        interfaces.";
+      oc-ext:telemetry-on-change;
+    }
+  }
 
   grouping interface-counters-state {
     description

@@ -1165,3 +1165,751 @@ func TestDbToYang_intf_physical_channel_xfmr(t *testing.T) {
 		})
 	}
 }
+
+func TestCPU_DbToYang_intf_cpu_xfmr(t *testing.T) {
+	tests := []struct {
+		name      string
+		uri       string
+		expectMap map[string]interface{}
+		wantErr   bool
+	}{
+		{"Success - CPU", "/interfaces/interface[name=CPU]/state/cpu", map[string]interface{}{"cpu": true}, false},
+		{"Success - Non CPU", "/interfaces/interface[name=Ethernet999]/state/cpu", map[string]interface{}{}, false},
+		{"Failure - No Key", "/interfaces/interface/state/cpu", nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inParams := XfmrParams{uri: tt.uri}
+			res, err := DbToYang_intf_cpu_xfmr(inParams)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("wantErr %v, got %v", tt.wantErr, err)
+			}
+			if !tt.wantErr && !reflect.DeepEqual(res, tt.expectMap) {
+				t.Errorf("Expected %v, got %v", tt.expectMap, res)
+			}
+		})
+	}
+}
+
+func TestCPU_DbToYang_intf_description_xfmr(t *testing.T) {
+	d, err := db.NewDB(getDBOptions(db.ConfigDB))
+	if err != nil {
+		t.Fatalf("Failed to create ConfigDB: %v", err)
+	}
+	defer d.DeleteDB()
+
+	ts := &db.TableSpec{Name: "PORT"}
+	d.SetEntry(ts, db.Key{Comp: []string{"Ethernet998"}}, db.Value{Field: map[string]string{"description": "Test Description"}})
+	d.SetEntry(ts, db.Key{Comp: []string{"Ethernet999"}}, db.Value{Field: map[string]string{"other": "value"}})
+
+	defer func() {
+		d.DeleteEntry(ts, db.Key{Comp: []string{"Ethernet998"}})
+		d.DeleteEntry(ts, db.Key{Comp: []string{"Ethernet999"}})
+	}()
+
+	tests := []struct {
+		name      string
+		ifName    string
+		expectVal string
+		expectErr bool
+	}{
+		{
+			name:      "Successful Retrieval",
+			ifName:    "Ethernet998",
+			expectVal: "Test Description",
+			expectErr: false,
+		},
+		{
+			name:      "Missing Description Field",
+			ifName:    "Ethernet999",
+			expectErr: true,
+		},
+		{
+			name:      "Invalid Interface Name",
+			ifName:    "Bogus0",
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inParams := XfmrParams{
+				key:   tt.ifName,
+				uri:   "/openconfig-interfaces:interfaces/interface[name=" + tt.ifName + "]/config/description",
+				curDb: db.ConfigDB,
+				dbs:   [db.MaxDB]*db.DB{db.ConfigDB: d},
+			}
+			got, err := DbToYang_intf_description_xfmr(inParams)
+			if (err != nil) != tt.expectErr {
+				t.Fatalf("DbToYang_intf_description_xfmr() error = %v, expectErr %v", err, tt.expectErr)
+			}
+			if !tt.expectErr {
+				if val, ok := got["description"]; !ok || val != tt.expectVal {
+					t.Errorf("Expected description %q, got %v", tt.expectVal, got)
+				}
+			}
+		})
+	}
+}
+
+func TestCPU_DbToYang_pins_ifindex_xfmr(t *testing.T) {
+	d, err := db.NewDB(getDBOptions(db.ConfigDB))
+	if err != nil {
+		t.Fatalf("Failed to create ConfigDB: %v", err)
+	}
+	defer d.DeleteDB()
+
+	ts := &db.TableSpec{Name: "P4RT_PORT_ID_TABLE"}
+	d.SetEntry(ts, db.Key{Comp: []string{"Ethernet998"}}, db.Value{Field: map[string]string{"id": "12345"}})
+	d.SetEntry(ts, db.Key{Comp: []string{"Ethernet999"}}, db.Value{Field: map[string]string{"id": "not-a-number"}})
+
+	defer func() {
+		d.DeleteEntry(ts, db.Key{Comp: []string{"Ethernet998"}})
+		d.DeleteEntry(ts, db.Key{Comp: []string{"Ethernet999"}})
+	}()
+
+	tests := []struct {
+		name      string
+		ifName    string
+		expectVal uint32
+		expectErr bool
+	}{
+		{
+			name:      "Successful ID Parsing",
+			ifName:    "Ethernet998",
+			expectVal: 12345,
+			expectErr: false,
+		},
+		{
+			name:      "Non-numeric ID",
+			ifName:    "Ethernet999",
+			expectErr: true,
+		},
+		{
+			name:      "Missing Entry",
+			ifName:    "Ethernet997",
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inParams := XfmrParams{
+				key:   tt.ifName,
+				uri:   "/openconfig-interfaces:interfaces/interface[name=" + tt.ifName + "]/state/ifindex",
+				curDb: db.ConfigDB,
+				dbs:   [db.MaxDB]*db.DB{db.ConfigDB: d},
+			}
+			got, err := DbToYang_pins_ifindex_xfmr(inParams)
+			if (err != nil) != tt.expectErr {
+				t.Fatalf("DbToYang_pins_ifindex_xfmr() error = %v, expectErr %v", err, tt.expectErr)
+			}
+			if !tt.expectErr {
+				if val, ok := got["ifindex"]; !ok || val != tt.expectVal {
+					t.Errorf("Expected ifindex %d, got %v", tt.expectVal, got)
+				}
+			}
+		})
+	}
+}
+
+func mockPopulateCounters(inParams XfmrParams, itfName string, counters interface{}) error {
+	switch c := counters.(type) {
+	case *ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv4_State_Counters:
+		var val uint64
+		switch itfName {
+		case "Ethernet998":
+			val = 100
+		case "Ethernet999":
+			val = 50
+		default:
+			val = 0 // Return 0 for parent aggregate/unhandled interfaces to prevent unwanted additions
+		}
+		c.InPkts = &val
+		c.OutPkts = &val
+	case *ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv6_State_Counters:
+		var val uint64 = 200
+		c.InPkts = &val
+		c.OutPkts = &val
+	}
+	return nil
+}
+
+func TestCPU_DbToYang_intf_ipv4_counters_xfmr_PortChannel(t *testing.T) {
+	stateDb, err := db.NewDB(getDBOptions(db.StateDB))
+	if err != nil {
+		t.Fatalf("Failed to create StateDB: %v", err)
+	}
+	defer stateDb.DeleteDB()
+
+	sep := stateDb.Opts.KeySeparator
+	lagName := "PortChannelTestUnique"
+
+	ts := &db.TableSpec{Name: LAG_MEMBER_TABLE_TN + sep + lagName}
+	stateDb.DeleteMapAll(ts)
+	defer stateDb.DeleteMapAll(ts)
+
+	stateDb.SetEntry(ts, db.Key{Comp: []string{"Ethernet998"}}, db.Value{Field: map[string]string{"status": "up"}})
+	stateDb.SetEntry(ts, db.Key{Comp: []string{"Ethernet999"}}, db.Value{Field: map[string]string{"status": "up"}})
+
+	origPopulate := populatePortCounters
+	populatePortCounters = mockPopulateCounters
+	defer func() { populatePortCounters = origPopulate }()
+
+	device := &ocbinds.Device{
+		Interfaces: &ocbinds.OpenconfigInterfaces_Interfaces{},
+	}
+	ygot.BuildEmptyTree(device)
+	var root ygot.GoStruct = device
+
+	inParams := XfmrParams{
+		ygRoot: &root,
+		uri:    "/openconfig-interfaces:interfaces/interface[name=" + lagName + "]/subinterfaces/subinterface[index=0]/ipv4/state/counters",
+		dbs:    [db.MaxDB]*db.DB{db.StateDB: stateDb},
+	}
+
+	err = DbToYang_intf_ipv4_counters_xfmr(inParams)
+	if err != nil {
+		t.Fatalf("IPv4 Transformer failed: %v", err)
+	}
+
+	intf := device.Interfaces.Interface[lagName]
+	if intf == nil || intf.Subinterfaces == nil || intf.Subinterfaces.Subinterface[0] == nil {
+		t.Fatal("Subinterface[0] was not created in device tree")
+	}
+
+	v4Counters := intf.Subinterfaces.Subinterface[0].Ipv4.State.Counters
+	if v4Counters == nil || v4Counters.InPkts == nil {
+		t.Fatal("InPkts was not populated")
+	}
+
+	if *v4Counters.InPkts != 150 {
+		t.Errorf("Aggregation error: Expected 150 (100+50), got %v", *v4Counters.InPkts)
+	}
+}
+
+func TestCPU_DbToYang_intf_ipv6_counters_xfmr_Ethernet(t *testing.T) {
+	stateDb, _ := db.NewDB(getDBOptions(db.StateDB))
+	defer stateDb.DeleteDB()
+
+	origPopulate := populatePortCounters
+	populatePortCounters = mockPopulateCounters
+	defer func() { populatePortCounters = origPopulate }()
+
+	device := &ocbinds.Device{
+		Interfaces: &ocbinds.OpenconfigInterfaces_Interfaces{},
+	}
+	ygot.BuildEmptyTree(device)
+	var root ygot.GoStruct = device
+
+	inParams := XfmrParams{
+		ygRoot: &root,
+		uri:    "/openconfig-interfaces:interfaces/interface[name=Ethernet999]/subinterfaces/subinterface[index=0]/ipv6/state/counters",
+		dbs:    [db.MaxDB]*db.DB{},
+	}
+	inParams.dbs[db.StateDB] = stateDb
+
+	err := DbToYang_intf_ipv6_counters_xfmr(inParams)
+	if err != nil {
+		t.Fatalf("IPv6 Transformer failed: %v", err)
+	}
+
+	intf := device.Interfaces.Interface["Ethernet999"]
+	if intf == nil || intf.Subinterfaces == nil || intf.Subinterfaces.Subinterface[0] == nil {
+		t.Fatal("Subinterface[0] was not created in device tree")
+	}
+
+	v6Counters := intf.Subinterfaces.Subinterface[0].Ipv6.State.Counters
+	if v6Counters == nil || v6Counters.InPkts == nil || *v6Counters.InPkts != 200 {
+		t.Errorf("Expected 200, got %v", v6Counters)
+	}
+}
+
+func TestCPU_DbToYang_intf_mgmt_xfmr(t *testing.T) {
+	tests := []struct {
+		name      string
+		uri       string
+		want      map[string]interface{}
+		expectErr bool
+	}{
+		{
+			name:      "CPU Interface",
+			uri:       "/openconfig-interfaces:interfaces/interface[name=CPU]/state/management",
+			want:      map[string]interface{}{"management": false},
+			expectErr: false,
+		},
+		{
+			name:      "Management Interface - eth prefix",
+			uri:       "/openconfig-interfaces:interfaces/interface[name=eth0]/state/management",
+			want:      map[string]interface{}{"management": true},
+			expectErr: false,
+		},
+		{
+			name:      "Management Interface - mgmt prefix",
+			uri:       "/openconfig-interfaces:interfaces/interface[name=mgmt0]/state/management",
+			want:      map[string]interface{}{"management": true},
+			expectErr: false,
+		},
+		{
+			name:      "Standard Interface",
+			uri:       "/openconfig-interfaces:interfaces/interface[name=Ethernet999]/state/management",
+			want:      map[string]interface{}{},
+			expectErr: false,
+		},
+		{
+			name:      "Missing Name Key",
+			uri:       "/openconfig-interfaces:interfaces/interface/state/management",
+			want:      map[string]interface{}{},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inParams := XfmrParams{uri: tt.uri}
+			got, err := DbToYang_intf_mgmt_xfmr(inParams)
+
+			if (err != nil) != tt.expectErr {
+				t.Fatalf("DbToYang_intf_mgmt_xfmr() error = %v, expectErr %v", err, tt.expectErr)
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("DbToYang_intf_mgmt_xfmr() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCPU_DbToYang_intf_eth_mac_address_xfmr(t *testing.T) {
+	configDb, err := db.NewDB(getDBOptions(db.ConfigDB))
+	if err != nil {
+		t.Fatalf("Failed to open ConfigDB: %v", err)
+	}
+	defer configDb.DeleteDB()
+
+	dbs := [db.MaxDB]*db.DB{db.ConfigDB: configDb}
+
+	intfExplicit := "Ethernet998"
+	intfFallback := "Ethernet999"
+
+	tsPort := &db.TableSpec{Name: "PORT"}
+	tsMeta := &db.TableSpec{Name: "DEVICE_METADATA"}
+
+	// 1. Explicit MAC on Ethernet998
+	configDb.SetEntry(tsPort, db.Key{Comp: []string{intfExplicit}}, db.Value{Field: map[string]string{"mac-address": "00:11:22:33:44:55"}})
+
+	// 2. Seed Ethernet999
+	configDb.SetEntry(tsPort, db.Key{Comp: []string{intfFallback}}, db.Value{Field: map[string]string{"admin_status": "up"}})
+
+	// 3. System-assigned MAC fallback entry
+	configDb.SetEntry(tsMeta, db.Key{Comp: []string{"localhost"}}, db.Value{Field: map[string]string{"mac": "AA:BB:CC:DD:EE:FF"}})
+
+	defer func() {
+		configDb.DeleteEntry(tsPort, db.Key{Comp: []string{intfExplicit}})
+		configDb.DeleteEntry(tsPort, db.Key{Comp: []string{intfFallback}})
+		configDb.DeleteEntry(tsMeta, db.Key{Comp: []string{"localhost"}})
+	}()
+
+	tests := []struct {
+		name   string
+		ifName string
+		want   string
+	}{
+		{"Explicit", intfExplicit, "00:11:22:33:44:55"},
+		{"Fallback", intfFallback, "AA:BB:CC:DD:EE:FF"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inParams := XfmrParams{
+				uri:   "/interfaces/interface[name=" + tt.ifName + "]/ethernet/state/mac-address",
+				curDb: db.ConfigDB,
+				dbs:   dbs,
+			}
+			res, err := DbToYang_intf_eth_mac_address_xfmr(inParams)
+			if err != nil {
+				t.Fatalf("Unexpected error for %s: %v", tt.name, err)
+			}
+			if res["mac-address"] != tt.want {
+				t.Errorf("Expected %s, got %v", tt.want, res["mac-address"])
+			}
+		})
+	}
+}
+
+func TestCPU_SumV4Counters_AllFields(t *testing.T) {
+	u64 := func(v uint64) *uint64 { return &v }
+
+	// Test Case A: Parent already has non-nil values
+	parent1 := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv4_State_Counters{
+		InDiscardedPkts:    u64(10),
+		InErrorPkts:        u64(10),
+		InForwardedOctets:  u64(10),
+		InForwardedPkts:    u64(10),
+		InOctets:           u64(10),
+		InPkts:             u64(10),
+		OutDiscardedPkts:   u64(10),
+		OutErrorPkts:       u64(10),
+		OutForwardedOctets: u64(10),
+		OutForwardedPkts:   u64(10),
+		OutOctets:          u64(10),
+		OutPkts:            u64(10),
+	}
+
+	member1 := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv4_State_Counters{
+		InDiscardedPkts:    u64(5),
+		InErrorPkts:        u64(5),
+		InForwardedOctets:  u64(5),
+		InForwardedPkts:    u64(5),
+		InOctets:           u64(5),
+		InPkts:             u64(5),
+		OutDiscardedPkts:   u64(5),
+		OutErrorPkts:       u64(5),
+		OutForwardedOctets: u64(5),
+		OutForwardedPkts:   u64(5),
+		OutOctets:          u64(5),
+		OutPkts:            u64(5),
+	}
+
+	sumV4Counters(parent1, member1)
+
+	if *parent1.InDiscardedPkts != 15 || *parent1.OutOctets != 15 {
+		t.Errorf("sumV4Counters failed addition: got InDiscardedPkts=%d, OutOctets=%d", *parent1.InDiscardedPkts, *parent1.OutOctets)
+	}
+
+	// Test Case B: Parent has nil values
+	parent2 := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv4_State_Counters{}
+
+	sumV4Counters(parent2, member1)
+
+	if *parent2.InDiscardedPkts != 5 || *parent2.OutOctets != 5 {
+		t.Errorf("sumV4Counters failed assignment: got InDiscardedPkts=%d, OutOctets=%d", *parent2.InDiscardedPkts, *parent2.OutOctets)
+	}
+}
+
+func TestCPU_SumV6Counters_AllFields(t *testing.T) {
+	u64 := func(v uint64) *uint64 { return &v }
+
+	// Test Case A: Parent already has non-nil values
+	parent1 := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv6_State_Counters{
+		InDiscardedPkts:    u64(20),
+		InErrorPkts:        u64(20),
+		InForwardedOctets:  u64(20),
+		InForwardedPkts:    u64(20),
+		InOctets:           u64(20),
+		InPkts:             u64(20),
+		OutDiscardedPkts:   u64(20),
+		OutErrorPkts:       u64(20),
+		OutForwardedOctets: u64(20),
+		OutForwardedPkts:   u64(20),
+		OutOctets:          u64(20),
+		OutPkts:            u64(20),
+	}
+
+	member1 := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv6_State_Counters{
+		InDiscardedPkts:    u64(10),
+		InErrorPkts:        u64(10),
+		InForwardedOctets:  u64(10),
+		InForwardedPkts:    u64(10),
+		InOctets:           u64(10),
+		InPkts:             u64(10),
+		OutDiscardedPkts:   u64(10),
+		OutErrorPkts:       u64(10),
+		OutForwardedOctets: u64(10),
+		OutForwardedPkts:   u64(10),
+		OutOctets:          u64(10),
+		OutPkts:            u64(10),
+	}
+
+	sumV6Counters(parent1, member1)
+
+	if *parent1.InErrorPkts != 30 || *parent1.OutForwardedPkts != 30 {
+		t.Errorf("sumV6Counters failed addition: got InErrorPkts=%d, OutForwardedPkts=%d", *parent1.InErrorPkts, *parent1.OutForwardedPkts)
+	}
+
+	// Test Case B: Parent has nil values
+	parent2 := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv6_State_Counters{}
+
+	sumV6Counters(parent2, member1)
+
+	if *parent2.InErrorPkts != 10 || *parent2.OutForwardedPkts != 10 {
+		t.Errorf("sumV6Counters failed assignment: got InErrorPkts=%d, OutForwardedPkts=%d", *parent2.InErrorPkts, *parent2.OutForwardedPkts)
+	}
+}
+
+// 3. Test getSpecificCounterAttr for all subinterface IPv4/IPv6 counter path cases and invalid type assertions
+func TestCPU_GetSpecificCounterAttr_Subinterface(t *testing.T) {
+	entry := &db.Value{
+		Field: map[string]string{
+			"SAI_PORT_STAT_IP_IN_RECEIVES":          "100",
+			"SAI_PORT_STAT_IP_OUT_UCAST_PKTS":       "200",
+			"SAI_PORT_STAT_IP_OUT_NON_UCAST_PKTS":   "50",
+			"SAI_PORT_STAT_IPV6_IN_RECEIVES":        "300",
+			"SAI_PORT_STAT_IPV6_OUT_UCAST_PKTS":     "400",
+			"SAI_PORT_STAT_IPV6_OUT_NON_UCAST_PKTS": "50",
+			"SAI_PORT_STAT_IPV6_IN_DISCARDS":        "10",
+			"SAI_PORT_STAT_IPV6_OUT_DISCARDS":       "20",
+		},
+	}
+
+	v4Counter := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv4_State_Counters{}
+	v6Counter := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv6_State_Counters{}
+
+	pathsV4 := []string{
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/openconfig-if-ip:ipv4/state/counters/out-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv4/state/counters/out-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/openconfig-if-ip:ipv4/state/counters/in-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv4/state/counters/in-pkts",
+	}
+
+	for _, p := range pathsV4 {
+		status, err := getSpecificCounterAttr(p, entry, v4Counter)
+		if !status || err != nil {
+			t.Errorf("getSpecificCounterAttr failed for path %s: err=%v", p, err)
+		}
+	}
+
+	pathsV6 := []string{
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/openconfig-if-ip:ipv6/state/counters/out-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv6/state/counters/out-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/openconfig-if-ip:ipv6/state/counters/in-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv6/state/counters/in-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/openconfig-if-ip:ipv6/state/counters/in-discarded-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv6/state/counters/in-discarded-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/openconfig-if-ip:ipv6/state/counters/out-discarded-pkts",
+		"/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv6/state/counters/out-discarded-pkts",
+	}
+
+	for _, p := range pathsV6 {
+		status, err := getSpecificCounterAttr(p, entry, v6Counter)
+		if !status || err != nil {
+			t.Errorf("getSpecificCounterAttr failed for path %s: err=%v", p, err)
+		}
+	}
+
+	// Default fallback path
+	status, err := getSpecificCounterAttr("/openconfig-interfaces:interfaces/invalid/path", entry, v4Counter)
+	if !status || err != nil {
+		t.Errorf("getSpecificCounterAttr expected true, nil for invalid path, got status=%v, err=%v", status, err)
+	}
+
+	// Invalid type assertion branches in first switch
+	getSpecificCounterAttr("/openconfig-interfaces:interfaces/interface/state/counters", entry, "invalid_type")
+	getSpecificCounterAttr("/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv4/state/counters", entry, "invalid_type")
+	getSpecificCounterAttr("/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface/ipv6/state/counters", entry, "invalid_type")
+	getSpecificCounterAttr("/openconfig-interfaces:interfaces/interface/ethernet/state/counters", entry, "invalid_type")
+}
+
+func TestCPU_DbToYang_intf_oper_status_xfmr(t *testing.T) {
+	applDb, err := db.NewDB(getDBOptions(db.ApplDB))
+	if err != nil {
+		t.Fatalf("Failed to create ApplDB: %v", err)
+	}
+	defer applDb.DeleteDB()
+
+	tests := []struct {
+		name       string
+		ifName     string
+		tblName    string
+		dbFields   map[string]string
+		wantStatus string
+		expectErr  bool
+	}{
+		{
+			name:       "Oper_Status_Up",
+			ifName:     "Ethernet0",
+			tblName:    "PORT_TABLE",
+			dbFields:   map[string]string{"oper_status": "up"},
+			wantStatus: "UP",
+		},
+		{
+			name:       "Oper_Status_Down_Branch",
+			ifName:     "Ethernet0",
+			tblName:    "PORT_TABLE",
+			dbFields:   map[string]string{"oper_status": "down", "presence": "1"},
+			wantStatus: "DOWN",
+		},
+		{
+			name:       "Oper_Status_Unknown_Default_Branch",
+			ifName:     "Ethernet0",
+			tblName:    "PORT_TABLE",
+			dbFields:   map[string]string{"oper_status": "some_invalid_state", "presence": "1"},
+			wantStatus: "UNKNOWN",
+		},
+		{
+			name:       "CPU_Interface_Always_Up",
+			ifName:     "CPU",
+			wantStatus: "UP",
+			expectErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.tblName != "" {
+				ts := &db.TableSpec{Name: tt.tblName}
+				applDb.DeleteEntry(ts, db.Key{Comp: []string{tt.ifName}})
+				if tt.dbFields != nil {
+					applDb.SetEntry(ts, db.Key{Comp: []string{tt.ifName}}, db.Value{Field: tt.dbFields})
+				}
+				defer applDb.DeleteEntry(ts, db.Key{Comp: []string{tt.ifName}})
+			}
+
+			inParams := XfmrParams{
+				key:   tt.ifName,
+				uri:   "/openconfig-interfaces:interfaces/interface[name=" + tt.ifName + "]/state/oper-status",
+				curDb: db.ApplDB,
+				dbs:   [db.MaxDB]*db.DB{db.ApplDB: applDb},
+			}
+
+			got, err := DbToYang_intf_oper_status_xfmr(inParams)
+
+			if (err != nil) != tt.expectErr {
+				t.Fatalf("DbToYang_intf_oper_status_xfmr() error = %v, expectErr %v", err, tt.expectErr)
+			}
+
+			if !tt.expectErr {
+				if status, ok := got["oper-status"]; !ok || status != tt.wantStatus {
+					t.Errorf("got status %v, want %v", status, tt.wantStatus)
+				}
+			}
+		})
+	}
+}
+
+func TestCPU_PopulatePortCounters(t *testing.T) {
+	countersDb, err := db.NewDB(getDBOptions(db.CountersDB))
+	if err != nil {
+		t.Fatalf("Failed to create CountersDB: %v", err)
+	}
+	defer countersDb.DeleteDB()
+
+	tsPortMap := &db.TableSpec{Name: "COUNTERS_PORT_NAME_MAP"}
+	mapKey := db.Key{Comp: []string{""}}
+
+	// 1. Read and preserve existing mappings (e.g. Ethernet0) so other tests are not broken
+	origMapEntry, _ := countersDb.GetEntry(tsPortMap, mapKey)
+	mergedFields := make(map[string]string)
+	if origMapEntry.IsPopulated() {
+		for k, v := range origMapEntry.Field {
+			mergedFields[k] = v
+		}
+	}
+	// Add our test interface
+	mergedFields["Ethernet998"] = "oid:0x1000000000001"
+	countersDb.SetEntry(tsPortMap, mapKey, db.Value{Field: mergedFields})
+
+	// 2. Set test counters entry
+	tsCounters := &db.TableSpec{Name: "COUNTERS"}
+	testCounterKey := db.Key{Comp: []string{"oid:0x1000000000001"}}
+	countersDb.SetEntry(tsCounters, testCounterKey, db.Value{
+		Field: map[string]string{
+			"SAI_PORT_STAT_IP_IN_RECEIVES":          "150",
+			"SAI_PORT_STAT_IP_OUT_UCAST_PKTS":       "200",
+			"SAI_PORT_STAT_IP_OUT_NON_UCAST_PKTS":   "50",
+			"SAI_PORT_STAT_IPV6_IN_RECEIVES":        "300",
+			"SAI_PORT_STAT_IPV6_OUT_UCAST_PKTS":     "400",
+			"SAI_PORT_STAT_IPV6_OUT_NON_UCAST_PKTS": "100",
+			"SAI_PORT_STAT_IPV6_IN_DISCARDS":        "20",
+			"SAI_PORT_STAT_IPV6_OUT_DISCARDS":       "30",
+		},
+	})
+
+	// 3. Precise cleanup: restore original map and only delete the specific counter entry
+	t.Cleanup(func() {
+		countersDb.DeleteEntry(tsCounters, testCounterKey)
+		if origMapEntry.IsPopulated() {
+			countersDb.SetEntry(tsPortMap, mapKey, origMapEntry)
+		} else {
+			countersDb.DeleteEntry(tsPortMap, mapKey)
+		}
+	})
+
+	dbs := [db.MaxDB]*db.DB{db.CountersDB: countersDb}
+
+	tests := []struct {
+		name        string
+		ifNameArg   string
+		uri         string
+		getCounter  func() interface{}
+		expectError bool
+		errorMsg    string
+		validate    func(t *testing.T, counter interface{})
+	}{
+		{
+			name:      "Success - IPv4 Subinterface Counters with Explicit ifName",
+			ifNameArg: "Ethernet998",
+			uri:       "/openconfig-interfaces:interfaces/interface[name=Ethernet998]/subinterfaces/subinterface[index=0]/ipv4/state/counters",
+			getCounter: func() interface{} {
+				c := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv4_State_Counters{}
+				ygot.BuildEmptyTree(c)
+				return c
+			},
+			expectError: false,
+			validate: func(t *testing.T, counter interface{}) {
+				v4 := counter.(*ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv4_State_Counters)
+				if v4.InPkts == nil || *v4.InPkts != 150 {
+					t.Errorf("Expected InPkts 150, got %v", v4.InPkts)
+				}
+				if v4.OutPkts == nil || *v4.OutPkts != 250 {
+					t.Errorf("Expected OutPkts 250, got %v", v4.OutPkts)
+				}
+			},
+		},
+		{
+			name:      "Success - IPv6 Subinterface Counters with URI Fallback ifName",
+			ifNameArg: "",
+			uri:       "/openconfig-interfaces:interfaces/interface[name=Ethernet998]/subinterfaces/subinterface[index=0]/ipv6/state/counters",
+			getCounter: func() interface{} {
+				c := &ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv6_State_Counters{}
+				ygot.BuildEmptyTree(c)
+				return c
+			},
+			expectError: false,
+			validate: func(t *testing.T, counter interface{}) {
+				v6 := counter.(*ocbinds.OpenconfigInterfaces_Interfaces_Interface_Subinterfaces_Subinterface_Ipv6_State_Counters)
+				if v6.InPkts == nil || *v6.InPkts != 300 {
+					t.Errorf("Expected InPkts 300, got %v", v6.InPkts)
+				}
+				if v6.OutPkts == nil || *v6.OutPkts != 500 {
+					t.Errorf("Expected OutPkts 500, got %v", v6.OutPkts)
+				}
+				if v6.InDiscardedPkts == nil || *v6.InDiscardedPkts != 20 {
+					t.Errorf("Expected InDiscardedPkts 20, got %v", v6.InDiscardedPkts)
+				}
+				if v6.OutDiscardedPkts == nil || *v6.OutDiscardedPkts != 30 {
+					t.Errorf("Expected OutDiscardedPkts 30, got %v", v6.OutDiscardedPkts)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inParams := XfmrParams{
+				uri:   tt.uri,
+				curDb: db.CountersDB,
+				dbs:   dbs,
+			}
+
+			counterObj := tt.getCounter()
+			err := populatePortCounters(inParams, tt.ifNameArg, counterObj)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatalf("Expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if tt.validate != nil {
+				tt.validate(t, counterObj)
+			}
+		})
+	}
+}
