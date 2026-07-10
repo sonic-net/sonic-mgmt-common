@@ -398,23 +398,17 @@ func platformFaultIdentityName(value string) (string, error) {
 }
 
 func platformFaultSymptom(value string) (ocbinds.E_OpenconfigPlatformHealthzFault_SYMPTOM_BASE, error) {
-	switch value {
-	case "SYMPTOM_OVER_THRESHOLD":
-		return ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_OVER_THRESHOLD, nil
-	case "SYMPTOM_UNDER_THRESHOLD":
-		return ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_UNDER_THRESHOLD, nil
-	case "SYMPTOM_MEMORY_ERRORS":
-		return ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_MEMORY_ERRORS, nil
-	case "SYMPTOM_MISSING_COMPONENT":
-		return ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_MISSING_COMPONENT, nil
-	case "SYMPTOM_COMM_ERROR":
-		return ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_COMM_ERROR, nil
-	case "SYMPTOM_UNKNOWN":
-		return ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_UNKNOWN, nil
-	default:
+	const enumName = "E_OpenconfigPlatformHealthzFault_SYMPTOM_BASE"
+	identities, ok := ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_UNSET.ΛMap()[enumName]
+	if !ok {
 		return ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_UNSET,
-			fmt.Errorf("unsupported symptom %q", value)
+			fmt.Errorf("generated identity map %q is unavailable", enumName)
 	}
+	identityValue, err := platformFaultIdentityValue(value, identities)
+	if err != nil {
+		return ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_UNSET, err
+	}
+	return ocbinds.E_OpenconfigPlatformHealthzFault_SYMPTOM_BASE(identityValue), nil
 }
 
 func platformFaultAction(value string) (ocbinds.E_OpenconfigPlatformHealthzFault_ACTION_BASE, error) {
@@ -424,14 +418,14 @@ func platformFaultAction(value string) (ocbinds.E_OpenconfigPlatformHealthzFault
 		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_UNSET,
 			fmt.Errorf("generated identity map %q is unavailable", enumName)
 	}
-	identityValue, err := platformFaultActionValue(value, identities)
+	identityValue, err := platformFaultIdentityValue(value, identities)
 	if err != nil {
 		return ocbinds.OpenconfigPlatformHealthzFault_ACTION_BASE_UNSET, err
 	}
 	return ocbinds.E_OpenconfigPlatformHealthzFault_ACTION_BASE(identityValue), nil
 }
 
-func platformFaultActionValue(value string, identities map[int64]ygot.EnumDefinition) (int64, error) {
+func platformFaultIdentityValue(value string, identities map[int64]ygot.EnumDefinition) (int64, error) {
 	value = strings.TrimSpace(value)
 	parts := strings.Split(value, ":")
 	module := platformFaultModule
@@ -446,17 +440,17 @@ func platformFaultActionValue(value string, identities map[int64]ygot.EnumDefini
 			module = platformFaultModule
 		}
 	default:
-		return 0, fmt.Errorf("invalid action identity %q", value)
+		return 0, fmt.Errorf("invalid identity %q", value)
 	}
 	if module == "" || identity == "" {
-		return 0, fmt.Errorf("invalid action identity %q", value)
+		return 0, fmt.Errorf("invalid identity %q", value)
 	}
 	for enumValue, definition := range identities {
 		if definition.Name == identity && definition.DefiningModule == module {
 			return enumValue, nil
 		}
 	}
-	return 0, fmt.Errorf("unsupported action identity %q", value)
+	return 0, fmt.Errorf("unsupported identity %q", value)
 }
 
 func platformFaultStatus(value string) (ocbinds.E_OpenconfigPlatform_Components_Component_Healthz_Faults_Fault_State_Status, error) {

@@ -225,7 +225,7 @@ func TestParsePlatformFaultRejectsInvalidMappings(t *testing.T) {
 	}
 }
 
-func TestPlatformFaultActionValueSupportsCompiledVendorIdentity(t *testing.T) {
+func TestPlatformFaultIdentityValueSupportsCompiledVendorIdentity(t *testing.T) {
 	identities := map[int64]ygot.EnumDefinition{
 		1: {Name: "ACTION_RESEAT", DefiningModule: platformFaultModule},
 		7: {Name: "ACTION_REPAIR_FABRIC", DefiningModule: "vendor-healthz"},
@@ -240,13 +240,13 @@ func TestPlatformFaultActionValueSupportsCompiledVendorIdentity(t *testing.T) {
 		{value: "vendor-healthz:ACTION_REPAIR_FABRIC", want: 7},
 	}
 	for _, test := range tests {
-		got, err := platformFaultActionValue(test.value, identities)
+		got, err := platformFaultIdentityValue(test.value, identities)
 		if err != nil {
-			t.Errorf("platformFaultActionValue(%q) failed: %v", test.value, err)
+			t.Errorf("platformFaultIdentityValue(%q) failed: %v", test.value, err)
 			continue
 		}
 		if got != test.want {
-			t.Errorf("platformFaultActionValue(%q) = %d, want %d", test.value, got, test.want)
+			t.Errorf("platformFaultIdentityValue(%q) = %d, want %d", test.value, got, test.want)
 		}
 	}
 
@@ -256,9 +256,33 @@ func TestPlatformFaultActionValueSupportsCompiledVendorIdentity(t *testing.T) {
 		"vendor-healthz:",
 		"vendor:extra:ACTION_RESEAT",
 	} {
-		if _, err := platformFaultActionValue(value, identities); err == nil {
-			t.Errorf("platformFaultActionValue(%q) succeeded, want error", value)
+		if _, err := platformFaultIdentityValue(value, identities); err == nil {
+			t.Errorf("platformFaultIdentityValue(%q) succeeded, want error", value)
 		}
+	}
+}
+
+func TestPlatformFaultSymptomUsesGeneratedIdentities(t *testing.T) {
+	tests := []struct {
+		value string
+		want  ocbinds.E_OpenconfigPlatformHealthzFault_SYMPTOM_BASE
+	}{
+		{"SYMPTOM_OVER_THRESHOLD", ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_OVER_THRESHOLD},
+		{"oc-platform-healthz-fault:SYMPTOM_UNDER_THRESHOLD", ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_UNDER_THRESHOLD},
+		{"openconfig-platform-healthz-fault:SYMPTOM_UNKNOWN", ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_UNKNOWN},
+	}
+	for _, test := range tests {
+		got, err := platformFaultSymptom(test.value)
+		if err != nil {
+			t.Errorf("platformFaultSymptom(%q) failed: %v", test.value, err)
+			continue
+		}
+		if got != test.want {
+			t.Errorf("platformFaultSymptom(%q) = %v, want %v", test.value, got, test.want)
+		}
+	}
+	if _, err := platformFaultSymptom("vendor-healthz:SYMPTOM_UNKNOWN"); err == nil {
+		t.Error("platformFaultSymptom accepted an identity from an unavailable module")
 	}
 }
 
