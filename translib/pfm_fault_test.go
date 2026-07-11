@@ -65,6 +65,48 @@ func TestDecimalEpochToNanoseconds(t *testing.T) {
 	}
 }
 
+func TestPlatformPathNeedsFaultsWithAugmentModules(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "components ancestor",
+			path: "/openconfig-platform:components",
+			want: true,
+		},
+		{
+			name: "unqualified faults",
+			path: "/openconfig-platform:components/component/healthz/faults",
+			want: true,
+		},
+		{
+			name: "module qualified augment",
+			path: "/openconfig-platform:components/component/openconfig-platform-healthz:healthz/openconfig-platform-healthz-fault:faults",
+			want: true,
+		},
+		{
+			name: "module qualified fault leaf",
+			path: "/openconfig-platform:components/component/openconfig-platform-healthz:healthz/openconfig-platform-healthz-fault:faults/fault/state/status",
+			want: true,
+		},
+		{
+			name: "unrelated component state",
+			path: "/openconfig-platform:components/component/state",
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := platformPathNeedsFaults(test.path); got != test.want {
+				t.Fatalf("platformPathNeedsFaults(%q) = %t, want %t", test.path, got, test.want)
+			}
+		})
+	}
+}
+
 func TestParseAndBuildPlatformFault(t *testing.T) {
 	entry := validPlatformFaultEntry()
 	entry.Field["repair_actions"] = `[
@@ -422,6 +464,16 @@ func TestTranslateFaultSubscribe(t *testing.T) {
 	}
 	if !info.isOnChangeSupported || info.pType != OnChange || info.handlerFunc == nil {
 		t.Fatalf("subscription is not configured for on-change: %+v", info)
+	}
+
+	qualifiedResponse, err := app.translateFaultSubscribe(translateSubRequest{
+		path: "/openconfig-platform:components/component[name=PSU+0:A]/openconfig-platform-healthz:healthz/openconfig-platform-healthz-fault:faults",
+	})
+	if err != nil {
+		t.Fatalf("module-qualified translateFaultSubscribe failed: %v", err)
+	}
+	if len(qualifiedResponse.ntfAppInfoTrgt) != 1 {
+		t.Fatalf("module-qualified target mapping count = %d, want 1", len(qualifiedResponse.ntfAppInfoTrgt))
 	}
 }
 

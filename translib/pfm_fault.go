@@ -43,6 +43,11 @@ const (
 	platformFaultModulePrefix = "oc-platform-healthz-fault"
 )
 
+var platformFaultPathNormalizer = strings.NewReplacer(
+	"/openconfig-platform-healthz:healthz", "/healthz",
+	"/openconfig-platform-healthz-fault:faults", "/faults",
+)
+
 type platformFault struct {
 	component         string
 	symptomName       string
@@ -65,6 +70,7 @@ type faultRepairAction struct {
 }
 
 func platformPathNeedsFaults(targetPath string) bool {
+	targetPath = platformFaultPathNormalizer.Replace(targetPath)
 	return strings.HasPrefix(targetPath, platformFaultPath) ||
 		strings.HasPrefix(platformFaultPath, targetPath)
 }
@@ -469,7 +475,7 @@ func platformFaultStatus(value string) (ocbinds.E_OpenconfigPlatform_Components_
 
 func (app *PlatformApp) translateFaultSubscribe(req translateSubRequest) (translateSubResponse, error) {
 	targetPath, err := getYangPathFromUri(req.path)
-	if err != nil || !strings.HasPrefix(targetPath, platformFaultPath) {
+	if err != nil || !strings.HasPrefix(platformFaultPathNormalizer.Replace(targetPath), platformFaultPath) {
 		return emptySubscribeResponse(req.path)
 	}
 
