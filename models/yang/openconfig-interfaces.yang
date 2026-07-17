@@ -12,6 +12,7 @@ module openconfig-interfaces {
   import openconfig-yang-types { prefix oc-yang; }
   import openconfig-types { prefix oc-types; }
   import openconfig-extensions { prefix oc-ext; }
+  import openconfig-transport-types { prefix oc-opt-types; }
 
   // meta
   organization "OpenConfig working group";
@@ -371,8 +372,7 @@ module openconfig-interfaces {
     }
 
     leaf loopback-mode {
-      type boolean;
-      default false;
+      type oc-opt-types:loopback-mode-type;
       description
         "When set to true, the interface is logically looped back,
         such that packets that are forwarded via the interface

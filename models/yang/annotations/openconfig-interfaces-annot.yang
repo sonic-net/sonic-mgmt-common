@@ -311,4 +311,106 @@ module openconfig-interfaces-annot {
             sonic-ext:field-transformer "intf_physical_channel_xfmr";
         }
     }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:oper-status {
+        deviate add {
+            sonic-ext:field-transformer "intf_oper_status_xfmr";
+            sonic-ext:composite-field-names "PORT_TABLE:oper_status,PORT_TABLE:presence,PORT_TABLE:loopback_mode,PORT_TABLE:under_test,PORT_TABLE:unusable,MGMT_PORT_TABLE:oper_status,LAG_TABLE:oper_status,LAG_TABLE:under_test,BRIDGE_TABLE:oper_status,INTF_TABLE:oper_status";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:port-speed {
+        deviate add {
+            sonic-ext:field-transformer "intf_eth_port_speed_xfmr";
+            sonic-ext:field-name "speed";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:enabled {
+        deviate add {
+            sonic-ext:field-transformer "intf_enabled_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:enabled {
+        deviate add {
+            sonic-ext:field-transformer "intf_enabled_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:loopback-mode {
+        deviate add {
+            sonic-ext:field-transformer "intf_loopback_mode_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:loopback-mode {
+        deviate add {
+            sonic-ext:field-transformer "intf_loopback_mode_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:mtu {
+        deviate add {
+            sonic-ext:field-transformer "intf_mtu_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:mtu {
+        deviate add {
+            sonic-ext:field-transformer "intf_mtu_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:management {
+        deviate add {
+            sonic-ext:field-transformer "intf_mgmt_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:cpu {
+        deviate add {
+            sonic-ext:field-transformer "intf_cpu_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:description {
+        deviate add {
+            sonic-ext:field-transformer "intf_description_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:mac-address {
+        deviate add {
+            sonic-ext:field-transformer "intf_eth_mac_address_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters {
+        deviate add {
+            sonic-ext:subtree-transformer "intf_get_counters_xfmr";
+            sonic-ext:db-name "COUNTERS_DB";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters {
+        deviate add {
+            sonic-ext:db-name "COUNTERS_DB";
+            sonic-ext:subtree-transformer "intf_get_ether_counters_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:state/oc-ip:counters {
+        deviate add {
+            sonic-ext:db-name "COUNTERS_DB";
+            sonic-ext:subtree-transformer "intf_ipv4_counters_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:counters {
+        deviate add {
+            sonic-ext:db-name "COUNTERS_DB";
+            sonic-ext:subtree-transformer "intf_ipv6_counters_xfmr";
+        }
+    }
 }

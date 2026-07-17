@@ -6,6 +6,14 @@ module sonic-port {
 		prefix cmn;
 	}
 
+	import ietf-yang-types {
+		prefix yang;
+	}
+
+	import sonic-common {
+		prefix scommon;
+	}
+	
 	organization
 		"SONiC";
 
@@ -20,6 +28,15 @@ module sonic-port {
 			"Initial revision.";
 	}
 
+	typedef loopback-mode-type {
+		type enumeration {
+			enum none;
+			enum mac_local;
+			enum mac_remote;
+			enum phy_local;
+			enum phy_remote;
+		}
+	}
 
 	container sonic-port {
 
@@ -78,6 +95,14 @@ module sonic-port {
 					default 9100;
 				}
 
+				leaf oper_status {
+					type scommon:oper-status;
+				}
+
+				leaf id {
+					type uint32;
+				}
+
 				leaf lanes {
 					type string;
 					mandatory true;
@@ -87,6 +112,16 @@ module sonic-port {
 					type cmn:admin-status;
 					default "down";
 				}
+
+				leaf loopback-mode {
+					type loopback-mode-type;
+					default none;
+				}
+
+				leaf mac-address {
+					type yang:mac-address;
+				}
+
 			}
 		}
 	}

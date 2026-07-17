@@ -33,10 +33,6 @@ module openconfig-interfaces-deviation {
     reference "0.1.0";
   }
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:loopback-mode {
-    deviate not-supported;
-  }    
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-vlan:tpid {
     deviate not-supported;
   }    
@@ -44,14 +40,6 @@ module openconfig-interfaces-deviation {
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:type {
     deviate not-supported;
   }   
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:loopback-mode {
-    deviate not-supported;
-  }    
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:oper-status {
-    deviate not-supported;
-  }    
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:last-change {
     deviate not-supported;
@@ -141,14 +129,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
  
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:config {
-    deviate not-supported;
-  }
- 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:state {
-    deviate not-supported;
-  }
- 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:state/oc-ip:origin {
     deviate not-supported;
   }
@@ -203,10 +183,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
   
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:counters {
-    deviate not-supported;
-  }
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:config/oc-eth:mac-address {
     deviate not-supported;
   }

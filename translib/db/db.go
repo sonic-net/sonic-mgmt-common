@@ -143,6 +143,7 @@ const (
 	SnmpDB                     // 7
 	ErrorDB                    // 8
 	EventDB                    // 9
+	ApplStateDB   DBNum = 14   // 14
 	// All DBs added above this line, please ----
 	MaxDB //  The Number of DBs
 )
@@ -365,6 +366,8 @@ func getDBInstName(dbNo DBNum) string {
 		return "ERROR_DB"
 	case EventDB:
 		return "EVENT_DB"
+	case ApplStateDB:
+		return "APPL_STATE_DB"
 	}
 	return ""
 }
@@ -390,6 +393,8 @@ func GetdbNameToIndex(dbName string) DBNum {
 		dbIndex = ErrorDB
 	case "EVENT_DB":
 		dbIndex = EventDB
+	case "APPL_STATE_DB":
+		dbIndex = ApplStateDB
 	}
 	return dbIndex
 }
