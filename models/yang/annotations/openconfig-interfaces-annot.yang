@@ -18,6 +18,7 @@ module openconfig-interfaces-annot {
         deviate add {
             sonic-ext:key-transformer "intf_tbl_key_xfmr";
             sonic-ext:table-transformer "intf_table_xfmr";
+            sonic-ext:path-transformer "intf_path_xfmr";
         }
     }
 
