@@ -2,9 +2,9 @@ module github.com/Azure/sonic-mgmt-common
 
 require (
 	github.com/Workiva/go-datastructures v1.0.50
-	github.com/antchfx/jsonquery v1.1.4
-	github.com/antchfx/xmlquery v1.3.1
-	github.com/antchfx/xpath v1.1.10
+	github.com/antchfx/jsonquery v1.3.7
+	github.com/antchfx/xmlquery v1.5.1
+	github.com/antchfx/xpath v1.3.6
 	github.com/go-redis/redis/v7 v7.4.1
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
@@ -17,8 +17,8 @@ require (
 	github.com/philopon/go-toposort v0.0.0-20170620085441-9be86dbd762f
 	github.com/pkg/profile v1.7.0
 	github.com/redis/go-redis/v9 v9.6.1
-	golang.org/x/text v0.3.3
-	google.golang.org/grpc v1.28.0
+	golang.org/x/text v0.39.0
+	google.golang.org/grpc v1.82.1
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a
 )
 
