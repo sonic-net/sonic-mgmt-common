@@ -14,10 +14,12 @@ import (
 )
 
 const (
-	NODE_CFG_TBL = "NODE_CFG"
+	NODE_CFG_TBL    = "NODE_CFG"
+	EEPROM_INFO_TBL = "EEPROM_INFO"
 
-	IC_NAME_PREFIX = "integrated_circuit"
-	CHASSIS_PREFIX = "chassis"
+	IC_NAME_PREFIX  = "integrated_circuit"
+	CHASSIS_PREFIX  = "chassis"
+	SYS_EEPROM_NAME = "System Eeprom"
 
 	/** Upper-level URIs **/
 	COMP    = "/openconfig-platform:components/component"
@@ -44,7 +46,33 @@ type componentType int64
 const (
 	CompTypeInvalid componentType = iota
 	CompTypeIC
+	CompTypeSysEeprom
 )
+
+/* Structures to read syseeprom from redis-db */
+type EepromDb struct {
+	Product_Name        string
+	Part_Number         string
+	Serial_Number       string
+	Base_MAC_Address    string
+	Manufacture_Date    string
+	Device_Version      string
+	Label_Revision      string
+	Platform_Name       string
+	ONIE_Version        string
+	MAC_Addresses       int
+	Manufacturer        string
+	Manufacture_Country string
+	Vendor_Name         string
+	Diag_Version        string
+	Service_Tag         string
+	Vendor_Extension    string
+	Magic_Number        int
+	Card_Type           string
+	Hardware_Version    string
+	Software_Version    string
+	Model_Name          string
+}
 
 type PathType int
 
@@ -71,12 +99,15 @@ func (ct componentType) String() string {
 		return "CompTypeInvalid"
 	case CompTypeIC:
 		return "CompTypeIC"
+	case CompTypeSysEeprom:
+		return "CompTypeSysEeprom"
 	}
 	return fmt.Sprintf("%s", ct)
 }
 
 var compTblMap = map[componentType][]string{
-	CompTypeIC: {NODE_CFG_TBL, IC_NAME_PREFIX + "*"},
+	CompTypeIC:        {NODE_CFG_TBL, IC_NAME_PREFIX + "*"},
+	CompTypeSysEeprom: {EEPROM_INFO_TBL, "*"},
 }
 
 func init() {
@@ -106,15 +137,33 @@ func validICName(name *string) bool {
 	return true
 }
 
+func validSysEepromName(name string) bool {
+	return name == SYS_EEPROM_NAME || name == "eeprom" || name == CHASSIS_PREFIX
+}
+
 func getCompTypeByName(compName string) (componentType, error) {
 	switch {
 	case validICName(&compName):
 		return CompTypeIC, nil
-
+	case validSysEepromName(compName):
+		return CompTypeSysEeprom, nil
 	default:
 		return CompTypeInvalid, fmt.Errorf("component name %s did not match with supported types.", compName)
 	}
 }
+
+func keyInDbTable(tableName, key string, d *db.DB) bool {
+	if d == nil {
+		return false
+	}
+	log.V(3).Infof("keyInDbTable: tableName=%s, key=%s, db=%s", tableName, key, d.Name())
+	keys, err := d.GetKeysPattern(&db.TableSpec{Name: tableName}, db.Key{Comp: []string{key}})
+	if err != nil {
+		return false
+	}
+	return len(keys) > 0
+}
+
 func getCompType(name string, d *db.DB) componentType {
 	if name == "*" {
 		return CompTypeInvalid
@@ -126,6 +175,12 @@ func getCompType(name string, d *db.DB) componentType {
 	if err == nil {
 		compTypeCache.Store(name, compType)
 		return compType
+	}
+	if d != nil {
+		if keyInDbTable(EEPROM_INFO_TBL, name, d) {
+			compTypeCache.Store(name, CompTypeSysEeprom)
+			return CompTypeSysEeprom
+		}
 	}
 	return CompTypeInvalid
 }
@@ -325,6 +380,213 @@ func fillICInfo(comp *ocbinds.OpenconfigPlatform_Components_Component,
 	return nil
 }
 
+func getEepromDbObj(d *db.DB) EepromDb {
+	var eepromDbObj EepromDb
+	if d == nil {
+		return eepromDbObj
+	}
+
+	tbl, err := d.GetTable(&db.TableSpec{Name: EEPROM_INFO_TBL})
+	if err != nil {
+		log.Error("EEPROM_INFO table get failed!")
+		return eepromDbObj
+	}
+
+	keys, _ := tbl.GetKeys()
+	for _, key := range keys {
+		e, kerr := tbl.GetEntry(key)
+		if kerr != nil {
+			continue
+		}
+		name := e.Get("Name")
+
+		switch name {
+		case "Device Version":
+			eepromDbObj.Device_Version = e.Get("Value")
+		case "Service Tag":
+			eepromDbObj.Service_Tag = e.Get("Value")
+		case "Vendor Extension":
+			eepromDbObj.Vendor_Extension = e.Get("Value")
+		case "Magic Number":
+			mag, _ := strconv.ParseInt(e.Get("Value"), 10, 64)
+			eepromDbObj.Magic_Number = int(mag)
+		case "Card Type":
+			eepromDbObj.Card_Type = e.Get("Value")
+		case "Hardware Version":
+			eepromDbObj.Hardware_Version = e.Get("Value")
+		case "Software Version":
+			eepromDbObj.Software_Version = e.Get("Value")
+		case "Model Name":
+			eepromDbObj.Model_Name = e.Get("Value")
+		case "ONIE Version":
+			eepromDbObj.ONIE_Version = e.Get("Value")
+		case "Serial Number":
+			eepromDbObj.Serial_Number = e.Get("Value")
+		case "Vendor Name":
+			eepromDbObj.Vendor_Name = e.Get("Value")
+		case "Manufacturer":
+			eepromDbObj.Manufacturer = e.Get("Value")
+		case "Manufacture Country":
+			eepromDbObj.Manufacture_Country = e.Get("Value")
+		case "Platform Name":
+			eepromDbObj.Platform_Name = e.Get("Value")
+		case "Diag Version":
+			eepromDbObj.Diag_Version = e.Get("Value")
+		case "Label Revision":
+			eepromDbObj.Label_Revision = e.Get("Value")
+		case "Part Number":
+			eepromDbObj.Part_Number = e.Get("Value")
+		case "Product Name":
+			eepromDbObj.Product_Name = e.Get("Value")
+		case "Base MAC Address":
+			eepromDbObj.Base_MAC_Address = e.Get("Value")
+		case "Manufacture Date":
+			eepromDbObj.Manufacture_Date = e.Get("Value")
+		case "MAC Addresses":
+			mac, _ := strconv.ParseInt(e.Get("Value"), 10, 16)
+			eepromDbObj.MAC_Addresses = int(mac)
+		}
+	}
+
+	return eepromDbObj
+}
+
+func fillSysEepromInfo(comp *ocbinds.OpenconfigPlatform_Components_Component,
+	name string, targetUriPath string, dbs [db.MaxDB]*db.DB, ygRoot *ygot.GoStruct) error {
+
+	var all bool
+	if targetUriPath == COMP || targetUriPath == COMP_ST {
+		all = true
+	}
+
+	if comp.Config == nil {
+		comp.Config = &ocbinds.OpenconfigPlatform_Components_Component_Config{}
+	}
+	if comp.State == nil {
+		comp.State = &ocbinds.OpenconfigPlatform_Components_Component_State{}
+	}
+
+	stateDb := dbs[db.StateDB]
+	eepromDb := getEepromDbObj(stateDb)
+
+	empty := false
+	removable := false
+	sysName := SYS_EEPROM_NAME
+	location := "Slot 1"
+
+	comp.Name = &sysName
+	comp.Config.Name = &sysName
+
+	eeprom := comp.State
+
+	if all {
+		eeprom.Empty = &empty
+		eeprom.Removable = &removable
+		eeprom.Name = &sysName
+		eeprom.OperStatus = ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_ACTIVE
+		eeprom.Location = &location
+
+		if eepromDb.Product_Name != "" {
+			eeprom.Id = &eepromDb.Product_Name
+		}
+		if eepromDb.Part_Number != "" {
+			eeprom.PartNo = &eepromDb.Part_Number
+		}
+		if eepromDb.Serial_Number != "" {
+			eeprom.SerialNo = &eepromDb.Serial_Number
+		}
+		if eepromDb.Manufacture_Date != "" {
+			eeprom.MfgDate = &eepromDb.Manufacture_Date
+		}
+		if eepromDb.Label_Revision != "" {
+			eeprom.HardwareVersion = &eepromDb.Label_Revision
+		}
+		if eepromDb.Platform_Name != "" {
+			eeprom.Description = &eepromDb.Platform_Name
+		}
+		if eepromDb.Manufacturer != "" {
+			eeprom.MfgName = &eepromDb.Manufacturer
+		}
+		if eepromDb.Vendor_Name != "" {
+			if eeprom.MfgName == nil {
+				eeprom.MfgName = &eepromDb.Vendor_Name
+			}
+		}
+		if eepromDb.Service_Tag != "" {
+			if eeprom.SerialNo == nil {
+				eeprom.SerialNo = &eepromDb.Service_Tag
+			}
+		}
+		if eepromDb.Hardware_Version != "" {
+			eeprom.HardwareVersion = &eepromDb.Hardware_Version
+		}
+		if eepromDb.Software_Version != "" {
+			eeprom.SoftwareVersion = &eepromDb.Software_Version
+		}
+	} else {
+		switch targetUriPath {
+		case "/openconfig-platform:components/component/state/name":
+			eeprom.Name = &sysName
+		case "/openconfig-platform:components/component/state/location":
+			eeprom.Location = &location
+		case "/openconfig-platform:components/component/state/empty":
+			eeprom.Empty = &empty
+		case "/openconfig-platform:components/component/state/removable":
+			eeprom.Removable = &removable
+		case "/openconfig-platform:components/component/state/oper-status":
+			eeprom.OperStatus = ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_ACTIVE
+		case "/openconfig-platform:components/component/state/id":
+			if eepromDb.Product_Name != "" {
+				eeprom.Id = &eepromDb.Product_Name
+			}
+		case "/openconfig-platform:components/component/state/part-no":
+			if eepromDb.Part_Number != "" {
+				eeprom.PartNo = &eepromDb.Part_Number
+			}
+		case "/openconfig-platform:components/component/state/serial-no":
+			if eepromDb.Serial_Number != "" {
+				eeprom.SerialNo = &eepromDb.Serial_Number
+			}
+			if eepromDb.Service_Tag != "" {
+				if eeprom.SerialNo == nil {
+					eeprom.SerialNo = &eepromDb.Service_Tag
+				}
+			}
+		case "/openconfig-platform:components/component/state/mfg-date":
+			if eepromDb.Manufacture_Date != "" {
+				eeprom.MfgDate = &eepromDb.Manufacture_Date
+			}
+		case "/openconfig-platform:components/component/state/hardware-version":
+			if eepromDb.Label_Revision != "" {
+				eeprom.HardwareVersion = &eepromDb.Label_Revision
+			}
+			if eepromDb.Hardware_Version != "" {
+				if eeprom.HardwareVersion == nil {
+					eeprom.HardwareVersion = &eepromDb.Hardware_Version
+				}
+			}
+		case "/openconfig-platform:components/component/state/description":
+			if eepromDb.Platform_Name != "" {
+				eeprom.Description = &eepromDb.Platform_Name
+			}
+		case "/openconfig-platform:components/component/state/mfg-name":
+			if eepromDb.Manufacturer != "" {
+				eeprom.MfgName = &eepromDb.Manufacturer
+			}
+			if eepromDb.Vendor_Name != "" {
+				if eeprom.MfgName == nil {
+					eeprom.MfgName = &eepromDb.Vendor_Name
+				}
+			}
+		case "/openconfig-platform:components/component/state/software-version":
+			if eepromDb.Software_Version != "" {
+				eeprom.SoftwareVersion = &eepromDb.Software_Version
+			}
+		}
+	}
+	return nil
+}
+
 /* Helper to go from a component type to the type specific helper which reads
  * the DB data and populates the ocbinds structs.
  * createCompAndFuncCall - when fetching /components/component
@@ -339,6 +601,8 @@ func compTypeToFuncCall(cType componentType, compName, subKey string, pfComp *oc
 	switch cType {
 	case CompTypeIC:
 		return fillICInfo(pfComp, compName, targetUriPath, dbs, ygRoot)
+	case CompTypeSysEeprom:
+		return fillSysEepromInfo(pfComp, compName, targetUriPath, dbs, ygRoot)
 	}
 	return errors.New("Invalid component type")
 }
@@ -352,6 +616,8 @@ func createCompAndFuncCall(pfCpts *ocbinds.OpenconfigPlatform_Components, target
 	switch compType {
 	case CompTypeIC:
 		compNames, err = getAllTableEntries(cfgdb, tblName, tblKey)
+	case CompTypeSysEeprom:
+		compNames = []string{SYS_EEPROM_NAME}
 	default:
 		compNames, err = getAllTableEntries(d, tblName, tblKey)
 	}
@@ -402,7 +668,7 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 	case COMP:
 		log.V(3).Infof("compName: %v", compName)
 		subCompName := "" /* Get all subcomponents */
-		if compName == "" {
+		if compName == "" || compName == "*" {
 			/* Handle all component types except for ports, they will be handled just below. */
 			for cType, tbl := range compTblMap {
 				tblName := tbl[0]
@@ -457,6 +723,8 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 		switch compType {
 		case CompTypeIC:
 			return fillICInfo(pf_comp, compName, targetUriPath, inParams.dbs, inParams.ygRoot)
+		case CompTypeSysEeprom:
+			return fillSysEepromInfo(pf_comp, compName, targetUriPath, inParams.dbs, inParams.ygRoot)
 		default:
 			return fmt.Errorf("Unhandled Component: %s", compName)
 		}
