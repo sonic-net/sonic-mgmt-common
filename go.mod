@@ -37,4 +37,8 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-go 1.25.0
+go 1.24.4
+
+// Pin glog to the version that patches/glog.patch is written for.
+// glog v1.2.5 (required by grpc v1.82.1) has restructured the patched code.
+replace github.com/golang/glog => github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
