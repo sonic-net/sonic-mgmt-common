@@ -134,9 +134,11 @@ const (
 const (
 	HARDWARE_PORT       = "hardware-port"
 	PORT_INDEX          = "index"
-	LAG_MEMBER_TABLE_TN = "LAG_MEMBER_TABLE"
 	PORT_OPER_STATUS    = "oper_status"
 	PORT_MAC_ADDR       = "mac-address"
+	PORTCHANNEL_TN      = "PORTCHANNEL"
+	LAG_TABLE_TN        = "LAG_TABLE"
+	LAG_MEMBER_TABLE_TN = "LAG_MEMBER_TABLE"
 )
 
 type TblData struct {
@@ -4286,7 +4288,7 @@ var YangToDb_pins_if_id_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[
 		return nil, tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
 	}
 
-	if intfType != IntfTypeEthernet && intfType != IntfTypeCpu {
+	if intfType != IntfTypeEthernet && intfType != IntfTypeCpu && intfType != IntfTypePortChannel {
 		return nil, errors.New("YangToDb_pins_if_id_xfmr: interface type " + strconv.Itoa(int(intfType)) + " not supported for Config Id.")
 	}
 
@@ -4307,7 +4309,7 @@ var DbToYang_pins_if_id_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[
 	if intfType == IntfTypeUnset || ierr != nil {
 		return nil, tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
 	}
-	if intfType != IntfTypeEthernet && intfType != IntfTypeCpu {
+	if intfType != IntfTypeEthernet && intfType != IntfTypeCpu && intfType != IntfTypePortChannel {
 		return nil, errors.New("DbToYang_pins_if_id_xfmr: interface type " + strconv.Itoa(int(intfType)) + " not supported for Config Id.")
 	}
 
@@ -4321,7 +4323,7 @@ var DbToYang_pins_if_id_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[
 	// to ensure the ID is retrieved from the primary SWSS state if P4RT data is missing.
 	tblName := "P4RT_PORT_ID_TABLE"
 	var err error
-	if inParams.curDb != db.ApplDB {
+	if inParams.curDb != db.ApplDB || (intfType != IntfTypeEthernet && intfType != IntfTypePortChannel) {
 		tblName, err = getPortTableNameByDBId(intTbl, inParams.curDb)
 		if err != nil {
 			return nil, errors.New("DbToYang_pins_if_id_xfmr: Port table name not found.")
