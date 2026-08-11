@@ -242,22 +242,6 @@ module openconfig-interfaces-deviation {
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:negotiated-port-speed {
     deviate not-supported;
   }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:lag-type {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-type {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-speed {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:member {
-        deviate not-supported;
-  }
   
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-mac-control-frames {
     deviate not-supported;
