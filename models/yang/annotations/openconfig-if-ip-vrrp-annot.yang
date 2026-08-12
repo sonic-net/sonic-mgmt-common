@@ -1,0 +1,135 @@
+module openconfig-if-ip-vrrp-annot {
+    yang-version "1";
+
+    namespace "http://openconfig.net/yang/annotation/if-ip-vrrp";
+    prefix "oc-if-ip-vrrp-annot";
+
+    import sonic-extensions { prefix sonic-ext; }
+    import openconfig-interfaces { prefix oc-if; }
+    import openconfig-if-ip { prefix oc-ip; }
+
+    organization
+        "SONiC";
+
+    contact
+        "SONiC";
+
+    description
+        "OpenConfig VRRP annotations for IPv6 VRRP support.
+         Maps OpenConfig VRRP paths to SONiC CONFIG_DB tables:
+           VRRP6|{interface}|{vrid}
+           VRRP6_TRACK|{interface}|{vrid}|{track_if}
+
+         CPN scope (MIGSOFTWAR-47697):
+           1. config/priority
+           2. config/preempt
+           3. interface-tracking/config
+           4. config/virtual-address
+           5. config/virtual-link-local";
+
+    revision 2026-08-04 {
+        description
+            "Initial VRRP annotations for IPv6 gNMI support.";
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group {
+        deviate add {
+            sonic-ext:table-name "VRRP6";
+            sonic-ext:key-transformer "YangToDb_vrrp_group_key_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:config/oc-ip:priority {
+        deviate add {
+            sonic-ext:field-name "priority";
+            sonic-ext:field-transformer "YangToDb_vrrp_priority_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state/oc-ip:priority {
+        deviate add {
+            sonic-ext:field-name "priority";
+            sonic-ext:field-transformer "DbToYang_vrrp_priority_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:config/oc-ip:preempt {
+        deviate add {
+            sonic-ext:field-name "preempt";
+            sonic-ext:field-transformer "YangToDb_vrrp_preempt_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state/oc-ip:preempt {
+        deviate add {
+            sonic-ext:field-name "preempt";
+            sonic-ext:field-transformer "DbToYang_vrrp_preempt_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:config/oc-ip:virtual-address {
+        deviate add {
+            sonic-ext:field-name "vip";
+            sonic-ext:field-transformer "YangToDb_vrrp_virtual_address_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state/oc-ip:virtual-address {
+        deviate add {
+            sonic-ext:field-name "vip";
+            sonic-ext:field-transformer "DbToYang_vrrp_virtual_address_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:config/oc-ip:virtual-link-local {
+        deviate add {
+            sonic-ext:field-name "vip";
+            sonic-ext:field-transformer "YangToDb_vrrp_virtual_link_local_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state/oc-ip:virtual-link-local {
+        deviate add {
+            sonic-ext:field-name "vip";
+            sonic-ext:field-transformer "DbToYang_vrrp_virtual_link_local_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:interface-tracking {
+        deviate add {
+            sonic-ext:subtree-transformer "vrrp_interface_tracking_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:interface-tracking/oc-ip:config {
+        deviate add {
+            sonic-ext:table-name "VRRP6_TRACK";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:interface-tracking/oc-ip:config/oc-ip:track-interface {
+        deviate add {
+            sonic-ext:field-transformer "YangToDb_vrrp_track_interface_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:interface-tracking/oc-ip:state/oc-ip:track-interface {
+        deviate add {
+            sonic-ext:field-transformer "DbToYang_vrrp_track_interface_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:interface-tracking/oc-ip:config/oc-ip:priority-decrement {
+        deviate add {
+            sonic-ext:field-name "priority_increment";
+            sonic-ext:field-transformer "YangToDb_vrrp_priority_decrement_xfmr";
+        }
+    }
+
+    deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:interface-tracking/oc-ip:state/oc-ip:priority-decrement {
+        deviate add {
+            sonic-ext:field-name "priority_increment";
+            sonic-ext:field-transformer "DbToYang_vrrp_priority_decrement_xfmr";
+        }
+    }
+}
