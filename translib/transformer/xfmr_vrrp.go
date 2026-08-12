@@ -35,7 +35,6 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	log "github.com/golang/glog"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -90,9 +89,14 @@ type vrrpContext struct {
 
 func extractVrrpContext(uri string) (vrrpContext, error) {
 	pathInfo := NewPathInfo(uri)
+	vrid := pathInfo.Var("virtual-router-id")
+	if vrid == "" {
+		// Accept legacy audit paths that use [vrid=N] instead of [virtual-router-id=N].
+		vrid = pathInfo.Var("vrid")
+	}
 	ctx := vrrpContext{
 		intfName: pathInfo.Var("name"),
-		vrid:     pathInfo.Var("virtual-router-id"),
+		vrid:     vrid,
 	}
 	if ctx.intfName == "" {
 		return ctx, fmt.Errorf("interface name not found in URI: %s", uri)

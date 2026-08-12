@@ -35,6 +35,7 @@ module openconfig-if-ip-vrrp-annot {
     deviation /oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group {
         deviate add {
             sonic-ext:table-name "VRRP6";
+            sonic-ext:table-transformer "vrrp_table_xfmr";
             sonic-ext:key-transformer "YangToDb_vrrp_group_key_xfmr";
         }
     }
