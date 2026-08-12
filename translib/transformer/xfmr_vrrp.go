@@ -426,7 +426,7 @@ var YangToDb_vrrp_virtual_address_xfmr FieldXfmrYangToDb = func(inParams XfmrPar
 				linkLocal = append(linkLocal, addr)
 			}
 		}
-		merged := append(linkLocal, globalAddrs...)
+		merged := append(globalAddrs, linkLocal...)
 		return merged
 	})
 }

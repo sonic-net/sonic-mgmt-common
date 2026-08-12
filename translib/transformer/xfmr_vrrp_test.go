@@ -85,7 +85,7 @@ func Test_oc_vrrp6_group_operations(t *testing.T) {
 	t.Run("Verify VRRP6 virtual-address", verifyDbResult(rclient, "VRRP6|Ethernet64|1", map[string]interface{}{
 		"VRRP6": map[string]interface{}{
 			"Ethernet64|1": map[string]interface{}{
-				"vip@": "2001:db8::10/128,2001:db8::11/128,2001:db8::fe/128",
+				"vip@": "2001:db8::10/128,2001:db8::11/128",
 			},
 		},
 	}, false))
@@ -98,7 +98,7 @@ func Test_oc_vrrp6_group_operations(t *testing.T) {
 	t.Run("Verify VRRP6 virtual-link-local", verifyDbResult(rclient, "VRRP6|Ethernet64|1", map[string]interface{}{
 		"VRRP6": map[string]interface{}{
 			"Ethernet64|1": map[string]interface{}{
-				"vip@": "2001:db8::10/128,2001:db8::11/128,2001:db8::fe/128,fe80::1/64",
+				"vip@": "2001:db8::10/128,2001:db8::11/128,fe80::1/64",
 			},
 		},
 	}, false))
