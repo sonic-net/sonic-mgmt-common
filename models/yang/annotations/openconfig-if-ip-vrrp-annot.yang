@@ -20,7 +20,7 @@ module openconfig-if-ip-vrrp-annot {
            VRRP6|{interface}|{vrid}
            VRRP6_TRACK|{interface}|{vrid}|{track_if}
 
-         CPN scope (MIGSOFTWAR-47697):
+         Supported config leaves:
            1. config/priority
            2. config/preempt
            3. interface-tracking/config

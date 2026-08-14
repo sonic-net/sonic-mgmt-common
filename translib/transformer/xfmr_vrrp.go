@@ -91,7 +91,7 @@ func extractVrrpContext(uri string) (vrrpContext, error) {
 	pathInfo := NewPathInfo(uri)
 	vrid := pathInfo.Var("virtual-router-id")
 	if vrid == "" {
-		// Accept legacy audit paths that use [vrid=N] instead of [virtual-router-id=N].
+		// Accept legacy path key name [vrid=N] in addition to [virtual-router-id=N].
 		vrid = pathInfo.Var("vrid")
 	}
 	ctx := vrrpContext{
