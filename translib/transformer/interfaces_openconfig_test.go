@@ -452,10 +452,22 @@ func Test_openconfig_subintf_ipv6(t *testing.T) {
 	t.Run("Test Get/Verify Patch IPv6 address at subinterfaces addresses", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
+	pre_req_map = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Ethernet0:a::e/64": map[string]interface{}{"NULL": "NULL"}}}
+	loadDB(db.ApplDB, pre_req_map)
+
+	t.Log("\n\n--- Verify PATCH IPv6 address at addresses address level ---")
+	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=a::e]"
+	expected_get_json = "{\"openconfig-if-ip:address\":[{\"config\":{\"ip\":\"a::e\",\"prefix-length\":64},\"ip\":\"a::e\", \"state\":{\"ip\":\"a::e\",\"prefix-length\":64}}]}"
+	t.Run("Test Get/Verify Patch IPv6 address at subinterfaces addresses address", processGetRequest(url, nil, expected_get_json, false))
+	time.Sleep(1 * time.Second)
+
 	t.Log("\n\n--- Delete IPv6 address at subinterfaces addresses level---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses"
 	t.Run("Test Delete IPv6 address at subinterfaces addresses level", processDeleteRequest(url, true))
 	time.Sleep(1 * time.Second)
+
+	cleanuptbl = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Ethernet0:a::e/64": ""}}
+	unloadDB(db.ApplDB, cleanuptbl)
 
 	t.Log("\n\n--- Verify Delete IPv6 address at subinterfaces addresses ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface[index=0]/ipv6/addresses"
@@ -498,8 +510,53 @@ func Test_openconfig_subintf_ipv6(t *testing.T) {
 	t.Run("Test Get IPv6 address at subinterfaces", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
+	//-------------------------------------------------------------------------------------------------------------------------------------------
+	t.Log("\n\n--- PATCH IPv6 address at addresses ---")
+	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet4]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses"
+	url_input_body_json = "{\"openconfig-if-ip:addresses\": {\"address\": [{\"ip\": \"2001:0db8:abcd:0016::1\", \"openconfig-if-ip:config\": {\"ip\": \"2001:0db8:abcd:0016::1\", \"prefix-length\": 64}}]}}"
+
+	time.Sleep(1 * time.Second)
+	t.Run("Test Patch/Set IPv6 address on subinterfaces addresses", processSetRequest(url, url_input_body_json, "PATCH", false, nil))
+	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n--- Verify PATCH IPv6 address at addresses level ---")
+	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet4]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses"
+	expected_get_json = "{\"openconfig-if-ip:addresses\":{\"address\":[{\"config\":{\"ip\":\"2001:db8:abcd:16::1\",\"prefix-length\":64},\"ip\":\"2001:db8:abcd:16::1\"}]}}"
+	t.Run("Test Get/Verify Patch IPv6 address at subinterfaces addresses", processGetRequest(url, nil, expected_get_json, false))
+	time.Sleep(1 * time.Second)
+
+	pre_req_map = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Ethernet4:2001:db8:abcd:16::1/64": map[string]interface{}{"NULL": "NULL"}}}
+	loadDB(db.ApplDB, pre_req_map)
+
+	t.Log("\n\n--- Verify PATCH IPv6 address at addresses address level ---")
+	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet4]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=2001:db8:abcd:16::1]"
+	expected_get_json = "{\"openconfig-if-ip:address\":[{\"config\":{\"ip\":\"2001:db8:abcd:16::1\",\"prefix-length\":64},\"ip\":\"2001:db8:abcd:16::1\", \"state\":{\"ip\":\"2001:db8:abcd:16::1\",\"prefix-length\":64}}]}"
+	t.Run("Test Get/Verify Patch IPv6 address at subinterfaces addresses address", processGetRequest(url, nil, expected_get_json, false))
+	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n-Verify Db for iPv6 PATCH--\n\n")
+	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet4]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses/address[ip=2001:db8:abcd:16::1]"
+	expected_map := map[string]interface{}{"INTERFACE": map[string]interface{}{"Ethernet4": map[string]interface{}{"family": "IPv6"}}}
+	t.Run("Verify Db for IPv6 PATCH", verifyDbResult(rclient, "INTERFACE|Ethernet4|2001:db8:abcd:16::1/64", expected_map, false))
+
+	t.Log("\n\n--- Delete IPv6 address at subinterfaces addresses level---")
+	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet4]/subinterfaces/subinterface[index=0]/openconfig-if-ip:ipv6/addresses"
+	t.Run("Test Delete IPv6 address at subinterfaces addresses level", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+
+	cleanuptbl = map[string]interface{}{"INTF_TABLE": map[string]interface{}{"Ethernet4:2001:db8:abcd:16::1/64": ""}}
+	unloadDB(db.ApplDB, cleanuptbl)
+
+	t.Log("\n\n--- Verify Delete IPv6 address at subinterfaces addresses ---")
+	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet4]/subinterfaces/subinterface[index=0]/ipv6/addresses"
+	expected_get_json = "{}"
+	t.Run("Test Get/Verify Delete IPv6 address at subinterfaces addresses", processGetRequest(url, nil, expected_get_json, false))
+	time.Sleep(1 * time.Second)
+
 	t.Log("\n\n+++++++++++++ DONE CONFIGURING AND REMOVING IPV6 ADDRESSES ON SUBINTERFACES  ++++++++++++")
 
+
+	//------------------------------------------------------------------------------------------------------
 	t.Log("\n\n+++++++++++++ ENABLE AND DISABLE IPV6 LINK LOCAL ON SUBINTERFACES  ++++++++++++")
 	t.Log("\n\n--- Get IPv6 link local value (enabled) at config level ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/subinterfaces/subinterface[index=0]/ipv6/config"
