@@ -128,11 +128,12 @@ module openconfig-platform-healthz-fault {
 
   grouping platform-health-faults {
     description
-      "Grouping containing a component's active faults";
+      "Grouping containing a component's active and retained inactive faults";
 
     container faults {
       description
-        "Enclosing container for a component's active faults.";
+        "Enclosing container for a component's active and retained inactive
+        faults.";
 
       list fault {
         key "symptom";
@@ -208,8 +209,8 @@ module openconfig-platform-healthz-fault {
     leaf last-detection-time {
       type oc-types:timeticks64;
       description
-        "The time at which the fault's underlying condition was last sampled
-        and confirmed asserted.
+        "The time at which the fault's detected state last changed, including
+        assertion to active or a clear observation to inactive.
 
         The value is a Unix Epoch timestamp (nanoseconds since
         Jan 1, 1970 00:00:00 UTC)";

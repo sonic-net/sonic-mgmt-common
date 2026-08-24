@@ -475,7 +475,7 @@ func platformFaultStatus(value string) (ocbinds.E_OpenconfigPlatform_Components_
 
 func (app *PlatformApp) translateFaultSubscribe(req translateSubRequest) (translateSubResponse, error) {
 	targetPath, err := getYangPathFromUri(req.path)
-	if err != nil || !strings.HasPrefix(platformFaultPathNormalizer.Replace(targetPath), platformFaultPath) {
+	if err != nil || !platformPathNeedsFaults(targetPath) {
 		return emptySubscribeResponse(req.path)
 	}
 

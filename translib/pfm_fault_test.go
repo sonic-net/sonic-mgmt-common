@@ -477,6 +477,59 @@ func TestTranslateFaultSubscribe(t *testing.T) {
 	}
 }
 
+func TestTranslateFaultSubscribePathCoverage(t *testing.T) {
+	app := &PlatformApp{}
+	tests := []struct {
+		name       string
+		path       string
+		wantFaults bool
+	}{
+		{
+			name:       "ancestor",
+			path:       "/openconfig-platform:components",
+			wantFaults: true,
+		},
+		{
+			name:       "descendant",
+			path:       "/openconfig-platform:components/component/healthz/faults/fault/state/status",
+			wantFaults: true,
+		},
+		{
+			name:       "unrelated",
+			path:       "/openconfig-platform:components/component/state",
+			wantFaults: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response, err := app.translateFaultSubscribe(translateSubRequest{path: test.path})
+			if err != nil {
+				t.Fatalf("translateFaultSubscribe(%q) failed: %v", test.path, err)
+			}
+			if len(response.ntfAppInfoTrgt) != 1 {
+				t.Fatalf("target mapping count = %d, want 1", len(response.ntfAppInfoTrgt))
+			}
+
+			info := response.ntfAppInfoTrgt[0]
+			if test.wantFaults {
+				if info.table == nil || info.table.Name != "FAULT_INFO" || info.table.CompCt != 2 || info.dbno != db.StateDB {
+					t.Fatalf("fault path mapped to %+v", info)
+				}
+				if info.key == nil || info.key.Len() != 2 ||
+					info.key.Get(0) != "*" || info.key.Get(1) != "*" {
+					t.Fatalf("fault path key mapping = %+v, want wildcard FAULT_INFO key", info.key)
+				}
+				return
+			}
+
+			if info.table != nil || info.dbno != db.MaxDB || info.isOnChangeSupported {
+				t.Fatalf("unrelated path mapped to database subscription: %+v", info)
+			}
+		})
+	}
+}
+
 type recordingNotificationSender struct {
 	notifications []*apis.Notification
 }
