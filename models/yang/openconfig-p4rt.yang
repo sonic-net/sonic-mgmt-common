@@ -1,0 +1,69 @@
+module openconfig-p4rt {
+  yang-version "1";
+
+  prefix "oc-p4rt";
+
+  namespace "http://openconfig.net/yang/p4rt";
+
+  import openconfig-extensions { prefix oc-ext; }
+  import openconfig-interfaces { prefix oc-if; }
+
+  organization
+    "OpenConfig Working Group";
+
+  contact
+    "www.openconfig.net";
+
+  description
+    "This module defines a set of extensions that provide P4Runtime (P4RT)
+    specific extensions to the OpenConfig data models. Specifically, these
+    parameters for configuration and state provide extensions that control
+    the P4RT service, or allow it to be used alongside other OpenConfig
+    data models.
+
+    The P4RT protocol specification is linked from https://p4.org/specs/
+    under the P4Runtime heading.";
+
+  oc-ext:openconfig-version "0.1.0";
+
+  revision 2021-04-06 {
+    description
+      "Initial revision.";
+    reference "0.1.0";
+  }
+
+  grouping p4rt-interface-config {
+    description
+      "Interface-specific configuration that is applicable to devices that
+      are running the P4RT service.";
+
+    leaf id {
+      type uint32;
+      description
+        "The numeric identifier used by the controller to address the interface.
+        This ID is assigned by an external-to-the-device entity (e.g., an SDN
+        management system) to establish an externally deterministic numeric
+        reference for the interface. The programming entity must ensure that
+        the ID is unique within the required context.
+
+        Note that this identifier is used only when a numeric reference to the
+        interface is required, it does not replace the unique name assigned to
+        the interface.";
+    }
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-if:config" {
+    description
+      "Add interface-specific intended configuration for P4RT.";
+
+    uses p4rt-interface-config;
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-if:state" {
+    description
+      "Add interface-specific applied configuration for P4RT.";
+
+    uses p4rt-interface-config;
+  }
+}
+
