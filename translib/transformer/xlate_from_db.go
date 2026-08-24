@@ -1405,7 +1405,13 @@ func terminalNodeProcess(inParamsForGet xlateFromDbParams, terminalNodeQuery boo
 					}
 				}
 			} else {
-				val, ok := (*dbDataMap)[cdb][tbl][tblKey].Field[dbFldName]
+				/* If table-name, key-name is available for leaf spec */
+				var val string
+				if xYangSpecMap[xpath].tableName != nil && xYangSpecMap[xpath].keyName != nil && (len(tbl) == 0 || len(tblKey) == 0) {
+					val, ok = (*dbDataMap)[cdb][*xYangSpecMap[xpath].tableName][*xYangSpecMap[xpath].keyName].Field[dbFldName]
+				} else {
+					val, ok = (*dbDataMap)[cdb][tbl][tblKey].Field[dbFldName]
+				}
 				if ok {
 					resVal, _, err := DbToYangType(yangDataType, xpath, val, inParamsForGet.oper)
 					if err != nil {
@@ -2036,9 +2042,16 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 							return jsonData, false, nil
 						}
 					} else {
-						tbl, key, _ := tableNameAndKeyFromDbMapGet((*dbDataMap)[cdb], xpathKeyExtRet.tableName)
-						inParamsForGet.tbl = tbl
-						inParamsForGet.tblKey = key
+						/* If yang annot has explicitly mentioned table-name and key-name for field */
+						if (xYangSpecMap[xpathKeyExtRet.xpath].tableName != nil) && len(*xYangSpecMap[xpathKeyExtRet.xpath].tableName) > 0 &&
+							(xYangSpecMap[xpathKeyExtRet.xpath].keyName != nil) && len(*xYangSpecMap[xpathKeyExtRet.xpath].keyName) > 0 {
+							inParamsForGet.tbl = *xYangSpecMap[xpathKeyExtRet.xpath].tableName
+							inParamsForGet.tblKey = *xYangSpecMap[xpathKeyExtRet.xpath].keyName
+						} else {
+							tbl, key, _ := tableNameAndKeyFromDbMapGet((*dbDataMap)[cdb], xpathKeyExtRet.tableName)
+							inParamsForGet.tbl = tbl
+							inParamsForGet.tblKey = key
+						}
 						var fldValMap map[string]interface{}
 						fldValMap, fldErr = terminalNodeProcess(inParamsForGet, true, yangEntry)
 						if (fldErr != nil) || (len(fldValMap) == 0) {
@@ -2079,16 +2092,18 @@ func dbDataToYangJsonCreate(inParamsForGet xlateFromDbParams) (string, bool, err
 										"ygNode: %v, ygot parent obj: %v; inParamsForGet.relUri: %v; error: %v", inParamsForGet.uri, parentUriPath, inParamsForGet.ygSchema.Name,
 										reflect.TypeOf(*inParamsForGet.ygParentObj), inParamsForGet.relUri, err)
 									return "", true, err
-								} else {
+								} else if ygotCtx.trgtYgObj != nil {
 									inParamsForGet.ygParentObj = ygotCtx.trgtYgObj
 									inParamsForGet.ygSchema = ygotCtx.trgtYgSchema
 									inParamsForGet.relUri = uriPathList[len(uriPathList)-1]
 								}
 							}
-							if err := ytypes.Unmarshal(inParamsForGet.ygSchema, *inParamsForGet.ygParentObj, fldValMap); err != nil {
-								log.Warningf("yangDataFill: error in object unmarshalling: %v; schema: %v; parent obj: %v, "+
-									"resFldValMap: %v", inParamsForGet.ygSchema.Name, reflect.TypeOf(*inParamsForGet.ygParentObj), fldValMap)
-								return "", true, err
+							if inParamsForGet.ygParentObj != nil {
+								if err := ytypes.Unmarshal(inParamsForGet.ygSchema, *inParamsForGet.ygParentObj, fldValMap); err != nil {
+									log.Warningf("yangDataFill: error in object unmarshalling: %v; schema: %v; parent obj: %v, "+
+										"resFldValMap: %v", inParamsForGet.ygSchema.Name, reflect.TypeOf(*inParamsForGet.ygParentObj), fldValMap)
+									return "", true, err
+								}
 							}
 						}
 					}

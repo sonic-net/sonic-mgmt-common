@@ -217,7 +217,7 @@ module openconfig-test-xfmr-annot {
 
     deviation /oc-test-xfmr:test-xfmr/oc-test-xfmr:test-ntp/oc-test-xfmr:test-ntp-servers/oc-test-xfmr:test-ntp-server {
       deviate add {
-            sonic-ext:table-name "TEST_NTP_SERVER";
+            sonic-ext:table-name "TEST_NTP_DUMMY_SERVER";
       }
     }
 

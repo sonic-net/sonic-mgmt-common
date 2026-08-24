@@ -16,3 +16,8 @@ gnsi-authz.yang
 gnsi-pathz.yang
 gnsi-certz.yang
 gnsi-credentialz.yang
+openconfig-system.yang
+openconfig-system-terminal.yang
+openconfig-messages.yang
+openconfig-system-logging.yang
+openconfig-aaa.yang
