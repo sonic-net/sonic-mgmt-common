@@ -27,16 +27,32 @@ import (
 	"github.com/openconfig/ygot/ygot"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 type PlatformApp struct {
-	path        *PathInfo
-	reqData     []byte
-	ygotRoot    *ygot.GoStruct
-	ygotTarget  *interface{}
-	eepromTs    *db.TableSpec
-	eepromTable map[string]dbEntry
+	path                         *PathInfo
+	reqData                      []byte
+	ygotRoot                     *ygot.GoStruct
+	ygotTarget                   *interface{}
+	eepromTs                     *db.TableSpec
+	transceiverInfoTs            *db.TableSpec
+	transceiverDomSensorTs       *db.TableSpec
+	transceiverDomThresholdTs    *db.TableSpec
+	applPortTs                   *db.TableSpec
+	eepromTable                  map[string]dbEntry
+	transceiverInfoTable         map[string]dbEntry
+	transceiverDomSensorTable    map[string]dbEntry
+	transceiverDomThresholdTable map[string]dbEntry
+	applPortTable                map[string]dbEntry
 }
+
+const (
+	fractionDigits1  = 10
+	fractionDigits2  = 100
+	fractionDigits3  = 1000
+	fractionDigits18 = 1000000000000000000
+)
 
 func init() {
 	log.Info("Init called for Platform module")
@@ -64,6 +80,10 @@ func (app *PlatformApp) initialize(data appData) {
 	app.ygotRoot = data.ygotRoot
 	app.ygotTarget = data.ygotTarget
 	app.eepromTs = &db.TableSpec{Name: "EEPROM_INFO"}
+	app.transceiverInfoTs = &db.TableSpec{Name: "TRANSCEIVER_INFO"}
+	app.transceiverDomSensorTs = &db.TableSpec{Name: "TRANSCEIVER_DOM_SENSOR"}
+	app.transceiverDomThresholdTs = &db.TableSpec{Name: "TRANSCEIVER_DOM_THRESHOLD"}
+	app.applPortTs = &db.TableSpec{Name: "PORT_TABLE"}
 
 }
 
@@ -160,10 +180,11 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
 		pathInfo.Template, pathInfo.Path, pathInfo.Vars)
 
 	stateDb := dbs[db.StateDB]
+	applDb := dbs[db.ApplDB]
 
 	var payload []byte
 
-	// Read eeprom info from DB
+	// Read eeprom info from STATE_DB
 	app.eepromTable = make(map[string]dbEntry)
 
 	tbl, derr := stateDb.GetTable(app.eepromTs)
@@ -183,6 +204,86 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
 		app.eepromTable[key.Get(0)] = dbEntry{entry: e}
 	}
 
+	// Read transceiver info from STATE_DB
+	app.transceiverInfoTable = make(map[string]dbEntry)
+
+	transceiverInfoTbl, derr := stateDb.GetTable(app.transceiverInfoTs)
+	if derr != nil {
+		log.Error("TRANSCEIVER_INFO table get failed!")
+		return GetResponse{Payload: payload}, derr
+	}
+
+	transceiverInfoTblKeys, _ := transceiverInfoTbl.GetKeys()
+	for _, key := range transceiverInfoTblKeys {
+		e, kerr := transceiverInfoTbl.GetEntry(key)
+		if kerr != nil {
+			log.Error("TRANSCEIVER_INFO entry get failed!")
+			return GetResponse{Payload: payload}, kerr
+		}
+
+		app.transceiverInfoTable[key.Get(0)] = dbEntry{entry: e}
+	}
+
+	// Read transceiver dom sensor from STATE_DB
+	app.transceiverDomSensorTable = make(map[string]dbEntry)
+
+	transceiverDomSensorTbl, derr := stateDb.GetTable(app.transceiverDomSensorTs)
+	if derr != nil {
+		log.Error("TRANSCEIVER_DOM_SENSOR table get failed!")
+		return GetResponse{Payload: payload}, derr
+	}
+
+	transceiverDomSensorTblKeys, _ := transceiverDomSensorTbl.GetKeys()
+	for _, key := range transceiverDomSensorTblKeys {
+		e, kerr := transceiverDomSensorTbl.GetEntry(key)
+		if kerr != nil {
+			log.Error("TRANSCEIVER_DOM_SENSOR entry get failed!")
+			return GetResponse{Payload: payload}, kerr
+		}
+
+		app.transceiverDomSensorTable[key.Get(0)] = dbEntry{entry: e}
+	}
+
+	// Read transceiver dom threshold from STATE_DB
+	app.transceiverDomThresholdTable = make(map[string]dbEntry)
+
+	transceiverDomThresholdTbl, derr := stateDb.GetTable(app.transceiverDomThresholdTs)
+	if derr != nil {
+		log.Error("TRANSCEIVER_DOM_THRESHOLD table get failed!")
+		return GetResponse{Payload: payload}, derr
+	}
+
+	transceiverDomThresholdTblKeys, _ := transceiverDomThresholdTbl.GetKeys()
+	for _, key := range transceiverDomThresholdTblKeys {
+		e, kerr := transceiverDomThresholdTbl.GetEntry(key)
+		if kerr != nil {
+			log.Error("TRANSCEIVER_DOM_THRESHOLD entry get failed!")
+			return GetResponse{Payload: payload}, kerr
+		}
+
+		app.transceiverDomThresholdTable[key.Get(0)] = dbEntry{entry: e}
+	}
+
+	// Read port from APPL_DB
+	app.applPortTable = make(map[string]dbEntry)
+
+	applPortTbl, derr := applDb.GetTable(app.applPortTs)
+	if derr != nil {
+		log.Error("APPL PORT table get failed!")
+		return GetResponse{Payload: payload}, derr
+	}
+
+	applPortTblKeys, _ := applPortTbl.GetKeys()
+	for _, key := range applPortTblKeys {
+		e, kerr := applPortTbl.GetEntry(key)
+		if kerr != nil {
+			log.Error("PORT entry get failed!")
+			return GetResponse{Payload: payload}, kerr
+		}
+
+		app.applPortTable[key.Get(0)] = dbEntry{entry: e}
+	}
+
 	targetUriPath, perr := getYangPathFromUri(app.path.Path)
 	if perr != nil {
 		log.Infof("getYangPathFromUri failed.")
@@ -192,7 +293,7 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
 	var err error
 
 	if isSubtreeRequest(targetUriPath, "/openconfig-platform:components") {
-		err = app.doGetSysEeprom()
+		err = app.doGetPlatformInfo()
 	} else {
 		err = errors.New("Not supported component")
 	}
@@ -430,31 +531,291 @@ func (app *PlatformApp) getSysEepromFromDb(eeprom *ocbinds.OpenconfigPlatform_Co
 	return nil
 }
 
-func (app *PlatformApp) doGetSysEeprom() error {
+// getTransceiverInfoEntry returns the cached TRANSCEIVER_INFO entry for ifName
+// and a boolean indicating whether the interface was present in STATE_DB.
+// The returned db.Value is still safe to call .Has / .Get on if ok is false
+// (both return zero values for a nil Field map), but callers SHOULD inspect
+// ok and short-circuit so a missing entry is not silently treated as a row
+// with every field absent.
+func (app *PlatformApp) getTransceiverInfoEntry(ifName string) (db.Value, bool) {
+	e, ok := app.transceiverInfoTable[ifName]
+	return e.entry, ok
+}
 
-	log.Infof("Preparing collection for system eeprom")
+// getTransceiverDomSensorEntry returns the cached TRANSCEIVER_DOM_SENSOR entry
+// for ifName. See getTransceiverInfoEntry for ok semantics.
+func (app *PlatformApp) getTransceiverDomSensorEntry(ifName string) (db.Value, bool) {
+	e, ok := app.transceiverDomSensorTable[ifName]
+	return e.entry, ok
+}
+
+// getTransceiverDomThresholdEntry returns the cached TRANSCEIVER_DOM_THRESHOLD
+// entry for ifName. See getTransceiverInfoEntry for ok semantics.
+func (app *PlatformApp) getTransceiverDomThresholdEntry(ifName string) (db.Value, bool) {
+	e, ok := app.transceiverDomThresholdTable[ifName]
+	return e.entry, ok
+}
+
+// getApplPortEntry returns the cached APPL_DB PORT_TABLE entry for ifName.
+// See getTransceiverInfoEntry for ok semantics.
+func (app *PlatformApp) getApplPortEntry(ifName string) (db.Value, bool) {
+	e, ok := app.applPortTable[ifName]
+	return e.entry, ok
+}
+
+type CompStateDb struct {
+	Serial string
+	Model  string
+}
+
+func (app *PlatformApp) getCompStateDbObj(ifName string) CompStateDb {
+	log.Infof("parseCompStateDb Enter ifName=%s", ifName)
+
+	var compStateDbObj CompStateDb
+
+	transceiverInfoTable, ok := app.getTransceiverInfoEntry(ifName)
+	if !ok {
+		log.Warningf("getCompStateDbObj: TRANSCEIVER_INFO entry missing for ifName=%s", ifName)
+		return compStateDbObj
+	}
+
+	compStateDbObj.Serial = transceiverInfoTable.Get("serial")
+	compStateDbObj.Model = transceiverInfoTable.Get("model")
+
+	return compStateDbObj
+}
+
+func (app *PlatformApp) getCompStateFromDb(oc_val *ocbinds.OpenconfigPlatform_Components_Component_State, all bool, compName string) error {
+	log.Infof("getCompStateFromDb Enter compName=%s", compName)
+
+	ifName := strings.Replace(compName, "transceiver_", "", -1)
+	compStateDb := app.getCompStateDbObj(ifName)
+
+	targetUriPath, _ := getYangPathFromUri(app.path.Path)
+
+	if all || targetUriPath == "/openconfig-platform:components/component/state/serial-no" {
+		transceiverInfoTable := app.transceiverInfoTable[ifName].entry
+		if transceiverInfoTable.Has("serial") {
+			oc_val.SerialNo = &compStateDb.Serial
+		}
+	}
+	if all || targetUriPath == "/openconfig-platform:components/component/state/part-no" {
+		transceiverInfoTable := app.transceiverInfoTable[ifName].entry
+		if transceiverInfoTable.Has("model") {
+			oc_val.PartNo = &compStateDb.Model
+		}
+	}
+
+	return nil
+}
+
+func (app *PlatformApp) doGetPlatformInfo() error {
+	log.Infof("Preparing collection for platform info")
 
 	var err error
 	pf_cpts := app.getAppRootObject()
+	var compName string
+	var severityName string
 
 	targetUriPath, _ := getYangPathFromUri(app.path.Path)
 	switch targetUriPath {
 	case "/openconfig-platform:components":
+		log.Info("case /openconfig-platform:components root")
 		pf_comp, _ := pf_cpts.NewComponent("System Eeprom")
 		ygot.BuildEmptyTree(pf_comp)
 		err = app.getSysEepromFromDb(pf_comp.State, true)
+		if err != nil {
+			break
+		}
+
+		for epItem, _ := range app.transceiverInfoTable {
+			compName = "transceiver_" + epItem
+			pf_comp, _ := pf_cpts.NewComponent(compName)
+			ygot.BuildEmptyTree(pf_comp)
+
+			err = app.getCompStateFromDb(pf_comp.State, true, compName)
+			if err != nil {
+				break
+			}
+			err = app.getCompTransceiverStateFromDb(pf_comp.Transceiver.State, true, compName)
+			if err != nil {
+				break
+			}
+			err = app.getCompTransceiverStateSupplyVoltageFromDb(pf_comp.Transceiver.State.SupplyVoltage, true, compName)
+			if err != nil {
+				break
+			}
+			ifName := strings.Replace(compName, "transceiver_", "", -1)
+			applPortTable, _ := app.getApplPortEntry(ifName)
+
+			pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
+			if pf_channel_0 != nil {
+				ygot.BuildEmptyTree(pf_channel_0)
+				err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel_0.State.LaserTemperature, true, compName)
+				if err != nil {
+					break
+				}
+			}
+
+			for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+				laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+				if parseErr != nil {
+					log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+					continue
+				}
+				pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
+				if pf_channel != nil {
+					ygot.BuildEmptyTree(pf_channel)
+					err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, true, compName, uint16(index))
+					if err != nil {
+						break
+					}
+					err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, true, compName, uint16(index))
+					if err != nil {
+						break
+					}
+					err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+					if err != nil {
+						break
+					}
+				}
+			}
+		}
 
 	case "/openconfig-platform:components/component":
-		compName := app.path.Var("name")
+		log.Info("case /openconfig-platform:components/component root")
+		compName = app.path.Var("name")
 		if compName == "" {
 			pf_comp, _ := pf_cpts.NewComponent("System Eeprom")
 			ygot.BuildEmptyTree(pf_comp)
 			err = app.getSysEepromFromDb(pf_comp.State, true)
+			if err != nil {
+				break
+			}
+
+			for epItem, _ := range app.transceiverInfoTable {
+				compName = "transceiver_" + epItem
+				pf_comp, _ := pf_cpts.NewComponent(compName)
+				ygot.BuildEmptyTree(pf_comp)
+
+				err = app.getCompStateFromDb(pf_comp.State, true, compName)
+				if err != nil {
+					break
+				}
+				err = app.getCompTransceiverStateFromDb(pf_comp.Transceiver.State, true, compName)
+				if err != nil {
+					break
+				}
+				err = app.getCompTransceiverStateSupplyVoltageFromDb(pf_comp.Transceiver.State.SupplyVoltage, true, compName)
+				if err != nil {
+					break
+				}
+				ifName := strings.Replace(compName, "transceiver_", "", -1)
+				applPortTable, _ := app.getApplPortEntry(ifName)
+
+				pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
+				if pf_channel_0 != nil {
+					ygot.BuildEmptyTree(pf_channel_0)
+					err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel_0.State.LaserTemperature, true, compName)
+					if err != nil {
+						break
+					}
+				}
+
+				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
+					pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
+					if pf_channel != nil {
+						ygot.BuildEmptyTree(pf_channel)
+						err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
+						err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
+						err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
+					}
+				}
+			}
 		} else {
-			if compName != "System Eeprom" {
+			if compName != "System Eeprom" && !strings.Contains(compName, "transceiver_Ethernet") {
 				err = errors.New("Invalid component name")
 				break
 			}
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+
+				if compName == "System Eeprom" {
+					err = app.getSysEepromFromDb(pf_comp.State, true)
+				}
+
+				if strings.Contains(compName, "transceiver_Ethernet") {
+					err = app.getCompStateFromDb(pf_comp.State, true, compName)
+					if err != nil {
+						break
+					}
+					err = app.getCompTransceiverStateFromDb(pf_comp.Transceiver.State, true, compName)
+					if err != nil {
+						break
+					}
+					err = app.getCompTransceiverStateSupplyVoltageFromDb(pf_comp.Transceiver.State.SupplyVoltage, true, compName)
+					if err != nil {
+						break
+					}
+					ifName := strings.Replace(compName, "transceiver_", "", -1)
+					applPortTable, _ := app.getApplPortEntry(ifName)
+
+					pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
+					if pf_channel_0 != nil {
+						ygot.BuildEmptyTree(pf_channel_0)
+						err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel_0.State.LaserTemperature, true, compName)
+						if err != nil {
+							break
+						}
+					}
+
+					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
+						pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
+						if pf_channel != nil {
+							ygot.BuildEmptyTree(pf_channel)
+							err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
+							err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
+							err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
+						}
+					}
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		}
+	case "/openconfig-platform:components/component/state":
+		log.Info("case /openconfig-platform:components/component/state root")
+		compName = app.path.Var("name")
+		if compName == "System Eeprom" {
 			pf_comp := pf_cpts.Component[compName]
 			if pf_comp != nil {
 				ygot.BuildEmptyTree(pf_comp)
@@ -462,14 +823,476 @@ func (app *PlatformApp) doGetSysEeprom() error {
 			} else {
 				err = errors.New("Invalid input component name")
 			}
-		}
-	case "/openconfig-platform:components/component/state":
-		compName := app.path.Var("name")
-		if compName != "" && compName == "System Eeprom" {
+		} else if strings.Contains(compName, "transceiver_Ethernet") {
 			pf_comp := pf_cpts.Component[compName]
 			if pf_comp != nil {
 				ygot.BuildEmptyTree(pf_comp)
-				err = app.getSysEepromFromDb(pf_comp.State, true)
+				err = app.getCompStateFromDb(pf_comp.State, true, compName)
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp.Transceiver)
+				err = app.getCompTransceiverStateFromDb(pf_comp.Transceiver.State, true, compName)
+				if err != nil {
+					break
+				}
+				err = app.getCompTransceiverStateSupplyVoltageFromDb(pf_comp.Transceiver.State.SupplyVoltage, true, compName)
+				if err != nil {
+					break
+				}
+				ifName := strings.Replace(compName, "transceiver_", "", -1)
+				applPortTable, _ := app.getApplPortEntry(ifName)
+
+				pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
+				if pf_channel_0 != nil {
+					ygot.BuildEmptyTree(pf_channel_0)
+					err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel_0.State.LaserTemperature, true, compName)
+					if err != nil {
+						break
+					}
+				}
+
+				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
+					pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
+					if pf_channel != nil {
+						ygot.BuildEmptyTree(pf_channel)
+						err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
+						err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
+						err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
+					}
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp.Transceiver.State)
+				err = app.getCompTransceiverStateFromDb(pf_comp.Transceiver.State, true, compName)
+				if err != nil {
+					break
+				}
+				err = app.getCompTransceiverStateSupplyVoltageFromDb(pf_comp.Transceiver.State.SupplyVoltage, true, compName)
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/supply-voltage":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/supply-voltage root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+				err = app.getCompTransceiverStateSupplyVoltageFromDb(pf_comp.Transceiver.State.SupplyVoltage, true, compName)
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+				ifName := strings.Replace(compName, "transceiver_", "", -1)
+				applPortTable, _ := app.getApplPortEntry(ifName)
+
+				pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
+				if pf_channel_0 != nil {
+					ygot.BuildEmptyTree(pf_channel_0)
+					err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel_0.State.LaserTemperature, true, compName)
+					if err != nil {
+						break
+					}
+				}
+
+				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
+					pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
+					if pf_channel != nil {
+						ygot.BuildEmptyTree(pf_channel)
+						err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
+						err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
+						err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+						if err != nil {
+							break
+						}
+					}
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+				indexName := app.path.Var("index")
+				if indexName == "" {
+					ifName := strings.Replace(compName, "transceiver_", "", -1)
+					applPortTable, _ := app.getApplPortEntry(ifName)
+
+					pf_channel_0, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(0)
+					if pf_channel_0 != nil {
+						ygot.BuildEmptyTree(pf_channel_0)
+						err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel_0.State.LaserTemperature, true, compName)
+						if err != nil {
+							break
+						}
+					}
+
+					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
+						pf_channel, _ := pf_comp.Transceiver.PhysicalChannels.NewChannel(uint16(laneNum))
+						if pf_channel != nil {
+							ygot.BuildEmptyTree(pf_channel)
+							err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
+							err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
+							err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
+						}
+					}
+				} else {
+					compIndex, _ := strconv.ParseUint(indexName, 10, 16)
+					log.Info("compIndex =", compIndex)
+					ifName := strings.Replace(compName, "transceiver_", "", -1)
+					applPortTable, _ := app.getApplPortEntry(ifName)
+
+					if compIndex == 0 {
+						pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+						if pf_channel != nil {
+							ygot.BuildEmptyTree(pf_channel)
+							err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel.State.LaserTemperature, true, compName)
+						} else {
+							err = errors.New("Invalid input component index")
+						}
+					} else {
+						for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+							laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+							if parseErr != nil {
+								log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+								continue
+							}
+							if uint16(laneNum) == uint16(compIndex) {
+								pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+								if pf_channel != nil {
+									ygot.BuildEmptyTree(pf_channel)
+									err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, true, compName, uint16(index))
+									if err != nil {
+										break
+									}
+									err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, true, compName, uint16(index))
+									if err != nil {
+										break
+									}
+									err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+									if err != nil {
+										break
+									}
+								} else {
+									err = errors.New("Invalid input component index")
+								}
+								break
+							} else {
+								err = errors.New("Invalid input component index")
+							}
+						}
+					}
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+				compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
+				log.Info("compIndex =", compIndex)
+				ifName := strings.Replace(compName, "transceiver_", "", -1)
+				applPortTable, _ := app.getApplPortEntry(ifName)
+
+				if compIndex == 0 {
+					pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+					if pf_channel != nil {
+						ygot.BuildEmptyTree(pf_channel.State)
+						err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel.State.LaserTemperature, true, compName)
+					} else {
+						err = errors.New("Invalid input component index")
+					}
+				} else {
+					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
+						if uint16(laneNum) == uint16(compIndex) {
+							pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+							if pf_channel != nil {
+								ygot.BuildEmptyTree(pf_channel.State)
+								err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, true, compName, uint16(index))
+								if err != nil {
+									break
+								}
+								err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, true, compName, uint16(index))
+								if err != nil {
+									break
+								}
+								err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+								if err != nil {
+									break
+								}
+							} else {
+								err = errors.New("Invalid input component index")
+							}
+							break
+						} else {
+							err = errors.New("Invalid input component index")
+						}
+					}
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/laser-temperature":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/laser-temperature root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+				compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
+				log.Info("compIndex =", compIndex)
+
+				if compIndex == 0 {
+					pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+					if pf_channel != nil {
+						ygot.BuildEmptyTree(pf_channel.State)
+						err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel.State.LaserTemperature, true, compName)
+					} else {
+						err = errors.New("Invalid input component index")
+					}
+				} else {
+					err = errors.New("Invalid input component index")
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/output-power":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/output-power root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+				compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
+				log.Info("compIndex =", compIndex)
+				ifName := strings.Replace(compName, "transceiver_", "", -1)
+				applPortTable, _ := app.getApplPortEntry(ifName)
+
+				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
+					if uint16(laneNum) == uint16(compIndex) {
+						pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+						if pf_channel != nil {
+							ygot.BuildEmptyTree(pf_channel.State)
+							err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, true, compName, uint16(index))
+						} else {
+							err = errors.New("Invalid input component index")
+						}
+						break
+					} else {
+						err = errors.New("Invalid input component index")
+					}
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/input-power":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/input-power root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+				compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
+				log.Info("compIndex =", compIndex)
+				ifName := strings.Replace(compName, "transceiver_", "", -1)
+				applPortTable, _ := app.getApplPortEntry(ifName)
+
+				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
+					if uint16(laneNum) == uint16(compIndex) {
+						pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+						if pf_channel != nil {
+							ygot.BuildEmptyTree(pf_channel.State)
+							err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, true, compName, uint16(index))
+						} else {
+							err = errors.New("Invalid input component index")
+						}
+						break
+					} else {
+						err = errors.New("Invalid input component index")
+					}
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/laser-bias-current":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/laser-bias-current root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+				compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
+				log.Info("compIndex =", compIndex)
+				ifName := strings.Replace(compName, "transceiver_", "", -1)
+				applPortTable, _ := app.getApplPortEntry(ifName)
+
+				for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+					laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+					if parseErr != nil {
+						log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+						continue
+					}
+					if uint16(laneNum) == uint16(compIndex) {
+						pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+						if pf_channel != nil {
+							ygot.BuildEmptyTree(pf_channel.State)
+							err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, true, compName, uint16(index))
+							if err != nil {
+								break
+							}
+						} else {
+							err = errors.New("Invalid input component index")
+						}
+						break
+					} else {
+						err = errors.New("Invalid input component index")
+					}
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else {
+			err = errors.New("Invalid component name ")
+		}
+	case "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state":
+		log.Info("case /openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state root")
+		compName = app.path.Var("name")
+		if strings.Contains(compName, "transceiver_Ethernet") {
+			pf_comp := pf_cpts.Component[compName]
+			if pf_comp != nil {
+				ygot.BuildEmptyTree(pf_comp)
+				severityName = app.path.Var("severity")
+				if strings.Contains(severityName, "CRITICAL") {
+					pf_threshold := pf_comp.Transceiver.Thresholds.Threshold[ocbinds.OpenconfigAlarmTypes_OPENCONFIG_ALARM_SEVERITY_CRITICAL]
+					if pf_threshold != nil {
+						ygot.BuildEmptyTree(pf_threshold.State)
+						err = app.getCompTransceiverThresholdStateFromDb(pf_threshold.State, true, compName, severityName)
+					} else {
+						err = errors.New("Invalid input severity name")
+					}
+				} else if strings.Contains(severityName, "WARNING") {
+					pf_threshold := pf_comp.Transceiver.Thresholds.Threshold[ocbinds.OpenconfigAlarmTypes_OPENCONFIG_ALARM_SEVERITY_WARNING]
+					if pf_threshold != nil {
+						ygot.BuildEmptyTree(pf_threshold.State)
+						err = app.getCompTransceiverThresholdStateFromDb(pf_threshold.State, true, compName, severityName)
+					} else {
+						err = errors.New("Invalid input severity name")
+					}
+				} else {
+					err = errors.New("Invalid input severity name")
+				}
 			} else {
 				err = errors.New("Invalid input component name")
 			}
@@ -479,10 +1302,8 @@ func (app *PlatformApp) doGetSysEeprom() error {
 
 	default:
 		if isSubtreeRequest(targetUriPath, "/openconfig-platform:components/component/state") {
-			compName := app.path.Var("name")
-			if compName == "" || compName != "System Eeprom" {
-				err = errors.New("Invalid input component name")
-			} else {
+			compName = app.path.Var("name")
+			if compName == "System Eeprom" {
 				pf_comp := pf_cpts.Component[compName]
 				if pf_comp != nil {
 					ygot.BuildEmptyTree(pf_comp)
@@ -490,6 +1311,207 @@ func (app *PlatformApp) doGetSysEeprom() error {
 				} else {
 					err = errors.New("Invalid input component name")
 				}
+			} else if strings.Contains(compName, "transceiver_Ethernet") {
+				pf_comp := pf_cpts.Component[compName]
+				if pf_comp != nil {
+					ygot.BuildEmptyTree(pf_comp)
+					err = app.getCompStateFromDb(pf_comp.State, false, compName)
+				} else {
+					err = errors.New("Invalid input component name")
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else if isSubtreeRequest(targetUriPath, "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/supply-voltage") {
+			compName = app.path.Var("name")
+			if strings.Contains(compName, "transceiver_Ethernet") {
+				pf_comp := pf_cpts.Component[compName]
+				if pf_comp != nil {
+					ygot.BuildEmptyTree(pf_comp)
+					err = app.getCompTransceiverStateSupplyVoltageFromDb(pf_comp.Transceiver.State.SupplyVoltage, false, compName)
+				} else {
+					err = errors.New("Invalid input component name")
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else if isSubtreeRequest(targetUriPath, "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state") {
+			compName = app.path.Var("name")
+			if strings.Contains(compName, "transceiver_Ethernet") {
+				pf_comp := pf_cpts.Component[compName]
+				if pf_comp != nil {
+					ygot.BuildEmptyTree(pf_comp)
+					err = app.getCompTransceiverStateFromDb(pf_comp.Transceiver.State, false, compName)
+				} else {
+					err = errors.New("Invalid input component name")
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else if isSubtreeRequest(targetUriPath, "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/laser-temperature") {
+			compName = app.path.Var("name")
+			if strings.Contains(compName, "transceiver_Ethernet") {
+				pf_comp := pf_cpts.Component[compName]
+				if pf_comp != nil {
+					ygot.BuildEmptyTree(pf_comp)
+					compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
+
+					if compIndex == 0 {
+						pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+						if pf_channel != nil {
+							ygot.BuildEmptyTree(pf_channel.State)
+							err = app.getCompTransceiverPhysicalChannelStateLaserTemperatureFromDb(pf_channel.State.LaserTemperature, false, compName)
+						} else {
+							err = errors.New("Invalid input component index")
+						}
+					} else {
+						err = errors.New("Invalid input component index")
+					}
+				} else {
+					err = errors.New("Invalid input component name")
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else if isSubtreeRequest(targetUriPath, "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/output-power") {
+			compName = app.path.Var("name")
+			if strings.Contains(compName, "transceiver_Ethernet") {
+				pf_comp := pf_cpts.Component[compName]
+				if pf_comp != nil {
+					ygot.BuildEmptyTree(pf_comp)
+					compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
+					ifName := strings.Replace(compName, "transceiver_", "", -1)
+					applPortTable, _ := app.getApplPortEntry(ifName)
+
+					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
+						if uint16(laneNum) == uint16(compIndex) {
+							pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+							if pf_channel != nil {
+								ygot.BuildEmptyTree(pf_channel.State)
+								err = app.getCompTransceiverPhysicalChannelStateOutputPowerFromDb(pf_channel.State.OutputPower, false, compName, uint16(index))
+							} else {
+								err = errors.New("Invalid input component index")
+							}
+							break
+						} else {
+							err = errors.New("Invalid input component index")
+						}
+					}
+				} else {
+					err = errors.New("Invalid input component name")
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else if isSubtreeRequest(targetUriPath, "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/input-power") {
+			compName = app.path.Var("name")
+			if strings.Contains(compName, "transceiver_Ethernet") {
+				pf_comp := pf_cpts.Component[compName]
+				if pf_comp != nil {
+					ygot.BuildEmptyTree(pf_comp)
+					compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
+					ifName := strings.Replace(compName, "transceiver_", "", -1)
+					applPortTable, _ := app.getApplPortEntry(ifName)
+
+					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
+						if uint16(laneNum) == uint16(compIndex) {
+							pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+							if pf_channel != nil {
+								ygot.BuildEmptyTree(pf_channel.State)
+								err = app.getCompTransceiverPhysicalChannelStateInputPowerFromDb(pf_channel.State.InputPower, false, compName, uint16(index))
+							} else {
+								err = errors.New("Invalid input component index")
+							}
+							break
+						} else {
+							err = errors.New("Invalid input component index")
+						}
+					}
+				} else {
+					err = errors.New("Invalid input component name")
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else if isSubtreeRequest(targetUriPath, "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels/channel/state/laser-bias-current") {
+			compName = app.path.Var("name")
+			if strings.Contains(compName, "transceiver_Ethernet") {
+				pf_comp := pf_cpts.Component[compName]
+				if pf_comp != nil {
+					ygot.BuildEmptyTree(pf_comp)
+					compIndex, _ := strconv.ParseUint(app.path.Var("index"), 10, 16)
+					ifName := strings.Replace(compName, "transceiver_", "", -1)
+					applPortTable, _ := app.getApplPortEntry(ifName)
+
+					for index, lane := range strings.Split(applPortTable.Get("lanes"), ",") {
+						laneNum, parseErr := strconv.ParseUint(lane, 10, 16)
+						if parseErr != nil {
+							log.Warningf("doGetPlatformInfo: invalid lane %q for ifName=%s: %v", lane, ifName, parseErr)
+							continue
+						}
+						if uint16(laneNum) == uint16(compIndex) {
+							pf_channel := pf_comp.Transceiver.PhysicalChannels.Channel[uint16(compIndex)]
+							if pf_channel != nil {
+								ygot.BuildEmptyTree(pf_channel.State)
+								err = app.getCompTransceiverPhysicalChannelStateLaserBiasCurrentFromDb(pf_channel.State.LaserBiasCurrent, false, compName, uint16(index))
+								if err != nil {
+									break
+								}
+							} else {
+								err = errors.New("Invalid input component index")
+							}
+							break
+						} else {
+							err = errors.New("Invalid input component index")
+						}
+					}
+				} else {
+					err = errors.New("Invalid input component name")
+				}
+			} else {
+				err = errors.New("Invalid input component name")
+			}
+		} else if isSubtreeRequest(targetUriPath, "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds/threshold/state") {
+			compName = app.path.Var("name")
+			if strings.Contains(compName, "transceiver_Ethernet") {
+				pf_comp := pf_cpts.Component[compName]
+				if pf_comp != nil {
+					ygot.BuildEmptyTree(pf_comp)
+					severityName = app.path.Var("severity")
+					if strings.Contains(severityName, "CRITICAL") {
+						pf_threshold := pf_comp.Transceiver.Thresholds.Threshold[ocbinds.OpenconfigAlarmTypes_OPENCONFIG_ALARM_SEVERITY_CRITICAL]
+						if pf_threshold != nil {
+							ygot.BuildEmptyTree(pf_threshold.State)
+							err = app.getCompTransceiverThresholdStateFromDb(pf_threshold.State, false, compName, severityName)
+						} else {
+							err = errors.New("Invalid input severity name")
+						}
+					} else if strings.Contains(severityName, "WARNING") {
+						pf_threshold := pf_comp.Transceiver.Thresholds.Threshold[ocbinds.OpenconfigAlarmTypes_OPENCONFIG_ALARM_SEVERITY_WARNING]
+						if pf_threshold != nil {
+							ygot.BuildEmptyTree(pf_threshold.State)
+							err = app.getCompTransceiverThresholdStateFromDb(pf_threshold.State, false, compName, severityName)
+						} else {
+							err = errors.New("Invalid input severity name")
+						}
+					} else {
+						err = errors.New("Invalid input severity name")
+					}
+				} else {
+					err = errors.New("Invalid input component name")
+				}
+			} else {
+				err = errors.New("Invalid input component name")
 			}
 		} else {
 			err = errors.New("Invalid Path")
