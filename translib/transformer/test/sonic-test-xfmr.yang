@@ -413,8 +413,8 @@ module sonic-test-xfmr {
                           }
                 }
 
-                container TEST_NTP_SERVER {
-                         list NTP_SERVER_LIST {
+                container TEST_NTP_DUMMY_SERVER {
+                         list NTP_DUMMY_SERVER_LIST {
                                 key "server-id";
 
                                 leaf server-id {
