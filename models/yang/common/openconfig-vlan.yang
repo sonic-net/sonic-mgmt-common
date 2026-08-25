@@ -389,6 +389,7 @@ module openconfig-vlan {
   }
 
   // data definition statements
+  uses vlan-top;
 
   // augment statements
 
