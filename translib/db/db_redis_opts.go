@@ -20,6 +20,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"reflect"
@@ -28,8 +29,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
+	"github.com/redis/go-redis/v9"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,7 +145,7 @@ func adjustRedisOpts(dbOpt *Options) *redis.Options {
 	return &redisOpts
 }
 
-func init() {
+func initializeRedisOpts() {
 	flag.StringVar(&goRedisOpts, "go_redis_opts", "", "Options for go-redis")
 }
 
@@ -197,7 +198,9 @@ func (config *_DBRedisOptsConfig) handleReconfigureSignal() error {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (config *_DBRedisOptsConfig) readFromDB() error {
-	fields, e := readRedis("TRANSLIB_DB|default")
+	rc := TransactionalRedisClient(ConfigDB)
+	defer CloseRedisClient(rc)
+	fields, e := rc.HGetAll(context.Background(), "TRANSLIB_DB|default").Result()
 	if e == nil {
 		if optsString, ok := fields["go_redis_opts"]; ok {
 			// Parse optsString into config.opts
@@ -266,8 +269,8 @@ func (config *_DBRedisOptsConfig) parseRedisOptsConfig(optsString string) error 
 				} else {
 					config.opts.MinIdleConns = int(intVal)
 				}
-			case "MaxConnAge":
-				if config.opts.MaxConnAge, optSAErr =
+			case "MaxConnAge", "ConnMaxLifetime":
+				if config.opts.ConnMaxLifetime, optSAErr =
 					time.ParseDuration(optSA[1]); optSAErr != nil {
 					eS += ("Parse Error: " + optSA[0] + " :" + optSAErr.Error())
 				}
@@ -276,13 +279,8 @@ func (config *_DBRedisOptsConfig) parseRedisOptsConfig(optsString string) error 
 					time.ParseDuration(optSA[1]); optSAErr != nil {
 					eS += ("Parse Error: " + optSA[0] + " :" + optSAErr.Error())
 				}
-			case "IdleTimeout":
-				if config.opts.IdleTimeout, optSAErr =
-					time.ParseDuration(optSA[1]); optSAErr != nil {
-					eS += ("Parse Error: " + optSA[0] + " :" + optSAErr.Error())
-				}
-			case "IdleCheckFrequency":
-				if config.opts.IdleCheckFrequency, optSAErr =
+			case "IdleTimeout", "ConnMaxIdleTime":
+				if config.opts.ConnMaxIdleTime, optSAErr =
 					time.ParseDuration(optSA[1]); optSAErr != nil {
 					eS += ("Parse Error: " + optSA[0] + " :" + optSAErr.Error())
 				}

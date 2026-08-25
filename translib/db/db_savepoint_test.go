@@ -97,12 +97,13 @@ func runSP(t *testing.T, tc *spTC) {
 	}
 
 	ccd, e := NewDB(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-		IsSession:          true,
-		DisableCVLCheck:    true,
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		IsSession:               true,
+		DisableCVLCheck:         true,
+		ForceNewRedisConnection: true,
 	})
 
 	if e != nil {
@@ -208,11 +209,12 @@ func runSP(t *testing.T, tc *spTC) {
 func TestSPDeclareSP(t *testing.T) {
 
 	ccd, e := NewDB(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-		IsSession:          true,
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		IsSession:               true,
+		ForceNewRedisConnection: true,
 	})
 
 	if e != nil {

@@ -20,11 +20,13 @@
 package db
 
 import (
+	"context"
+	"fmt"
 	"reflect"
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,11 +103,12 @@ type Stats struct {
 }
 
 type DBStats struct {
-	Name      string           `json:"name"`
-	AllTables Stats            `json:"all-tables"`
-	AllMaps   Stats            `json:"all-maps"`
-	Tables    map[string]Stats `json:"tables,omitempty"`
-	Maps      map[string]Stats `json:"maps,omitempty"`
+	Name           string           `json:"name"`
+	AllTables      Stats            `json:"all-tables"`
+	AllMaps        Stats            `json:"all-maps"`
+	Tables         map[string]Stats `json:"tables,omitempty"`
+	Maps           map[string]Stats `json:"maps,omitempty"`
+	RedisPoolStats redis.PoolStats  `json:"redis-pool-stats,omitempty"`
 }
 
 type DBGlobalStats struct {
@@ -117,6 +120,12 @@ type DBGlobalStats struct {
 	NewPeak time.Duration `json:"peak-new-time,omitempty"`
 
 	ZeroGetHits uint `json:"zero-get-ops-db"`
+
+	// Redis Stats
+
+	CurTransactionalClients            uint `json:"cur-transactional-clients,omitempty"`
+	TotalPoolClientsRequested          uint `json:"total-pool-clients-requested,omitempty"`
+	TotalTransactionalClientsRequested uint `json:"total-transactional-clients-requested,omitempty"`
 
 	// TableStats are being collected (true)
 
@@ -159,6 +168,22 @@ func (d *DB) GetStats() *DBStats {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+//  Utility Function to create and return Redis Config DB client              //
+////////////////////////////////////////////////////////////////////////////////
+
+func NewRedisConfigDBClient() (*redis.Client, error) {
+	client := RedisClient(ConfigDB)
+
+	if client == nil {
+		return nil, fmt.Errorf("Cannot create Redis Config DB client.")
+	}
+	if _, err := client.Ping(context.Background()).Result(); err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //  Internal Functions                                                        //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,9 +221,11 @@ func (stats *DBGlobalStats) getStats() (*DBGlobalStats, error) {
 
 	mutexDBGlobalStats.Lock()
 
+	rcmCounters := RedisClientManagerCounters()
 	dbGlobalStats = *stats
 	for dbnum, db := range stats.Databases {
-		dbGlobalStats.Databases[dbnum].Name = DBNum(dbnum).String()
+		name := DBNum(dbnum).String()
+		dbGlobalStats.Databases[dbnum].Name = name
 
 		dbGlobalStats.Databases[dbnum].Tables = make(map[string]Stats, len(db.Tables))
 		for name, table := range db.Tables {
@@ -208,6 +235,10 @@ func (stats *DBGlobalStats) getStats() (*DBGlobalStats, error) {
 		dbGlobalStats.Databases[dbnum].Maps = make(map[string]Stats, len(db.Maps))
 		for name, mAP := range db.Maps {
 			dbGlobalStats.Databases[dbnum].Maps[name] = mAP
+		}
+
+		if poolStats := rcmCounters.PoolStatsPerDB[name]; poolStats != nil {
+			dbGlobalStats.Databases[dbnum].RedisPoolStats = *poolStats
 		}
 	}
 
@@ -221,6 +252,11 @@ func (stats *DBGlobalStats) getStatsTotals() (uint, time.Duration, time.Duration
 	var timetotal, peak time.Duration
 
 	mutexDBGlobalStats.Lock()
+
+	rcmCounters := RedisClientManagerCounters()
+	stats.CurTransactionalClients = uint(rcmCounters.CurTransactionalClients)
+	stats.TotalPoolClientsRequested = uint(rcmCounters.TotalPoolClientsRequested)
+	stats.TotalTransactionalClientsRequested = uint(rcmCounters.TotalTransactionalClientsRequested)
 
 	for _, db := range stats.Databases {
 
@@ -523,30 +559,10 @@ func (config *DBStatsConfig) readFromDB() error {
 ////////////////////////////////////////////////////////////////////////////////
 
 func readRedis(key string) (map[string]string, error) {
+	client := RedisClient(ConfigDB)
+	defer CloseRedisClient(client)
 
-	ipAddr := DefaultRedisLocalTCPEP
-	dbId := int(ConfigDB)
-	dbPassword := ""
-	if dbInstName := getDBInstName(ConfigDB); dbInstName != "" {
-		if isDbInstPresent(dbInstName) {
-			ipAddr = getDbTcpAddr(dbInstName)
-			dbId = getDbId(dbInstName)
-			dbPassword = getDbPassword(dbInstName)
-		}
-	}
-
-	client := redis.NewClient(&redis.Options{
-		Network:     "tcp",
-		Addr:        ipAddr,
-		Password:    dbPassword,
-		DB:          dbId,
-		DialTimeout: 0,
-		PoolSize:    1,
-	})
-
-	fields, e := client.HGetAll(key).Result()
-
-	client.Close()
+	fields, e := client.HGetAll(context.Background(), key).Result()
 
 	return fields, e
 }

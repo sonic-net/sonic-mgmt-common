@@ -92,11 +92,12 @@ func TestNewScanCursor(t *testing.T) {
 	var pid int = os.Getpid()
 
 	d, e := NewDB(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-		DisableCVLCheck:    false,
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		DisableCVLCheck:         false,
+		ForceNewRedisConnection: false,
 	})
 
 	if (d == nil) || (e != nil) {

@@ -181,8 +181,10 @@ func newCS(name string, username string, roles []string, pid int32) (*configSess
 	}
 
 	ccDB, err := db.NewDB(db.Options{DBNo: db.ConfigDB,
-		IsSession: true,
-		TxCmdsLim: ccDbTxCmdsLim})
+		IsSession:               true,
+		TxCmdsLim:               ccDbTxCmdsLim,
+		ForceNewRedisConnection: true,
+	})
 	if err != nil {
 		glog.Errorf("newCS: db.NewDB err %s", err)
 		return nil, err

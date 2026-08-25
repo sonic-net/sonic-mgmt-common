@@ -23,10 +23,29 @@ package util
 #cgo LDFLAGS: -lyang
 #include <libyang/libyang.h>
 
-extern void customLogCallback(LY_LOG_LEVEL, char* msg, char* path);
+// Typedef so cgo preserves the const qualifier on customLogCallback's args.
+// Without it, gcc emits -Wdiscarded-qualifiers when libyang's callback (which
+// passes const char*) calls into our Go-side handler.
+typedef const char const_char_t;
+extern void customLogCallback(LY_LOG_LEVEL, const_char_t* msg, const_char_t* path);
 
+#if defined(LY_ARRAY_COUNT)
+static void customLogCb(LY_LOG_LEVEL level, const char* msg, const char* data_path, const char * schema_path, uint64_t line) {
+	(void)line;
+	customLogCallback(level, msg, data_path ? data_path : schema_path);
+}
+
+static void ly_set_log_callback(int enable) {
+	ly_set_log_clb(customLogCb);
+	if (enable == 1) {
+		ly_log_level(LY_LLDBG);
+	} else {
+		ly_log_level(LY_LLERR);
+	}
+}
+#else
 static void customLogCb(LY_LOG_LEVEL level, const char* msg, const char* path) {
-	customLogCallback(level, (char*)msg, (char*)path);
+	customLogCallback(level, msg, path);
 }
 
 static void ly_set_log_callback(int enable) {
@@ -37,6 +56,7 @@ static void ly_set_log_callback(int enable) {
 		ly_verb(LY_LLERR);
 	}
 }
+#endif
 
 */
 import "C"
@@ -187,7 +207,7 @@ func IsTraceSet() bool {
 changing libyang's global log setting */
 
 //export customLogCallback
-func customLogCallback(level C.LY_LOG_LEVEL, msg *C.char, path *C.char) {
+func customLogCallback(level C.LY_LOG_LEVEL, msg *C.const_char_t, path *C.const_char_t) {
 	if level == C.LY_LLERR {
 		CVL_LEVEL_LOG(WARNING, "[libyang Error] %s (path: %s)", C.GoString(msg), C.GoString(path))
 	} else {

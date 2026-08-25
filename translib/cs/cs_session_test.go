@@ -157,7 +157,7 @@ func TestCSGetConfigDB(t *testing.T) {
 	}
 
 	t.Logf("Ensure GetConfigDB gets Candidate Config DB.")
-	dOpts := db.Options{DBNo: db.ConfigDB}
+	dOpts := db.Options{DBNo: db.ConfigDB, ForceNewRedisConnection: true}
 	d, isCS, cleanup, err := sess.GetConfigDB(&dOpts)
 
 	if d == nil || !isCS || err != nil {
@@ -337,7 +337,7 @@ func TestCSTxWithSession(t *testing.T) {
 	}
 
 	t.Logf("Ensure GetConfigDB gets Candidate Config DB.")
-	dOpts := db.Options{DBNo: db.ConfigDB}
+	dOpts := db.Options{DBNo: db.ConfigDB, ForceNewRedisConnection: true}
 	d, isCS, cleanup, err := sess.GetConfigDB(&dOpts)
 
 	defer cleanup()
@@ -378,7 +378,7 @@ func TestCSTxNoSession(t *testing.T) {
 	}
 
 	t.Logf("Ensure GetConfigDB gets Candidate Config DB.")
-	dOpts := db.Options{DBNo: db.ConfigDB}
+	dOpts := db.Options{DBNo: db.ConfigDB, ForceNewRedisConnection: true}
 	d, isCS, cleanup, err := sess.GetConfigDB(&dOpts)
 
 	defer cleanup()

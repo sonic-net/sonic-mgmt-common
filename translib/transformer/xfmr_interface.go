@@ -76,10 +76,11 @@ type notificationOpts struct {
 
 // XfmrSubscInParams represents input to subscribe subtree callbacks - request uri, DBs info access-pointers, DB info for request uri and subscription process type from translib.
 type XfmrSubscInParams struct {
-	uri       string
-	dbs       [db.MaxDB]*db.DB
-	dbDataMap RedisDbMap
-	subscProc SubscProcType
+	uri        string
+	requestURI string
+	dbs        [db.MaxDB]*db.DB
+	dbDataMap  RedisDbMap
+	subscProc  SubscProcType
 }
 
 // XfmrSubscOutParams represents output from subscribe subtree callback - DB data for request uri, Need cache, OnChange, subscription preference and interval.

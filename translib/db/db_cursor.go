@@ -20,6 +20,7 @@
 package db
 
 import (
+	"context"
 	"fmt"
 
 	"reflect"
@@ -88,7 +89,7 @@ type fieldScanner struct {
 }
 
 func (scnr *keyScanner) scan(sc *ScanCursor, countHint int64) ([]string, uint64, error) {
-	return sc.db.client.Scan(sc.cursor,
+	return sc.db.client.Scan(context.Background(), sc.cursor,
 		sc.db.key2redis(sc.ts, sc.pattern), countHint).Result()
 }
 
@@ -97,7 +98,7 @@ func (scnr *fieldScanner) scan(sc *ScanCursor, countHint int64) ([]string, uint6
 	if len(sc.pattern.Comp) > 0 {
 		key = sc.db.key2redis(sc.ts, sc.pattern)
 	}
-	return sc.db.client.HScan(key, sc.cursor, scnr.fldNamePattern, countHint).Result()
+	return sc.db.client.HScan(context.Background(), key, sc.cursor, scnr.fldNamePattern, countHint).Result()
 }
 
 ////////////////////////////////////////////////////////////////////////////////

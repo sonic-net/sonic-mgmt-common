@@ -20,11 +20,12 @@
 package db
 
 import (
+	"context"
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	"github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
+	"github.com/redis/go-redis/v9"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,7 +121,7 @@ func (d *DB) GetTablePattern(ts *TableSpec, pat Key) (Table, error) {
 	}
 
 	// Run the Lua script
-	luaTable, err = luaScriptGetTable.Run(d.client,
+	luaTable, err = luaScriptGetTable.Run(context.Background(), d.client,
 		[]string{d.key2redis(ts, pat)}).Result()
 	if err != nil {
 		return table, err

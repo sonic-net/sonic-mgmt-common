@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 )
 
 func TestSetGoRedisOpts(t *testing.T) {
@@ -55,11 +55,12 @@ func compareRedisOptsString2Struct(t *testing.T, optsS string, opts *redis.Optio
 
 func compareRedisOptsDBRead2Struct(t *testing.T, optsS string, opts *redis.Options) {
 	d, e := NewDB(Options{
-		DBNo:               ConfigDB,
-		InitIndicator:      "",
-		TableNameSeparator: "|",
-		KeySeparator:       "|",
-		DisableCVLCheck:    true,
+		DBNo:                    ConfigDB,
+		InitIndicator:           "",
+		TableNameSeparator:      "|",
+		KeySeparator:            "|",
+		DisableCVLCheck:         true,
+		ForceNewRedisConnection: false,
 	})
 
 	if d == nil {

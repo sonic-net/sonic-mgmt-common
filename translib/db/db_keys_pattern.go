@@ -20,11 +20,12 @@
 package db
 
 import (
+	"context"
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	"github.com/go-redis/redis/v7"
 	"github.com/golang/glog"
+	"github.com/redis/go-redis/v9"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,7 +118,7 @@ func (d *DB) ExistKeysPattern(ts *TableSpec, pat Key) (bool, error) {
 	if d.Opts.IsWriteDisabled && !exists {
 
 		var luaExists interface{}
-		if luaExists, err = luaScriptExistsKeysPatterns.Run(d.client,
+		if luaExists, err = luaScriptExistsKeysPatterns.Run(context.Background(), d.client,
 			[]string{d.key2redis(ts, pat)}).Result(); err == nil {
 
 			if existsString, ok := luaExists.(string); !ok {
