@@ -10,11 +10,15 @@ module openconfig-interfaces-annot {
     import openconfig-vlan {prefix oc-vlan; }
     import openconfig-if-ip {prefix oc-ip; }
     import openconfig-if-aggregate { prefix oc-lag; }
+    import openconfig-p4rt { prefix "p4rt-if"; }
+    import openconfig-platform-port { prefix "oc-plat-port"; }
+    import openconfig-platform-transceiver { prefix "oc-plat-xcvr"; }
 
     deviation /oc-intf:interfaces/oc-intf:interface {
         deviate add {
             sonic-ext:key-transformer "intf_tbl_key_xfmr";
             sonic-ext:table-transformer "intf_table_xfmr";
+            sonic-ext:path-transformer "intf_path_xfmr";
         }
     }
 
@@ -277,4 +281,36 @@ module openconfig-interfaces-annot {
         }
     }
 
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/p4rt-if:id {
+        deviate add {
+            sonic-ext:field-transformer "pins_if_id_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/p4rt-if:id {
+        deviate add {
+            sonic-ext:field-transformer "pins_if_id_xfmr";
+            sonic-ext:table-name "P4RT_PORT_ID_TABLE";
+            sonic-ext:db-name "APPL_DB";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-plat-port:hardware-port {
+        deviate add {
+            sonic-ext:field-transformer "intf_hardware_port_xfmr";
+            sonic-ext:field-name "index";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-plat-xcvr:transceiver {
+        deviate add {
+            sonic-ext:field-transformer "intf_transceiver_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-plat-xcvr:physical-channel {
+        deviate add {
+            sonic-ext:field-transformer "intf_physical_channel_xfmr";
+        }
+    }
 }
