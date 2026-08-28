@@ -70,7 +70,7 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	t.Log("\n\n--- Verify PATCH PortChannel config ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config"
-	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"min-links\": 3}}"
+	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"min-links\": 3, \"lag-type\": \"LACP\"}}"
 	t.Run("Test GET on portchannel config", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
@@ -81,7 +81,7 @@ func Test_openconfig_portchannel(t *testing.T) {
 
 	t.Log("\n\n--- Verify DELETE PortChannel min-links ---")
 	url = "/openconfig-interfaces:interfaces/interface[name=PortChannel111]/openconfig-if-aggregate:aggregation/config"
-	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"min-links\": 3}}"
+	expected_get_json = "{\"openconfig-if-aggregate:config\": {\"min-links\": 3, \"lag-type\": \"LACP\"}}"
 	t.Run("Test GET on portchannel min-links after DELETE", processGetRequest(url, nil, expected_get_json, false))
 	time.Sleep(1 * time.Second)
 
