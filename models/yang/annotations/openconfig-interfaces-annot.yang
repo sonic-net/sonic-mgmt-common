@@ -63,6 +63,60 @@ module openconfig-interfaces-annot {
         }
     }
 
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:type {
+        deviate add {
+            sonic-ext:field-transformer "intf_type_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:type {
+        deviate add {
+            sonic-ext:field-transformer "intf_type_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:description {
+        deviate add {
+            sonic-ext:field-transformer "intf_description_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:ifindex {
+        deviate add {
+            sonic-ext:field-transformer "intf_ifindex_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:oper-status {
+        deviate add {
+            sonic-ext:field-transformer "intf_oper_status_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:last-change {
+        deviate add {
+            sonic-ext:field-transformer "intf_last_change_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:management {
+        deviate add {
+            sonic-ext:field-transformer "intf_mgmt_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:cpu {
+        deviate add {
+            sonic-ext:field-transformer "intf_cpu_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:logical {
+        deviate add {
+            sonic-ext:field-transformer "intf_logical_xfmr";
+        }
+    }
+
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:config/oc-intf:mtu {
         deviate add {
             sonic-ext:field-transformer "intf_mtu_xfmr";
@@ -216,6 +270,12 @@ module openconfig-interfaces-annot {
     deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:config/oc-ip:enabled {
         deviate add {
             sonic-ext:field-transformer "ipv6_enabled_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state {
+        deviate add {
+            sonic-ext:db-name "APPL_DB";
         }
     }
 
