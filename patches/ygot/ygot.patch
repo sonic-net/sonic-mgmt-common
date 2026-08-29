@@ -433,7 +433,7 @@ index e39c478..b7766f0 100644
  
  	for _, t := range util.EnumeratedUnionTypes(e.Type.Type) {
  		var en *yangEnum
-@@ -111,20 +115,36 @@ func (s *enumGenState) enumeratedUnionEntry(e *yang.Entry, compressPaths, noUnde
+@@ -111,20 +115,54 @@ func (s *enumGenState) enumeratedUnionEntry(e *yang.Entry, compressPaths, noUnde
  				}
  			}
  
@@ -447,15 +447,32 @@ index e39c478..b7766f0 100644
 -						Enum: t.Enum,
 +			if tmpEn, ok := enumSet[enumName]; ok {
 +				enumTmp := yang.NewEnumType()
-+				for eNm, eVal := range t.Enum.NameMap() {
-+					if err := enumTmp.Set(eNm, eVal); err != nil {
-+						return nil, fmt.Errorf("%v", err)
-+					}
-+				}
++				// Copy existing (first typedef) values unchanged, track max value
++				var maxVal int64
 +				for eNm, eVal := range tmpEn.entry.Type.Enum.NameMap() {
 +					if err := enumTmp.Set(eNm, eVal); err != nil {
 +						return nil, fmt.Errorf("%v", err)
 +					}
++					if eVal > maxVal {
++						maxVal = eVal
++					}
++				}
++				// Re-base second typedef values after first typedef's max to avoid conflicts
++				type eEntry struct {
++					name string
++					val  int64
++				}
++				newEntries := make([]eEntry, 0)
++				for eNm, eVal := range t.Enum.NameMap() {
++					newEntries = append(newEntries, eEntry{eNm, eVal})
++				}
++				sort.Slice(newEntries, func(i, j int) bool { return newEntries[i].val < newEntries[j].val })
++				nextVal := maxVal + 1
++				for _, ev := range newEntries {
++					if err := enumTmp.Set(ev.name, nextVal); err != nil {
++						return nil, fmt.Errorf("%v", err)
++					}
++					nextVal++
 +				}
 +				tmpEn.entry.Type.Enum = enumTmp
 +				continue
@@ -477,10 +494,25 @@ index e39c478..b7766f0 100644
 +				enumSet[enumName] = en
  			}
  		}
--
+
  		es = append(es, en)
  	}
  
+@@ -480,7 +500,13 @@ func (s *enumGenState) resolveTypedefEnumeratedName(e *yang.Entry, noUnderscores bool) (string, error) {
+		case 0:
+			return "", fmt.Errorf("enumerated type had an empty union within it, path: %v, type: %v, enumerated: %v", e.Path(), e.Type, enumTypes)
+		default:
+-			return "", fmt.Errorf("multiple enumerated types within a single enumeration not supported, path: %v, type: %v, enumerated: %v", e.Path(), e.Type, enumTypes)
++			// Multiple enum typedefs in union (e.g. swss_loglevel + sai_loglevel).
++			// Use the first typedef name; values are merged in enumeratedUnionEntry.
++			if noUnderscores {
++				typeName = fmt.Sprintf("%sEnum", enumTypes[0].Name)
++			} else {
++				typeName = fmt.Sprintf("%s_Enum", enumTypes[0].Name)
++			}
+		}
+	}
+	if e.Node == nil {
 diff --git a/ygen/schemaparse.go b/ygen/schemaparse.go
 index f71e7e6..1183fb8 100644
 --- a/ygen/schemaparse.go

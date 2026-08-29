@@ -660,6 +660,22 @@ index 307610a..ffb59a6 100644
  	}
  	if prefix != "" {
  		name = prefix + ":" + name
+@@ -368,14 +377,14 @@ func (y *YangType) resolve() (errs []error) {
+	// I don't know of an easy way to use a type as a key to a map,
+	// so we have to check equality the hard way.
+ looking:
+	for _, ut := range t.Type {
+		errs = append(errs, ut.resolve()...)
+		if ut.YangType != nil {
+			for _, yt := range y.Type {
+-				if ut.YangType.Equal(yt) {
++				if ut.YangType.Equal(yt) && ut.YangType.Name == yt.Name {
+					continue looking
+				}
+			}
+			y.Type = append(y.Type, ut.YangType)
+		}
+	}
 diff --git a/yang.go b/yang.go
 index 2480a4e..515d1b3 100644
 --- a/yang.go
