@@ -124,3 +124,105 @@ func TestValidateEditConfig_When_Exp_In_Leaf_Negative(t *testing.T) {
 		Msg:       whenExpressionErrMessage,
 	})
 }
+
+func TestValidateEditConfig_When_Predicate_Escape_SingleQuote(t *testing.T) {
+	t.Run("update_delay_time_unique_ifname", func(tt *testing.T) {
+		setupTestData(tt, map[string]interface{}{
+			"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+				"test'1": map[string]interface{}{
+					"ifname":     "Ethernet0",
+					"delay-time": "10",
+				},
+			},
+		})
+
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_UPDATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test'1",
+			Data: map[string]string{
+				"delay-time": "12",
+			}}})
+		verifyErr(tt, res, Success)
+	})
+
+	t.Run("update_delay_time_duplicate_ifname", func(tt *testing.T) {
+		setupTestData(tt, map[string]interface{}{
+			"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+				"test'1": map[string]interface{}{
+					"ifname":     "Ethernet0",
+					"delay-time": "10",
+				},
+				"test'2": map[string]interface{}{
+					"ifname": "Ethernet0",
+				},
+			},
+		})
+
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_UPDATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test'2",
+			Data: map[string]string{
+				"delay-time": "12",
+			}}})
+		verifyErr(tt, res, CVLErrorInfo{
+			ErrCode:   CVL_SEMANTIC_ERROR,
+			TableName: "EVPN_ETHERNET_SEGMENT",
+			Field:     "delay-time",
+			Msg:       whenExpressionErrMessage,
+		})
+	})
+}
+
+func TestValidateEditConfig_When_Predicate_Escape_Backslash(t *testing.T) {
+	t.Run("create_entry_unique_ifname", func(tt *testing.T) {
+		setupTestData(tt, map[string]interface{}{
+			"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+				`test\1`: map[string]interface{}{
+					"ifname": "Ethernet0",
+				},
+			},
+		})
+
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test\\2",
+			Data: map[string]string{
+				"ifname":     "Ethernet4",
+				"delay-time": "12",
+			}}})
+		verifyErr(tt, res, Success)
+	})
+
+	t.Run("create_entry_duplicate_ifname", func(tt *testing.T) {
+		setupTestData(tt, map[string]interface{}{
+			"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+				`test\1`: map[string]interface{}{
+					"ifname":     "Ethernet0",
+					"delay-time": "10",
+				},
+			},
+		})
+
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test\\3",
+			Data: map[string]string{
+				"ifname":     "Ethernet0",
+				"delay-time": "12",
+			}}})
+		verifyErr(tt, res, CVLErrorInfo{
+			ErrCode:   CVL_SEMANTIC_ERROR,
+			TableName: "EVPN_ETHERNET_SEGMENT",
+			Field:     "delay-time",
+			Msg:       whenExpressionErrMessage,
+		})
+	})
+}
