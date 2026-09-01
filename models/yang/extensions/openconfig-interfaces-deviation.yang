@@ -161,10 +161,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
  
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp {
-    deviate not-supported;
-  }
- 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:router-advertisement {
     deviate not-supported;
   }

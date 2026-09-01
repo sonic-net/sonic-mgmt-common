@@ -4,6 +4,7 @@ openconfig-acl.yang
 openconfig-if-aggregate.yang
 openconfig-if-ethernet.yang
 openconfig-if-ip.yang
+openconfig-if-ip-vrrp-annot.yang
 openconfig-interfaces-annot.yang
 openconfig-interfaces.yang
 openconfig-mclag-annot.yang
