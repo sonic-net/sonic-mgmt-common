@@ -12,6 +12,8 @@ openconfig-sampling-sflow-annot.yang
 openconfig-sampling-sflow.yang
 openconfig-system-annot.yang
 openconfig-vlan.yang
+openconfig-platform-annot.yang
+openconfig-platform.yang
 gnsi-authz.yang
 gnsi-pathz.yang
 gnsi-certz.yang

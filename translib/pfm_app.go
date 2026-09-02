@@ -25,7 +25,6 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
 	"github.com/openconfig/ygot/ygot"
-	"reflect"
 	"strconv"
 )
 
@@ -39,21 +38,39 @@ type PlatformApp struct {
 }
 
 func init() {
-	log.Info("Init called for Platform module")
-	err := register("/openconfig-platform:components",
-		&appInfo{appType: reflect.TypeOf(PlatformApp{}),
-			ygotRootType: reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{}),
-			isNative:     false})
-	if err != nil {
-		log.Fatal("Register Platform app module with App Interface failed with error=", err)
-	}
+	/*
+				 * DEPRECATED:
+				 * The PlatformApp module is deprecated and deactivated. App registration is commented
+				 * out because registering at /openconfig-platform:components claims exclusive ownership
+				 * over the root platform URI, preventing Transceivers, IC, and Software components
+				 * from coexisting.
+				 *
+				 * All platform component translation (System EEPROM, Integrated Circuits,
+				 * Transceivers, and Software Modules) has been ported to the standard declarative
+				 * Transformer framework in translib/transformer/xfmr_platform.go.
+				 *
+				 * The remaining code in this file is kept intact temporarily for reference
+		                 * and rollback safety.
+				 *
+				 * TODO: Remove this file completely once transformer-based platform component
+				 * support is verified and stabilized across all SONiC platforms.
+				 *
+				log.Info("Init called for Platform module")
+				err := register("/openconfig-platform:components",
+					&appInfo{appType: reflect.TypeOf(PlatformApp{}),
+						ygotRootType: reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{}),
+						isNative:     false})
+				if err != nil {
+					log.Fatal("Register Platform app module with App Interface failed with error=", err)
+				}
 
-	err = addModel(&ModelData{Name: "openconfig-platform",
-		Org: "OpenConfig working group",
-		Ver: "1.0.2"})
-	if err != nil {
-		log.Fatal("Adding model data to appinterface failed with error=", err)
-	}
+				err = addModel(&ModelData{Name: "openconfig-platform",
+					Org: "OpenConfig working group",
+					Ver: "1.0.2"})
+				if err != nil {
+					log.Fatal("Adding model data to appinterface failed with error=", err)
+				}
+	*/
 }
 
 func (app *PlatformApp) initialize(data appData) {
