@@ -48,6 +48,8 @@ var platformFaultPathNormalizer = strings.NewReplacer(
 	"/openconfig-platform-healthz-fault:faults", "/faults",
 )
 
+var platformFaultTableSpec = db.TableSpec{Name: "FAULT_INFO", CompCt: 2}
+
 type platformFault struct {
 	component         string
 	symptomName       string
@@ -87,7 +89,7 @@ func platformPathNeedsEeprom(targetPath, componentName string) bool {
 }
 
 func (app *PlatformApp) doGetFaults(stateDb *db.DB) error {
-	table, err := stateDb.GetTable(app.faultInfoTs)
+	table, err := stateDb.GetTable(&platformFaultTableSpec)
 	if err != nil {
 		return fmt.Errorf("FAULT_INFO table get failed: %w", err)
 	}
@@ -384,23 +386,38 @@ func decimalEpochToNanoseconds(value string) (uint64, error) {
 	return nanoseconds + fraction, nil
 }
 
-func platformFaultIdentityName(value string) (string, error) {
+func parsePlatformFaultIdentity(value string, allowFilterValue bool) (string, string, error) {
 	value = strings.TrimSpace(value)
-	if value == "" || value == "*" {
-		return value, nil
+	if allowFilterValue && (value == "" || value == "*") {
+		return "", value, nil
 	}
 
 	parts := strings.Split(value, ":")
-	if len(parts) == 1 {
-		return value, nil
+	if len(parts) > 2 {
+		return "", "", fmt.Errorf("invalid identity %q", value)
 	}
-	if len(parts) != 2 || parts[1] == "" {
-		return "", fmt.Errorf("invalid identity %q", value)
+	module, identity := platformFaultModule, parts[0]
+	if len(parts) == 2 {
+		module, identity = parts[0], parts[1]
 	}
-	if parts[0] != platformFaultModule && parts[0] != platformFaultModulePrefix {
-		return "", fmt.Errorf("unsupported identity namespace %q", parts[0])
+	if module == platformFaultModulePrefix {
+		module = platformFaultModule
 	}
-	return parts[1], nil
+	if module == "" || identity == "" {
+		return "", "", fmt.Errorf("invalid identity %q", value)
+	}
+	return module, identity, nil
+}
+
+func platformFaultIdentityName(value string) (string, error) {
+	module, identity, err := parsePlatformFaultIdentity(value, true)
+	if err != nil {
+		return "", err
+	}
+	if module != "" && module != platformFaultModule {
+		return "", fmt.Errorf("unsupported identity namespace %q", module)
+	}
+	return identity, nil
 }
 
 func platformFaultSymptom(value string) (ocbinds.E_OpenconfigPlatformHealthzFault_SYMPTOM_BASE, error) {
@@ -432,24 +449,9 @@ func platformFaultAction(value string) (ocbinds.E_OpenconfigPlatformHealthzFault
 }
 
 func platformFaultIdentityValue(value string, identities map[int64]ygot.EnumDefinition) (int64, error) {
-	value = strings.TrimSpace(value)
-	parts := strings.Split(value, ":")
-	module := platformFaultModule
-	identity := ""
-	switch len(parts) {
-	case 1:
-		identity = parts[0]
-	case 2:
-		module = parts[0]
-		identity = parts[1]
-		if module == platformFaultModulePrefix {
-			module = platformFaultModule
-		}
-	default:
-		return 0, fmt.Errorf("invalid identity %q", value)
-	}
-	if module == "" || identity == "" {
-		return 0, fmt.Errorf("invalid identity %q", value)
+	module, identity, err := parsePlatformFaultIdentity(value, false)
+	if err != nil {
+		return 0, err
 	}
 	for enumValue, definition := range identities {
 		if definition.Name == identity && definition.DefiningModule == module {
@@ -492,7 +494,7 @@ func (app *PlatformApp) translateFaultSubscribe(req translateSubRequest) (transl
 
 	info := &notificationAppInfo{
 		dbno:                db.StateDB,
-		table:               &db.TableSpec{Name: "FAULT_INFO", CompCt: 2},
+		table:               &platformFaultTableSpec,
 		key:                 &db.Key{Comp: []string{faultKeyPattern(component), faultKeyPattern(symptom)}},
 		path:                subscribePath,
 		handlerFunc:         processPlatformFaultOnChange,
@@ -503,7 +505,8 @@ func (app *PlatformApp) translateFaultSubscribe(req translateSubRequest) (transl
 }
 
 func (app *PlatformApp) processFaultSubscribe(req processSubRequest) (processSubResponse, error) {
-	if req.table == nil || req.table.Name != "FAULT_INFO" || req.key == nil || req.key.Len() != 2 {
+	if req.table == nil || req.table.Name != platformFaultTableSpec.Name ||
+		req.key == nil || req.key.Len() != platformFaultTableSpec.CompCt {
 		return processSubResponse{}, tlerr.New("unsupported platform subscription")
 	}
 	resolved := path.Clone(req.path)

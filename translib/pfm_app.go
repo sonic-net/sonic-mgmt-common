@@ -35,7 +35,6 @@ type PlatformApp struct {
 	ygotRoot    *ygot.GoStruct
 	ygotTarget  *interface{}
 	eepromTs    *db.TableSpec
-	faultInfoTs *db.TableSpec
 	eepromTable map[string]dbEntry
 }
 
@@ -72,7 +71,6 @@ func (app *PlatformApp) initialize(data appData) {
 	app.ygotRoot = data.ygotRoot
 	app.ygotTarget = data.ygotTarget
 	app.eepromTs = &db.TableSpec{Name: "EEPROM_INFO"}
-	app.faultInfoTs = &db.TableSpec{Name: "FAULT_INFO", CompCt: 2}
 
 }
 

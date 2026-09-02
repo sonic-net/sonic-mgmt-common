@@ -304,6 +304,23 @@ func TestPlatformFaultIdentityValueSupportsCompiledVendorIdentity(t *testing.T) 
 	}
 }
 
+func TestPlatformFaultIdentityNameRejectsUnsupportedWildcardNamespace(t *testing.T) {
+	for _, value := range []string{"*", platformFaultModule + ":*", platformFaultModulePrefix + ":*"} {
+		got, err := platformFaultIdentityName(value)
+		if err != nil {
+			t.Errorf("platformFaultIdentityName(%q) failed: %v", value, err)
+			continue
+		}
+		if got != "*" {
+			t.Errorf("platformFaultIdentityName(%q) = %q, want wildcard", value, got)
+		}
+	}
+
+	if _, err := platformFaultIdentityName("vendor-healthz:*"); err == nil {
+		t.Error("platformFaultIdentityName accepted a wildcard from an unsupported namespace")
+	}
+}
+
 func TestPlatformFaultSymptomUsesGeneratedIdentities(t *testing.T) {
 	tests := []struct {
 		value string
