@@ -1341,9 +1341,9 @@ func (yp *YParser) AddListNode(module *YParserModule, parent *YParserNode, name 
 
 			keylist += "["
 			keylist += keys[index].Name
-			keylist += "='"
-			keylist += keys[index].Value
-			keylist += "']"
+			keylist += "="
+			keylist += formatLyPredicateValue(keys[index].Value)
+			keylist += "]"
 		}
 	}
 
