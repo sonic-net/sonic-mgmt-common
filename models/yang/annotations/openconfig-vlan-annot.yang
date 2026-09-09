@@ -17,6 +17,11 @@ module openconfig-vlan-annot {
     description
         "OpenConfig VLAN YANG annotations for SONiC transformer framework.";
 
+    revision 2026-09-07 {
+        description
+            "Map VLAN catalog state and members GET/subscribe to APPL_DB.";
+    }
+
     revision 2026-08-21 {
         description
             "Add subtree SET of the VLAN catalog.";

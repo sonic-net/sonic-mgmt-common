@@ -28,6 +28,7 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"github.com/Azure/sonic-mgmt-common/translib/transformer"
 )
 
 func Test_openconfig_vlan_interface(t *testing.T) {
@@ -1088,6 +1089,20 @@ func vlanCatalogGetFixture() map[string]interface{} {
 	}
 }
 
+func vlanCatalogApplFixture() map[string]interface{} {
+	return map[string]interface{}{
+		"VLAN_TABLE": map[string]interface{}{
+			"Vlan100": map[string]interface{}{"admin_status": "up", "mtu": "9100"},
+			"Vlan200": map[string]interface{}{"admin_status": "down", "mtu": "9100"},
+			"Vlan251": map[string]interface{}{"admin_status": "DOWN", "mtu": "9100"},
+		},
+		"VLAN_MEMBER_TABLE": map[string]interface{}{
+			"Vlan100:Ethernet0": map[string]interface{}{"tagging_mode": "untagged"},
+			"Vlan100:Ethernet4": map[string]interface{}{"tagging_mode": "tagged"},
+		},
+	}
+}
+
 func Test_openconfig_vlan_catalog_set(t *testing.T) {
 	setIDs := []int{2, 100, 200, 201, 4094}
 	cleanupVlanCatalog(t, setIDs...)
@@ -1172,11 +1187,15 @@ func Test_openconfig_vlan_catalog_set(t *testing.T) {
 func Test_openconfig_vlan_catalog_get(t *testing.T) {
 	getIDs := []int{100, 200, 250, 251}
 	fixture := vlanCatalogGetFixture()
+	appl := vlanCatalogApplFixture()
 	cleanupVlanCatalog(t, getIDs...)
 	unloadDB(db.ConfigDB, fixture)
+	unloadDB(db.ApplDB, appl)
 	loadDB(db.ConfigDB, fixture)
+	loadDB(db.ApplDB, appl)
 	time.Sleep(1 * time.Second)
 	defer func() {
+		unloadDB(db.ApplDB, appl)
 		unloadDB(db.ConfigDB, fixture)
 		cleanupVlanCatalog(t, getIDs...)
 	}()
@@ -1204,4 +1223,163 @@ func Test_openconfig_vlan_catalog_get(t *testing.T) {
 	t.Run("GET VLAN 200 members empty", processGetRequest(vlanCatalogPath(200, "/members"), nil, `{"openconfig-vlan:members":{}}`, false))
 	t.Run("GET VLAN 100 instance", processGetRequest(vlanCatalogPath(100, ""), nil, `{"openconfig-vlan:vlan":[{"config":{"name":"Vlan100","status":"ACTIVE","vlan-id":100},"members":{"member":[{"state":{"interface":"Ethernet0"}},{"state":{"interface":"Ethernet4"}}]},"state":{"name":"Vlan100","status":"ACTIVE","vlan-id":100},"vlan-id":100}]}`, false))
 	t.Run("GET missing VLAN 300", processGetRequest(vlanCatalogPath(300, ""), nil, "", true, notFound))
+
+	t.Log("\n\n++++++++++++ GET WITHOUT APPL_DB ++++++++++++")
+	t.Run("GET VLAN 250 state missing APPL_DB", processGetRequest(vlanCatalogPath(250, "/state"), nil, "", true, notFound))
+	t.Run("GET VLAN 250 members missing APPL_DB", processGetRequest(vlanCatalogPath(250, "/members"), nil, "", true, notFound))
+	t.Run("GET VLAN 250 instance config only", processGetRequest(vlanCatalogPath(250, ""), nil, `{"openconfig-vlan:vlan":[{"config":{"name":"Vlan250","status":"ACTIVE","vlan-id":250},"vlan-id":250}]}`, false))
+}
+
+func Test_openconfig_vlan_catalog_get_appl_divergence(t *testing.T) {
+	getIDs := []int{100}
+	cfg := map[string]interface{}{
+		"VLAN": map[string]interface{}{
+			"Vlan100": map[string]interface{}{"vlanid": "100", "admin_status": "up"},
+		},
+	}
+	appl := map[string]interface{}{
+		"VLAN_TABLE": map[string]interface{}{
+			"Vlan100": map[string]interface{}{"admin_status": "down", "mtu": "9100"},
+		},
+	}
+	cleanupVlanCatalog(t, getIDs...)
+	unloadDB(db.ConfigDB, cfg)
+	unloadDB(db.ApplDB, appl)
+	loadDB(db.ConfigDB, cfg)
+	loadDB(db.ApplDB, appl)
+	time.Sleep(1 * time.Second)
+	defer func() {
+		unloadDB(db.ApplDB, appl)
+		unloadDB(db.ConfigDB, cfg)
+		cleanupVlanCatalog(t, getIDs...)
+	}()
+
+	t.Run("GET VLAN 100 config ACTIVE from CONFIG_DB", processGetRequest(vlanCatalogPath(100, "/config"), nil, `{"openconfig-vlan:config":{"name":"Vlan100","status":"ACTIVE","vlan-id":100}}`, false))
+	t.Run("GET VLAN 100 state SUSPENDED from APPL_DB", processGetRequest(vlanCatalogPath(100, "/state"), nil, `{"openconfig-vlan:state":{"name":"Vlan100","status":"SUSPENDED","vlan-id":100}}`, false))
+}
+
+func Test_openconfig_vlan_catalog_subscribe_exists(t *testing.T) {
+	dbMap, virtual, _, err := transformer.SubscribeOcVlans("/openconfig-vlan:vlans/vlan[vlan-id=100]/state", true)
+	if err != nil {
+		t.Fatalf("SubscribeOcVlans failed: %v", err)
+	}
+	if !virtual {
+		t.Fatalf("TRANSLATE_EXISTS should be virtual-table")
+	}
+	if len(dbMap) != 0 {
+		t.Fatalf("TRANSLATE_EXISTS should not emit DB maps, got %v", dbMap)
+	}
+}
+
+func Test_openconfig_vlan_catalog_subscribe_paths(t *testing.T) {
+	tests := []struct {
+		name           string
+		uri            string
+		wantCfgKey     string
+		wantApplKey    string
+		wantMemberKey  string
+		wantMemberComp bool
+	}{
+		{
+			name:           "wildcard parent",
+			uri:            "/openconfig-vlan:vlans",
+			wantCfgKey:     "*",
+			wantApplKey:    "*",
+			wantMemberKey:  "*",
+			wantMemberComp: true,
+		},
+		{
+			name:           "keyed parent",
+			uri:            "/openconfig-vlan:vlans/vlan[vlan-id=100]",
+			wantCfgKey:     "Vlan100",
+			wantApplKey:    "Vlan100",
+			wantMemberKey:  "Vlan100:*",
+			wantMemberComp: true,
+		},
+		{
+			name:       "wildcard config",
+			uri:        "/openconfig-vlan:vlans/vlan/config",
+			wantCfgKey: "*",
+		},
+		{
+			name:       "keyed config",
+			uri:        "/openconfig-vlan:vlans/vlan[vlan-id=100]/config",
+			wantCfgKey: "Vlan100",
+		},
+		{
+			name:       "keyed config status",
+			uri:        "/openconfig-vlan:vlans/vlan[vlan-id=100]/config/status",
+			wantCfgKey: "Vlan100",
+		},
+		{
+			name:        "wildcard state",
+			uri:         "/openconfig-vlan:vlans/vlan/state",
+			wantApplKey: "*",
+		},
+		{
+			name:        "keyed state",
+			uri:         "/openconfig-vlan:vlans/vlan[vlan-id=100]/state",
+			wantApplKey: "Vlan100",
+		},
+		{
+			name:        "keyed state status",
+			uri:         "/openconfig-vlan:vlans/vlan[vlan-id=200]/state/status",
+			wantApplKey: "Vlan200",
+		},
+		{
+			name:           "wildcard members",
+			uri:            "/openconfig-vlan:vlans/vlan/members",
+			wantMemberKey:  "*",
+			wantMemberComp: true,
+		},
+		{
+			name:           "keyed members",
+			uri:            "/openconfig-vlan:vlans/vlan[vlan-id=100]/members",
+			wantMemberKey:  "Vlan100:*",
+			wantMemberComp: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dbMap, virtual, onChange, err := transformer.SubscribeOcVlans(tc.uri, false)
+			if err != nil {
+				t.Fatalf("SubscribeOcVlans failed: %v", err)
+			}
+			if !virtual {
+				t.Fatalf("isVirtualTbl=true, want false so translib keeps Redis watches (map=%v)", dbMap)
+			}
+			if !onChange {
+				t.Fatalf("onChange=false, want OnchangeEnable+OnChange")
+			}
+
+			if tc.wantCfgKey != "" {
+				if _, ok := dbMap[db.ConfigDB][transformer.VLAN_TN][tc.wantCfgKey]; !ok {
+					t.Fatalf("missing CONFIG_DB VLAN[%s]: %v", tc.wantCfgKey, dbMap)
+				}
+			} else if cfg, ok := dbMap[db.ConfigDB][transformer.VLAN_TN]; ok {
+				t.Fatalf("unexpected CONFIG_DB VLAN watch: %v", cfg)
+			}
+
+			if tc.wantApplKey != "" {
+				if _, ok := dbMap[db.ApplDB][transformer.VLAN_APP_TBL][tc.wantApplKey]; !ok {
+					t.Fatalf("missing APPL_DB VLAN_TABLE[%s]: %v", tc.wantApplKey, dbMap)
+				}
+			} else if app, ok := dbMap[db.ApplDB][transformer.VLAN_APP_TBL]; ok {
+				t.Fatalf("unexpected APPL_DB VLAN_TABLE watch: %v", app)
+			}
+
+			if tc.wantMemberKey != "" {
+				fields, ok := dbMap[db.ApplDB][transformer.VLAN_MEMBER_APP_TBL][tc.wantMemberKey]
+				if !ok {
+					t.Fatalf("missing APPL_DB VLAN_MEMBER_TABLE[%s]: %v", tc.wantMemberKey, dbMap)
+				}
+				if tc.wantMemberComp && fields[transformer.KEY_COMP_CNT] != "2" {
+					t.Fatalf("KEY_COMP_CNT=%q, want 2 for members key %s", fields[transformer.KEY_COMP_CNT], tc.wantMemberKey)
+				}
+			} else if mem, ok := dbMap[db.ApplDB][transformer.VLAN_MEMBER_APP_TBL]; ok {
+				t.Fatalf("unexpected APPL_DB VLAN_MEMBER_TABLE watch: %v", mem)
+			}
+		})
+	}
 }
