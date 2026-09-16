@@ -714,9 +714,9 @@ var Subscribe_oc_vlans_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubscInPara
 	var result XfmrSubscOutParams
 	result.dbDataMap = make(RedisDbSubscribeMap)
 
-	if inParams.subscProc == TRANSLATE_EXISTS {
-		return result, nil
+	if inParams.subscProc == TRANSLATE_EXISTS || inParams.requestURI == "" {
 		result.isVirtualTbl = true
+		return result, nil
 	}
 
 	result.isVirtualTbl = false
@@ -757,7 +757,13 @@ func SubscribeOcVlans(uri string, translateExists bool) (RedisDbSubscribeMap, bo
 	if translateExists {
 		proc = TRANSLATE_EXISTS
 	}
-	out, err := Subscribe_oc_vlans_xfmr(XfmrSubscInParams{uri: uri, subscProc: proc})
+	out, err := Subscribe_oc_vlans_xfmr(XfmrSubscInParams{uri: uri, requestURI: uri, subscProc: proc})
+	onChange := out.onChange == OnchangeEnable && out.nOpts != nil && out.nOpts.pType == OnChange
+	return out.dbDataMap, out.isVirtualTbl, onChange, err
+}
+
+func SubscribeOcVlansParentCheck(uri string) (RedisDbSubscribeMap, bool, bool, error) {
+	out, err := Subscribe_oc_vlans_xfmr(XfmrSubscInParams{uri: uri, subscProc: TRANSLATE_SUBSCRIBE})
 	onChange := out.onChange == OnchangeEnable && out.nOpts != nil && out.nOpts.pType == OnChange
 	return out.dbDataMap, out.isVirtualTbl, onChange, err
 }

@@ -1271,6 +1271,19 @@ func Test_openconfig_vlan_catalog_subscribe_exists(t *testing.T) {
 	}
 }
 
+func Test_openconfig_vlan_catalog_subscribe_parent_check(t *testing.T) {
+	dbMap, virtual, _, err := transformer.SubscribeOcVlansParentCheck("/openconfig-vlan:vlans/vlan[vlan-id=100]")
+	if err != nil {
+		t.Fatalf("SubscribeOcVlansParentCheck failed: %v", err)
+	}
+	if !virtual {
+		t.Fatalf("parent-existence check should be virtual-table so UPDATE can create a missing VLAN")
+	}
+	if len(dbMap) != 0 {
+		t.Fatalf("parent-existence check should not emit DB maps, got %v", dbMap)
+	}
+}
+
 func Test_openconfig_vlan_catalog_subscribe_paths(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -1346,7 +1359,7 @@ func Test_openconfig_vlan_catalog_subscribe_paths(t *testing.T) {
 			if err != nil {
 				t.Fatalf("SubscribeOcVlans failed: %v", err)
 			}
-			if !virtual {
+			if virtual {
 				t.Fatalf("isVirtualTbl=true, want false so translib keeps Redis watches (map=%v)", dbMap)
 			}
 			if !onChange {
