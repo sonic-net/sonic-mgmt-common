@@ -25,6 +25,7 @@ TRANSL_DB_ALL_SRCS = $(filter ./db/%, $(SRCS) $(TESTS))
 TRANSLIB_TEST_DIR  = $(BUILD_DIR)/tests/translib
 TRANSLIB_TEST_BIN  = $(TRANSLIB_TEST_DIR)/translib.test
 TRANSL_DB_TEST_BIN = $(TRANSLIB_TEST_DIR)/db.test
+PLATFORM_TEST_BIN = $(TRANSLIB_TEST_DIR)/platform.test
 
 TRANSFORMER_TEST_BIN = $(TRANSLIB_TEST_DIR)/transformer.test
 TRANSFORMER_ALL_SRCS = $(filter ./transformer/%, $(SRCS) $(TESTS))
@@ -43,7 +44,7 @@ XFMR_TEST_MODELS = $(notdir $(wildcard transformer/test/*.yang))
 
 DEFAULT_TARGETS = $(YGOT_BINDS) $(XFMR_MODELS_LIST) $(FORMAT_CHECK)
 ifeq ($(NO_TEST_BINS),)
-DEFAULT_TARGETS += $(TRANSLIB_TEST_BIN) $(TRANSL_DB_TEST_BIN) $(TRANSFORMER_TEST_APP_BIN)
+DEFAULT_TARGETS += $(TRANSLIB_TEST_BIN) $(TRANSL_DB_TEST_BIN) $(TRANSFORMER_TEST_APP_BIN) $(PLATFORM_TEST_BIN)
 ifdef INCLUDE_TEST_MODELS
 DEFAULT_TARGETS += $(TRANSFORMER_TEST_BIN)
 endif
@@ -57,6 +58,9 @@ all: $(DEFAULT_TARGETS)
 
 $(TRANSLIB_TEST_BIN): $(TRANSLIB_MAIN_SRCS) $(TRANSLIB_TEST_SRCS) $(YGOT_BINDS)
 	$(GO) test -mod=vendor -tags test -cover -coverpkg=../translib,../translib/tlerr -c ../translib -o $@
+
+$(PLATFORM_TEST_BIN): $(TRANSLIB_MAIN_SRCS)
+	$(GO) test -mod=vendor -tags test -cover -coverpkg=../translib/platform -c ../translib/platform -o $@
 
 $(TRANSL_DB_TEST_BIN) : $(TRANSL_DB_ALL_SRCS)
 	$(GO) test -mod=vendor -cover -c ../translib/db -o $@

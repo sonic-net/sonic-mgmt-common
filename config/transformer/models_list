@@ -8,6 +8,7 @@ openconfig-interfaces-annot.yang
 openconfig-interfaces.yang
 openconfig-mclag-annot.yang
 openconfig-mclag.yang
+openconfig-p4rt.yang
 openconfig-sampling-sflow-annot.yang
 openconfig-sampling-sflow.yang
 openconfig-system-annot.yang
