@@ -64,7 +64,7 @@ func init() {
 func Test_PfmApp_TopLevelPath(t *testing.T) {
 	url := "/openconfig-platform:components"
 
-	t.Run("Default_Response_Top_Level", processGetRequest(url, bulkPfmShowDefaultResponse, false))
+	t.Run("Empty_Top_Level_Not_Found", processGetRequest(url, "", true))
 
 	//Set the factory DB with pre-defined EEPROM_INFO entry
 	if err := createPfmFactoryDb(); err != nil {
@@ -130,6 +130,4 @@ func getStateDB() *db.DB {
 /***************************************************************************/
 ///////////                  JSON Data for Tests              ///////////////
 /***************************************************************************/
-var bulkPfmShowDefaultResponse string = "{\"openconfig-platform:components\":{\"component\":[{\"name\":\"System Eeprom\",\"state\":{\"empty\":false,\"location\":\"Slot 1\",\"name\":\"System Eeprom\",\"oper-status\":\"openconfig-platform-types:ACTIVE\",\"removable\":false}}]}}"
-
 var bulkPfmShowAllJsonResponse string = "{\"openconfig-platform:components\":{\"component\":[{\"name\":\"System Eeprom\",\"state\":{\"description\":\"" + TEST_PLATFORM_NAME + "\",\"empty\":false,\"id\":\"" + TEST_PRODUCT_NAME + "\",\"location\":\"Slot 1\",\"mfg-name\":\"" + TEST_MANUF_NAME + "\",\"name\":\"System Eeprom\",\"oper-status\":\"openconfig-platform-types:ACTIVE\",\"part-no\":\"" + TEST_PART_NUMBER + "\",\"removable\":false,\"serial-no\":\"" + TEST_SERVICE_TAG + "\"}}]}}"
