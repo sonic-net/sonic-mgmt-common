@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
 	"github.com/openconfig/ygot/ygot"
 )
@@ -180,21 +181,28 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
 
 	stateDb := dbs[db.StateDB]
 	var err error
+	populated := false
 
 	if platformPathNeedsEeprom(targetUriPath, app.path.Var("name")) {
 		if err = app.loadEepromTable(stateDb); err == nil {
 			err = app.doGetSysEeprom()
+			populated = len(app.eepromTable) > 0
 		}
 	}
 
 	if err == nil && platformPathNeedsFaults(targetUriPath) {
-		err = app.doGetFaults(stateDb)
+		var count int
+		count, err = app.doGetFaults(stateDb)
+		populated = populated || count > 0
 	}
 
-	if err == nil {
-		return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
+	if err != nil {
+		return GetResponse{Payload: payload}, err
 	}
-	return GetResponse{Payload: payload}, err
+	if !populated {
+		return GetResponse{Payload: payload}, tlerr.NotFound("Resource not found")
+	}
+	return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
 }
 
 func (app *PlatformApp) loadEepromTable(stateDb *db.DB) error {

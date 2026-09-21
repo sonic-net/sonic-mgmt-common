@@ -528,8 +528,16 @@ func TestTranslateFaultSubscribePathCoverage(t *testing.T) {
 				t.Fatalf("target mapping count = %d, want 1", len(response.ntfAppInfoTrgt))
 			}
 
-			info := response.ntfAppInfoTrgt[0]
 			if test.wantFaults {
+				infos := response.ntfAppInfoTrgt
+				if test.name == "ancestor" {
+					if response.ntfAppInfoTrgt[0].dbno != db.MaxDB ||
+						len(response.ntfAppInfoTrgtChlds) != 1 {
+						t.Fatalf("ancestor mapping did not preserve its non-DB target: %+v", response)
+					}
+					infos = response.ntfAppInfoTrgtChlds
+				}
+				info := infos[0]
 				if info.table == nil || info.table.Name != "FAULT_INFO" || info.table.CompCt != 2 || info.dbno != db.StateDB {
 					t.Fatalf("fault path mapped to %+v", info)
 				}
@@ -540,6 +548,7 @@ func TestTranslateFaultSubscribePathCoverage(t *testing.T) {
 				return
 			}
 
+			info := response.ntfAppInfoTrgt[0]
 			if info.table != nil || info.dbno != db.MaxDB || info.isOnChangeSupported {
 				t.Fatalf("unrelated path mapped to database subscription: %+v", info)
 			}

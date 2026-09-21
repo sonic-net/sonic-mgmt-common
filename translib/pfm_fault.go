@@ -88,15 +88,15 @@ func platformPathNeedsEeprom(targetPath, componentName string) bool {
 	}
 }
 
-func (app *PlatformApp) doGetFaults(stateDb *db.DB) error {
+func (app *PlatformApp) doGetFaults(stateDb *db.DB) (int, error) {
 	table, err := stateDb.GetTable(&platformFaultTableSpec)
 	if err != nil {
-		return fmt.Errorf("FAULT_INFO table get failed: %w", err)
+		return 0, fmt.Errorf("FAULT_INFO table get failed: %w", err)
 	}
 
 	keys, err := table.GetKeys()
 	if err != nil {
-		return fmt.Errorf("FAULT_INFO keys get failed: %w", err)
+		return 0, fmt.Errorf("FAULT_INFO keys get failed: %w", err)
 	}
 
 	rows := make([]platformFaultRow, 0, len(keys))
@@ -112,10 +112,11 @@ func (app *PlatformApp) doGetFaults(stateDb *db.DB) error {
 	componentFilter := app.path.Var("name")
 	symptomFilter, err := platformFaultIdentityName(app.path.Var("symptom"))
 	if err != nil {
-		return fmt.Errorf("invalid symptom filter: %w", err)
+		return 0, fmt.Errorf("invalid symptom filter: %w", err)
 	}
-	addPlatformFaultRows(app.getAppRootObject(), rows, componentFilter, symptomFilter)
-	return nil
+	return addPlatformFaultRows(
+		app.getAppRootObject(), rows, componentFilter, symptomFilter,
+	), nil
 }
 
 func addPlatformFaultRows(components *ocbinds.OpenconfigPlatform_Components, rows []platformFaultRow, componentFilter, symptomFilter string) int {
@@ -501,7 +502,21 @@ func (app *PlatformApp) translateFaultSubscribe(req translateSubRequest) (transl
 		isOnChangeSupported: true,
 		pType:               OnChange,
 	}
-	return translateSubResponse{ntfAppInfoTrgt: []*notificationAppInfo{info}}, nil
+	faultResponse := translateSubResponse{
+		ntfAppInfoTrgt: []*notificationAppInfo{info},
+	}
+	if strings.HasPrefix(
+		platformFaultPathNormalizer.Replace(targetPath), platformFaultPath,
+	) {
+		return faultResponse, nil
+	}
+
+	response, err := emptySubscribeResponse(req.path)
+	if err != nil {
+		return translateSubResponse{}, err
+	}
+	response.ntfAppInfoTrgtChlds = faultResponse.ntfAppInfoTrgt
+	return response, nil
 }
 
 func (app *PlatformApp) processFaultSubscribe(req processSubRequest) (processSubResponse, error) {
