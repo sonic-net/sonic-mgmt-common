@@ -61,7 +61,20 @@ func init() {
 }
 
 // This will test GET on /openconfig-platform:components
+
+// DEPRECATED:
+// This test is skipped because PlatformApp module registration in translib/pfm_app.go
+// has been disabled and platform handling is now migrated to the transformer framework
+// (translib/transformer/xfmr_platform.go). Active unit testing for /openconfig-platform:components
+// is now maintained in translib/transformer/xfmr_platform_test.go.
+//
+// Kept intact temporarily for reference and rollback safety.
+//
+// TODO: Remove this test suite along with translib/pfm_app.go once transformer-based
+// platform component support is verified and stabilized across all SONiC platforms.
 func Test_PfmApp_TopLevelPath(t *testing.T) {
+	t.Skip("Skipping legacy PfmApp test - platform component handling migrated to transformer")
+
 	url := "/openconfig-platform:components"
 
 	t.Run("Default_Response_Top_Level", processGetRequest(url, bulkPfmShowDefaultResponse, false))
