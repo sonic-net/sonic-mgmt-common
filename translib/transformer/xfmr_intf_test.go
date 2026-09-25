@@ -1165,3 +1165,107 @@ func TestDbToYang_intf_physical_channel_xfmr(t *testing.T) {
 		})
 	}
 }
+
+func TestSubscribe_intf_get_counters_xfmr(t *testing.T) {
+	tests := []struct {
+		name          string
+		uri           string
+		subscProc     SubscProcType
+		expectError   bool
+		errorMsg      string
+		expectedDB    db.DBNum
+		expectedTable string
+		expectedIf    string
+	}{
+		{
+			name:          "Success - Ethernet Wildcard Pattern",
+			uri:           "/openconfig-interfaces:interfaces/interface[name=*]/openconfig-if-ethernet:ethernet/state/counters",
+			subscProc:     TRANSLATE_SUBSCRIBE,
+			expectError:   false,
+			expectedDB:    db.ConfigDB,
+			expectedTable: "PORT",
+			expectedIf:    "Eth*",
+		},
+		{
+			name:          "Success - Generic Wildcard Pattern",
+			uri:           "/openconfig-interfaces:interfaces/interface[name=*]/state/counters",
+			subscProc:     TRANSLATE_SUBSCRIBE,
+			expectError:   false,
+			expectedDB:    db.ConfigDB,
+			expectedTable: "PORT",
+			expectedIf:    "*",
+		},
+		{
+			name:          "Success - Specific Interface",
+			uri:           "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/state/counters",
+			subscProc:     TRANSLATE_SUBSCRIBE,
+			expectError:   false,
+			expectedDB:    db.ConfigDB,
+			expectedTable: "PORT",
+			expectedIf:    "Ethernet0",
+		},
+		{
+			name:        "Failure - Invalid Interface Name",
+			uri:         "/openconfig-interfaces:interfaces/interface[name=Invalid99]/state/counters",
+			subscProc:   TRANSLATE_SUBSCRIBE,
+			expectError: true,
+			errorMsg:    "Invalid interface: Invalid99",
+			expectedIf:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inParams := XfmrSubscInParams{
+				uri:       tt.uri,
+				subscProc: tt.subscProc,
+			}
+
+			res, err := Subscribe_intf_get_counters_xfmr(inParams)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatalf("Expected error but function returned success")
+				}
+				if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Error mismatch. Expected: %s, Got: %v", tt.errorMsg, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error state: %v", err)
+			}
+
+			// Assert subscription options
+			if res.nOpts.pType != Sample {
+				t.Errorf("Expected Sample subscription type, got %v", res.nOpts.pType)
+			}
+			if res.nOpts.mInterval != 30 {
+				t.Errorf("Expected 30s interval, got %v", res.nOpts.mInterval)
+			}
+
+			tblMap, exists := res.dbDataMap[tt.expectedDB]
+			if !exists {
+				t.Fatalf("Logic Error: Expected data in DB %v, but it was missing from map", tt.expectedDB)
+			}
+
+			foundMatch := false
+			for tblName, keyMap := range tblMap {
+				if _, ok := keyMap[tt.expectedIf]; ok {
+					// Check for specific table name if provided in test case
+					if tt.expectedTable != "" && !strings.Contains(tblName, tt.expectedTable) {
+						continue
+					}
+					foundMatch = true
+					t.Logf("Found expected interface key %s in table %s", tt.expectedIf, tblName)
+					break
+				}
+			}
+
+			if !foundMatch {
+				t.Errorf("Assertion Failed: Could not find key %s in expected table %s under DB %v", tt.expectedIf, tt.expectedTable, tt.expectedDB)
+			}
+		})
+	}
+}
