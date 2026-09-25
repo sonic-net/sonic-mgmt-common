@@ -1165,3 +1165,87 @@ func TestDbToYang_intf_physical_channel_xfmr(t *testing.T) {
 		})
 	}
 }
+
+func TestSubscribe_intf_get_counters_xfmr(t *testing.T) {
+	tests := []struct {
+		name        string
+		uri         string
+		subscProc   SubscProcType
+		expectError bool
+		errorMsg    string
+		expectedIf  string
+	}{
+		{
+			name:        "Success - Ethernet Wildcard Pattern",
+			uri:         "/openconfig-interfaces:interfaces/interface[name=*]/openconfig-if-ethernet:ethernet/state/counters",
+			subscProc:   TRANSLATE_SUBSCRIBE,
+			expectError: false,
+			expectedIf:  "Eth*",
+		},
+		{
+			name:        "Success - Generic Wildcard Pattern",
+			uri:         "/openconfig-interfaces:interfaces/interface[name=*]/state/counters",
+			subscProc:   TRANSLATE_SUBSCRIBE,
+			expectError: false,
+			expectedIf:  "*",
+		},
+		{
+			name:        "Success - Specific Interface",
+			uri:         "/openconfig-interfaces:interfaces/interface[name=Ethernet0]/state/counters",
+			subscProc:   TRANSLATE_SUBSCRIBE,
+			expectError: false,
+			expectedIf:  "Ethernet0",
+		},
+		{
+			name:        "Failure - Invalid Interface Name",
+			uri:         "/openconfig-interfaces:interfaces/interface[name=Invalid99]/state/counters",
+			subscProc:   TRANSLATE_SUBSCRIBE,
+			expectError: true,
+			errorMsg:    "Invalid interface: Invalid99",
+			expectedIf:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inParams := XfmrSubscInParams{
+				uri:       tt.uri,
+				subscProc: tt.subscProc,
+			}
+
+			res, err := Subscribe_intf_get_counters_xfmr(inParams)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatalf("Expected error but function returned success")
+				}
+				if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Error mismatch. Expected: %s, Got: %v", tt.errorMsg, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error state: %v", err)
+			}
+
+			tblMap, exists := res.dbDataMap[db.ConfigDB]
+			if !exists {
+				t.Fatalf("ConfigDB subscription data missing")
+			}
+
+			foundMatch := false
+			for tblName, keyMap := range tblMap {
+				if _, ok := keyMap[tt.expectedIf]; ok {
+					foundMatch = true
+					t.Logf("Found expected interface key %s in table %s", tt.expectedIf, tblName)
+					break
+				}
+			}
+
+			if !foundMatch {
+				t.Errorf("Expected key %s not found in any ConfigDB table. Map: %v", tt.expectedIf, tblMap)
+			}
+		})
+	}
+}
