@@ -133,6 +133,15 @@ func parseFirstElem(p string) (elem lyPathElem, n int) {
 	return
 }
 
+// formatLyPredicateValue returns a libyang predicate value literal.
+// Libyang uses single quotes when the value has no single quotes; otherwise double quotes.
+func formatLyPredicateValue(value string) string {
+	if strings.Contains(value, "'") {
+		return `"` + value + `"`
+	}
+	return `'` + value + `'`
+}
+
 // lyPathElem represents a path element
 type lyPathElem struct {
 	name string   // element name

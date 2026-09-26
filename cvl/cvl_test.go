@@ -3600,6 +3600,113 @@ func TestGetDepDataForDelete(t *testing.T) {
 	cvl.ValidationSessClose(cvSess)
 }
 
+func TestGetDepDataForDeleteSpecialKeyChars(t *testing.T) {
+	tests := []struct {
+		name       string
+		mirrorKey  string
+		decoyValue string
+	}{
+		{
+			name:       "single quote in key",
+			mirrorKey:  "sess'1",
+			decoyValue: "sess",
+		},
+		{
+			name:       "backslash in key",
+			mirrorKey:  `sess\1`,
+			decoyValue: "sess",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			setupTestData(t, map[string]interface{}{
+				"MIRROR_SESSION": map[string]interface{}{
+					tc.mirrorKey: map[string]interface{}{
+						"src_ip": "10.1.0.32",
+						"dst_ip": "2.2.2.2",
+					},
+				},
+				"ACL_RULE": map[string]interface{}{
+					"TestACL1|RuleMatch": map[string]interface{}{
+						"PACKET_ACTION": "FORWARD",
+						"MIRROR_ACTION": tc.mirrorKey,
+					},
+					"TestACL1|RuleDecoy": map[string]interface{}{
+						"PACKET_ACTION": "FORWARD",
+						"MIRROR_ACTION": tc.decoyValue,
+					},
+				},
+			})
+
+			cvSess, _ := NewCvlSession()
+			defer cvl.ValidationSessClose(cvSess)
+
+			depEntries := cvSess.GetDepDataForDelete("MIRROR_SESSION|" + tc.mirrorKey)
+			if len(depEntries) != 1 {
+				t.Fatalf("GetDepDataForDelete() returned %d entries, want 1", len(depEntries))
+			}
+
+			entryKey := ""
+			for k := range depEntries[0].Entry {
+				entryKey = k
+			}
+			if entryKey != "ACL_RULE|TestACL1|RuleMatch" {
+				t.Errorf("GetDepDataForDelete() matched wrong entry %q, want ACL_RULE|TestACL1|RuleMatch", entryKey)
+			}
+		})
+	}
+}
+
+func TestGetDepDataForDeleteLeafListPatternChars(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"PORT": map[string]interface{}{
+			"Po.1": map[string]interface{}{
+				"admin_status": "up",
+			},
+			"PoX1": map[string]interface{}{
+				"admin_status": "up",
+			},
+		},
+		"ACL_TABLE": map[string]interface{}{
+			"TestACL1": map[string]interface{}{
+				"stage":  "INGRESS",
+				"type":   "L3",
+				"ports@": "Po.1,Ethernet3",
+			},
+			"TestACL2": map[string]interface{}{
+				"stage":  "INGRESS",
+				"type":   "L3",
+				"ports@": "PoX1,Ethernet3",
+			},
+		},
+	})
+
+	cvSess, _ := NewCvlSession()
+	defer cvl.ValidationSessClose(cvSess)
+
+	depEntries := cvSess.GetDepDataForDelete("PORT|Po.1")
+	matchedACLs := map[string]bool{}
+	for _, dep := range depEntries {
+		for entryKey, fields := range dep.Entry {
+			if !strings.HasPrefix(entryKey, "ACL_TABLE|") {
+				continue
+			}
+			if val, exists := fields["ports@"]; exists && val == "Po.1" {
+				matchedACLs[entryKey] = true
+			}
+		}
+	}
+
+	if len(matchedACLs) != 1 {
+		t.Fatalf("GetDepDataForDelete() matched %d ACL_TABLE leaf-list entries, want 1: %v",
+			len(matchedACLs), matchedACLs)
+	}
+	if !matchedACLs["ACL_TABLE|TestACL1"] {
+		t.Errorf("GetDepDataForDelete() matched wrong ACL_TABLE entries: %v", matchedACLs)
+	}
+}
+
 func TestMaxElements_All_Entries_In_Request(t *testing.T) {
 	cvSess := NewTestSession(t)
 

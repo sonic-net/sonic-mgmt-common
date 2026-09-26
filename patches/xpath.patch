@@ -324,7 +324,7 @@ index 47f8076..2cfa07b 100644
 +	switch typ := q.(type) {
 +	case *currentQuery:
 +		if (val != nil) {
-+			typ.SFilter.Predicate = fmt.Sprintf("%v", val)
++			typ.SFilter.Predicate = strings.NewReplacer("\\", "\\\\", "'", "\\'").Replace(fmt.Sprintf("%v", val))
 +		}
 +		sf = &typ.SFilter
 +	case *childQuery:
@@ -415,7 +415,7 @@ index 47f8076..2cfa07b 100644
 +		sf = &typ.SFilter
 +	case *constantQuery:
 +		if (val != nil) {
-+			typ.SFilter.Predicate = fmt.Sprintf("%v", val)
++			typ.SFilter.Predicate = strings.NewReplacer("\\", "\\\\", "'", "\\'").Replace(fmt.Sprintf("%v", val))
 +		}
 +
 +		sf = &typ.SFilter
@@ -654,7 +654,7 @@ index 47f8076..2cfa07b 100644
  			c.posit++
 +			if (c.SFilter.Fields != *c.Name) {
 +				//If fields already retrieved from db don't overwrite
-+				c.SFilter.Predicate = node.Value()
++				c.SFilter.Predicate = strings.NewReplacer("\\", "\\\\", "'", "\\'").Replace(fmt.Sprintf("%v", node.Value()))
 +			}
  			return node
  		}
