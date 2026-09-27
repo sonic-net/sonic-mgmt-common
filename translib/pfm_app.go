@@ -62,6 +62,13 @@ func init() {
 	if err != nil {
 		log.Fatal("Adding Healthz fault model data to appinterface failed with error=", err)
 	}
+
+	err = addModel(&ModelData{Name: "openconfig-platform-healthz",
+		Org: "OpenConfig working group",
+		Ver: "0.1.1"})
+	if err != nil {
+		log.Fatal("Adding Healthz model data to appinterface failed with error=", err)
+	}
 }
 
 func (app *PlatformApp) initialize(data appData) {
@@ -86,10 +93,40 @@ func (app *PlatformApp) translateAction(dbs [db.MaxDB]*db.DB) error {
 }
 
 func (app *PlatformApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
-	return app.translateFaultSubscribe(req)
+	targetPath, err := getYangPathFromUri(req.path)
+	if err != nil {
+		return emptySubscribeResponse(req.path)
+	}
+
+	faults := platformPathNeedsFaults(targetPath)
+	healthz := platformPathNeedsHealthzState(targetPath)
+	switch {
+	case faults && healthz:
+		faultResponse, err := app.translateFaultSubscribe(req)
+		if err != nil {
+			return translateSubResponse{}, err
+		}
+		healthzResponse, err := app.translateHealthzSubscribe(req)
+		if err != nil {
+			return translateSubResponse{}, err
+		}
+		faultResponse.ntfAppInfoTrgtChlds = append(
+			faultResponse.ntfAppInfoTrgtChlds, healthzResponse.ntfAppInfoTrgtChlds...,
+		)
+		return faultResponse, nil
+	case faults:
+		return app.translateFaultSubscribe(req)
+	case healthz:
+		return app.translateHealthzSubscribe(req)
+	default:
+		return emptySubscribeResponse(req.path)
+	}
 }
 
 func (app *PlatformApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
+	if req.table != nil && req.table.Name == platformHealthzTableSpec.Name {
+		return app.processHealthzSubscribe(req)
+	}
 	return app.processFaultSubscribe(req)
 }
 
@@ -193,6 +230,11 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
 	if err == nil && platformPathNeedsFaults(targetUriPath) {
 		var count int
 		count, err = app.doGetFaults(stateDb)
+		populated = populated || count > 0
+	}
+	if err == nil && platformPathNeedsHealthzState(targetUriPath) {
+		var count int
+		count, err = app.doGetHealthzState(stateDb)
 		populated = populated || count > 0
 	}
 

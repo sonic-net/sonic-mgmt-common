@@ -209,8 +209,8 @@ module openconfig-platform-healthz-fault {
     leaf last-detection-time {
       type oc-types:timeticks64;
       description
-        "The time at which the fault's detected state last changed, including
-        assertion to active or a clear observation to inactive.
+        "The time at which the fault condition was last detected as asserted.
+        A clear observation does not update this value.
 
         The value is a Unix Epoch timestamp (nanoseconds since
         Jan 1, 1970 00:00:00 UTC)";
