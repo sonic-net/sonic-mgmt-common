@@ -674,3 +674,59 @@ func testNullAdd(data ...cmn.CVLEditConfigData) func(*testing.T) {
 		}
 	}
 }
+
+// Regression coverage for sonic-net/sonic-buildimage#29052: CACHE_KEY_TEST is
+// a singleton container (Redis table "CACHE_KEY_TEST", key "GLOBAL") that
+// generate_yin.py converts into list CACHE_KEY_TEST_GLOBAL_LIST, so the Redis
+// table name and the generated YANG list name differ, same as SYSLOG_CONFIG /
+// SYSLOG_CONFIG_GLOBAL in the reported issue.
+func TestValidateEditConfig_Update_MismatchedTableName_MustExp_Positive(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"CACHE_KEY_TEST": map[string]interface{}{
+			"GLOBAL": map[string]interface{}{
+				"format": "welf",
+			},
+		},
+	})
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_UPDATE,
+			"CACHE_KEY_TEST|GLOBAL",
+			map[string]string{
+				"welf_firewall_name": "test-fw",
+			},
+			false,
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, Success)
+}
+
+func TestValidateEditConfig_Update_MismatchedTableName_MustExp_Negative(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"CACHE_KEY_TEST": map[string]interface{}{
+			"GLOBAL": map[string]interface{}{
+				"format": "standard",
+			},
+		},
+	})
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_UPDATE,
+			"CACHE_KEY_TEST|GLOBAL",
+			map[string]string{
+				"welf_firewall_name": "test-fw",
+			},
+			false,
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode: CVL_SEMANTIC_ERROR,
+		Msg:     mustExpressionErrMessage,
+	})
+}
