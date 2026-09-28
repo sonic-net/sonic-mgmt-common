@@ -105,6 +105,75 @@ func TestValidateEditConfig_Create_Chained_Leafref_DepData_Positive(t *testing.T
 	}
 }
 
+// Reproduces https://github.com/sonic-net/sonic-buildimage SRV6_MY_SIDS.locator
+// leafref bug: even though the referenced SRV6_MY_LOCATORS entry already
+// exists in Redis, a standalone create of an SRV6_MY_SIDS entry referencing
+// it is rejected with "No instance found".
+func TestValidateEditConfig_Create_Leafref_Srv6Locator_Positive(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"VRF": map[string]interface{}{
+			"default": map[string]interface{}{
+				"fallback": "false",
+			},
+		},
+		"SRV6_MY_LOCATORS": map[string]interface{}{
+			"MAIN": map[string]interface{}{
+				"prefix": "fcbb:bbbb:3::",
+				"vrf":    "default",
+			},
+		},
+	})
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
+			"SRV6_MY_SIDS|MAIN|fcbb:bbbb:3::/48",
+			map[string]string{
+				"action": "uN",
+			},
+			false,
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, Success)
+}
+
+// Same as above but also passes the key leaf "locator" redundantly as a
+// data field (mirroring what translib's JSON->CVL field-map conversion
+// does for gNMI Set requests against a list instance path).
+func TestValidateEditConfig_Create_Leafref_Srv6Locator_KeyAsField_Positive(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"VRF": map[string]interface{}{
+			"default": map[string]interface{}{
+				"fallback": "false",
+			},
+		},
+		"SRV6_MY_LOCATORS": map[string]interface{}{
+			"MAIN": map[string]interface{}{
+				"prefix": "fcbb:bbbb:3::",
+				"vrf":    "default",
+			},
+		},
+	})
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
+			"SRV6_MY_SIDS|MAIN|fcbb:bbbb:3::/48",
+			map[string]string{
+				"action":    "uN",
+				"locator":   "MAIN",
+				"ip_prefix": "fcbb:bbbb:3::/48",
+			},
+			false,
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, Success)
+}
+
 func TestValidateEditConfig_Create_Leafref_To_NonKey_Positive(t *testing.T) {
 	setupTestData(t, map[string]interface{}{
 		"BGP_GLOBALS": map[string]interface{}{
