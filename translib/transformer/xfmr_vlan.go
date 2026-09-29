@@ -394,7 +394,6 @@ func ocVlansYangToDbWrite(inParams XfmrParams, cfgDb *db.DB, targetUriPath strin
 			return nil, listErr
 		}
 		delVlanMap := make(map[string]db.Value)
-		delMemberMap := make(map[string]db.Value)
 		for _, vlanName := range existing {
 			vlanId, ok := parseVlanIdFromName(vlanName)
 			if !ok {
@@ -403,11 +402,13 @@ func ocVlansYangToDbWrite(inParams XfmrParams, cfgDb *db.DB, targetUriPath strin
 			if _, keep := payload[vlanId]; keep {
 				continue
 			}
-			addVlanDeleteKeys(cfgDb, vlanName, delVlanMap, delMemberMap)
+			if err = addVlanDeleteKeys(cfgDb, vlanName, delVlanMap); err != nil {
+				return nil, err
+			}
 		}
-		if len(delVlanMap) > 0 || len(delMemberMap) > 0 {
+		if len(delVlanMap) > 0 {
 			updateSubOpDataMap(map[db.DBNum]map[string]map[string]db.Value{
-				db.ConfigDB: ocVlansDeleteResult(delVlanMap, delMemberMap),
+				db.ConfigDB: ocVlansDeleteResult(delVlanMap),
 			}, DELETE, inParams)
 		}
 	}
@@ -415,24 +416,23 @@ func ocVlansYangToDbWrite(inParams XfmrParams, cfgDb *db.DB, targetUriPath strin
 	return map[string]map[string]db.Value{VLAN_TN: vlanMap}, nil
 }
 
-func addVlanDeleteKeys(cfgDb *db.DB, vlanName string, vlanMap map[string]db.Value, memberMap map[string]db.Value) {
-	vlanMap[vlanName] = db.Value{}
+func addVlanDeleteKeys(cfgDb *db.DB, vlanName string, vlanMap map[string]db.Value) error {
 	members, err := listVlanMembers(cfgDb, vlanMemberCfgTableSpec(), vlanName)
 	if err != nil {
-		return
+		return err
 	}
-	for _, ifName := range members {
-		memberMap[vlanName+"|"+ifName] = db.Value{}
+	if len(members) > 0 {
+		id, _ := parseVlanIdFromName(vlanName)
+		return tlerr.InvalidArgsError{Format: "VLAN ID " + strconv.Itoa(int(id)) + " can not be removed. First remove all members assigned to this VLAN."}
 	}
+	vlanMap[vlanName] = db.Value{}
+	return nil
 }
 
-func ocVlansDeleteResult(vlanMap map[string]db.Value, memberMap map[string]db.Value) map[string]map[string]db.Value {
+func ocVlansDeleteResult(vlanMap map[string]db.Value) map[string]map[string]db.Value {
 	result := make(map[string]map[string]db.Value)
 	if len(vlanMap) > 0 {
 		result[VLAN_TN] = vlanMap
-	}
-	if len(memberMap) > 0 {
-		result[VLAN_MEMBER_TN] = memberMap
 	}
 	return result
 }
@@ -469,13 +469,14 @@ func ocVlansYangToDbDelete(inParams XfmrParams, cfgDb *db.DB, targetUriPath stri
 	}
 
 	vlanMap := make(map[string]db.Value)
-	memberMap := make(map[string]db.Value)
 	if haveReqVid {
 		if err = validateSonicVlanId(reqVid); err != nil {
 			return nil, err
 		}
-		addVlanDeleteKeys(cfgDb, sonicVlanName(reqVid), vlanMap, memberMap)
-		return ocVlansDeleteResult(vlanMap, memberMap), nil
+		if err = addVlanDeleteKeys(cfgDb, sonicVlanName(reqVid), vlanMap); err != nil {
+			return nil, err
+		}
+		return ocVlansDeleteResult(vlanMap), nil
 	}
 
 	vlanNames, listErr := listConfigDbVlanKeys(cfgDb)
@@ -483,9 +484,11 @@ func ocVlansYangToDbDelete(inParams XfmrParams, cfgDb *db.DB, targetUriPath stri
 		return nil, listErr
 	}
 	for _, vlanName := range vlanNames {
-		addVlanDeleteKeys(cfgDb, vlanName, vlanMap, memberMap)
+		if err = addVlanDeleteKeys(cfgDb, vlanName, vlanMap); err != nil {
+			return nil, err
+		}
 	}
-	return ocVlansDeleteResult(vlanMap, memberMap), nil
+	return ocVlansDeleteResult(vlanMap), nil
 }
 
 var YangToDb_oc_vlans_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[string]map[string]db.Value, error) {

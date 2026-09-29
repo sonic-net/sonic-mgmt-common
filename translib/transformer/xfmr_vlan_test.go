@@ -1184,6 +1184,45 @@ func Test_openconfig_vlan_catalog_set(t *testing.T) {
 	t.Run("Verify VLAN 100 deleted from CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", map[string]interface{}{}, false))
 }
 
+func Test_openconfig_vlan_catalog_delete_with_members(t *testing.T) {
+	fixture := map[string]interface{}{
+		"VLAN": map[string]interface{}{
+			"Vlan100": map[string]interface{}{"vlanid": "100", "admin_status": "up"},
+		},
+		"VLAN_MEMBER": map[string]interface{}{
+			"Vlan100|Ethernet0": map[string]interface{}{"tagging_mode": "untagged"},
+		},
+	}
+	memberOnly := map[string]interface{}{
+		"VLAN_MEMBER": fixture["VLAN_MEMBER"],
+	}
+	cleanupVlanCatalog(t, 100)
+	unloadDB(db.ConfigDB, fixture)
+	loadDB(db.ConfigDB, fixture)
+	time.Sleep(1 * time.Second)
+	defer func() {
+		unloadDB(db.ConfigDB, fixture)
+		cleanupVlanCatalog(t, 100)
+	}()
+
+	membersErr := tlerr.InvalidArgsError{Format: "VLAN ID 100 can not be removed. First remove all members assigned to this VLAN."}
+	url := vlanCatalogPath(100, "")
+	t.Run("DELETE VLAN 100 with members rejected", processDeleteRequest(url, true, membersErr))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 100 still in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", vlanCatalogDb(100, "up"), false))
+	t.Run("Verify VLAN member still in CONFIG_DB", verifyDbResult(rclient, "VLAN_MEMBER|Vlan100|Ethernet0", map[string]interface{}{
+		"VLAN_MEMBER": map[string]interface{}{
+			"Vlan100|Ethernet0": map[string]interface{}{"tagging_mode": "untagged"},
+		},
+	}, false))
+
+	unloadDB(db.ConfigDB, memberOnly)
+	time.Sleep(1 * time.Second)
+	t.Run("DELETE VLAN 100 after members removed", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 100 deleted from CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", map[string]interface{}{}, false))
+}
+
 func Test_openconfig_vlan_catalog_get(t *testing.T) {
 	getIDs := []int{100, 200, 250, 251}
 	fixture := vlanCatalogGetFixture()
