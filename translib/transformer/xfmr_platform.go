@@ -28,6 +28,14 @@ const (
 	IC_NAME_PREFIX  = "integrated_circuit"
 	CHASSIS_PREFIX  = "chassis"
 	SYS_EEPROM_NAME = "System Eeprom"
+	SW_COMP_TBL     = "SW_COMP_INFO"
+	BOOTL_TYPE      = "BOOT_LOADER"
+	OS_TYPE         = "OPERATING_SYSTEM"
+	NW_STACK_TYPE   = "SOFTWARE_MODULE"
+
+	NW_STACK_PREFIX = "network_stack"
+	OS_PREFIX       = "os"
+	BOOTL_PREFIX    = "boot_loader"
 
 	/** Transceiver status values **/
 	SFP_STATUS_REMOVED  = "0"
@@ -62,9 +70,16 @@ const (
 	COMP_IC_ST  = "/openconfig-platform:components/component/integrated-circuit/state"
 
 	/** Supported Xcvr URIs **/
-	XCVR_BASE_PREFIX = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver"
-	XCVR_BASE_STATE  = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state"
-	XCVR_FORM_FACTOR = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/form-factor"
+	XCVR_BASE_PREFIX  = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver"
+	XCVR_BASE_STATE   = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state"
+	XCVR_FORM_FACTOR  = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/form-factor"
+	COMP_STATE_SW_VER = "/openconfig-platform:components/component/state/software-version"
+
+	/** Supported Software Module URIs **/
+	COMP_SW_MOD                 = "/openconfig-platform:components/component/software-module"
+	COMP_SW_MOD_ST              = "/openconfig-platform:components/component/software-module/state"
+	SW_MODULE_STATE_MODULE_TYPE = "/openconfig-platform:components/component/software-module/state/openconfig-platform-software:module-type"
+	SW_BOOT_LOADER_STATE_TYPE   = "/openconfig-platform:components/component/boot-loader/state/openconfig-platform-boot-loader:type"
 )
 
 type componentType int64
@@ -74,6 +89,9 @@ const (
 	CompTypeXcvr
 	CompTypeIC
 	CompTypeSysEeprom
+	CompTypeNWStack
+	CompTypeOS
+	CompTypeBootLoader
 )
 
 /* Structures to read syseeprom from redis-db */
@@ -128,6 +146,37 @@ type XcvrInfo struct {
 	Type        string
 }
 
+/*SWCompInfo structure read from State DB*/
+type SWCompInfo struct {
+	Name            string
+	SoftwareVersion string
+	Parent          string
+	OperStatus      string
+	Type            string
+	BootLoaderType  string
+}
+
+var dbToYangBootLoaderTypeMap = map[string]ocbinds.E_OpenconfigPlatformBootLoader_BOOT_LOADER_BASE{
+	"GRUB":         ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_GRUB,
+	"ONIE":         ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_ONIE,
+	"UBOOT":        ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_UBOOT,
+	"SYSTEMD_BOOT": ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_SYSTEMD_BOOT,
+	"LINUXBOOT":    ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_LINUXBOOT,
+}
+
+func operStatusFromString(status string) (ocbinds.E_OpenconfigPlatformTypes_COMPONENT_OPER_STATUS, error) {
+	switch strings.ToLower(status) {
+	case "active":
+		return ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_ACTIVE, nil
+	case "inactive":
+		return ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_INACTIVE, nil
+	case "disabled":
+		return ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_DISABLED, nil
+	default:
+		return ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_DISABLED, fmt.Errorf("unknown oper-status: %s", status)
+	}
+}
+
 type PathType int
 
 const (
@@ -137,8 +186,11 @@ const (
 	ConfigPaths
 	/* Represents all paths under /components/component/state */
 	StatePaths
+	/* Represents all paths under a component subtree, e.g.
+	 * /components/component/port or /components/component/fan */
+	AllCompPaths
 	/* Represents a path to a specific leaf */
-	SingularPath
+	SinglePath
 )
 
 func (pt PathType) String() string {
@@ -147,10 +199,12 @@ func (pt PathType) String() string {
 		return "AllPaths"
 	case ConfigPaths:
 		return "ConfigPaths"
+	case AllCompPaths:
+		return "AllComponentPaths"
 	case StatePaths:
 		return "StatePaths"
-	case SingularPath:
-		return "SingularPath"
+	case SinglePath:
+		return "SinglePath"
 	}
 	return strconv.Itoa(int(pt))
 }
@@ -165,14 +219,23 @@ func (ct componentType) String() string {
 		return "CompTypeIC"
 	case CompTypeSysEeprom:
 		return "CompTypeSysEeprom"
+	case CompTypeNWStack:
+		return "CompTypeNWStack"
+	case CompTypeOS:
+		return "CompTypeOS"
+	case CompTypeBootLoader:
+		return "CompTypeBootLoader"
 	}
 	return strconv.Itoa(int(ct))
 }
 
 var compTblMap = map[componentType][]string{
-	CompTypeXcvr:      {TRANSCEIVER_STATUS, XCVR_KEY_PREFIX + "*"},
-	CompTypeIC:        {NODE_CFG_TBL, "*"},
-	CompTypeSysEeprom: {EEPROM_INFO_TBL, "*"},
+	CompTypeXcvr:       {TRANSCEIVER_STATUS, XCVR_KEY_PREFIX + "*"},
+	CompTypeIC:         {NODE_CFG_TBL, "*"},
+	CompTypeSysEeprom:  {EEPROM_INFO_TBL, "*"},
+	CompTypeNWStack:    {SW_COMP_TBL, "*"},
+	CompTypeOS:         {SW_COMP_TBL, "*"},
+	CompTypeBootLoader: {SW_COMP_TBL, "*"},
 }
 
 func init() {
@@ -226,6 +289,12 @@ func getCompTypeByName(compName string) (componentType, error) {
 		return CompTypeIC, nil
 	case validSysEepromName(compName):
 		return CompTypeSysEeprom, nil
+	case validSWCompName(&compName, NW_STACK_PREFIX):
+		return CompTypeNWStack, nil
+	case validSWCompName(&compName, OS_PREFIX):
+		return CompTypeOS, nil
+	case strings.HasPrefix(compName, BOOTL_PREFIX):
+		return CompTypeBootLoader, nil
 	default:
 		return CompTypeInvalid, fmt.Errorf("component name %s did not match with supported types.", compName)
 	}
@@ -243,31 +312,56 @@ func keyInDbTable(tableName, key string, d *db.DB) bool {
 	return len(keys) > 0
 }
 
-func getCompType(name string, d *db.DB) componentType {
+func getCompType(name string, stdb, cfgdb *db.DB) componentType {
 	if name == "*" {
+		log.V(3).Infof("Invalid comp type for name as *")
 		return CompTypeInvalid
 	}
 	if val, ok := compTypeCache.Load(name); ok {
 		return val.(componentType)
 	}
+	if stdb != nil {
+		if swcEntry, err := stdb.GetEntry(&db.TableSpec{Name: SW_COMP_TBL}, db.Key{Comp: []string{name}}); err == nil {
+			switch swcEntry.Get("type") {
+			case BOOTL_TYPE:
+				compTypeCache.Store(name, CompTypeBootLoader)
+				return CompTypeBootLoader
+			case NW_STACK_TYPE:
+				// Need to check if actually NW_STACK_TYPE or older boot loader
+				if swcEntry.Get("module-type") == BOOTL_TYPE {
+					compTypeCache.Store(name, CompTypeBootLoader)
+					return CompTypeBootLoader
+				}
+				compTypeCache.Store(name, CompTypeNWStack)
+				return CompTypeNWStack
+			case OS_TYPE:
+				compTypeCache.Store(name, CompTypeOS)
+				return CompTypeOS
+			}
+		}
+	}
+	/* SysEEPROM and Transceiver - StateDB */
+	if stdb != nil {
+		if keyInDbTable(EEPROM_INFO_TBL, name, stdb) {
+			compTypeCache.Store(name, CompTypeSysEeprom)
+			return CompTypeSysEeprom
+		}
+		if keyInDbTable(TRANSCEIVER_STATUS, name, stdb) {
+			compTypeCache.Store(name, CompTypeXcvr)
+			return CompTypeXcvr
+		}
+	}
+	/* IC - ConfigDB */
+	if cfgdb != nil {
+		if keyInDbTable(NODE_CFG_TBL, name, cfgdb) {
+			compTypeCache.Store(name, CompTypeIC)
+			return CompTypeIC
+		}
+	}
 	compType, err := getCompTypeByName(name)
 	if err == nil {
 		compTypeCache.Store(name, compType)
 		return compType
-	}
-	if d != nil {
-		if keyInDbTable(EEPROM_INFO_TBL, name, d) {
-			compTypeCache.Store(name, CompTypeSysEeprom)
-			return CompTypeSysEeprom
-		}
-		if keyInDbTable(NODE_CFG_TBL, name, d) {
-			compTypeCache.Store(name, CompTypeIC)
-			return CompTypeIC
-		}
-		if keyInDbTable(TRANSCEIVER_STATUS, name, d) {
-			compTypeCache.Store(name, CompTypeXcvr)
-			return CompTypeXcvr
-		}
 	}
 	return CompTypeInvalid
 }
@@ -327,15 +421,28 @@ var Subscribe_pfm_components_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubsc
 	return result, err
 }
 
-/* Given a URI for a subscription, return a list of component types which apply to it. */
+/* Given a URI for a subscription, return a list of component types which apply
+ * to it.  For example a URI of "/components/component/port" would return
+ * [CompTypePort] while a URI of "/components/component/state/software-version"
+ * would return a list of all component types which report software version. */
+
 func compTypesForSubscriptionUri(uri string) []componentType {
 	cTypes := []componentType{}
 	if strings.HasPrefix(uri, "/openconfig-platform:components/component/integrated-circuit") {
-		cTypes = append(cTypes, CompTypeIC)
-	}
-	if strings.HasPrefix(uri, "/openconfig-platform:components/component/oc-transceiver:transceiver") ||
+		cTypes = []componentType{CompTypeIC}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/oc-transceiver:transceiver") ||
 		strings.HasPrefix(uri, "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver") {
-		cTypes = append(cTypes, CompTypeXcvr)
+		cTypes = []componentType{CompTypeXcvr}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/software-module") {
+		cTypes = []componentType{CompTypeNWStack, CompTypeOS}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/state/oper-status") {
+		cTypes = []componentType{CompTypeNWStack, CompTypeOS}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/state/boot-loader") {
+		cTypes = []componentType{CompTypeBootLoader}
+	} else if strings.HasPrefix(uri, COMP_STATE_PARENT) {
+		cTypes = []componentType{CompTypeNWStack, CompTypeOS, CompTypeBootLoader}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/state/software-version") {
+		cTypes = []componentType{CompTypeNWStack, CompTypeOS, CompTypeBootLoader}
 	}
 	return cTypes
 }
@@ -364,7 +471,7 @@ func translateExists(inParams XfmrSubscInParams, key string) (XfmrSubscOutParams
 	if d == nil {
 		return result, fmt.Errorf("translateExists: No usable DB client in inParams (checked %v and %v)", db.StateDB.Name(), db.ConfigDB.Name())
 	}
-	compType := getCompType(key, d)
+	compType := getCompType(key, inParams.dbs[db.StateDB], inParams.dbs[db.ConfigDB])
 	if compType == CompTypeInvalid {
 		return result, nil
 	}
@@ -402,16 +509,16 @@ func translateSubscribe(inParams XfmrSubscInParams, key, targetUriPath string) (
 
 	/* Use the requested path to create a positive filter of component types to process. */
 	compTypeFilter := []componentType{}
+	cType := getCompType(key, inParams.dbs[db.StateDB], inParams.dbs[db.ConfigDB])
 	if key == "*" {
 		compTypeFilter = compTypesForSubscriptionUri(targetUriPath)
 	} else {
-		cType := getCompType(key, inParams.dbs[db.StateDB])
+		compTypeFilter = []componentType{cType}
 		if cType == CompTypeInvalid {
 			return result, nil
 		}
-		compTypeFilter = []componentType{cType}
-	}
 
+	}
 	for cType, tblNames := range compTblMap {
 		if len(tblNames) < 2 {
 			continue
@@ -1204,14 +1311,17 @@ func convAndFillDBValues(rxpField, txpField, txbField, txdisableField string, ch
  */
 func compTypeToFuncCall(cType componentType, compName, subKey string, pfComp *ocbinds.OpenconfigPlatform_Components_Component, targetUriPath string, dbs [db.MaxDB]*db.DB, pType PathType, ygRoot *ygot.GoStruct) error {
 	log.V(3).Infof("compTypeToFuncCall with name=%s type=%v pType=%v", compName, cType, pType)
+	d := dbs[db.StateDB]
 	ygot.BuildEmptyTree(pfComp)
 	switch cType {
 	case CompTypeXcvr:
-		return fillXcvrInfo(pfComp, compName, pType != SingularPath, "", targetUriPath, dbs)
+		return fillXcvrInfo(pfComp, compName, pType != SinglePath, "", targetUriPath, dbs)
 	case CompTypeIC:
 		return fillICInfo(pfComp, compName, targetUriPath, dbs, ygRoot)
 	case CompTypeSysEeprom:
 		return fillSysEepromInfo(pfComp, compName, targetUriPath, dbs, ygRoot)
+	case CompTypeNWStack, CompTypeOS, CompTypeBootLoader:
+		return fillSWCompInfo(pfComp, compName, pType, targetUriPath, d, cType)
 	}
 	return errors.New("Invalid component type")
 }
@@ -1220,7 +1330,7 @@ func createCompAndFuncCall(pfCpts *ocbinds.OpenconfigPlatform_Components, target
 	var compNames []string
 	var err error
 	dbs := inParams.dbs
-	d := dbs[db.StateDB]
+	stdb := dbs[db.StateDB]
 	cfgdb := dbs[db.ConfigDB]
 
 	var keySep string
@@ -1232,13 +1342,13 @@ func createCompAndFuncCall(pfCpts *ocbinds.OpenconfigPlatform_Components, target
 		}
 	case CompTypeSysEeprom:
 		compNames = []string{SYS_EEPROM_NAME}
-		if d != nil {
-			keySep = d.Opts.KeySeparator
+		if stdb != nil {
+			keySep = stdb.Opts.KeySeparator
 		}
 	default:
-		compNames, err = getAllTableEntries(d, tblName, tblKey)
-		if d != nil {
-			keySep = d.Opts.KeySeparator
+		compNames, err = getAllTableEntries(stdb, tblName, tblKey)
+		if stdb != nil {
+			keySep = stdb.Opts.KeySeparator
 		}
 	}
 	if err != nil {
@@ -1255,7 +1365,7 @@ func createCompAndFuncCall(pfCpts *ocbinds.OpenconfigPlatform_Components, target
 			continue
 		}
 		comp := compKeys[0]
-		derivedCompType := getCompType(comp, d)
+		derivedCompType := getCompType(comp, stdb, cfgdb)
 		if derivedCompType != compType {
 			continue
 		}
@@ -1291,7 +1401,8 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 	ygRoot := inParams.ygRoot
 
 	var err error
-	d := dbs[db.StateDB]
+	stdb := dbs[db.StateDB]
+	cfgdb := dbs[db.ConfigDB]
 	log.V(3).Infof("getSysComponents: compName: %s targetUriPath: %s", compName, targetUriPath)
 	switch targetUriPath {
 	case COMP:
@@ -1304,7 +1415,7 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 				createCompAndFuncCall(pf_cpts, targetUriPath, cType, inParams, tblName, tbl[1])
 			}
 		} else {
-			compType := getCompType(compName, d)
+			compType := getCompType(compName, stdb, cfgdb)
 			if compType == CompTypeInvalid {
 				return nil
 			}
@@ -1323,7 +1434,7 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 			}
 		}
 	case COMP_ST:
-		compType := getCompType(compName, d)
+		compType := getCompType(compName, stdb, cfgdb)
 		if compType == CompTypeInvalid {
 			return nil
 		}
@@ -1341,7 +1452,7 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 			log.V(3).Info(err)
 		}
 	case COMP_CFG:
-		compType := getCompType(compName, d)
+		compType := getCompType(compName, stdb, cfgdb)
 		if compType == CompTypeInvalid {
 			return nil
 		}
@@ -1361,8 +1472,15 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 			break
 		}
 	default:
-		/* Specific component's leaf or subtree */
-		compType := getCompType(compName, d)
+		/* The following cases are handled above:
+		 *   /components/component
+		 *   /components/component[name=<component_name>]
+		 *   /components/component[name=<component_name>]/config
+		 *   /components/component[name=<component_name>]/state
+		 * so the request must be for a specific component's leaf or subtree,
+		 * e.g. /components/component[name=integrated_circuit]/integrated-circuit */
+		// TODO - Can we de-dup this code with compTypeToFuncCall?  No good way to set pathType...
+		compType := getCompType(compName, stdb, cfgdb)
 		if compType == CompTypeInvalid {
 			return nil
 		}
@@ -1393,6 +1511,21 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 			return fillICInfo(pf_comp, compName, targetUriPath, inParams.dbs, inParams.ygRoot)
 		case CompTypeSysEeprom:
 			return fillSysEepromInfo(pf_comp, compName, targetUriPath, inParams.dbs, inParams.ygRoot)
+		case CompTypeNWStack:
+			fallthrough
+		case CompTypeOS:
+			fallthrough
+		case CompTypeBootLoader:
+			ygot.BuildEmptyTree(pf_comp.SoftwareModule)
+			ygot.BuildEmptyTree(pf_comp.SoftwareModule.State)
+			switch targetUriPath {
+			case COMP_SW_MOD:
+				fallthrough
+			case COMP_SW_MOD_ST:
+				return fillSWCompInfo(pf_comp, compName, AllCompPaths, targetUriPath, stdb, compType)
+			default:
+				return fillSWCompInfo(pf_comp, compName, SinglePath, targetUriPath, stdb, compType)
+			}
 		default:
 			return fmt.Errorf("Unhandled Component: %s", compName)
 		}
@@ -1425,4 +1558,174 @@ var DbToYang_pfm_components_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams)
 	subKey := ""
 
 	return getSysComponents(getPfmRootObject(inParams.ygRoot), targetUriPath, inParams, compName, subKey)
+}
+
+func validSWCompName(name *string, prefix string) bool {
+	if name == nil || *name == "" {
+		return false
+	}
+	// Expect node name of form network_stackX or osX, where X is an integer (either 0 or 1)
+	if !strings.HasPrefix(*name, prefix) {
+		return false
+	}
+
+	/* Currently restricted to indices 0 or 1. Update this upper-bound
+	check if future hardware configurations require support for more instances. */
+	sp := strings.SplitAfter(*name, prefix)
+	if len(sp) < 2 {
+		return false
+	}
+
+	if val, err := strconv.Atoi(sp[1]); err != nil || val > 1 {
+		return false
+	}
+	return true
+}
+
+func getSWCompInfoFromDb(name string, d *db.DB, tblName string) (SWCompInfo, error) {
+	if d == nil {
+		return SWCompInfo{}, errors.New("DB instance is nil")
+	}
+
+	swcEntry, err := d.GetEntry(&db.TableSpec{Name: tblName}, db.Key{Comp: []string{name}})
+	if err != nil {
+		log.Info("Cannot get entry: ", name, "; Error: ", err)
+		return SWCompInfo{}, err
+	}
+
+	swcInfo := SWCompInfo{
+		Name:            swcEntry.Get("name"),
+		SoftwareVersion: swcEntry.Get("software-version"),
+		Parent:          swcEntry.Get("parent"),
+		OperStatus:      swcEntry.Get("oper-status"),
+		Type:            swcEntry.Get("type"),
+		BootLoaderType:  swcEntry.Get("boot-loader-type"),
+	}
+
+	return swcInfo, nil
+}
+
+func fillBootLoaderContainer(info SWCompInfo, comp *ocbinds.OpenconfigPlatform_Components_Component) {
+	if info.BootLoaderType == "" {
+		return
+	}
+	ygot.BuildEmptyTree(comp.BootLoader)
+	ygot.BuildEmptyTree(comp.BootLoader.State)
+	if et, ok := dbToYangBootLoaderTypeMap[info.BootLoaderType]; ok {
+		comp.BootLoader.State.Type = et
+	}
+}
+
+/* Filling in the state info for software components available in Redis DB */
+func fillSWCompInfo(comp *ocbinds.OpenconfigPlatform_Components_Component,
+	name string, pType PathType, targetUriPath string, stdb *db.DB, cType componentType) error {
+	swcInfo, err := getSWCompInfoFromDb(name, stdb, SW_COMP_TBL)
+	if err != nil {
+		log.V(3).Info("Error Getting SW Comp info from State DB: ", err.Error())
+		return err
+	}
+	ygot.BuildEmptyTree(comp)
+	compState := comp.State
+
+	defaultVal := ""
+	/*getChassis function is not used here . Parent name used as chassis*/
+	defaultParentVal := CHASSIS_PREFIX
+
+	if pType == AllPaths || pType == AllCompPaths || pType == StatePaths {
+		// Filling in state values
+		// State Name
+		compState.Name = &name
+		// State Software Version
+		compState.SoftwareVersion = &defaultVal
+		if swcInfo.SoftwareVersion != "" {
+			compState.SoftwareVersion = &swcInfo.SoftwareVersion
+		}
+		// State Parent
+		compState.Parent = &defaultParentVal
+		if swcInfo.Parent != "" {
+			compState.Parent = &swcInfo.Parent
+		}
+		// State Type
+		switch cType {
+		case CompTypeOS:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_OPERATING_SYSTEM)
+		case CompTypeBootLoader:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_BOOT_LOADER)
+			fillBootLoaderContainer(swcInfo, comp)
+			return nil
+		case CompTypeNWStack:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_SOFTWARE_MODULE)
+		}
+		// State Oper Status
+		if operStatus, err := operStatusFromString(swcInfo.OperStatus); err == nil {
+			compState.OperStatus = operStatus
+		} else {
+			compState.OperStatus = ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_DISABLED
+		}
+		if pType == StatePaths {
+			return nil
+		}
+		// SW Module State Module Type
+		if cType == CompTypeNWStack {
+			ygot.BuildEmptyTree(comp.SoftwareModule)
+			ygot.BuildEmptyTree(comp.SoftwareModule.State)
+			if comp.SoftwareModule != nil && comp.SoftwareModule.State != nil {
+				comp.SoftwareModule.State.ModuleType = ocbinds.OpenconfigPlatformSoftware_SOFTWARE_MODULE_TYPE_USERSPACE_PACKAGE_BUNDLE
+			}
+		}
+		return nil
+	}
+
+	switch targetUriPath {
+	case COMP_STATE_NAME:
+		compState.Name = &name
+	case COMP_STATE_SW_VER:
+		if swcInfo.SoftwareVersion == "" {
+			return errors.New("software_version field not present in State DB")
+		}
+		compState.SoftwareVersion = &swcInfo.SoftwareVersion
+	case COMP_STATE_PARENT:
+		compState.Parent = &defaultParentVal
+		if swcInfo.Parent != "" {
+			compState.Parent = &swcInfo.Parent
+		}
+	case COMP_STATE_TYPE:
+		switch cType {
+		case CompTypeOS:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_OPERATING_SYSTEM)
+		case CompTypeBootLoader:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_BOOT_LOADER)
+		case CompTypeNWStack:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_SOFTWARE_MODULE)
+		default:
+			return errors.New("invalid component type for software component")
+		}
+	case COMP_STATE_OPER_STATUS:
+		if cType == CompTypeBootLoader {
+			return errors.New("invalid path for this component type.")
+		}
+		if operStatus, err := operStatusFromString(swcInfo.OperStatus); err == nil {
+			compState.OperStatus = operStatus
+		} else {
+			return errors.New("oper_status is missing/invalid field value in State DB: " + swcInfo.OperStatus)
+		}
+	case SW_MODULE_STATE_MODULE_TYPE:
+		if cType != CompTypeNWStack {
+			return errors.New("invalid component for software-module/state/module-type path.")
+		}
+		ygot.BuildEmptyTree(comp.SoftwareModule)
+		ygot.BuildEmptyTree(comp.SoftwareModule.State)
+		if comp.SoftwareModule != nil && comp.SoftwareModule.State != nil {
+			comp.SoftwareModule.State.ModuleType = ocbinds.OpenconfigPlatformSoftware_SOFTWARE_MODULE_TYPE_USERSPACE_PACKAGE_BUNDLE
+		}
+	case SW_BOOT_LOADER_STATE_TYPE:
+		fillBootLoaderContainer(swcInfo, comp)
+	}
+	return nil
 }
