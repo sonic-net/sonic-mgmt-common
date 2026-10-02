@@ -206,23 +206,24 @@ func TestValidateEditConfig_Not_equal_in_predicate_postive(t *testing.T) {
 
 func TestValidateEditConfig_Not_equal_in_predicate_negative(t *testing.T) {
 
-	setupTestData(t, map[string]interface{}{
-		"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
-			"test1": map[string]interface{}{
-				"ifname": "Ethernet0",
-			},
-			"test2": map[string]interface{}{
-				"ifname":     "Ethernet4",
-				"delay-time": "10",
-			},
-		}})
 	// Create of entry with already existing ifname
 	t.Run("create_entry_already_existing_port", func(tt *testing.T) {
+		setupTestData(tt, map[string]interface{}{
+			"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+				"mneg1": map[string]interface{}{
+					"ifname": "Ethernet0",
+				},
+				"mneg2": map[string]interface{}{
+					"ifname": "Ethernet4",
+				},
+			},
+		})
+
 		c := NewTestSession(tt)
 		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
 			VType: VALIDATE_ALL,
 			VOp:   OP_CREATE,
-			Key:   "EVPN_ETHERNET_SEGMENT|test3",
+			Key:   "EVPN_ETHERNET_SEGMENT|mneg3",
 			Data: map[string]string{
 				"ifname": "Ethernet0",
 			}}})
@@ -236,11 +237,100 @@ func TestValidateEditConfig_Not_equal_in_predicate_negative(t *testing.T) {
 
 	// Update of ifname to already used port name
 	t.Run("update_ifname_already_existing_port", func(tt *testing.T) {
+		setupTestData(tt, map[string]interface{}{
+			"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+				"mneg4": map[string]interface{}{
+					"ifname": "Ethernet0",
+				},
+				"mneg5": map[string]interface{}{
+					"ifname": "Ethernet4",
+				},
+			},
+		})
+
 		c := NewTestSession(tt)
 		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
 			VType: VALIDATE_ALL,
 			VOp:   OP_UPDATE,
-			Key:   "EVPN_ETHERNET_SEGMENT|test2",
+			Key:   "EVPN_ETHERNET_SEGMENT|mneg5",
+			Data: map[string]string{
+				"ifname": "Ethernet0",
+			}}})
+		verifyErr(tt, res, CVLErrorInfo{
+			ErrCode:   CVL_SEMANTIC_ERROR,
+			TableName: "EVPN_ETHERNET_SEGMENT",
+			Field:     "ifname",
+			Msg:       mustExpressionErrMessage,
+		})
+	})
+}
+
+func TestValidateEditConfig_Must_Predicate_Escape_SingleQuote(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+			"test'1": map[string]interface{}{
+				"ifname": "Ethernet0",
+			},
+		},
+	})
+
+	t.Run("create_entry_unique_ifname", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test'2",
+			Data: map[string]string{
+				"ifname": "Ethernet4",
+			}}})
+		verifyErr(tt, res, Success)
+	})
+
+	t.Run("create_entry_duplicate_ifname", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test'3",
+			Data: map[string]string{
+				"ifname": "Ethernet0",
+			}}})
+		verifyErr(tt, res, CVLErrorInfo{
+			ErrCode:   CVL_SEMANTIC_ERROR,
+			TableName: "EVPN_ETHERNET_SEGMENT",
+			Field:     "ifname",
+			Msg:       mustExpressionErrMessage,
+		})
+	})
+}
+
+func TestValidateEditConfig_Must_Predicate_Escape_Backslash(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"EVPN_ETHERNET_SEGMENT": map[string]interface{}{
+			`test\1`: map[string]interface{}{
+				"ifname": "Ethernet0",
+			},
+		},
+	})
+
+	t.Run("create_entry_unique_ifname", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test\\2",
+			Data: map[string]string{
+				"ifname": "Ethernet4",
+			}}})
+		verifyErr(tt, res, Success)
+	})
+
+	t.Run("create_entry_duplicate_ifname", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_CREATE,
+			Key:   "EVPN_ETHERNET_SEGMENT|test\\3",
 			Data: map[string]string{
 				"ifname": "Ethernet0",
 			}}})

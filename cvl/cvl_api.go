@@ -1105,13 +1105,16 @@ func (c *CVL) GetDepDataForDelete(redisKey string) []CVLDepDataForDelete {
 				mFilterScripts[refTbl.tableName] = make([]filterScript, 0)
 			}
 			fltScrs := mFilterScripts[refTbl.tableName]
+			// Escape Lua string metacharacters before embedding the key
+			// value in the filter script source.
+			luaEscKey := strings.NewReplacer("\\", "\\\\", "'", "\\'").Replace(key)
 			fltScrs = append(fltScrs, filterScript{
 				script: fmt.Sprintf("return (h['%s'] ~= nil and (h['%s'] == '%s' or h['%s'] == '[%s|%s]')) or "+
 					"(h['%s@'] ~= nil and ((h['%s@'] == '%s') or "+
-					"(string.find(h['%s@']..',', '%s,') ~= nil)))",
-					refTbl.field, refTbl.field, key, refTbl.field, tableName, key,
-					refTbl.field, refTbl.field, key,
-					refTbl.field, key),
+					"(string.find(h['%s@']..',', '%s,', 1, true) ~= nil)))",
+					refTbl.field, refTbl.field, luaEscKey, refTbl.field, tableName, luaEscKey,
+					refTbl.field, refTbl.field, luaEscKey,
+					refTbl.field, luaEscKey),
 				field: refTbl.field,
 				value: key,
 			})
