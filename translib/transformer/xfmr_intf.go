@@ -134,9 +134,11 @@ const (
 const (
 	HARDWARE_PORT       = "hardware-port"
 	PORT_INDEX          = "index"
-	LAG_MEMBER_TABLE_TN = "LAG_MEMBER_TABLE"
 	PORT_OPER_STATUS    = "oper_status"
 	PORT_MAC_ADDR       = "mac-address"
+	PORTCHANNEL_TN      = "PORTCHANNEL"
+	LAG_TABLE_TN        = "LAG_TABLE"
+	LAG_MEMBER_TABLE_TN = "LAG_MEMBER_TABLE"
 )
 
 type TblData struct {
@@ -1654,6 +1656,8 @@ var Subscribe_intf_get_counters_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSu
 		result.nOpts.mInterval = 30
 		result.isVirtualTbl = false
 		result.needCache = true
+		result.onChange = OnchangeDisable
+		result.dbDataMap = make(RedisDbSubscribeMap)
 
 		ifName := pathInfo.Var("name")
 		log.Info("Subscribe_intf_get_counters_xfmr: ifName: ", ifName)
@@ -1661,14 +1665,33 @@ var Subscribe_intf_get_counters_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSu
 		if ifName == "" || ifName == "*" {
 			if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters") {
 				ifName = "Eth" + "*"
+				tblName, err := getPortTableNameByDBId(IntfTypeTblMap[IntfTypeEthernet], db.ConfigDB)
+				if err != nil {
+					return result, errors.New("Subscribe_intf_get_counters_xfmr table name not found. Err: " + err.Error())
+				}
+
+				result.dbDataMap = RedisDbSubscribeMap{db.ConfigDB: {tblName: {ifName: {}}}}
 			} else {
 				ifName = "*"
+				result.dbDataMap[db.ConfigDB] = make(map[string]map[string]map[string]string)
+				for _, tblName := range dbIdToTblMap[db.ConfigDB] {
+					result.dbDataMap[db.ConfigDB][tblName] = map[string]map[string]string{ifName: {}}
+				}
 			}
+		} else {
+			intfType, _, ierr := getIntfTypeByName(ifName)
+			if intfType == IntfTypeUnset || ierr != nil {
+				return result, tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
+			}
+			tblName, err := getPortTableNameByDBId(IntfTypeTblMap[intfType], db.ConfigDB)
+			if err != nil {
+				return result, errors.New("Subscribe_intf_get_counters_xfmr table name not found. Err: " + err.Error())
+			}
+
+			result.dbDataMap = RedisDbSubscribeMap{db.ConfigDB: {tblName: {ifName: {}}}}
 		}
 
-		result.dbDataMap = RedisDbSubscribeMap{db.CountersDB: {"COUNTERS_PORT_NAME_MAP": {"": {FIELD_CURSOR: ifName}}}}
-
-		log.Info("Subscribe_intf_eth_port_config_xfmr: result ", result)
+		log.Info("Subscribe_intf_get_counters_xfmr: result ", result)
 	}
 	return result, err
 }
@@ -4265,7 +4288,7 @@ var YangToDb_pins_if_id_xfmr FieldXfmrYangToDb = func(inParams XfmrParams) (map[
 		return nil, tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
 	}
 
-	if intfType != IntfTypeEthernet && intfType != IntfTypeCpu {
+	if intfType != IntfTypeEthernet && intfType != IntfTypeCpu && intfType != IntfTypePortChannel {
 		return nil, errors.New("YangToDb_pins_if_id_xfmr: interface type " + strconv.Itoa(int(intfType)) + " not supported for Config Id.")
 	}
 
@@ -4286,7 +4309,7 @@ var DbToYang_pins_if_id_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[
 	if intfType == IntfTypeUnset || ierr != nil {
 		return nil, tlerr.InvalidArgsError{Format: "Invalid interface: " + ifName}
 	}
-	if intfType != IntfTypeEthernet && intfType != IntfTypeCpu {
+	if intfType != IntfTypeEthernet && intfType != IntfTypeCpu && intfType != IntfTypePortChannel {
 		return nil, errors.New("DbToYang_pins_if_id_xfmr: interface type " + strconv.Itoa(int(intfType)) + " not supported for Config Id.")
 	}
 
@@ -4300,7 +4323,7 @@ var DbToYang_pins_if_id_xfmr FieldXfmrDbtoYang = func(inParams XfmrParams) (map[
 	// to ensure the ID is retrieved from the primary SWSS state if P4RT data is missing.
 	tblName := "P4RT_PORT_ID_TABLE"
 	var err error
-	if inParams.curDb != db.ApplDB {
+	if inParams.curDb != db.ApplDB || (intfType != IntfTypeEthernet && intfType != IntfTypePortChannel) {
 		tblName, err = getPortTableNameByDBId(intTbl, inParams.curDb)
 		if err != nil {
 			return nil, errors.New("DbToYang_pins_if_id_xfmr: Port table name not found.")
