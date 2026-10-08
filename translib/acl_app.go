@@ -301,7 +301,7 @@ func (app *AclApp) processCommon(d *db.DB, opcode int) error {
 						}
 					case REPLACE:
 						if *app.ygotTarget == aclSet || isAclEntriesSubtree {
-							err = d.DeleteKeys(app.ruleTs, db.Key{Comp: []string{aclKey + TABLE_SEPARATOR + "RULE_*"}})
+							err = d.DeleteKeys(app.ruleTs, db.Key{Comp: []string{escapeRedisGlob(aclKey) + TABLE_SEPARATOR + "RULE_*"}})
 							if err != nil {
 								return err
 							}
@@ -326,13 +326,13 @@ func (app *AclApp) processCommon(d *db.DB, opcode int) error {
 						}
 					case DELETE:
 						if *app.ygotTarget == aclSet {
-							err = d.DeleteKeys(app.ruleTs, db.Key{Comp: []string{aclKey + TABLE_SEPARATOR + "*"}})
+							err = d.DeleteKeys(app.ruleTs, db.Key{Comp: []string{escapeRedisGlob(aclKey) + TABLE_SEPARATOR + "*"}})
 							if err != nil {
 								return err
 							}
 							err = d.DeleteEntry(app.aclTs, db.Key{Comp: []string{aclKey}})
 						} else if isAclEntriesSubtree {
-							err = d.DeleteKeys(app.ruleTs, db.Key{Comp: []string{aclKey + TABLE_SEPARATOR + "RULE_*"}})
+							err = d.DeleteKeys(app.ruleTs, db.Key{Comp: []string{escapeRedisGlob(aclKey) + TABLE_SEPARATOR + "RULE_*"}})
 						} else {
 							nodeInfo, err := getTargetNodeYangSchema(app.pathInfo.Path, (*app.ygotRoot).(*ocbinds.Device))
 							if err != nil {
