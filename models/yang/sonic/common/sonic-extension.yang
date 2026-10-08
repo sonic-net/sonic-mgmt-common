@@ -17,6 +17,22 @@ module sonic-extension {
 			"Initial revision.";
 	}
 
+	extension create-only {
+		description
+			"During an apply-patch operation, indicates that a node can only be created
+			 or re-created (i.e., deleted and re-added) but cannot be updated in-place.
+			 Any update to a node carrying this extension is realized as a deletion and
+			 recreation of the corresponding object.
+
+			 This extension can be defined under:
+			 - leaf or leaf-list: The immutability restriction applies specifically to this field.
+			 - container or list: The restriction applies to the entire container/list, meaning
+			   a change to any field within it triggers a deletion and recreation of the entire entry
+			   (e.g., [table, '*', '*']).
+			 - grouping: The restriction applies to the target leaf/leaf-list at every 'uses' site where
+			   the grouping is expanded.";
+	}
+
 	extension db-name {
 		description
 			"DB name, e.g. APPL_DB, CONFIG_DB";
