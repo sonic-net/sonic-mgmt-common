@@ -1,5 +1,26 @@
 # YANG directory
 
+## Component Healthz telemetry
+
+The independent host Healthz service publishes component assessments in STATE_DB
+`COMPONENT_HEALTH_INFO`. This repository maps those rows to
+`/components/component[name=X]/healthz/state` for GET and ON_CHANGE:
+
+| OpenConfig leaf | STATE_DB field |
+|---|---|
+| `status` | `status` (`HEALTHY` or `UNHEALTHY`) |
+| `last-unhealthy` | `last_unhealthy` (Unix epoch nanoseconds, when known) |
+| `unhealthy-count` | `unhealthy_count` |
+
+Missing or malformed assessments are omitted. Routine unchanged leaf values
+produce no ON_CHANGE update. The existing `FAULT_INFO` fault-subtree mapping is
+preserved independently of component Healthz state.
+
+See [the component mapping](../../translib/pfm_healthz.go),
+[the fault mapping](../../translib/pfm_fault.go), and the
+[Healthz overview](https://github.com/gregoryboudreau/sonic-host-services/blob/6ce7833401365a228e696d58ff05ceb3a0ddc058/docs/healthz-overview.md)
+for the complete producer, telemetry and gNOI flow.
+
 ## Directory structure
 
     yang/               --> Standard YANGs
@@ -47,5 +68,4 @@ Candidate YANG changes for this category are:
 * Expand pattern or range of a node to wider set.
 * Change must expression to accept more cases.
 * Error message or error tag changes.
-
 
