@@ -95,10 +95,30 @@ module openconfig-interfaces-annot {
         }
     }
 
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:lag-type {
+        deviate add {
+            sonic-ext:field-transformer "lag_type_xfmr";
+        }
+    }
+
     deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state {
       deviate add {
+            sonic-ext:db-nm "STATE_DB";
             sonic-ext:subtree-transformer "intf_lag_state_xfmr";
             sonic-ext:path-transformer "intf_lag_state_path_xfmr";
+      }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-speed {
+        deviate add {
+            sonic-ext:composite-field-names "LAG_MEMBER_TABLE:link.speed,LAG_MEMBER_TABLE:runner.selected";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:member {
+      deviate add {
+            sonic-ext:db-nm "STATE_DB";
+            sonic-ext:table-name "LAG_MEMBER_TABLE";
       }
     }
 
