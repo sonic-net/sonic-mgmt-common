@@ -251,11 +251,6 @@ func init() {
 	//Intialize mutex for stats
 	statsMutex = &sync.Mutex{}
 
-	_, err := redisClient.ConfigSet("notify-keyspace-events", "AKE").Result()
-	if err != nil {
-		CVL_LOG(WARNING, "Could not enable notification error %s", err)
-	}
-
 	xpath.SetLogCallback(func(fmt string, args ...interface{}) {
 		if !IsTraceAllowed(TRACE_SEMANTIC) {
 			return
