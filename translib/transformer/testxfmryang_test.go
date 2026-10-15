@@ -400,9 +400,9 @@ func test_node_exercising_db_parent_child_nonkey_leafref_relationship(t *testing
 	   node's db table mapping in the child hierachy & siblings yang nodes having similar relationship */
 	prereq := map[string]interface{}{"TEST_NTP": map[string]interface{}{"global": map[string]interface{}{"trusted-key@": "65", "auth-enabled": "true"}},
 		"TEST_NTP_AUTHENTICATION_KEY": map[string]interface{}{"65": map[string]interface{}{"key-type": "MD5", "key-value": "0x635352e91dd9ddf2ed9542db848d3b31"}},
-		"TEST_NTP_SERVER":             map[string]interface{}{"24": map[string]interface{}{"key-id": "65", "min-poll": "3"}}}
+		"TEST_NTP_DUMMY_SERVER":       map[string]interface{}{"24": map[string]interface{}{"key-id": "65", "min-poll": "3"}}}
 	cleanuptbl := map[string]interface{}{"TEST_NTP": map[string]interface{}{"global": ""}, "TEST_NTP_AUTHENTICATION_KEY": map[string]interface{}{"68": "", "65": ""},
-		"TEST_NTP_SERVER": map[string]interface{}{"24": ""}}
+		"TEST_NTP_DUMMY_SERVER": map[string]interface{}{"24": ""}}
 	empty_expected := make(map[string]interface{})
 	expected_test_ntp := map[string]interface{}{"TEST_NTP": map[string]interface{}{"global": map[string]interface{}{"auth-enabled": "false"}}}
 	expected_test_ntp_keys := map[string]interface{}{"TEST_NTP_AUTHENTICATION_KEY": map[string]interface{}{"68": map[string]interface{}{"key-type": "MD5",
@@ -429,7 +429,7 @@ func test_node_exercising_db_parent_child_nonkey_leafref_relationship(t *testing
 	time.Sleep(1 * time.Second)
 	verifyDbResultArray := [4]verifyDbResultData{
 		{test: "Verify replace of yang node having parent-child non-key leafref relationship with sibling yang node matches to request payload.(test-ntp-server|24)",
-			db_key: "TEST_NTP_SERVER|24", db_result: empty_expected},
+			db_key: "TEST_NTP_DUMMY_SERVER|24", db_result: empty_expected},
 		{test: "Verify replace of yang node having parent-child non-key leafref relationship with child yang node matches to request payload.(test-ntp|global)",
 			db_key: "TEST_NTP|global", db_result: expected_test_ntp},
 		{test: "Verify replace of child yang node having parent-child non-key leafref relationship with parent yang node matches to request payload.(test-ntp-key|65)",
