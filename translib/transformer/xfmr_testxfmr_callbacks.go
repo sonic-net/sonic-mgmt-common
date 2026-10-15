@@ -22,7 +22,9 @@
 package transformer
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -86,6 +88,14 @@ func init() {
 
 	// Sonic yang Key transformer functions
 	XlateFuncBind("DbToYang_test_sensor_mode_key_xfmr", DbToYang_test_sensor_mode_key_xfmr)
+
+	// Action callbacks
+	XlateFuncBind("test_sensor_reset_cb", test_sensor_reset_cb)
+	XlateFuncBind("test_sensor_status_cb", test_sensor_status_cb)
+	XlateFuncBind("test_sensor_clear_cb", test_sensor_clear_cb)
+	XlateFuncBind("test_sensor_configure_cb", test_sensor_configure_cb)
+	XlateFuncBind("test_global_reset_cb", test_global_reset_cb)
+	XlateFuncBind("test_sensor_calibrate_cb", test_sensor_calibrate_cb)
 }
 
 const (
@@ -1073,4 +1083,89 @@ var DbToYang_test_bgp_network_cfg_key_xfmr KeyXfmrDbToYang = func(inParams XfmrP
 	}
 	log.Info("DbToYang_test_bgp_network_cfg_key_xfmr returning ", rmap)
 	return rmap, nil
+}
+
+// test_sensor_reset_cb is the action callback for test-sensor-reset.
+// It validates the list key (id) from the URI path variables and returns
+// a fixed JSON output. The input body is accepted but not parsed.
+var test_sensor_reset_cb ActionCallpoint = func(vars map[string]string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
+	id := vars["id"]
+	if id == "" {
+		return nil, tlerr.New("missing sensor group id in URI")
+	}
+	out := `{"openconfig-test-xfmr-action:output":{"status":"success","message":"reset sensor group ` + id + `"}}`
+	return []byte(out), nil
+}
+
+var test_sensor_status_cb ActionCallpoint = func(vars map[string]string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
+	id := vars["id"]
+	if id == "" {
+		return nil, tlerr.New("missing sensor group id in URI")
+	}
+	out := `{"openconfig-test-xfmr-action:output":{"status":"active for ` + id + `"}}`
+	return []byte(out), nil
+}
+
+var test_sensor_clear_cb ActionCallpoint = func(vars map[string]string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
+	id := vars["id"]
+	if id == "" {
+		return nil, tlerr.New("missing sensor group id in URI")
+	}
+	log.Infof("test_sensor_clear_cb: cleared sensor group %s", id)
+	return nil, nil
+}
+
+var test_sensor_configure_cb ActionCallpoint = func(vars map[string]string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
+	id := vars["id"]
+	if id == "" {
+		return nil, tlerr.New("missing sensor group id in URI")
+	}
+
+	var parsed map[string]map[string]interface{}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, tlerr.New("failed to parse input: %v", err)
+	}
+	inp, ok := parsed["openconfig-test-xfmr-action:input"]
+	if !ok {
+		return nil, tlerr.New("missing openconfig-test-xfmr-action:input wrapper")
+	}
+
+	mode, _ := inp["mode"].(string)
+	interval, _ := inp["interval"].(float64)
+	enabled, _ := inp["enabled"].(bool)
+
+	out := fmt.Sprintf(
+		`{"openconfig-test-xfmr-action:output":{"result":"configured %s","applied-mode":"%s","applied-interval":%d,"applied-enabled":%t}}`,
+		id, mode, int(interval), enabled,
+	)
+	return []byte(out), nil
+}
+
+var test_global_reset_cb ActionCallpoint = func(vars map[string]string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
+	out := `{"openconfig-test-xfmr-action:output":{"status":"success","message":"global sensor reset"}}`
+	return []byte(out), nil
+}
+
+// test_sensor_calibrate_cb serves the action that openconfig-test-xfmr-action-ext adds by augment; input and output use that module's name.
+var test_sensor_calibrate_cb ActionCallpoint = func(vars map[string]string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
+	id := vars["id"]
+	if id == "" {
+		return nil, tlerr.New("missing sensor group id in URI")
+	}
+
+	var parsed map[string]map[string]interface{}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return nil, tlerr.New("failed to parse input: %v", err)
+	}
+	inp, ok := parsed["openconfig-test-xfmr-action-ext:input"]
+	if !ok {
+		return nil, tlerr.New("missing openconfig-test-xfmr-action-ext:input wrapper")
+	}
+	offset, _ := inp["offset"].(float64)
+
+	out := fmt.Sprintf(
+		`{"openconfig-test-xfmr-action-ext:output":{"status":"success","message":"calibrated sensor group %s with offset %d"}}`,
+		id, int(offset),
+	)
+	return []byte(out), nil
 }
