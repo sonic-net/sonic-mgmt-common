@@ -1704,7 +1704,7 @@ func (c *CVL) validateSemantics(node *xmlquery.Node,
 	}
 
 	if cfgData.VOp == cmn.OP_DELETE && len(cfgData.Data) == 0 {
-		for _, r := range c.requestCache[yangListName][key] {
+		for _, r := range c.requestCache[getYangListToRedisTbl(yangListName)][key] {
 			r.YangData = nil
 		}
 		listNodeParent := node.Parent

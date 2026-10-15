@@ -730,3 +730,98 @@ func TestValidateEditConfig_Update_MismatchedTableName_MustExp_Negative(t *testi
 		Msg:     mustExpressionErrMessage,
 	})
 }
+
+// Checks the lifecycle transition on a full-entry DELETE: validation detaches
+// the entry's YANG list node from the data tree, so it must also clear the
+// YangData references cached for that entry in requestCache. Otherwise later
+// requests in the same session can reuse the detached node.
+//
+// requestCache is keyed by Redis table name, which differs from the YANG list
+// name for singletons (CACHE_KEY_TEST -> CACHE_KEY_TEST_GLOBAL) and for tables
+// split into several lists (STATIC_ROUTE -> STATIC_ROUTE_INST); SCHEDULER
+// covers the 1:1 case.
+func TestValidateEditConfig_Delete_ClearsRequestCacheYangData(t *testing.T) {
+	tests := []struct {
+		name     string
+		dbData   map[string]interface{}
+		key      string
+		table    string
+		tableKey string
+	}{
+		{
+			name: "singleton",
+			dbData: map[string]interface{}{
+				"CACHE_KEY_TEST": map[string]interface{}{
+					"GLOBAL": map[string]interface{}{
+						"format": "welf",
+					},
+				},
+			},
+			key:      "CACHE_KEY_TEST|GLOBAL",
+			table:    "CACHE_KEY_TEST",
+			tableKey: "GLOBAL",
+		},
+		{
+			name: "multi_list",
+			dbData: map[string]interface{}{
+				"STATIC_ROUTE": map[string]interface{}{
+					"192.168.1.0/24": map[string]interface{}{
+						"advertise": "true",
+					},
+					"Vrf1|192.168.1.0/24": map[string]interface{}{
+						"blackhole": "true",
+					},
+				},
+			},
+			key:      "STATIC_ROUTE|Vrf1|192.168.1.0/24",
+			table:    "STATIC_ROUTE",
+			tableKey: "Vrf1|192.168.1.0/24",
+		},
+		{
+			name: "ordinary",
+			dbData: map[string]interface{}{
+				"SCHEDULER": map[string]interface{}{
+					"TEST_SCHED": map[string]interface{}{
+						"type":   "DWRR",
+						"weight": "25",
+					},
+				},
+			},
+			key:      "SCHEDULER|TEST_SCHED",
+			table:    "SCHEDULER",
+			tableKey: "TEST_SCHED",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			setupTestData(t, tc.dbData)
+			c := NewTestSession(t)
+
+			cfgData := []cmn.CVLEditConfigData{
+				cmn.CVLEditConfigData{
+					cmn.VALIDATE_ALL,
+					cmn.OP_DELETE,
+					tc.key,
+					map[string]string{},
+					false,
+				},
+			}
+			res, _ := c.ValidateEditConfig(cfgData)
+			verifyErr(t, res, Success)
+			verifyRequestCacheYangDataCleared(t, c, tc.table, tc.tableKey)
+		})
+	}
+}
+
+func verifyRequestCacheYangDataCleared(t *testing.T, c *cvl.CVL, table, key string) {
+	t.Helper()
+	entries, withYangData := c.RequestCacheYangDataState(table, key)
+	if entries == 0 {
+		t.Fatalf("no requestCache entry for %s|%s", table, key)
+	}
+	if withYangData != 0 {
+		t.Errorf("%d of %d requestCache entries for %s|%s still point to YANG data after full DELETE",
+			withYangData, entries, table, key)
+	}
+}
