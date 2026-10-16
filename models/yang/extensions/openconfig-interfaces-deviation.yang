@@ -49,19 +49,11 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }    
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:oper-status {
-    deviate not-supported;
-  }    
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:last-change {
     deviate not-supported;
   }       
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:type {
-    deviate not-supported;
-  }   
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:ifindex {
     deviate not-supported;
   }   
 
@@ -77,10 +69,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }   
   
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters/oc-intf:in-fcs-errors {
-    deviate not-supported;
-  }   
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:state/oc-intf:counters/oc-intf:carrier-transitions {
     deviate not-supported;
   }
@@ -149,10 +137,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
  
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:state {
-    deviate not-supported;
-  }
- 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:state/oc-ip:origin {
     deviate not-supported;
   }
@@ -207,10 +191,6 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
   
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:state/oc-ip:counters {
-    deviate not-supported;
-  }
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:config/oc-eth:mac-address {
     deviate not-supported;
   }
@@ -220,10 +200,6 @@ module openconfig-interfaces-deviation {
   }
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:config/oc-eth:enable-flow-control {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:mac-address {
     deviate not-supported;
   }
 
@@ -245,22 +221,6 @@ module openconfig-interfaces-deviation {
 
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:negotiated-port-speed {
     deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:config/oc-lag:lag-type {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-type {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:lag-speed {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-lag:aggregation/oc-lag:state/oc-lag:member {
-        deviate not-supported;
   }
   
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-mac-control-frames {
