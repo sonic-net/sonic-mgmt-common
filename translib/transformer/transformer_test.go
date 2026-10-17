@@ -43,18 +43,8 @@ var ygSchema *ytypes.Schema
 var rclientDBNum map[db.DBNum]*redis.Client
 
 func getDBOptions(dbNo db.DBNum, isWriteDisabled bool) db.Options {
-	var opt db.Options
-
-	switch dbNo {
-	case db.ApplDB, db.CountersDB, db.AsicDB, db.FlexCounterDB:
-		opt = getDBOptionsWithSeparator(dbNo, "", ":", ":", isWriteDisabled)
-		break
-	case db.ConfigDB, db.StateDB:
-		opt = getDBOptionsWithSeparator(dbNo, "", "|", "|", isWriteDisabled)
-		break
-	}
-
-	return opt
+	sep := dbNo.Separator()
+	return getDBOptionsWithSeparator(dbNo, "", sep, sep, isWriteDisabled)
 }
 
 func getDBOptionsWithSeparator(dbNo db.DBNum, initIndicator string, tableSeparator string, keySeparator string, isWriteDisabled bool) db.Options {
