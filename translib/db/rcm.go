@@ -58,7 +58,7 @@ func initializeRedisClientManager() {
 	rcm.mu.Lock()
 	defer rcm.mu.Unlock()
 	for dbNum := DBNum(0); dbNum < MaxDB; dbNum++ {
-		if len(getDBInstName(dbNum)) == 0 {
+		if name := getDBInstName(dbNum); name == "" || !isDbInstPresent(name) {
 			continue
 		}
 		// Create a Redis Client for each database.
