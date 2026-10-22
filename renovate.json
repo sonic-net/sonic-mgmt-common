@@ -19,6 +19,7 @@
         "github.com/openconfig/ygot"
       ],
       "groupName": null,
+      "minimumReleaseAge": "7 days",
       "dependencyDashboardApproval": true
     }
   ]
