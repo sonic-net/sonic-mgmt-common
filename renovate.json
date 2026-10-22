@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>sonic-net/sonic-pipelines//renovate/default"],
+  "ignoreDeps": ["go"],
+  "vulnerabilityAlerts": {
+    "groupName": "{{{datasource}}} security updates{{#if (or isMajor (includes (split 'github.com/antchfx/jsonquery github.com/antchfx/xmlquery github.com/antchfx/xpath github.com/golang/glog github.com/openconfig/gnmi github.com/openconfig/goyang github.com/openconfig/ygot' ' ') depName))}} for {{{depName}}}{{/if}}"
+  },
+  "packageRules": [
+    {
+      "description": "Modules patches/apply.sh patches or copies by version. A bump has to refresh the patch, so it opens on its own, and only on dashboard approval. A security update still opens, on its own (see vulnerabilityAlerts above, which repeats this list).",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": [
+        "github.com/antchfx/jsonquery",
+        "github.com/antchfx/xmlquery",
+        "github.com/antchfx/xpath",
+        "github.com/golang/glog",
+        "github.com/openconfig/gnmi",
+        "github.com/openconfig/goyang",
+        "github.com/openconfig/ygot"
+      ],
+      "groupName": null,
+      "dependencyDashboardApproval": true
+    }
+  ]
+}
