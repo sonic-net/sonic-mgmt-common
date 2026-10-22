@@ -91,6 +91,12 @@ stages:
         INCLUDE_TEST_MODELS=y dpkg-buildpackage -rfakeroot -us -uc -b -j$(nproc) && cp ../*.deb .
       displayName: "Build"
 
+    - script: |
+        set -e
+        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -v ./redis_auth
+        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -race -v ./redis_auth
+      displayName: "Redis authentication tests"
+
     - publish: $(System.DefaultWorkingDirectory)/
       artifact: sonic-mgmt-common
       displayName: "Archive artifacts"
