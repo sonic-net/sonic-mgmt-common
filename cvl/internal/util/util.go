@@ -74,6 +74,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/Azure/sonic-mgmt-common/redis_auth"
 	set "github.com/Workiva/go-datastructures/set"
 	"github.com/go-redis/redis/v7"
 	log "github.com/golang/glog"
@@ -741,6 +742,7 @@ func getRedisOptions(dbName string) *redis.Options {
 	opt.Addr = dbAddr
 	opt.Password = GetDbPassword(dbName)
 	opt.DB = GetDbId(dbName)
+	opt.Dialer = redis_auth.WrapDialer(opt.Dialer, opt.DialTimeout, opt.TLSConfig)
 
 	return &opt
 }
