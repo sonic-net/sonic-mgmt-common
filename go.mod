@@ -17,8 +17,8 @@ require (
 	github.com/philopon/go-toposort v0.0.0-20170620085441-9be86dbd762f
 	github.com/pkg/profile v1.7.0
 	github.com/redis/go-redis/v9 v9.6.1
-	golang.org/x/text v0.39.0
-	google.golang.org/grpc v1.82.1
+	golang.org/x/text v0.42.0
+	google.golang.org/grpc v1.83.1
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a
 )
 
@@ -31,13 +31,13 @@ require (
 	github.com/google/pprof v0.0.0-20211214055906-6f57359322fd // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
-	golang.org/x/net v0.53.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-go 1.25.9
+go 1.26.0
 
 // Pin glog to the version that patches/glog.patch is written for.
 // glog v1.2.5 (required by grpc v1.82.1) has restructured the patched code.
