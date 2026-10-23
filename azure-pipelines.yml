@@ -66,6 +66,7 @@ stages:
         sudo sed -ri 's/^# unixsocket/unixsocket/' /etc/redis/redis.conf
         sudo sed -ri 's/^unixsocketperm .../unixsocketperm 777/' /etc/redis/redis.conf
         sudo sed -ri 's/redis-server.sock/redis.sock/' /etc/redis/redis.conf
+        sudo sed -ri 's/^notify-keyspace-events .*/notify-keyspace-events AKE/' /etc/redis/redis.conf
         sudo service redis-server start
 
         # LIBPCRE3 (not in Trixie repos, required by libyang 1.0.73)
@@ -90,6 +91,12 @@ stages:
         ls -l
         INCLUDE_TEST_MODELS=y dpkg-buildpackage -rfakeroot -us -uc -b -j$(nproc) && cp ../*.deb .
       displayName: "Build"
+
+    - script: |
+        set -e
+        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -v ./redis_auth
+        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -race -v ./redis_auth
+      displayName: "Redis authentication tests"
 
     - publish: $(System.DefaultWorkingDirectory)/
       artifact: sonic-mgmt-common
