@@ -16,25 +16,36 @@ fi
 # It is a workaround for 'go mod vendor' not copying all files
 
 [ -z ${GO} ] && GO=go
-[ -z ${GOPATH} ] && GOPATH=$(${GO} env GOPATH)
-PKGPATH=$(echo ${GOPATH} | sed 's/:.*$//g')/pkg/mod
 
-# Copy package files from GOPATH/pkg/mod to vendor
-# $1 = package name, $2 = version, $3... = files
+# Directory and version of a module as the calling module's go.mod selects it,
+# after any replace, so a copy into vendor moves with go.mod
+# $1 = module name
+function mod_dir() {
+    ${GO} mod download $1
+    ${GO} list -mod=mod -m -f '{{.Dir}}' $1
+}
+function mod_version() {
+    ${GO} list -mod=mod -m -f '{{with .Replace}}{{.Version}}{{else}}{{.Version}}{{end}}' $1
+}
+
+# Copy package files from the module cache to vendor
+# $1 = module name, $2... = files
 function copy() {
-    for FILE in "${@:3}"; do
+    local DIR=$(mod_dir $1)
+    [ -n "${DIR}" ] || { echo "Cannot locate module $1"; exit 1; }
+    for FILE in "${@:2}"; do
         rsync -r --chmod=u+w --exclude=testdata --exclude=*_test.go \
-            ${PKGPATH}/$1@$2/${FILE}  ${DEST_DIR}/$1/
+            ${DIR}/${FILE}  ${DEST_DIR}/$1/
     done
 }
 
 set -x
 
-copy github.com/openconfig/ygot v0.7.1 ygen genutil generator
+copy github.com/openconfig/ygot ygen genutil generator
 
-copy github.com/openconfig/goyang v0.0.0-20200309174518-a00bece872fc .
+copy github.com/openconfig/goyang .
 
-copy github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802 .
+copy github.com/openconfig/gnmi .
 
 # Update vendor/modules.txt to include the copied packages
 # This is needed for Go 1.24+ which validates modules.txt even for --mod=vendor
@@ -44,7 +55,7 @@ function update_modules_txt() {
     # Add gnmi module entries if not already present
     if ! grep -q '^github.com/openconfig/gnmi/ctree$' "${modules_file}" 2>/dev/null; then
         echo "" >> "${modules_file}"
-        echo "# github.com/openconfig/gnmi v0.0.0-20200617225440-d2b4e6a45802" >> "${modules_file}"
+        echo "# github.com/openconfig/gnmi $(mod_version github.com/openconfig/gnmi)" >> "${modules_file}"
         echo "## explicit" >> "${modules_file}"
         echo "github.com/openconfig/gnmi/ctree" >> "${modules_file}"
         echo "github.com/openconfig/gnmi/errlist" >> "${modules_file}"
@@ -54,7 +65,7 @@ function update_modules_txt() {
     # Add ygot module entries if not already present
     if ! grep -q '^github.com/openconfig/ygot/ygen$' "${modules_file}" 2>/dev/null; then
         echo "" >> "${modules_file}"
-        echo "# github.com/openconfig/ygot v0.7.1" >> "${modules_file}"
+        echo "# github.com/openconfig/ygot $(mod_version github.com/openconfig/ygot)" >> "${modules_file}"
         echo "## explicit" >> "${modules_file}"
         echo "github.com/openconfig/ygot/genutil" >> "${modules_file}"
         echo "github.com/openconfig/ygot/generator" >> "${modules_file}"

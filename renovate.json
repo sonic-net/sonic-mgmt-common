@@ -3,26 +3,25 @@
   "extends": ["local>sonic-net/sonic-pipelines//renovate/default"],
   "ignoreDeps": ["go"],
   "vulnerabilityAlerts": {
-    "groupName": "{{{datasource}}} security updates{{#if (or isMajor (includes (split 'github.com/antchfx/jsonquery github.com/antchfx/xmlquery github.com/antchfx/xpath github.com/golang/glog github.com/openconfig/gnmi github.com/openconfig/goyang github.com/openconfig/ygot' ' ') depName))}} for {{{depName}}}{{/if}}"
+    "groupName": "{{{datasource}}} security updates{{#if (or isMajor (includes (split 'github.com/antchfx/jsonquery github.com/antchfx/xmlquery github.com/antchfx/xpath github.com/golang/glog github.com/openconfig/goyang github.com/openconfig/ygot' ' ') depName))}} for {{{depName}}}{{/if}}"
   },
   "packageRules": [
     {
-      "description": "Modules patches/apply.sh patches or copies by version. A bump has to refresh the patch, so it opens on its own, and only on dashboard approval. A security update still opens, on its own (see vulnerabilityAlerts above, which repeats this list), and the vendor-pin label keeps the preset from labeling it automerge.",
+      "description": "Modules patches/apply.sh patches in vendor/. A bump has to refresh the patch, so it opens on its own, and only on dashboard approval. A security update still opens, on its own (see vulnerabilityAlerts above, which repeats this list), and the patched-module label keeps the preset from labeling it automerge.",
       "matchManagers": ["gomod"],
       "matchPackageNames": [
         "github.com/antchfx/jsonquery",
         "github.com/antchfx/xmlquery",
         "github.com/antchfx/xpath",
         "github.com/golang/glog",
-        "github.com/openconfig/gnmi",
         "github.com/openconfig/goyang",
         "github.com/openconfig/ygot"
       ],
       "groupName": null,
       "minimumReleaseAge": "7 days",
       "dependencyDashboardApproval": true,
-      "addLabels": ["vendor-pin"],
-      "prBodyNotes": ["This module is also copied into `vendor/` at a pinned version by `patches/apply.sh`, or patched there. Move that pin, and refresh any patch, with this update, or the build keeps the old code. A security update to it is therefore never labeled `automerge`."]
+      "addLabels": ["patched-module"],
+      "prBodyNotes": ["`patches/apply.sh` patches this module in `vendor/`. A patch that still applies may no longer be correct for the new version, so check each one against it. This update is never labeled `automerge`."]
     }
   ]
 }
