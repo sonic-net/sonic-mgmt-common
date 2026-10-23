@@ -7,7 +7,7 @@
   },
   "packageRules": [
     {
-      "description": "Modules patches/apply.sh patches or copies by version. A bump has to refresh the patch, so it opens on its own, and only on dashboard approval. A security update still opens, on its own (see vulnerabilityAlerts above, which repeats this list).",
+      "description": "Modules patches/apply.sh patches or copies by version. A bump has to refresh the patch, so it opens on its own, and only on dashboard approval. A security update still opens, on its own (see vulnerabilityAlerts above, which repeats this list), and the vendor-pin label keeps the preset from labeling it automerge.",
       "matchManagers": ["gomod"],
       "matchPackageNames": [
         "github.com/antchfx/jsonquery",
@@ -20,7 +20,9 @@
       ],
       "groupName": null,
       "minimumReleaseAge": "7 days",
-      "dependencyDashboardApproval": true
+      "dependencyDashboardApproval": true,
+      "addLabels": ["vendor-pin"],
+      "prBodyNotes": ["This module is also copied into `vendor/` at a pinned version by `patches/apply.sh`, or patched there. Move that pin, and refresh any patch, with this update, or the build keeps the old code. A security update to it is therefore never labeled `automerge`."]
     }
   ]
 }
