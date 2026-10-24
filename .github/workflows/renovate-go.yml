@@ -1,0 +1,76 @@
+# Renovate updates go.mod and go.sum here itself, with whatever Go the go
+# directive allows, and go get raises other modules where the update needs it.
+# Two of those changes must not merge with a Renovate PR, so this job fails it:
+#
+# - A change to the go directive. The build container sets the Go version, and
+#   a newer directive fails the build of every repository that uses this one.
+# - A version change to a module renovate.json holds for approval because of
+#   patches/apply.sh, in a PR that is not that module's own update. Its own
+#   update waits for dashboard approval, and its reviewer checks the patches;
+#   a change that arrives with another update would bypass both.
+#
+# Those modules are read from renovate.json: the rule that adds the
+# patched-module label.
+
+name: Renovate go.mod
+
+on:
+  pull_request:
+    branches:
+      - 'master'
+      - '202[0-9][0-9][0-9]'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: >-
+      github.event.pull_request.user.login == 'renovate[bot]' &&
+      startsWith(github.head_ref, 'renovate/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          # The merge base with the base branch shows what the PR changed
+          fetch-depth: 0
+
+      - name: Check go.mod
+        env:
+          BASE: ${{ github.base_ref }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          git show "$(git merge-base HEAD "origin/${BASE}")":go.mod > "${RUNNER_TEMP}/base.mod"
+          # Module versions in a go.mod, with replacements after requirements
+          versions() {
+            awk '
+              /^require \($/ { r = 1; next }
+              /^replace \($/ { p = 1; next }
+              /^\)$/ { r = 0; p = 0; next }
+              r { print $1, $2; next }
+              p { print $1, $(NF); next }
+              /^require / { print $2, $3; next }
+              /^replace / { print $2, $(NF) }
+            ' "$1"
+          }
+          failed=0
+          old=$(sed -n 's/^go //p' "${RUNNER_TEMP}/base.mod")
+          new=$(sed -n 's/^go //p' go.mod)
+          if [ "${old}" != "${new}" ]; then
+            echo "This update raises the go directive from ${old} to ${new}; it needs a newer Go than the build container has" >&2
+            failed=1
+          fi
+          for module in $(jq -r '.packageRules[] | select((.addLabels // []) | index("patched-module")) | .matchPackageNames[]' renovate.json); do
+            # The module's own PR names it in its title
+            case " ${TITLE} " in *" ${module} "*) continue ;; esac
+            before=$(versions "${RUNNER_TEMP}/base.mod" | awk -v m="${module}" '$1 == m { print $2 }' | paste -sd' ')
+            after=$(versions go.mod | awk -v m="${module}" '$1 == m { print $2 }' | paste -sd' ')
+            if [ "${before}" != "${after}" ]; then
+              echo "This update also changes ${module} from ${before:-none} to ${after:-none}; renovate.json holds that module for its own approved update, because of patches/apply.sh" >&2
+              failed=1
+            fi
+          done
+          exit "${failed}"
