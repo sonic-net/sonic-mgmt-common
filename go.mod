@@ -1,7 +1,7 @@
 module github.com/Azure/sonic-mgmt-common
 
 require (
-	github.com/Workiva/go-datastructures v1.0.50
+	github.com/Workiva/go-datastructures v1.0.54
 	github.com/antchfx/jsonquery v1.1.4
 	github.com/antchfx/xmlquery v1.3.1
 	github.com/antchfx/xpath v1.3.6
