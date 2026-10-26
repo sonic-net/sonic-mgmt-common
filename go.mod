@@ -19,6 +19,7 @@ require (
 	github.com/redis/go-redis/v9 v9.6.1
 	golang.org/x/text v0.39.0
 	google.golang.org/grpc v1.82.1
+	gopkg.in/yaml.v2 v2.4.0
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a
 )
 

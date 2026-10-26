@@ -608,6 +608,8 @@ func yangContainerDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map
 					}
 				}
 			}
+		} else if isFirstCall && virtualTbl {
+			fillFields = true
 		}
 	} else {
 		if !spec.hasChildSubTree {
@@ -628,8 +630,16 @@ func yangContainerDelData(xlateParams xlateToParams, dbDataMap *map[db.DBNum]map
 			curXlateParams := xlateParams
 			curXlateParams.uri = chldUri
 			curXlateParams.xpath = chldXpath
-			curXlateParams.tableName = curTbl
-			curXlateParams.keyName = curKey
+			if len(curTbl) == 0 && chldSpec.tableName != nil {
+				curXlateParams.tableName = *chldSpec.tableName
+			} else {
+				curXlateParams.tableName = curTbl
+			}
+			if len(curKey) == 0 && chldSpec.keyName != nil {
+				curXlateParams.keyName = *chldSpec.keyName
+			} else {
+				curXlateParams.keyName = curKey
+			}
 			curXlateParams.parentXpath = xlateParams.xpath
 			if curXlateParams.replaceInfo != nil {
 				if curXlateParams.replaceInfo.skipFieldSiblingTraversalForDelete == nil {
