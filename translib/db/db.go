@@ -160,6 +160,16 @@ func (dbNo DBNum) ID() int {
 	return getDbId(name)
 }
 
+// Separator returns the separator configured for this DBNum in the DB config
+// file, or "" if the DB is not present in it.
+func (dbNo DBNum) Separator() string {
+	name := getDBInstName(dbNo)
+	if len(name) == 0 || !isDbInstPresent(name) {
+		return ""
+	}
+	return getDbSeparator(name)
+}
+
 // Options gives parameters for opening the redis client.
 type Options struct {
 	DBNo               DBNum
@@ -401,6 +411,18 @@ func NewDB(opt Options) (*DB, error) {
 
 	if glog.V(3) {
 		glog.Info("NewDB: Begin: opt: ", opt)
+	}
+
+	// The separators are always taken from the DB config file.
+	if sep := opt.DBNo.Separator(); sep != "" {
+		if len(opt.TableNameSeparator) > 0 && opt.TableNameSeparator != sep {
+			glog.Warningf("TableNameSeparator '%v' in"+
+				" the Options is different from the"+
+				" one configured in the Db config. file for the"+
+				" Db name %v", opt.TableNameSeparator, opt.DBNo.Name())
+		}
+		opt.TableNameSeparator = sep
+		opt.KeySeparator = sep
 	}
 
 	// Time Start
