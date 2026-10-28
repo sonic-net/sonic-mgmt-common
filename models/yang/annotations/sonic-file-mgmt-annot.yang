@@ -1,0 +1,15 @@
+module sonic-file-mgmt-annot {
+	yang-version "1";
+
+	namespace "http://openconfig.net/Azure/sonic-file-mgmt-annot";
+	prefix "sfilemgmt-annot";
+
+	import sonic-extensions { prefix sonic-ext; }
+	import sonic-file-mgmt { prefix sfilemgmt; }
+
+	deviation /sfilemgmt:remove {
+		deviate add {
+			sonic-ext:rpc-callback "rpc_file_remove_cb";
+		}
+	}
+}
