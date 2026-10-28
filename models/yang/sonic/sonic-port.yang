@@ -13,7 +13,12 @@ module sonic-port {
 		"SONiC";
 
 	description
-		"SONIC VLAN";
+		"SONIC PORT";
+
+	revision 2021-03-15 {
+		description
+			"Added fec.";
+	}
 
 	revision 2019-05-15 {
 		description
@@ -87,6 +92,15 @@ module sonic-port {
 					type cmn:admin-status;
 					default "down";
 				}
+
+                                leaf fec {
+                                        type string {
+                                                pattern "(none|rs|fc)" {
+                                                        error-message "Invalid interface FEC mode";
+                                                        error-app-tag fec-mode-invalid;
+                                                }
+                                        }
+                                }
 			}
 		}
 	}
