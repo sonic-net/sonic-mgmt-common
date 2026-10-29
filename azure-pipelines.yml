@@ -28,9 +28,10 @@ stages:
   - job:
     displayName: "Build"
     timeoutInMinutes: 60
+    workspace:
+      clean: all
 
-    pool:
-      vmImage: ubuntu-latest
+    pool: sonic-ubuntu-1c
 
     container:
       image: sonicdev-microsoft.azurecr.io:443/sonic-slave-trixie:latest
