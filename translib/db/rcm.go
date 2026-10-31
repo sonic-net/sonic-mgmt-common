@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Azure/sonic-mgmt-common/redis_auth"
 	log "github.com/golang/glog"
 	"github.com/redis/go-redis/v9"
 )
@@ -57,7 +58,7 @@ func initializeRedisClientManager() {
 	rcm.mu.Lock()
 	defer rcm.mu.Unlock()
 	for dbNum := DBNum(0); dbNum < MaxDB; dbNum++ {
-		if len(getDBInstName(dbNum)) == 0 {
+		if name := getDBInstName(dbNum); name == "" || !isDbInstPresent(name) {
 			continue
 		}
 		// Create a Redis Client for each database.
@@ -65,10 +66,16 @@ func initializeRedisClientManager() {
 	}
 }
 
+func authenticatedRedisClient(opts *redis.Options) *redis.Client {
+	copy := *opts
+	copy.Dialer = redis_auth.WrapDialer(copy.Dialer, copy.DialTimeout, copy.TLSConfig)
+	return redis.NewClient(&copy)
+}
+
 func createRedisClient(db DBNum, poolSize int) *redis.Client {
 	opts := adjustRedisOpts(&Options{DBNo: db})
 	opts.PoolSize = poolSize
-	client := redis.NewClient(opts)
+	client := authenticatedRedisClient(opts)
 	if _, err := client.Ping(context.Background()).Result(); err != nil {
 		log.V(0).Infof("RCM error during Redis Client creation for DBNum=%v: %v", db, err)
 	}
@@ -76,7 +83,7 @@ func createRedisClient(db DBNum, poolSize int) *redis.Client {
 }
 
 func createRedisClientWithOpts(opts *redis.Options) *redis.Client {
-	client := redis.NewClient(opts)
+	client := authenticatedRedisClient(opts)
 	if _, err := client.Ping(context.Background()).Result(); err != nil {
 		log.V(0).Infof("RCM error during Redis Client creation for DBNum=%v: %v", opts.DB, err)
 	}
