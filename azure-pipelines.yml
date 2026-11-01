@@ -64,7 +64,8 @@ stages:
         sudo service redis-server start
 
         # LIBYANG
-        sudo dpkg -i ../target/debs/bookworm/libyang*1.0.73*.deb
+        sudo dpkg -i ../target/debs/bookworm/libyang3_*.deb \
+                     ../target/debs/bookworm/libyang-dev_3*.deb
       displayName: "Install dependency"
 
     - script: |

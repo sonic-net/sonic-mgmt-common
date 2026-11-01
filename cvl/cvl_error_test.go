@@ -67,18 +67,24 @@ func expandMessagePatterns(ex *CVLErrorInfo) {
 		ex.Msg = strings.ReplaceAll(ex.Msg, "{{field}}", ex.Field)
 		ex.Msg = strings.ReplaceAll(ex.Msg, "{{value}}", ex.Value)
 		ex.Msg = strings.TrimSuffix(ex.Msg, " \"\"") // if value is empty
+	case invalidValueNoValueErrMessage:
+		ex.Msg = strings.ReplaceAll(ex.Msg, "{{field}}", ex.Field)
 	case unknownFieldErrMessage:
+		ex.Msg = strings.ReplaceAll(ex.Msg, "{{field}}", ex.Field)
+	case missingKeyErrMessage:
 		ex.Msg = strings.ReplaceAll(ex.Msg, "{{field}}", ex.Field)
 	}
 }
 
 const (
-	invalidValueErrMessage   = "Field \"{{field}}\" has invalid value \"{{value}}\""
-	unknownFieldErrMessage   = "Unknown field \"{{field}}\""
-	genericValueErrMessage   = "Data validation failed"
-	mustExpressionErrMessage = "Must expression validation failed"
-	whenExpressionErrMessage = "When expression validation failed"
-	instanceInUseErrMessage  = "Validation failed for Delete operation, given instance is in use"
+	invalidValueErrMessage        = "Field \"{{field}}\" has invalid value \"{{value}}\""
+	invalidValueNoValueErrMessage = "Field \"{{field}}\" has invalid value"
+	unknownFieldErrMessage        = "Unknown field \"{{field}}\""
+	genericValueErrMessage        = "Data validation failed"
+	mustExpressionErrMessage      = "Must expression validation failed"
+	whenExpressionErrMessage      = "When expression validation failed"
+	instanceInUseErrMessage       = "Validation failed for Delete operation, given instance is in use"
+	missingKeyErrMessage          = "Missing Key \"{{field}}\"."
 )
 
 func verifyValidateEditConfig(t *testing.T, data []CVLEditConfigData, exp CVLErrorInfo) {
