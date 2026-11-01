@@ -1,10 +1,11 @@
-package redis_auth
+package nativeconn_test
 
 import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/sonic-net/sonic-swss-common/goext/redisconn"
 	"net"
 	"os"
 	"path/filepath"
@@ -35,7 +36,7 @@ func TestUnselectedTLSConfigPreserved(t *testing.T) {
 			}
 			configuration := &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12, SessionTicketsDisabled: true}
 			forwarded := configuration
-			var existing DialFunc
+			var existing redisconn.DialFunc
 			calls := 0
 			if customDialer {
 				dialer := &tls.Dialer{NetDialer: &net.Dialer{Timeout: time.Second}, Config: configuration}
@@ -47,7 +48,7 @@ func TestUnselectedTLSConfigPreserved(t *testing.T) {
 			}
 			address := net.JoinHostPort("127.0.0.1", fmt.Sprint(f.port))
 			v7Options := &redis7.Options{Addr: address, DB: 6, TLSConfig: forwarded, DialTimeout: time.Second}
-			v7Options.Dialer = WrapDialer(existing, v7Options.DialTimeout, v7Options.TLSConfig)
+			v7Options.Dialer = redisconn.WrapDialer(existing, v7Options.DialTimeout, v7Options.TLSConfig)
 			v7 := redis7.NewClient(v7Options)
 			defer v7.Close()
 			if err := v7.Ping().Err(); err != nil {
@@ -58,7 +59,7 @@ func TestUnselectedTLSConfigPreserved(t *testing.T) {
 			}
 			ctx := context.Background()
 			v9Options := &redis9.Options{Addr: address, DB: 6, TLSConfig: forwarded, DialTimeout: time.Second}
-			v9Options.Dialer = WrapDialer(existing, v9Options.DialTimeout, v9Options.TLSConfig)
+			v9Options.Dialer = redisconn.WrapDialer(existing, v9Options.DialTimeout, v9Options.TLSConfig)
 			v9 := redis9.NewClient(v9Options)
 			defer v9.Close()
 			if err := v9.Ping(ctx).Err(); err != nil {

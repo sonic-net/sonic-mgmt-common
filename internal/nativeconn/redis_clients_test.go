@@ -1,7 +1,8 @@
-package redis_auth
+package nativeconn_test
 
 import (
 	"context"
+	"github.com/sonic-net/sonic-swss-common/goext/redisconn"
 	"strings"
 	"testing"
 	"time"
@@ -14,9 +15,9 @@ func TestGoRedisV7AndV9Reconnect(t *testing.T) {
 	f := setup(t, false)
 	address := f.socket
 	ctx := context.Background()
-	v7 := redis7.NewClient(&redis7.Options{Network: "unix", Addr: address, DB: 6, Dialer: WrapDialer(nil, time.Second, nil)})
+	v7 := redis7.NewClient(&redis7.Options{Network: "unix", Addr: address, DB: 6, Dialer: redisconn.WrapDialer(nil, time.Second, nil)})
 	defer v7.Close()
-	v9 := redis9.NewClient(&redis9.Options{Network: "unix", Addr: address, DB: 6, Dialer: WrapDialer(nil, time.Second, nil)})
+	v9 := redis9.NewClient(&redis9.Options{Network: "unix", Addr: address, DB: 6, Dialer: redisconn.WrapDialer(nil, time.Second, nil)})
 	defer v9.Close()
 	if err := v7.Set("version-seven", "value", 0).Err(); err != nil {
 		t.Fatal(err)
@@ -40,7 +41,7 @@ func TestGoRedisV7AndV9Reconnect(t *testing.T) {
 	if _, err := sub.ReceiveTimeout(time.Second); err != nil {
 		t.Fatal(err)
 	}
-	control, err := WrapDialer(nil, time.Second, nil)(ctx, "unix", address)
+	control, err := redisconn.WrapDialer(nil, time.Second, nil)(ctx, "unix", address)
 	if err != nil {
 		t.Fatal(err)
 	}

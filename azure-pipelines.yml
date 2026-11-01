@@ -22,6 +22,14 @@ variables:
     ${{ else }}:
       value: $(Build.SourceBranchName)
 
+resources:
+  repositories:
+  - repository: sonic-swss-common
+    type: github
+    name: sonic-net/sonic-swss-common
+    endpoint: sonic-net
+    ref: refs/heads/$(BUILD_BRANCH)
+
 stages:
 - stage: Build
   jobs:
@@ -40,7 +48,13 @@ stages:
     - checkout: self
       clean: true
       submodules: recursive
+      path: s
       displayName: 'Checkout code'
+
+    - checkout: sonic-swss-common
+      clean: true
+      path: sonic-swss-common
+      displayName: 'Checkout native Redis binding'
 
     - task: DownloadPipelineArtifact@2
       inputs:
@@ -57,6 +71,8 @@ stages:
             target/debs/trixie/libpcrecpp0v5_*.deb
             target/debs/trixie/libpcre3-dev_*.deb
             target/debs/trixie/libyang*.deb
+            target/debs/trixie/libswsscommon_*.deb
+            target/debs/trixie/libswsscommon-dev_*.deb
             target/python-wheels/trixie/sonic_yang_models*.whl
       displayName: "Download sonic buildimage"
 
@@ -82,6 +98,10 @@ stages:
         # LIBYANG
         sudo dpkg -i ../target/debs/trixie/libyang3_*.deb \
                      ../target/debs/trixie/libyang-dev_3*.deb
+
+        # Native Redis binding headers and library must match the selected source.
+        sudo dpkg -i ../target/debs/trixie/libswsscommon_*.deb \
+                     ../target/debs/trixie/libswsscommon-dev_*.deb
       displayName: "Install dependency"
 
     - script: |
@@ -95,8 +115,8 @@ stages:
 
     - script: |
         set -e
-        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -v ./redis_auth
-        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -race -v ./redis_auth
+        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -v ./internal/nativeconn
+        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -race -v ./internal/nativeconn
       displayName: "Redis authentication tests"
 
     - publish: $(System.DefaultWorkingDirectory)/

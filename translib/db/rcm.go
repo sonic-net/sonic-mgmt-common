@@ -7,9 +7,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Azure/sonic-mgmt-common/redis_auth"
 	log "github.com/golang/glog"
 	"github.com/redis/go-redis/v9"
+	"github.com/sonic-net/sonic-swss-common/goext/redisconn"
 )
 
 var usePools = flag.Bool("use_connection_pools", false, "use connection pools for Redis Clients")
@@ -68,7 +68,7 @@ func initializeRedisClientManager() {
 
 func authenticatedRedisClient(opts *redis.Options) *redis.Client {
 	copy := *opts
-	copy.Dialer = redis_auth.WrapDialer(copy.Dialer, copy.DialTimeout, copy.TLSConfig)
+	copy.Dialer = redisconn.WrapDialer(copy.Dialer, copy.DialTimeout, copy.TLSConfig)
 	return redis.NewClient(&copy)
 }
 
