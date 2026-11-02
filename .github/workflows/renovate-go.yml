@@ -1,13 +1,12 @@
-# Renovate updates go.mod and go.sum here itself, with whatever Go the go
-# directive allows, and go get raises other modules where the update needs it.
-# Two of those changes must not merge with a Renovate PR, so this job fails it:
+# Renovate updates go.mod and go.sum here itself, and go get raises other
+# modules where the update needs it. This job fails a Renovate PR that changes
+# the version of a module renovate.json holds for approval because of
+# patches/apply.sh, when the PR is not that module's own update. Its own update
+# waits for dashboard approval, and its reviewer checks the patches; a change
+# that arrives with another update would bypass both.
 #
-# - A change to the go directive. The build container sets the Go version, and
-#   a newer directive fails the build of every repository that uses this one.
-# - A version change to a module renovate.json holds for approval because of
-#   patches/apply.sh, in a PR that is not that module's own update. Its own
-#   update waits for dashboard approval, and its reviewer checks the patches;
-#   a change that arrives with another update would bypass both.
+# A raised go directive is left to azure-pipelines.yml, which builds with the
+# build container's Go and never downloads one.
 #
 # Those modules are read from renovate.json: the rule that adds the
 # patched-module label.
@@ -57,12 +56,6 @@ jobs:
             ' "$1"
           }
           failed=0
-          old=$(sed -n 's/^go //p' "${RUNNER_TEMP}/base.mod")
-          new=$(sed -n 's/^go //p' go.mod)
-          if [ "${old}" != "${new}" ]; then
-            echo "This update raises the go directive from ${old} to ${new}; it needs a newer Go than the build container has" >&2
-            failed=1
-          fi
           for module in $(jq -r '.packageRules[] | select((.addLabels // []) | index("patched-module")) | .matchPackageNames[]' renovate.json); do
             # The module's own PR names it in its title
             case " ${TITLE} " in *" ${module} "*) continue ;; esac
