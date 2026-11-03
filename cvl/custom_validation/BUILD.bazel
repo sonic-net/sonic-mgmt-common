@@ -1,0 +1,17 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "custom_validation",
+    srcs = [
+        "common.go",
+        "test_validations.go",
+    ],
+    importpath = "github.com/Azure/sonic-mgmt-common/cvl/custom_validation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cvl/common",
+        "//cvl/internal/util",
+        "//cvl/internal/yparser",
+        "@com_github_antchfx_xmlquery//:xmlquery",
+    ],
+)

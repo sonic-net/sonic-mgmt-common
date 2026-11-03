@@ -1,0 +1,114 @@
+name: Bazel management-common
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Management-common source and TARs (AMD64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container: debian:trixie-20260918@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d2827a004585c
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install execution tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends binutils binutils-gold build-essential ca-certificates curl git patch pkg-config python3 tar unzip zstd
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
+        with:
+          bazelisk-version: 1.29.0
+          bazelisk-cache: true
+          repository-cache: true
+          disk-cache: management-common-amd64
+          cache-version: "8.5.1"
+      - name: Use the maintained registry and shared caches
+        run: |
+          # Use the committed registry configuration for both source roots.
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('.bazelrc').read_text()
+          # Reuse setup-bazel's caches while keeping distinct output bases
+          # for the owner and the separate consumer workspace.
+          cache_lines = [line for line in (Path.home() / '.bazelrc').read_text().splitlines()
+                         if line.startswith(('build --disk_cache=', 'common --repository_cache='))]
+          assert len(cache_lines) == 2, 'Expected the configured disk and repository caches'
+          Path('/tmp/mgmt-ci.bazelrc').write_text(source + '\n' + '\n'.join(cache_lines) + '\n')
+          PY
+          echo 'BAZEL_COMMAND=bazel --nosystem_rc --nohome_rc --noworkspace_rc --bazelrc=/tmp/mgmt-ci.bazelrc' >> "$GITHUB_ENV"
+      - name: Build source libraries and verify schema invalidation
+        id: incremental
+        env:
+          BAZELISK_GITHUB_TOKEN: ""
+        run: |
+          test "$(uname -m)" = x86_64
+          test "$(. /etc/os-release; echo "$VERSION_CODENAME")" = trixie
+          $BAZEL_COMMAND test //dist:bindings_repro_test
+          python3 tools/bazel/check_incremental.py
+      - name: Run source tests and installed TAR contracts
+        id: source_tests
+        env:
+          BAZELISK_GITHUB_TOKEN: ""
+        run: |
+          $BAZEL_COMMAND test --local_test_jobs=2 \
+            //cvl:cvl_test //translib:translib_test //translib/db:db_test \
+            //translib/cs:cs_test //translib/path:path_test \
+            //translib/platform:platform_test //translib/internal/apis:apis_test \
+            //translib/ocbinds:ocbinds_test //translib/transformer:transformer_test \
+            //dist:runtime_test //dist:codegen_contract_test //dist:schema_lint_test //dist:bindings_repro_test
+      - name: Run transformer tests with their declared test models
+        id: transformer_tests
+        env:
+          BAZELISK_GITHUB_TOKEN: ""
+        run: |
+          $BAZEL_COMMAND test --config=xfmr \
+            //translib/transformer:transformer_model_test
+          # Keep production payloads as the published artifacts.
+          $BAZEL_COMMAND build //dist:runtime //dist:codegen
+          git -c safe.directory="$GITHUB_WORKSPACE" diff --exit-code
+      - name: Compile a separate consumer of the public owner targets
+        id: consumer
+        env:
+          BAZELISK_GITHUB_TOKEN: ""
+        run: |
+          cd tests/consumer
+          $BAZEL_COMMAND build --override_module="sonic-mgmt-common=$GITHUB_WORKSPACE" \
+            //:consumer @sonic_mgmt_common//dist:runtime \
+            2>&1 | tee "$GITHUB_WORKSPACE/bazel-evidence/consumer.log"
+          $BAZEL_COMMAND test --override_module="sonic-mgmt-common=$GITHUB_WORKSPACE" \
+            @sonic_mgmt_common//dist:runtime_test \
+            2>&1 | tee "$GITHUB_WORKSPACE/bazel-evidence/consumer-runtime-test.log"
+          runtime_path="$($BAZEL_COMMAND cquery --override_module="sonic-mgmt-common=$GITHUB_WORKSPACE" @sonic_mgmt_common//dist:runtime --output=files)"
+          cmp -- "$runtime_path" "$GITHUB_WORKSPACE/bazel-evidence/runtime.tar"
+          sha256sum "$runtime_path" > "$GITHUB_WORKSPACE/bazel-evidence/consumer-runtime.sha256"
+          sha256sum bazel-bin/consumer_/consumer > "$GITHUB_WORKSPACE/bazel-evidence/consumer.sha256"
+          cp MODULE.bazel.lock "$GITHUB_WORKSPACE/bazel-evidence/consumer-MODULE.bazel.lock"
+      - name: Retain exact payloads and test evidence
+        if: always()
+        env:
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_INCREMENTAL_RESULT: ${{ steps.incremental.outcome }}
+          CI_DEFAULT_TEST_RESULT: ${{ steps.source_tests.outcome }}
+          CI_XFMR_TEST_RESULT: ${{ steps.transformer_tests.outcome }}
+          CI_CONSUMER_RESULT: ${{ steps.consumer.outcome }}
+        run: python3 tools/bazel/collect_evidence.py
+      - name: Upload source and TAR evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sonic-mgmt-common-amd64
+          path: bazel-evidence
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 1

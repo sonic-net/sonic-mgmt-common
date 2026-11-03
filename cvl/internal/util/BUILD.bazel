@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "util",
+    srcs = [
+        "luascript_util.go",
+        "util.go",
+    ],
+    cdeps = ["@libyang//:libyang"],
+    cgo = True,
+    importpath = "github.com/Azure/sonic-mgmt-common/cvl/internal/util",
+    visibility = ["//cvl:__subpackages__"],
+    deps = [
+        "@com_github_go_redis_redis_v7//:redis",
+        "@com_github_golang_glog//:glog",
+        "@com_github_workiva_go_datastructures//set",
+    ],
+)

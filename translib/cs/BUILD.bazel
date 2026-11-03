@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("//tools/bazel:redis_test.bzl", "redis_go_test")
+
+go_library(
+    name = "cs",
+    srcs = [
+        "cs.go",
+        "cs_abort.go",
+        "cs_commit.go",
+        "cs_cphist.go",
+        "cs_ds.go",
+        "cs_exit.go",
+        "cs_getdb.go",
+        "cs_kill.go",
+        "cs_mesg.go",
+        "cs_session.go",
+        "cs_start.go",
+        "cs_status.go",
+        "cs_tx.go",
+    ],
+    importpath = "github.com/Azure/sonic-mgmt-common/translib/cs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//translib/db",
+        "//translib/tlerr",
+        "//translib/transformer",
+        "@com_github_golang_glog//:glog",
+    ],
+)
+
+redis_go_test(
+    name = "cs_test",
+    srcs = [
+        "cs_session_test.go",
+        "cs_test.go",
+    ],
+    embed = [":cs"],
+    deps = ["//translib/db"],
+)

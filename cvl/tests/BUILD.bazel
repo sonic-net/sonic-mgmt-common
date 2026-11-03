@@ -1,0 +1,24 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "tests_lib",
+    srcs = [
+        "cfg_validator.go",
+        "cv_acl.go",
+        "cv_edit_op.go",
+        "cv_vlan.go",
+    ],
+    importpath = "github.com/Azure/sonic-mgmt-common/cvl/tests",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cvl",
+        "@com_github_go_redis_redis_v7//:redis",
+        "@com_github_pkg_profile//:profile",
+    ],
+)
+
+go_binary(
+    name = "tests",
+    embed = [":tests_lib"],
+    visibility = ["//visibility:public"],
+)

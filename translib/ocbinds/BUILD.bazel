@@ -1,0 +1,45 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("//tools/bazel:models.bzl", "ocbinds")
+
+ocbinds(
+    name = "generated_bindings",
+    generator = "@com_github_openconfig_ygot//generator",
+    models = "//models/yang:prepared_models",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "ocbinds",
+    srcs = [
+        "emitjson.go",
+        "emitjson_select.go",
+        "emitjson_sort.go",
+        "schema.go",
+        ":generated_bindings",  # keep
+    ],
+    importpath = "github.com/Azure/sonic-mgmt-common/translib/ocbinds",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_golang_glog//:glog",
+        "@com_github_maruel_natural//:natural",
+        "@com_github_openconfig_goyang//pkg/yang",
+        "@com_github_openconfig_ygot//ygot",
+        "@com_github_openconfig_ygot//ytypes",
+    ],
+)
+
+go_test(
+    name = "ocbinds_test",
+    srcs = [
+        "emitjson_sort_test.go",
+        "emitjson_test.go",
+    ],
+    args = ["-test.v"],
+    data = glob(["testdata/**"]),
+    embed = [":ocbinds"],
+    deps = [
+        "@com_github_openconfig_gnmi//proto/gnmi",
+        "@com_github_openconfig_ygot//ygot",
+        "@com_github_openconfig_ygot//ytypes",
+    ],
+)

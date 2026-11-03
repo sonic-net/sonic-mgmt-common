@@ -1,0 +1,78 @@
+module(name = "management_common_consumer")
+
+bazel_dep(name = "sonic-mgmt-common", version = "1.0.0", repo_name = "sonic_mgmt_common")
+bazel_dep(name = "gazelle", version = "0.54.0")
+bazel_dep(name = "rules_go", version = "0.64.1-sonic.1", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "sonic-build-infra", version = "0.0.25-17a1e555291c64be1a6ff008f33352bffc4f8e5c", repo_name = "sonic_build_infra")
+
+single_version_override(
+    module_name = "rules_go",
+    version = "0.64.1-sonic.1",
+)
+
+single_version_override(
+    module_name = "tar.bzl",
+    version = "0.10.5-sonic.1",
+)
+
+go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+go_deps.from_file(go_mod = "//:go.mod")
+
+# The consuming root selects the owner's existing SONiC Go patches. Public
+# libraries and their consumers share one Go graph and the same Go types.
+go_deps.gazelle_override(
+    directives = ["gazelle:proto disable_global"],
+    path = "github.com/openconfig/gnmi",
+)
+
+# These are the existing Make/vendor patches, applied to isolated dependency
+# repositories. Build actions never modify go.mod, vendor, or the checkout.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = [
+        "@sonic_mgmt_common//patches:ygot/ygot.patch",
+        "@sonic_mgmt_common//patches:0001-ygot-declare-patched-value-dependency.patch",
+        "@sonic_mgmt_common//patches:0003-ygot-preserve-union-enum-order.patch",
+    ],
+    path = "github.com/openconfig/ygot",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = [
+        "@sonic_mgmt_common//patches:goyang/goyang.patch",
+        "@sonic_mgmt_common//patches:0002-goyang-preserve-declared-schema-order.patch",
+    ],
+    path = "github.com/openconfig/goyang",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["@sonic_mgmt_common//patches:jsonquery.patch"],
+    path = "github.com/antchfx/jsonquery",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["@sonic_mgmt_common//patches:xmlquery.patch"],
+    path = "github.com/antchfx/xmlquery",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["@sonic_mgmt_common//patches:xpath.patch"],
+    path = "github.com/antchfx/xpath",
+)
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["@sonic_mgmt_common//patches:glog.patch"],
+    path = "github.com/golang/glog",
+)
+
+# Match the owner generators and source toolchain in this consuming root.
+bazel_dep(name = "rules_python", version = "1.9.0")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    is_default = True,
+    python_version = "3.13",
+)
+
+go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.download(version = "1.25.9")

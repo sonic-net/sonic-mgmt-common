@@ -1,0 +1,14 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "yparser",
+    srcs = [
+        "ly_path.go",
+        "yparser.go",
+    ],
+    cdeps = ["@libyang//:libyang"],
+    cgo = True,
+    importpath = "github.com/Azure/sonic-mgmt-common/cvl/internal/yparser",
+    visibility = ["//cvl:__subpackages__"],
+    deps = ["//cvl/internal/util"],
+)

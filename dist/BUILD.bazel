@@ -1,0 +1,136 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+load("@tar.bzl", "mutate", "tar")
+load("//tools/bazel:models.bzl", "codegen_tree", "cvl_schema", "model_docs", "runtime_tree")
+
+package(default_visibility = ["//visibility:public"])
+
+py_test(
+    name = "bindings_repro_test",
+    srcs = ["bindings_repro_test.py"],
+    args = [
+        "$(location //tools/bazel:generate_ocbinds)",
+        "$(location @com_github_openconfig_ygot//generator)",
+        "$(location //models/yang:prepared_models)",
+    ],
+    data = [
+        "//models/yang:prepared_models",
+        "//tools/bazel:generate_ocbinds",
+        "@com_github_openconfig_ygot//generator",
+    ],
+)
+
+cvl_schema(
+    name = "schema",
+    models = "//models/yang:prepared_models",
+)
+
+cvl_schema(
+    name = "test_schema",
+    testonly = True,
+    models = "//models/yang:prepared_models",
+    test_sources = ["//cvl:test_schema_sources"],
+)
+
+runtime_tree(
+    name = "runtime_tree",
+    config = "//cvl/conf:cvl_cfg.json",
+    models = "//models/yang:prepared_models",
+    models_list = "//config/transformer:models_list",
+    schema = ":schema",
+    test_sources = select({
+        "//:with_test_models": ["//translib/transformer:test_models"],
+        "//conditions:default": [],
+    }),
+    version = "//models/yang:version.xml",
+)
+
+tar(
+    name = "runtime",
+    srcs = [":runtime_tree"],
+    compress = "",
+    mutate = mutate(
+        includes = [":data_modes.awk"],
+        strip_prefix = "dist/runtime_tree",
+    ),
+)
+
+py_test(
+    name = "runtime_test",
+    srcs = ["runtime_test.py"],
+    args = [
+        "$(location :runtime)",
+        "$(location //models/yang:prepared_models)",
+        "$(location :schema)",
+        "$(location //debian:sonic-mgmt-common.install)",
+        "$(location //config/transformer:models_list)",
+        "$(location //models/yang:version.xml)",
+        "$(location //cvl/conf:cvl_cfg.json)",
+    ],
+    data = [
+        ":runtime",
+        ":schema",
+        "//config/transformer:models_list",
+        "//cvl/conf:cvl_cfg.json",
+        "//debian:sonic-mgmt-common.install",
+        "//models/yang:prepared_models",
+        "//models/yang:version.xml",
+    ],
+)
+
+model_docs(
+    name = "model_docs",
+    models = "//models/yang:prepared_models",
+)
+
+codegen_tree(
+    name = "codegen_tree",
+    bindings = "//translib/ocbinds:generated_bindings",
+    docs = [":model_docs"],
+    models = "//models/yang:prepared_models",
+)
+
+tar(
+    name = "codegen",
+    srcs = [":codegen_tree"],
+    compress = "",
+    mutate = mutate(
+        includes = [":data_modes.awk"],
+        strip_prefix = "dist/codegen_tree",
+    ),
+)
+
+py_test(
+    name = "schema_lint_test",
+    srcs = ["schema_lint_test.py"],
+    args = [
+        "$(location //tools/pyang:lint_tool)",
+        "$(location //models/yang:prepared_models)",
+        "$(location //models/yang:lint_ignore.ocstyle)",
+        "$(location //models/yang:lint_ignore.ietf)",
+    ],
+    data = [
+        "//models/yang:lint_ignore.ietf",
+        "//models/yang:lint_ignore.ocstyle",
+        "//models/yang:prepared_models",
+        "//tools/pyang:lint_tool",
+    ],
+)
+
+py_test(
+    name = "codegen_contract_test",
+    srcs = ["codegen_contract_test.py"],
+    args = [
+        "$(location :codegen)",
+        "$(location //translib/ocbinds:generated_bindings)",
+        "$(location //models/yang:prepared_models)",
+        "$(location //debian:sonic-mgmt-common-codegen.install)",
+        "$(locations :model_docs)",
+    ],
+    data = [
+        ":codegen",
+        ":model_docs",
+        "//debian:sonic-mgmt-common-codegen.install",
+        "//models/yang:prepared_models",
+        "//translib/ocbinds:generated_bindings",
+    ],
+)

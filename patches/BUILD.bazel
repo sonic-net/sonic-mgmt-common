@@ -1,0 +1,5 @@
+# Existing owner-maintained patches are shared by Make and Bazel preparation.
+exports_files(glob([
+    "*.patch",
+    "*/*.patch",
+]))

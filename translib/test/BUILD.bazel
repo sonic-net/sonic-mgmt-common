@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "test_lib",
+    srcs = ["translibtest.go"],
+    importpath = "github.com/Azure/sonic-mgmt-common/translib/test",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//translib",
+        "@com_github_golang_glog//:glog",
+        "@com_github_workiva_go_datastructures//queue",
+    ],
+)
+
+go_binary(
+    name = "test",
+    embed = [":test_lib"],
+    visibility = ["//visibility:public"],
+)

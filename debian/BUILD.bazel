@@ -1,0 +1,4 @@
+exports_files([
+    "sonic-mgmt-common.install",
+    "sonic-mgmt-common-codegen.install",
+])
