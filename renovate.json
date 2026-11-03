@@ -22,7 +22,7 @@
       "minimumReleaseAge": "7 days",
       "dependencyDashboardApproval": true,
       "addLabels": ["patched-module"],
-      "prBodyNotes": ["`patches/apply.sh` patches this module in `vendor/`, or, for `openconfig/gnmi`, the goyang and ygot it requires. A patch that still applies may no longer be correct for the new version, so check each one against it. This update is never labeled `automerge`."]
+      "prBodyNotes": ["`patches/apply.sh` patches this module in `vendor/`, or, for `openconfig/gnmi`, the goyang and ygot it requires. A patch that still applies may no longer be correct for the new version, so check each one against it. The update can also move other modules `patches/apply.sh` patches; check theirs too. This update is never labeled `automerge`."]
     }
   ]
 }
