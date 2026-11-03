@@ -1,0 +1,11 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+py_binary(
+    name = "generate_yin",
+    srcs = ["generate_yin.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@mgmt_pip//pyang",
+        "@mgmt_pip//setuptools",
+    ],
+)

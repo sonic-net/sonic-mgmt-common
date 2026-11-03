@@ -1,0 +1,74 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("//tools/bazel:redis_test.bzl", "redis_go_test")
+
+alias(
+    name = "test_fixture_marker",
+    actual = "testdata/config_db.json",
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "test_schema_sources",
+    srcs = glob(["testdata/schema/*.yang"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "test_fixtures",
+    srcs = glob(["testdata/*.json"]),
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "cvl",
+    srcs = [
+        "cvl.go",
+        "cvl_api.go",
+        "cvl_cache.go",
+        "cvl_hint.go",
+        "cvl_luascript.go",
+        "cvl_semantics.go",
+        "cvl_syntax.go",
+    ],
+    importpath = "github.com/Azure/sonic-mgmt-common/cvl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cvl/common",
+        "//cvl/custom_validation",
+        "//cvl/internal/util",
+        "//cvl/internal/yparser",
+        "@com_github_antchfx_jsonquery//:jsonquery",
+        "@com_github_antchfx_xmlquery//:xmlquery",
+        "@com_github_antchfx_xpath//:xpath",
+        "@com_github_go_redis_redis_v7//:redis",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_philopon_go_toposort//:go-toposort",
+    ],
+)
+
+redis_go_test(
+    name = "cvl_test",
+    srcs = [
+        "cvl_cust_validation_test.go",
+        "cvl_error_test.go",
+        "cvl_hint_test.go",
+        "cvl_leaflist_test.go",
+        "cvl_leafref_test.go",
+        "cvl_must_test.go",
+        "cvl_optimisation_test.go",
+        "cvl_test.go",
+        "cvl_when_test.go",
+        "jsondata_test.go",
+    ],
+    gotags = ["test"],
+    initialize = False,
+    schema = "//dist:test_schema",
+    deps = [
+        ":cvl",
+        "//cvl/common",
+        "//cvl/internal/util",
+        "//translib/db",
+        "//translib/tlerr",
+        "@com_github_go_redis_redis_v7//:redis",
+    ],
+)

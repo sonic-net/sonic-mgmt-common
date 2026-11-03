@@ -1,0 +1,11 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary")
+
+go_binary(
+    name = "consumer",
+    srcs = ["main.go"],
+    deps = [
+        "@sonic_mgmt_common//cvl",
+        "@sonic_mgmt_common//translib",
+        "@sonic_mgmt_common//translib/ocbinds",
+    ],
+)

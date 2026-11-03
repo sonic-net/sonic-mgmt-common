@@ -1,0 +1,53 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+
+package(default_visibility = ["//visibility:public"])
+
+py_library(
+    name = "import_yang",
+    srcs = ["import_yang.py"],
+    deps = [
+        "@mgmt_pip//pyang",
+        "@mgmt_pip//setuptools",
+    ],
+)
+
+py_library(
+    name = "plugins",
+    srcs = ["yangtools.py"] + glob(["pyang_plugins/*.py"]),
+    imports = ["."],
+    deps = [
+        "@mgmt_pip//pyang",
+        "@mgmt_pip//setuptools",
+    ],
+)
+
+copy_file(
+    name = "tree_main",
+    src = "tree",
+    out = "tree_main.py",
+)
+
+py_binary(
+    name = "tree_tool",
+    srcs = [":tree_main"],
+    main = "tree_main.py",
+    deps = [":plugins"],
+)
+
+copy_file(
+    name = "lint_main",
+    src = "lint",
+    out = "lint_main.py",
+)
+
+py_binary(
+    name = "lint_tool",
+    srcs = [":lint_main"],
+    main = "lint_main.py",
+    deps = [
+        ":plugins",
+        "@oc_pyang//:openconfig_linter",
+    ],
+)

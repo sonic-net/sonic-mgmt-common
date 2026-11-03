@@ -1,0 +1,25 @@
+load("//tools/bazel:models.bzl", "prepared_models")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "local_sonic_common",
+    srcs = glob(["sonic/common/*.yang"]),
+)
+
+prepared_models(
+    name = "prepared_models",
+    imports = "sonic/import.mk",
+    owner_wheel = "@sonic_yang_models//:yang_models_wheel",
+    sources = glob(["**/*.yang"]),
+    test_sources = select({
+        "//:with_test_models": ["//translib/transformer:test_models"],
+        "//conditions:default": [],
+    }),
+)
+
+exports_files([
+    "version.xml",
+    "lint_ignore.ocstyle",
+    "lint_ignore.ietf",
+])

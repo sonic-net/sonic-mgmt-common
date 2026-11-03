@@ -1,0 +1,199 @@
+diff --git a/pkg/yang/entry.go b/pkg/yang/entry.go
+--- a/pkg/yang/entry.go
++++ b/pkg/yang/entry.go
+@@ -1092,10 +1092,33 @@
+ 
+ }
+ 
++// orderedDirKeys preserves the declared YANG child order. Some synthetic
++// entries have only a Dir map; append their missing keys in a stable order.
++func (e *Entry) orderedDirKeys() []string {
++	keys := make([]string, 0, len(e.Dir))
++	seen := make(map[string]bool, len(e.Dir))
++	for _, key := range e.DirOKeys {
++		if _, exists := e.Dir[key]; exists && !seen[key] {
++			keys = append(keys, key)
++			seen[key] = true
++		}
++	}
++	var missing []string
++	for key := range e.Dir {
++		if !seen[key] {
++			missing = append(missing, key)
++		}
++	}
++	sort.Strings(missing)
++	return append(keys, missing...)
++}
++
+ // FixChoice inserts missing Case entries in a choice
+ func (e *Entry) FixChoice() {
++	e.DirOKeys = e.orderedDirKeys()
+ 	if e.Kind == ChoiceEntry && len(e.Errors) == 0 {
+-		for k, ce := range e.Dir {
++		for _, k := range e.DirOKeys {
++			ce := e.Dir[k]
+ 			if ce.Kind != CaseEntry {
+ 				ne := &Entry{
+ 					Parent: e,
+@@ -1110,12 +1133,12 @@
+ 					Config:   ce.Config,
+ 					Prefix:   ce.Prefix,
+ 					Dir:      map[string]*Entry{ce.Name: ce},
++					DirOKeys: []string{ce.Name},
+ 					Extra:    map[string][]interface{}{},
+ 					PerfOpts: &PerformanceOpts{},
+ 				}
+ 				ce.Parent = ne
+ 				e.Dir[k] = ne
+-				e.DirOKeys = append(e.DirOKeys, k)
+ 			}
+ 		}
+ 	}
+@@ -1348,8 +1371,8 @@
+ // elements.
+ func (e *Entry) merge(prefix *Value, namespace *Value, oe *Entry) {
+ 	e.importErrors(oe)
+-	for k, v := range oe.Dir {
+-		v := v.dup()
++	for _, k := range oe.orderedDirKeys() {
++		v := oe.Dir[k].dup()
+ 		if prefix != nil {
+ 			v.Prefix = prefix
+ 		}
+diff --git a/pkg/yang/identity.go b/pkg/yang/identity.go
+--- a/pkg/yang/identity.go
++++ b/pkg/yang/identity.go
+@@ -16,6 +16,7 @@
+ 
+ import (
+ 	"fmt"
++	"sort"
+ 	"sync"
+ )
+ 
+@@ -163,11 +164,19 @@
+ 		}
+ 	}
+ 
++	// Stable child lists make the embedded JSON schema reproducible.
++	identityNames := make([]string, 0, len(identities.dict))
++	for name := range identities.dict {
++		identityNames = append(identityNames, name)
++	}
++	sort.Strings(identityNames)
++
+ 	// Determine which identities have a base statement, and link this to a
+ 	// fully resolved identity statement. The intention here is to make sure
+ 	// that the Children slice is fully populated with pointers to all identities
+ 	// that have a base, so that we can do inheritance of these later.
+-	for _, i := range identities.dict {
++	for _, name := range identityNames {
++		i := identities.dict[name]
+ 		if i.Identity.Base != nil {
+ 			// This identity inherits from another identity.
+ 
+@@ -185,7 +194,8 @@
+ 	}
+ 
+ 	// Do a final sweep through the identities to build up their children.
+-	for _, i := range identities.dict {
++	for _, name := range identityNames {
++		i := identities.dict[name]
+ 		newValues := []*Identity{}
+ 		for _, j := range i.Identity.Values {
+ 			newValues = addChildren(j, newValues)
+diff --git a/pkg/yang/modules.go b/pkg/yang/modules.go
+--- a/pkg/yang/modules.go
++++ b/pkg/yang/modules.go
+@@ -18,7 +18,10 @@
+ // include and import statements, which must be done prior to turning the
+ // module into an Entry tree.
+ 
+-import "fmt"
++import (
++	"fmt"
++	"sort"
++)
+ 
+ // Modules contains information about all the top level modules and
+ // submodules that are read into it via its Read method.
+@@ -259,6 +262,21 @@
+ //
+ // Process must be called once all the source modules have been read in and
+ // prior to converting Node tree into an Entry tree.
++// orderedModules gives cross-module augments a stable traversal order while
++// preserving the declaration order of statements within each module.
++func orderedModules(modules map[string]*Module) []*Module {
++	names := make([]string, 0, len(modules))
++	for name := range modules {
++		names = append(names, name)
++	}
++	sort.Strings(names)
++	ordered := make([]*Module, 0, len(names))
++	for _, name := range names {
++		ordered = append(ordered, modules[name])
++	}
++	return ordered
++}
++
+ func (ms *Modules) process() []error {
+ 	var mods []*Module
+ 	var errs []error
+@@ -266,7 +284,7 @@
+ 	// Collect the list of modules we know about now so when we range
+ 	// below we don't pick up new modules.  We assume the user tells
+ 	// us explicitly which modules they are interested in.
+-	for _, m := range ms.Modules {
++	for _, m := range orderedModules(ms.Modules) {
+ 		mods = append(mods, m)
+ 	}
+ 	for _, m := range mods {
+@@ -325,10 +343,10 @@
+ 		return errorSort(errs)
+ 	}
+ 
+-	for _, m := range ms.Modules {
++	for _, m := range orderedModules(ms.Modules) {
+ 		errs = append(errs, ToEntry(m).GetErrors()...)
+ 	}
+-	for _, m := range ms.SubModules {
++	for _, m := range orderedModules(ms.SubModules) {
+ 		errs = append(errs, ToEntry(m).GetErrors()...)
+ 	}
+ 
+@@ -340,10 +358,10 @@
+ 	// what order to process them in, so repeat until no progress is made
+ 
+ 	mods := make([]*Module, 0, len(ms.Modules)+len(ms.SubModules))
+-	for _, m := range ms.Modules {
++	for _, m := range orderedModules(ms.Modules) {
+ 		mods = append(mods, m)
+ 	}
+-	for _, m := range ms.SubModules {
++	for _, m := range orderedModules(ms.SubModules) {
+ 		mods = append(mods, m)
+ 	}
+ 	for len(mods) > 0 {
+@@ -366,10 +384,10 @@
+ 
+ 	// Now fix up all the choice statements to add in the missing case
+ 	// statements.
+-	for _, m := range ms.Modules {
++	for _, m := range orderedModules(ms.Modules) {
+ 		ToEntry(m).FixChoice()
+ 	}
+-	for _, m := range ms.SubModules {
++	for _, m := range orderedModules(ms.SubModules) {
+ 		ToEntry(m).FixChoice()
+ 	}
+ 
+@@ -387,7 +405,7 @@
+ 	// an entry does not exist.
+ 	dvP := map[string]bool{} // cache the modules we've handled since we have both modname and modname@revision-date
+ 	for _, devmods := range []map[string]*Module{ms.Modules, ms.SubModules} {
+-		for _, m := range devmods {
++		for _, m := range orderedModules(devmods) {
+ 			e := ToEntry(m)
+ 			if !dvP[e.Name] {
+ 				errs = append(errs, e.ApplyDeviate()...)

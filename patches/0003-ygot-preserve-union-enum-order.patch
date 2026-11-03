@@ -1,0 +1,23 @@
+--- a/ygen/gogen.go
++++ b/ygen/gogen.go
+@@ -1321,7 +1321,20 @@
+ 					ParentReceiver: targetStruct.Name,
+ 				}
+ 
++				// UnionTypes records the declared subtype order as map values.
++				// Keep that order in the enum reflection candidates as well.
++				orderedTypes := make([]string, 0, len(mtype.UnionTypes))
+ 				for t := range mtype.UnionTypes {
++					orderedTypes = append(orderedTypes, t)
++				}
++				sort.Slice(orderedTypes, func(i, j int) bool {
++					left, right := mtype.UnionTypes[orderedTypes[i]], mtype.UnionTypes[orderedTypes[j]]
++					if left != right {
++						return left < right
++					}
++					return orderedTypes[i] < orderedTypes[j]
++				})
++				for _, t := range orderedTypes {
+ 					// If the type within the union is not a builtin type then we store
+ 					// it within the enumMap, since it is an enumerated type.
+ 					if _, builtin := validGoBuiltinTypes[t]; !builtin {

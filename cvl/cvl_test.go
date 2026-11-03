@@ -307,13 +307,16 @@ func clearDb() {
 		"DSCP_TO_TC_MAP",
 	}
 
+	client := getConfigDbClient()
+	defer client.Close()
 	for _, tbl := range tblList {
-		_, err := exec.Command("/bin/sh", "-c",
-			"sonic-db-cli CONFIG_DB del `sonic-db-cli CONFIG_DB keys '"+
-				tbl+"|*' | cut -d ' ' -f 2`").Output()
-
+		keys, err := client.Keys(tbl + "|*").Result()
+		if err == nil && len(keys) != 0 {
+			err = client.Del(keys...).Err()
+		}
 		if err != nil {
-			fmt.Println(err.Error())
+			fmt.Fprintln(os.Stderr, "clearDb:", err)
+			os.Exit(1)
 		}
 	}
 }
@@ -321,10 +324,14 @@ func clearDb() {
 /* Setup before starting of test. */
 func TestMain(m *testing.M) {
 
-	redisAlreadyRunning := false
-	pidOfRedis, err := exec.Command("pidof", "redis-server").Output()
-	if err == nil && string(pidOfRedis) != "\n" {
-		redisAlreadyRunning = true
+	// A declared Bazel fixture owns its Redis process and private endpoint.
+	// Keep the original service management for standalone legacy invocations.
+	redisAlreadyRunning := os.Getenv("SONIC_TEST_REDIS_MANAGED") == "1"
+	if !redisAlreadyRunning {
+		pidOfRedis, err := exec.Command("pidof", "redis-server").Output()
+		if err == nil && string(pidOfRedis) != "\n" {
+			redisAlreadyRunning = true
+		}
 	}
 
 	if redisAlreadyRunning == false {
