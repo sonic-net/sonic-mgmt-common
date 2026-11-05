@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"sync"
 	"sync/atomic"
 
@@ -68,7 +69,11 @@ func initializeRedisClientManager() {
 
 func authenticatedRedisClient(opts *redis.Options) *redis.Client {
 	copy := *opts
-	copy.Dialer = redisconn.WrapDialer(copy.Dialer, copy.DialTimeout, copy.TLSConfig)
+	if copy.Network == "unix" && copy.TLSConfig == nil {
+		copy.Dialer = func(ctx context.Context, _ string, address string) (net.Conn, error) {
+			return redisconn.DialUnixContext(ctx, address, copy.DialTimeout, true)
+		}
+	}
 	return redis.NewClient(&copy)
 }
 

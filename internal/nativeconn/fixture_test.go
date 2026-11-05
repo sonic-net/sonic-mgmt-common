@@ -19,12 +19,8 @@ import (
 	"time"
 )
 
-var testRoot = func() string {
-	if root := os.Getenv("REDIS_AUTH_TEST_DIR"); root != "" {
-		return filepath.Join(root, "policy")
-	}
-	return "/run/redis-auth"
-}()
+const testRoot = "/run/redis-auth"
+
 var testSecret = testRoot + "/local-system/writer.secret"
 
 const testPassword = "local-test-password"
@@ -105,7 +101,7 @@ func startRedis(t *testing.T, directory, name, username string, port int) string
 
 func setup(t *testing.T, tls bool) *fixture {
 	t.Helper()
-	if os.Geteuid() != 0 {
+	if os.Geteuid() != 0 || os.Getenv("SWSS_AUTH_TEST_CONTAINER") != "1" {
 		t.Skip("run in an isolated root container")
 	}
 	if err := os.Mkdir(testRoot, 0755); err != nil {

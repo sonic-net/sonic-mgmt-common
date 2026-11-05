@@ -61,11 +61,13 @@ static void ly_set_log_callback(int enable) {
 */
 import "C"
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	fileLog "log"
+	"net"
 	"os"
 	"os/signal"
 	"runtime"
@@ -742,7 +744,11 @@ func getRedisOptions(dbName string) *redis.Options {
 	opt.Addr = dbAddr
 	opt.Password = GetDbPassword(dbName)
 	opt.DB = GetDbId(dbName)
-	opt.Dialer = redisconn.WrapDialer(opt.Dialer, opt.DialTimeout, opt.TLSConfig)
+	if opt.Network == "unix" && opt.TLSConfig == nil {
+		opt.Dialer = func(ctx context.Context, _ string, address string) (net.Conn, error) {
+			return redisconn.DialUnixContext(ctx, address, opt.DialTimeout, true)
+		}
+	}
 
 	return &opt
 }
