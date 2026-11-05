@@ -13,6 +13,26 @@ import xml.etree.ElementTree as ET
 def main():
     root = Path("bazel-evidence")
     root.mkdir(exist_ok=True)
+    dependency_graphs = {}
+    consumer_succeeded = os.environ.get("CI_CONSUMER_RESULT") == "success"
+    for owner in ("owner", "consumer"):
+        graph = root / (owner + "-module-graph.json")
+        if consumer_succeeded or graph.is_file():
+            try:
+                resolved = bool(json.loads(graph.read_text()))
+            except (OSError, ValueError):
+                resolved = False
+            if consumer_succeeded and not resolved:
+                raise ValueError("Missing or invalid resolved dependency graph: " + str(graph))
+            dependency_graphs[owner] = {
+                "path": graph.name,
+                "sha256": hashlib.sha256(graph.read_bytes()).hexdigest(),
+                "valid_json": resolved,
+            }
+    tracked_status = root / "post-consumer-tracked-status.txt"
+    if consumer_succeeded:
+        if not tracked_status.is_file() or tracked_status.read_bytes():
+            raise ValueError("Missing or dirty tracked-file evidence after the consumer test")
     if os.environ.get("CI_INCREMENTAL_RESULT") == "success":
         for name in ["runtime.tar", "codegen.tar", "incremental.json"]:
             if not (root / name).is_file():
@@ -58,6 +78,10 @@ def main():
             "xfmrtest with test models": os.environ.get("CI_XFMR_TEST_RESULT", "unknown"),
         },
         "external_consumer_result": os.environ.get("CI_CONSUMER_RESULT", "unknown"),
+        "dependency_graphs": dependency_graphs,
+        "post_consumer_tracked_files_clean": (
+            tracked_status.is_file() and not tracked_status.read_bytes()
+        ),
         "incremental_result": os.environ.get("CI_INCREMENTAL_RESULT", "unknown"),
         "artifacts": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in root.glob("*.tar")},
     }
