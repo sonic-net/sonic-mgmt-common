@@ -76,10 +76,10 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/Azure/sonic-mgmt-common/redisconn"
 	set "github.com/Workiva/go-datastructures/set"
 	"github.com/go-redis/redis/v7"
 	log "github.com/golang/glog"
-	"github.com/sonic-net/sonic-swss-common/goext/redisconn"
 )
 
 var CVL_SCHEMA string = "schema/"

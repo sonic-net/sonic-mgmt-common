@@ -22,14 +22,6 @@ variables:
     ${{ else }}:
       value: $(Build.SourceBranchName)
 
-resources:
-  repositories:
-  - repository: sonic-swss-common
-    type: github
-    name: sonic-net/sonic-swss-common
-    endpoint: sonic-net
-    ref: refs/heads/$(BUILD_BRANCH)
-
 stages:
 - stage: Build
   jobs:
@@ -50,11 +42,6 @@ stages:
       submodules: recursive
       path: s
       displayName: 'Checkout code'
-
-    - checkout: sonic-swss-common
-      clean: true
-      path: sonic-swss-common
-      displayName: 'Checkout native Redis binding'
 
     - task: DownloadPipelineArtifact@2
       inputs:

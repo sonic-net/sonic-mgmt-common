@@ -8,9 +8,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/Azure/sonic-mgmt-common/redisconn"
 	log "github.com/golang/glog"
 	"github.com/redis/go-redis/v9"
-	"github.com/sonic-net/sonic-swss-common/goext/redisconn"
 )
 
 var usePools = flag.Bool("use_connection_pools", false, "use connection pools for Redis Clients")

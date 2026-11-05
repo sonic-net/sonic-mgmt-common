@@ -17,7 +17,6 @@ require (
 	github.com/philopon/go-toposort v0.0.0-20170620085441-9be86dbd762f
 	github.com/pkg/profile v1.7.0
 	github.com/redis/go-redis/v9 v9.6.3
-	github.com/sonic-net/sonic-swss-common v0.0.0-20261105000629-1a2b92b44664
 	golang.org/x/text v0.39.0
 	google.golang.org/grpc v1.82.1
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a
@@ -43,6 +42,3 @@ go 1.25.9
 // Pin glog to the version that patches/glog.patch is written for.
 // glog v1.2.5 (required by grpc v1.82.1) has restructured the patched code.
 replace github.com/golang/glog => github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
-
-// SONiC builds use the matching native source from the sibling checkout.
-replace github.com/sonic-net/sonic-swss-common => ../sonic-swss-common

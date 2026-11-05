@@ -2,7 +2,7 @@ package nativeconn_test
 
 import (
 	"context"
-	"github.com/sonic-net/sonic-swss-common/goext/redisconn"
+	"github.com/Azure/sonic-mgmt-common/redisconn"
 	"net"
 	"strings"
 	"testing"
