@@ -1,6 +1,7 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -50,4 +51,18 @@ py_binary(
         ":plugins",
         "@oc_pyang//:openconfig_linter",
     ],
+)
+
+py_test(
+    name = "discovery_test",
+    srcs = ["discovery_test.py"],
+    args = [
+        "$(location :tree)",
+        "$(location //models/yang:prepared_models)",
+    ],
+    data = [
+        "tree",
+        "//models/yang:prepared_models",
+    ],
+    deps = [":plugins"],
 )
