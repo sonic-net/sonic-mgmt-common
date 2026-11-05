@@ -112,6 +112,13 @@ module sonic-vlan {
                             path "/spc:sonic-portchannel/spc:PORTCHANNEL/spc:PORTCHANNEL_LIST/spc:name";
                         }
                     }
+
+                    /* A parenthesized "or" inside a predicate */
+                    must "count(../../VLAN_MEMBER_LIST[ifname=current() and
+                        (tagging_mode='untagged' or tagging_mode='priority_tagged')]) <= 1" {
+                        error-message "Port can be untagged or priority-tagged in at most one VLAN.";
+                        error-app-tag vlan-member-multiple-pvid;
+                    }
                 }
 
                 leaf tagging_mode {
