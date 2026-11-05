@@ -82,6 +82,8 @@ jobs:
         env:
           BAZELISK_GITHUB_TOKEN: ""
         run: |
+          $BAZEL_COMMAND mod graph --output=json \
+            > "$GITHUB_WORKSPACE/bazel-evidence/owner-module-graph.json"
           cd tests/consumer
           $BAZEL_COMMAND build --override_module="sonic-mgmt-common=$GITHUB_WORKSPACE" \
             //:consumer @sonic_mgmt_common//dist:runtime \
@@ -94,6 +96,14 @@ jobs:
           sha256sum "$runtime_path" > "$GITHUB_WORKSPACE/bazel-evidence/consumer-runtime.sha256"
           sha256sum bazel-bin/consumer_/consumer > "$GITHUB_WORKSPACE/bazel-evidence/consumer.sha256"
           cp MODULE.bazel.lock "$GITHUB_WORKSPACE/bazel-evidence/consumer-MODULE.bazel.lock"
+          $BAZEL_COMMAND mod graph --output=json --override_module="sonic-mgmt-common=$GITHUB_WORKSPACE" \
+            > "$GITHUB_WORKSPACE/bazel-evidence/consumer-module-graph.json"
+          cd "$GITHUB_WORKSPACE"
+          # Include staged changes and check after the final consumer command.
+          git -c safe.directory="$GITHUB_WORKSPACE" diff --exit-code HEAD --
+          git -c safe.directory="$GITHUB_WORKSPACE" status --porcelain=v1 --untracked-files=no \
+            > bazel-evidence/post-consumer-tracked-status.txt
+          test ! -s bazel-evidence/post-consumer-tracked-status.txt
       - name: Retain exact payloads and test evidence
         if: always()
         env:
