@@ -129,12 +129,13 @@ def ensure_plugin_options(ctx: Context, *plugins: PyangPlugin):
 def list_api_yangs(yangdir, prefix=""):
     """Returns list of API yang names from a yang root directory.
     Yangs present directly under {yangdir} and {yangdir}/extensions
-    directories are treated as API yangs.
+    directories are treated as API yangs. Each group is sorted independently
+    so filesystem enumeration order cannot change generated documentation.
     """
     from glob import glob
     pattern = prefix + "*.yang"
-    std_yangs = glob(os.path.join(yangdir, pattern))
-    ext_yangs = glob(os.path.join(yangdir, "extensions", pattern))
+    std_yangs = sorted(glob(os.path.join(yangdir, pattern)))
+    ext_yangs = sorted(glob(os.path.join(yangdir, "extensions", pattern)))
     return std_yangs + ext_yangs
 
 def list_annot_yangs(annotdir, prefix=""):
@@ -144,7 +145,7 @@ def list_annot_yangs(annotdir, prefix=""):
     """
     from glob import glob
     pattern = prefix + "*.yang"
-    annot_yangs = glob(os.path.join(annotdir, pattern))
+    annot_yangs = sorted(glob(os.path.join(annotdir, pattern)))
     annot_yangs += glob(os.path.join(annotdir, "sonic-extensions.yang"))
     return annot_yangs
 

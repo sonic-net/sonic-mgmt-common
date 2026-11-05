@@ -66,7 +66,8 @@ jobs:
             //translib/cs:cs_test //translib/path:path_test \
             //translib/platform:platform_test //translib/internal/apis:apis_test \
             //translib/ocbinds:ocbinds_test //translib/transformer:transformer_test \
-            //dist:runtime_test //dist:codegen_contract_test //dist:schema_lint_test //dist:bindings_repro_test
+            //dist:runtime_test //dist:codegen_contract_test //dist:schema_lint_test //dist:bindings_repro_test \
+            //tools/pyang:discovery_test
       - name: Run transformer tests with their declared test models
         id: transformer_tests
         env:
