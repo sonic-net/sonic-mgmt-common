@@ -139,7 +139,6 @@ func iSubscribeDB(opt Options, skeys []*SKey, handler interface{}) (*DB, error) 
 
 	patterns := make([]string, 0, len(skeys))
 	patMap := make(map[string]([]int), len(skeys))
-	var s string
 
 	if !opt.IsWriteDisabled {
 		glog.Info("SubscribeDB: Setting IsWriteDisabled")
@@ -153,15 +152,6 @@ func iSubscribeDB(opt Options, skeys []*SKey, handler interface{}) (*DB, error) 
 	d, e := NewDB(opt)
 
 	if d.client == nil {
-		goto SubscribeDBExit
-	}
-
-	// Make sure that the DB is configured for key space notifications
-	// Optimize with LUA scripts to atomically add "Kgshxe".
-	s, e = d.client.ConfigSet(context.Background(), "notify-keyspace-events", "AKE").Result()
-
-	if e != nil {
-		glog.Error("SubscribeDB: ConfigSet(): e: ", e, " s: ", s)
 		goto SubscribeDBExit
 	}
 

@@ -1,6 +1,6 @@
 Source: sonic-mgmt-common
 Maintainer: Sachin Holla <sachin.holla@broadcom.com>
-Build-Depends: debhelper (>= 8.0.0),
+Build-Depends: libswsscommon-dev, debhelper (>= 8.0.0),
                dh-systemd
                | debhelper (>= 9.20160709)
 Vcs-Git: https://github.com/Azure/sonic-mgmt-common

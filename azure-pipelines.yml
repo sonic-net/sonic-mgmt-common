@@ -44,6 +44,7 @@ stages:
     - checkout: self
       clean: true
       submodules: recursive
+      path: s
       displayName: 'Checkout code'
 
     - task: DownloadPipelineArtifact@2
@@ -61,6 +62,12 @@ stages:
             target/debs/trixie/libpcrecpp0v5_*.deb
             target/debs/trixie/libpcre3-dev_*.deb
             target/debs/trixie/libyang*.deb
+            target/debs/trixie/libnl-3-200_*.deb
+            target/debs/trixie/libnl-genl-3-200_*.deb
+            target/debs/trixie/libnl-route-3-200_*.deb
+            target/debs/trixie/libnl-nf-3-200_*.deb
+            target/debs/trixie/libswsscommon_*.deb
+            target/debs/trixie/libswsscommon-dev_*.deb
             target/python-wheels/trixie/sonic_yang_models*.whl
       displayName: "Download sonic buildimage"
 
@@ -71,6 +78,7 @@ stages:
         sudo sed -ri 's/^# unixsocket/unixsocket/' /etc/redis/redis.conf
         sudo sed -ri 's/^unixsocketperm .../unixsocketperm 777/' /etc/redis/redis.conf
         sudo sed -ri 's/redis-server.sock/redis.sock/' /etc/redis/redis.conf
+        sudo sed -ri 's/^notify-keyspace-events .*/notify-keyspace-events AKE/' /etc/redis/redis.conf
         sudo service redis-server start
 
         # LIBPCRE3 (not in Trixie repos, required by libyang 1.0.73)
@@ -85,6 +93,14 @@ stages:
         # LIBYANG
         sudo dpkg -i ../target/debs/trixie/libyang3_*.deb \
                      ../target/debs/trixie/libyang-dev_3*.deb
+
+        # Native Redis binding headers and library must match the selected source.
+        sudo dpkg -i ../target/debs/trixie/libnl-3-200_*.deb \
+                     ../target/debs/trixie/libnl-genl-3-200_*.deb \
+                     ../target/debs/trixie/libnl-route-3-200_*.deb \
+                     ../target/debs/trixie/libnl-nf-3-200_*.deb \
+                     ../target/debs/trixie/libswsscommon_*.deb \
+                     ../target/debs/trixie/libswsscommon-dev_*.deb
       displayName: "Install dependency"
 
     - script: |
@@ -95,6 +111,12 @@ stages:
         ls -l
         INCLUDE_TEST_MODELS=y dpkg-buildpackage -rfakeroot -us -uc -b -j$(nproc) && cp ../*.deb .
       displayName: "Build"
+
+    - script: |
+        set -e
+        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -v ./internal/nativeconn
+        sudo /usr/local/go/bin/go test -mod=vendor -count=1 -race -v ./internal/nativeconn
+      displayName: "Redis authentication tests"
 
     - publish: $(System.DefaultWorkingDirectory)/
       artifact: sonic-mgmt-common
