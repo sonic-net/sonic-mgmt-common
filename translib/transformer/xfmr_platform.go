@@ -3,9 +3,12 @@ package transformer
 import (
 	"errors"
 	"fmt"
+	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
@@ -21,6 +24,7 @@ const (
 	TRANSCEIVER_TBL     = "TRANSCEIVER_INFO"
 	TRANSCEIVER_STATUS  = "TRANSCEIVER_STATUS"
 	TRANSCEIVER_DOM     = "TRANSCEIVER_DOM_SENSOR"
+	TRANSCEIVER_DOM_THR = "TRANSCEIVER_DOM_THRESHOLD"
 
 	XCVR_LANE_LIMIT = 8
 
@@ -73,6 +77,15 @@ const (
 	XCVR_BASE_PREFIX  = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver"
 	XCVR_BASE_STATE   = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state"
 	XCVR_FORM_FACTOR  = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/form-factor"
+	XCVR_CONNECTOR    = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/connector-type"
+	XCVR_VENDOR       = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/vendor"
+	XCVR_VENDOR_PART  = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/vendor-part"
+	XCVR_VENDOR_REV   = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/vendor-rev"
+	XCVR_SERIAL_NO    = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/serial-no"
+	XCVR_DATE_CODE    = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/date-code"
+	XCVR_SUPPLY_VOLT  = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/supply-voltage"
+	XCVR_PHY_CHANNELS = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/physical-channels"
+	XCVR_THRESHOLDS   = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/thresholds"
 	COMP_STATE_SW_VER = "/openconfig-platform:components/component/state/software-version"
 
 	/** Supported Software Module URIs **/
@@ -144,6 +157,12 @@ type XcvrInfo struct {
 	SerialNo    string
 	HardwareRev string
 	Type        string
+	VendorOui   string
+	VendorRev   string
+	Connector   string
+	Voltage     string
+	/* Raw TRANSCEIVER_DOM_THRESHOLD fields, keyed by DB field name */
+	Thresholds map[string]string
 }
 
 /*SWCompInfo structure read from State DB*/
@@ -996,6 +1015,15 @@ func fillXcvrLaneInfo(xcvrCom *ocbinds.OpenconfigPlatform_Components_Component, 
 	if laneIdx < XCVR_LANE_LIMIT {
 		lane := &xcvrInfo.Lanes[laneIdx]
 		convAndFillDBValues(lane.RxPowerLane, lane.TxPowerLane, lane.TxBiasLane, lane.TxDisable, channel)
+		/* xcvrd reports a single module temperature; it is the laser-temperature
+		 * source for every lane (HLD sonic-net/SONiC#1858 Table 2). */
+		if xcvrInfo.Temperature != "" {
+			if temp, err := strconv.ParseFloat(xcvrInfo.Temperature, 64); err == nil {
+				temp = truncDecimal(temp, 10)
+				ygot.BuildEmptyTree(channel.State.LaserTemperature)
+				channel.State.LaserTemperature.Instant = &temp
+			}
+		}
 	} else {
 		return errors.New("lane index is invalid.")
 	}
@@ -1125,6 +1153,9 @@ func fillXcvrInfo(xcvrCom *ocbinds.OpenconfigPlatform_Components_Component,
 				log.V(3).Info("Could not find the max number of lanes for transceiver.")
 			}
 		}
+
+		fillXcvrTransceiverState(xcvrState, xcvrInfo, name, true, targetUriPath)
+		fillXcvrThresholds(xcvrCom, xcvrInfo)
 		return err
 	}
 
@@ -1180,12 +1211,195 @@ func fillXcvrInfo(xcvrCom *ocbinds.OpenconfigPlatform_Components_Component,
 	case COMP_STATE_REMOVABLE:
 		q := true
 		xcvrEEPROMState.Removable = &q
-	case XCVR_FORM_FACTOR:
+	case XCVR_FORM_FACTOR, XCVR_CONNECTOR, XCVR_VENDOR, XCVR_VENDOR_PART, XCVR_VENDOR_REV, XCVR_SERIAL_NO, XCVR_DATE_CODE:
+		fillXcvrTransceiverState(xcvrState, xcvrInfo, name, false, targetUriPath)
+	default:
+		switch {
+		case strings.HasPrefix(targetUriPath, XCVR_SUPPLY_VOLT):
+			fillXcvrTransceiverState(xcvrState, xcvrInfo, name, false, XCVR_SUPPLY_VOLT)
+		case strings.HasPrefix(targetUriPath, XCVR_THRESHOLDS):
+			fillXcvrThresholds(xcvrCom, xcvrInfo)
+		case strings.HasPrefix(targetUriPath, XCVR_PHY_CHANNELS) && laneIdx == "" && xcvrInfo.Type != "":
+			if maxLanes, ok := sfpTypeToMaxLanesMap[xcvrInfo.Type]; ok {
+				for i := 0; i < maxLanes; i++ {
+					if err := fillXcvrLaneInfo(xcvrCom, uint16(i), xcvrInfo, name, maxLanes); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return err
+}
+
+/* xcvrd writes vendor_date as "YYYY-MM-DD" followed by the lot code, e.g.
+ * "2023-12-26    " or "2020-05-22 08". Some modules encode a non-calendar
+ * value there (e.g. "2020-23-12 08"). */
+var xcvrVendorDateRe = regexp.MustCompile(`^\s*([0-9]{4}-[0-9]{2}-[0-9]{2})`)
+
+/* normalizeXcvrVendorDate returns the vendor_date as an oc-yang:date
+ * ("YYYY-MM-DD"), or "" when it does not start with a valid calendar date. */
+func normalizeXcvrVendorDate(raw, name string) string {
+	if !test_if_available(strings.TrimSpace(raw)) {
+		return ""
+	}
+	m := xcvrVendorDateRe.FindStringSubmatch(raw)
+	if m == nil {
+		log.Warningf("Transceiver %s: unrecognized vendor_date %q", name, raw)
+		return ""
+	}
+	if _, err := time.Parse("2006-01-02", m[1]); err != nil {
+		log.Warningf("Transceiver %s: invalid vendor_date %q: %v", name, raw, err)
+		return ""
+	}
+	return m[1]
+}
+
+func connectorTypeFromString(ct string) ocbinds.E_OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE {
+	switch {
+	case strings.HasPrefix(ct, "AOC"):
+		return ocbinds.OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE_AOC_CONNECTOR
+	case strings.HasPrefix(ct, "DAC"):
+		return ocbinds.OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE_DAC_CONNECTOR
+	case strings.HasPrefix(ct, "LC"):
+		return ocbinds.OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE_LC_CONNECTOR
+	case strings.HasPrefix(ct, "MPO"):
+		return ocbinds.OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE_MPO_CONNECTOR
+	case strings.HasPrefix(ct, "SC"):
+		return ocbinds.OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE_SC_CONNECTOR
+	default:
+		return ocbinds.OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE_UNSET
+	}
+}
+
+/* truncDecimal truncates v to the decimal64 fraction-digits given as a power
+ * of ten (10 for fraction-digits 1, 100 for fraction-digits 2). */
+func truncDecimal(v, scale float64) float64 {
+	return math.Trunc(v*scale) / scale
+}
+
+/* xcvrd pads EEPROM strings with trailing spaces; they are trimmed below.
+ * Fills /transceiver/state. Field mapping follows HLD sonic-net/SONiC#1858
+ * Table 2; notably vendor-part is sourced from TRANSCEIVER_INFO.vendor_oui. */
+func fillXcvrTransceiverState(xcvrState *ocbinds.OpenconfigPlatform_Components_Component_Transceiver_State,
+	xcvrInfo XcvrInfo, name string, all bool, targetUriPath string) {
+	if all || targetUriPath == XCVR_FORM_FACTOR {
 		if xcvrInfo.Type != "" {
 			xcvrState.FormFactor = formFactorTypeFromString(xcvrInfo.Type)
 		}
 	}
-	return err
+	if all || targetUriPath == XCVR_CONNECTOR {
+		if test_if_available(xcvrInfo.Connector) {
+			xcvrState.ConnectorType = connectorTypeFromString(xcvrInfo.Connector)
+		}
+	}
+	if all || targetUriPath == XCVR_VENDOR {
+		if v := strings.TrimSpace(xcvrInfo.MfgName); test_if_available(v) {
+			xcvrState.Vendor = &v
+		}
+	}
+	if all || targetUriPath == XCVR_VENDOR_PART {
+		if v := strings.TrimSpace(xcvrInfo.VendorOui); test_if_available(v) {
+			xcvrState.VendorPart = &v
+		}
+	}
+	if all || targetUriPath == XCVR_VENDOR_REV {
+		if v := strings.TrimSpace(xcvrInfo.VendorRev); test_if_available(v) {
+			xcvrState.VendorRev = &v
+		}
+	}
+	if all || targetUriPath == XCVR_SERIAL_NO {
+		if v := strings.TrimSpace(xcvrInfo.SerialNo); test_if_available(v) {
+			xcvrState.SerialNo = &v
+		}
+	}
+	if all || targetUriPath == XCVR_DATE_CODE {
+		/* MfgDate is already normalized to YYYY-MM-DD by getXcvrInfoFromDb */
+		if xcvrInfo.MfgDate != "" {
+			v := xcvrInfo.MfgDate + "T00:00:00.000Z"
+			xcvrState.DateCode = &v
+		}
+	}
+	if all || targetUriPath == XCVR_SUPPLY_VOLT {
+		if test_if_available(xcvrInfo.Voltage) {
+			if volt, err := strconv.ParseFloat(xcvrInfo.Voltage, 64); err == nil {
+				volt = truncDecimal(volt, 100)
+				ygot.BuildEmptyTree(xcvrState)
+				xcvrState.SupplyVoltage.Instant = &volt
+			} else {
+				log.Warningf("Transceiver %s: invalid voltage %q", name, xcvrInfo.Voltage)
+			}
+		}
+	}
+}
+
+/* DB field names for each threshold leaf, per severity. CRITICAL maps to the
+ * xcvrd *alarm thresholds and WARNING to the *warning thresholds. */
+type xcvrThrState = ocbinds.OpenconfigPlatform_Components_Component_Transceiver_Thresholds_Threshold_State
+
+type xcvrThresholdField struct {
+	dbPrefix string
+	scale    float64 /* 10^fraction-digits of the leaf */
+	set      func(st *xcvrThrState, v *float64)
+}
+
+var xcvrThresholdFields = []xcvrThresholdField{
+	{"temphigh", 10, func(st *xcvrThrState, v *float64) { st.LaserTemperatureUpper = v }},
+	{"templow", 10, func(st *xcvrThrState, v *float64) { st.LaserTemperatureLower = v }},
+	{"vcchigh", 100, func(st *xcvrThrState, v *float64) { st.SupplyVoltageUpper = v }},
+	{"vcclow", 100, func(st *xcvrThrState, v *float64) { st.SupplyVoltageLower = v }},
+	{"txpowerhigh", 100, func(st *xcvrThrState, v *float64) { st.OutputPowerUpper = v }},
+	{"txpowerlow", 100, func(st *xcvrThrState, v *float64) { st.OutputPowerLower = v }},
+	{"rxpowerhigh", 100, func(st *xcvrThrState, v *float64) { st.InputPowerUpper = v }},
+	{"rxpowerlow", 100, func(st *xcvrThrState, v *float64) { st.InputPowerLower = v }},
+	{"txbiashigh", 100, func(st *xcvrThrState, v *float64) { st.LaserBiasCurrentUpper = v }},
+	{"txbiaslow", 100, func(st *xcvrThrState, v *float64) { st.LaserBiasCurrentLower = v }},
+}
+
+var xcvrThresholdSeverities = []struct {
+	severity ocbinds.E_OpenconfigAlarmTypes_OPENCONFIG_ALARM_SEVERITY
+	dbSuffix string
+}{
+	{ocbinds.OpenconfigAlarmTypes_OPENCONFIG_ALARM_SEVERITY_CRITICAL, "alarm"},
+	{ocbinds.OpenconfigAlarmTypes_OPENCONFIG_ALARM_SEVERITY_WARNING, "warning"},
+}
+
+/* Fills /transceiver/thresholds from TRANSCEIVER_DOM_THRESHOLD. Values are
+ * truncated to the decimal64 fraction-digits of each leaf. */
+func fillXcvrThresholds(xcvrCom *ocbinds.OpenconfigPlatform_Components_Component, xcvrInfo XcvrInfo) {
+	if len(xcvrInfo.Thresholds) == 0 {
+		return
+	}
+	ygot.BuildEmptyTree(xcvrCom.Transceiver)
+	for _, sev := range xcvrThresholdSeverities {
+		var st *xcvrThrState
+		for _, f := range xcvrThresholdFields {
+			raw, ok := xcvrInfo.Thresholds[f.dbPrefix+sev.dbSuffix]
+			if !ok || !test_if_available(raw) {
+				continue
+			}
+			val, err := strconv.ParseFloat(raw, 64)
+			if err != nil {
+				log.V(3).Infof("Error converting threshold %s (\"%s\") to float64", f.dbPrefix+sev.dbSuffix, raw)
+				continue
+			}
+			if st == nil {
+				thr, ok := xcvrCom.Transceiver.Thresholds.Threshold[sev.severity]
+				if !ok || thr == nil {
+					var err error
+					if thr, err = xcvrCom.Transceiver.Thresholds.NewThreshold(sev.severity); err != nil {
+						log.V(3).Infof("Cannot create threshold object: %v", err)
+						break
+					}
+				}
+				ygot.BuildEmptyTree(thr)
+				thr.State.Severity = sev.severity
+				st = thr.State
+			}
+			v := truncDecimal(val, f.scale)
+			f.set(st, &v)
+		}
+	}
 }
 
 func formFactorTypeFromString(ft string) ocbinds.E_OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE {
@@ -1244,11 +1458,14 @@ func getXcvrInfoFromDb(name string, d *db.DB) (XcvrInfo, error) {
 	xcvrInfo.Presence = true
 	xcvrInfo.Parent = xcvrEntry.Get("parent")
 	xcvrInfo.MfgName = xcvrEntry.Get("manufacturer")
-	xcvrInfo.MfgDate = xcvrEntry.Get("vendor_date")
+	xcvrInfo.MfgDate = normalizeXcvrVendorDate(xcvrEntry.Get("vendor_date"), name)
 	xcvrInfo.PartNo = xcvrEntry.Get("model")
 	xcvrInfo.SerialNo = xcvrEntry.Get("serial")
 	xcvrInfo.HardwareRev = xcvrEntry.Get("hardware_rev")
 	xcvrInfo.Type = xcvrEntry.Get("type")
+	xcvrInfo.VendorOui = xcvrEntry.Get("vendor_oui")
+	xcvrInfo.VendorRev = xcvrEntry.Get("vendor_rev")
+	xcvrInfo.Connector = xcvrEntry.Get("connector")
 
 	xcvrDOMEntry, err := d.GetEntry(&db.TableSpec{Name: TRANSCEIVER_DOM}, db.Key{Comp: []string{name}})
 	if err != nil {
@@ -1261,6 +1478,14 @@ func getXcvrInfoFromDb(name string, d *db.DB) (XcvrInfo, error) {
 			xcvrInfo.Lanes[i].TxDisable = xcvrDOMEntry.Get(fmt.Sprintf("tx%ddisable", i+1))
 		}
 		xcvrInfo.Temperature = xcvrDOMEntry.Get("temperature")
+		xcvrInfo.Voltage = xcvrDOMEntry.Get("voltage")
+	}
+
+	xcvrThrEntry, err := d.GetEntry(&db.TableSpec{Name: TRANSCEIVER_DOM_THR}, db.Key{Comp: []string{name}})
+	if err != nil {
+		log.V(3).Infof("DOM threshold info not available for transceiver %s: %v", name, err)
+	} else {
+		xcvrInfo.Thresholds = xcvrThrEntry.Field
 	}
 
 	return xcvrInfo, nil
