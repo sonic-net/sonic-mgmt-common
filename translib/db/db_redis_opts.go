@@ -77,7 +77,6 @@ func setGoRedisOpts(optsString string) {
 
 // adjustRedisOpts() gets the redis.Options to be set based on command line
 // options, values passed via db Options, and TRANSLIB_DB|default settings.
-// Additionally it also adjusts the passed dbOpts for separator.
 func adjustRedisOpts(dbOpt *Options) *redis.Options {
 	dbRedisOptsConfig.reconfigure()
 	mutexRedisOptsConfig.Lock()
@@ -99,22 +98,7 @@ func adjustRedisOpts(dbOpt *Options) *redis.Options {
 				addr = getDbTcpAddr(dbInstName)
 			}
 			dbId = getDbId(dbInstName)
-			dbSepStr := getDbSeparator(dbInstName)
 			dbPassword = getDbPassword(dbInstName)
-			if len(dbSepStr) > 0 {
-				if len(dbOpt.TableNameSeparator) > 0 &&
-					dbOpt.TableNameSeparator != dbSepStr {
-					glog.Warningf("TableNameSeparator '%v' in"+
-						" the Options is different from the"+
-						" one configured in the Db config. file for the"+
-						" Db name %v", dbOpt.TableNameSeparator, dbInstName)
-				}
-				dbOpt.KeySeparator = dbSepStr
-				dbOpt.TableNameSeparator = dbSepStr
-			} else {
-				glog.Warning("Database Separator not present for the Db name: ",
-					dbInstName)
-			}
 		} else {
 			glog.Warning("Database instance not present for the Db name: ",
 				dbInstName)
