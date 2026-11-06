@@ -1,4 +1,5 @@
-# Existing owner-maintained patches are shared by Make and Bazel preparation.
+# Legacy Make/vendor patches remain here; Bazel consumes shared goyang/ygot
+# owners and only selects the unrelated Go patches from this package.
 exports_files(glob([
     "*.patch",
     "*/*.patch",

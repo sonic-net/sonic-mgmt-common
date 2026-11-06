@@ -1,6 +1,6 @@
 module(
     name = "sonic-mgmt-common",
-    version = "1.0.0",
+    version = "1.0.1",
     bazel_compatibility = [
         ">=8.5.1",
         "<=8.5.1",
@@ -9,6 +9,8 @@ module(
 
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gazelle", version = "0.54.0")
+bazel_dep(name = "openconfig_goyang", version = "0.0.0.sonic.1-20200309174518-a00bece872fc", repo_name = "com_github_openconfig_goyang")
+bazel_dep(name = "openconfig_ygot", version = "0.7.1.sonic.1", repo_name = "com_github_openconfig_ygot")
 bazel_dep(name = "libyang", version = "3.12.2.sonic.5")
 bazel_dep(name = "oc-pyang", version = "0.1.10.sonic.1", repo_name = "oc_pyang")
 bazel_dep(name = "platforms", version = "1.1.0")
@@ -42,9 +44,8 @@ go_sdk.download(version = "1.25.9")
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 go_deps.from_file(go_mod = "//:go.mod")
 
-# Shared Go module overrides belong to the consuming root. When this repository
-# is the root, apply the same owner patches; downstream roots select these
-# exported patches explicitly without creating a second Go dependency graph.
+# goyang and ygot use their public owners above. These remaining overrides
+# preserve the existing gNMI and unrelated Go dependency behavior.
 go_patches = use_extension("@gazelle//:extensions.bzl", "go_deps", dev_dependency = True)
 go_patches.gazelle_override(
     directives = ["gazelle:proto disable_global"],
@@ -53,23 +54,6 @@ go_patches.gazelle_override(
 
 # These are the existing Make/vendor patches, applied to isolated dependency
 # repositories. Build actions never modify go.mod, vendor, or the checkout.
-go_patches.module_override(
-    patch_strip = 1,
-    patches = [
-        "//patches:ygot/ygot.patch",
-        "//patches:0001-ygot-declare-patched-value-dependency.patch",
-        "//patches:0003-ygot-preserve-union-enum-order.patch",
-    ],
-    path = "github.com/openconfig/ygot",
-)
-go_patches.module_override(
-    patch_strip = 1,
-    patches = [
-        "//patches:goyang/goyang.patch",
-        "//patches:0002-goyang-preserve-declared-schema-order.patch",
-    ],
-    path = "github.com/openconfig/goyang",
-)
 go_patches.module_override(
     patch_strip = 1,
     patches = ["//patches:jsonquery.patch"],
@@ -91,7 +75,7 @@ go_patches.module_override(
     path = "github.com/golang/glog",
 )
 
-use_repo(go_deps, "af_inet_netaddr", "com_github_antchfx_jsonquery", "com_github_antchfx_xmlquery", "com_github_antchfx_xpath", "com_github_go_redis_redis_v7", "com_github_godbus_dbus_v5", "com_github_golang_glog", "com_github_google_go_cmp", "com_github_kylelemons_godebug", "com_github_maruel_natural", "com_github_openconfig_gnmi", "com_github_openconfig_goyang", "com_github_openconfig_ygot", "com_github_philopon_go_toposort", "com_github_pkg_profile", "com_github_redis_go_redis_v9", "com_github_workiva_go_datastructures", "org_golang_google_grpc", "org_golang_x_text")
+use_repo(go_deps, "af_inet_netaddr", "com_github_antchfx_jsonquery", "com_github_antchfx_xmlquery", "com_github_antchfx_xpath", "com_github_go_redis_redis_v7", "com_github_godbus_dbus_v5", "com_github_golang_glog", "com_github_google_go_cmp", "com_github_kylelemons_godebug", "com_github_maruel_natural", "com_github_openconfig_gnmi", "com_github_philopon_go_toposort", "com_github_pkg_profile", "com_github_redis_go_redis_v9", "com_github_workiva_go_datastructures", "org_golang_google_grpc", "org_golang_x_text")
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.toolchain(

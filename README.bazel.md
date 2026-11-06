@@ -20,9 +20,14 @@ owner targets and use the runtime TAR in their container composition.
 
 ## Build and test
 
-The maintained registry configured in `.bazelrc` supplies every module,
-including the merged OpenConfig linter registration from
-[registry PR #163](https://github.com/securely1g/sonic-bazel-registry/pull/163):
+The committed `.bazelrc` uses the maintained SONiC `main` registry and BCR.
+The OpenConfig linter from
+[registry PR #163](https://github.com/securely1g/sonic-bazel-registry/pull/163),
+the shared goyang owner from
+[registry PR #212](https://github.com/securely1g/sonic-bazel-registry/pull/212),
+and the shared ygot owner from
+[registry PR #214](https://github.com/securely1g/sonic-bazel-registry/pull/214)
+are published there. Run these commands directly with standard `bazel`:
 
 ```sh
 bazel build //cvl //translib //dist:runtime //dist:codegen
@@ -59,8 +64,11 @@ patched ygot generator produces Go bindings, and the existing owner pyang tools
 produce lint results and documentation. No action clones dependencies or
 mutates `vendor`, `go.mod`, or a generated source file in the checkout.
 
-Go inputs come from `go.mod`/`go.sum`, with the existing vendor patch set applied
-inside external repositories in the shared Go dependency graph. Bazel's shared Go dependency graph also
+Go inputs remain pinned by `go.mod`/`go.sum`. Reusable goyang and ygot sources,
+SONiC patches and dependency tests now belong to `openconfig_goyang` and
+`openconfig_ygot`; this repository consumes their public targets. Legacy
+Make/vendor patch files remain unchanged. Other existing Go patches still apply
+inside the shared dependency graph. That graph also
 contains the rules_go tool dependencies; it selects `golang.org/x/text` 0.40.0
 over the source module's 0.39.0 minimum. Source `go.mod` is unchanged. The generated
 module resolution and test artifacts record the actual selected graph.
@@ -88,11 +96,11 @@ configuration; their use does not change the checked-in build contract.
 
 ## Consuming the public Go libraries
 
-The consuming root selects Go 1.25.9, Python 3.13 and the same SONiC dependency
-patches. Gazelle deliberately permits dependency overrides only in the root
-module. This repository applies them through a development-only extension use
-when it is the root; a downstream root applies the exported patch labels to its
-single shared `go_deps` extension. See [the checked consumer module](tests/consumer/MODULE.bazel)
+The consuming root selects Go 1.25.9, Python 3.13 and the public goyang/ygot
+owners. Their Go import paths resolve to one shared type graph; downstream roots
+do not copy their patches. Gazelle permits the remaining unrelated dependency
+overrides only in the root module: those existing jsonquery/xmlquery/xpath/glog
+settings remain explicit in the consumer. See [the checked consumer module](tests/consumer/MODULE.bazel)
 and its [Go replacements](tests/consumer/go.mod). It compiles against the public
 CVL, translib and generated bindings without copying their source. In particular,
 retain the pinned glog replacement required by the existing glog patch.
@@ -103,8 +111,9 @@ with the immutable source registration. The consumer-root configuration is not
 an isolated second copy of the owner's Go dependency graph.
 
 The inherited patched YANG generator used map iteration for ordered child lists,
-identity inheritance, cross-module augments, and union enum reflection candidates. The additional goyang patch keeps
-YANG declaration order and makes the unordered traversals stable. The ygot repair follows its stored union subtype indexes, preserving the declared hardware-before-software precedence. The binding
+identity inheritance, cross-module augments, and union enum reflection candidates. The shared goyang owner keeps YANG declaration order and makes unordered
+traversals stable. The shared ygot owner follows stored union subtype indexes,
+preserving the declared hardware-before-software precedence. The binding
 reproducibility test runs the actual generator in 20 independent processes and
 compares all output bytes, so restoring an action-cache entry cannot mask a
 nondeterministic generator.
@@ -112,3 +121,16 @@ nondeterministic generator.
 CI copies the setup action's disk and repository cache settings alongside the
 committed registry configuration. The owner and consumer keep separate output
 bases, so validating the consumer preserves the owner's retained test results.
+
+The ygot owner also carries explicitly documented compatibility corrections found
+by its complete original test suite, including incompatible-assignment errors,
+binary/container validation, destination-map preservation and annotation handling.
+It retains SONiC's deliberate compact JSON output without implicit validation.
+Those source changes are described by registry #214; legacy Make uses its existing
+vendor patches until separately updated.
+
+[Registry #212](https://github.com/securely1g/sonic-bazel-registry/pull/212)
+published the selected goyang owner on `main`, and
+[registry #214](https://github.com/securely1g/sonic-bazel-registry/pull/214)
+published the selected ygot owner on `main`. Both modules are consumed directly
+from the maintained registry.
