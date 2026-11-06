@@ -5,7 +5,7 @@ require (
 	github.com/antchfx/jsonquery v1.1.4
 	github.com/antchfx/xmlquery v1.3.1
 	github.com/antchfx/xpath v1.3.6
-	github.com/go-redis/redis/v7 v7.4.1
+	github.com/go-redis/redis/v9 v9.23.0
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/golang/glog v1.2.5
 	github.com/google/go-cmp v0.7.0
