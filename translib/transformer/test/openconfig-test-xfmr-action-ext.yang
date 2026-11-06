@@ -1,0 +1,45 @@
+module openconfig-test-xfmr-action-ext {
+
+  yang-version "1.1";
+
+  namespace "http://openconfig.net/yang/test-xmfr-action-ext";
+  prefix "oc-test-xfmr-act-ext";
+
+  import openconfig-test-xfmr-action { prefix oc-test-xfmr-act; }
+
+  organization "OpenConfig working group";
+  contact "OpenConfig working group www.openconfig.net";
+
+  description
+    "YANG 1.1 augment test model. Adds an action to the test-sensor-group
+    list of openconfig-test-xfmr-action from a separate module, without
+    changing that module.";
+
+  revision "2026-10-15" {
+    description "Initial revision.";
+  }
+
+  augment "/oc-test-xfmr-act:test-xfmr-action/oc-test-xfmr-act:test-sensor-groups/oc-test-xfmr-act:test-sensor-group" {
+    description "Add a calibrate action to each test-sensor-group entry.";
+
+    action test-sensor-calibrate {
+      description "Calibrate a test sensor group; added by augment.";
+      input {
+        leaf offset {
+          type int32;
+          description "Calibration offset.";
+        }
+      }
+      output {
+        leaf status {
+          type string;
+          description "Calibration status.";
+        }
+        leaf message {
+          type string;
+          description "Detailed result message.";
+        }
+      }
+    }
+  }
+}

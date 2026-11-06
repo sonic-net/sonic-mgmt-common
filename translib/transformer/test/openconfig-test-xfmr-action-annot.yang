@@ -1,0 +1,48 @@
+module openconfig-test-xfmr-action-annot {
+
+  yang-version "1.1";
+
+  namespace "http://openconfig.net/yang/annotation/oc-test-xfmr-action-annot";
+  prefix "oc-test-xfmr-act-annot";
+
+  import openconfig-test-xfmr-action { prefix oc-test-xfmr-act; }
+  import openconfig-test-xfmr-action-ext { prefix oc-test-xfmr-act-ext; }
+  import sonic-extensions { prefix sonic-ext; }
+
+  deviation "/oc-test-xfmr-act:test-xfmr-action/oc-test-xfmr-act:test-sensor-groups/oc-test-xfmr-act:test-sensor-group/oc-test-xfmr-act:test-sensor-reset" {
+    deviate add {
+      sonic-ext:action-callback "test_sensor_reset_cb";
+    }
+  }
+
+  deviation "/oc-test-xfmr-act:test-xfmr-action/oc-test-xfmr-act:test-sensor-groups/oc-test-xfmr-act:test-sensor-group/oc-test-xfmr-act:test-sensor-status" {
+    deviate add {
+      sonic-ext:action-callback "test_sensor_status_cb";
+    }
+  }
+
+  deviation "/oc-test-xfmr-act:test-xfmr-action/oc-test-xfmr-act:test-sensor-groups/oc-test-xfmr-act:test-sensor-group/oc-test-xfmr-act:test-sensor-clear" {
+    deviate add {
+      sonic-ext:action-callback "test_sensor_clear_cb";
+    }
+  }
+
+  deviation "/oc-test-xfmr-act:test-xfmr-action/oc-test-xfmr-act:test-sensor-groups/oc-test-xfmr-act:test-sensor-group/oc-test-xfmr-act:test-sensor-configure" {
+    deviate add {
+      sonic-ext:action-callback "test_sensor_configure_cb";
+    }
+  }
+
+  deviation "/oc-test-xfmr-act:test-xfmr-action/oc-test-xfmr-act:global-sensor/oc-test-xfmr-act:test-global-reset" {
+    deviate add {
+      sonic-ext:action-callback "test_global_reset_cb";
+    }
+  }
+
+  // Action added by augment in openconfig-test-xfmr-action-ext; annotated here, in the annot module of the tree it lives in.
+  deviation "/oc-test-xfmr-act:test-xfmr-action/oc-test-xfmr-act:test-sensor-groups/oc-test-xfmr-act:test-sensor-group/oc-test-xfmr-act-ext:test-sensor-calibrate" {
+    deviate add {
+      sonic-ext:action-callback "test_sensor_calibrate_cb";
+    }
+  }
+}
