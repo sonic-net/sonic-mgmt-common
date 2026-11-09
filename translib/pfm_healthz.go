@@ -30,6 +30,7 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/ygot/util"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -283,7 +284,7 @@ func platformHealthzNotificationPath(subscribePath *gnmi.Path, component string)
 
 func resolvePlatformHealthzPath(p *gnmi.Path, component string) {
 	for i, elem := range p.Elem {
-		if elem.Name == "component" {
+		if util.StripModulePrefix(elem.Name) == "component" {
 			path.SetKeyAt(p, i, "name", component)
 		}
 	}

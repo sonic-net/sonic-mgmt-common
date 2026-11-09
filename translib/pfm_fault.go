@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
 	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/ygot/util"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -601,7 +602,7 @@ func platformFaultNotificationPath(subscribePath *gnmi.Path, component, symptom 
 
 func resolvePlatformFaultPath(p *gnmi.Path, component, symptom string) {
 	for i, elem := range p.Elem {
-		switch elem.Name {
+		switch util.StripModulePrefix(elem.Name) {
 		case "component":
 			path.SetKeyAt(p, i, "name", component)
 		case "fault":

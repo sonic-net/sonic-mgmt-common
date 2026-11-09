@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/internal/apis"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/path"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -515,6 +516,86 @@ func TestProcessPlatformFaultOnChange(t *testing.T) {
 	}, sender)
 	if len(sender.notifications) != 0 {
 		t.Fatal("malformed new row produced an update")
+	}
+}
+
+func TestPlatformFaultQualifiedWildcardNotifications(t *testing.T) {
+	for _, faultName := range []string{"fault", "openconfig-platform-healthz-fault:fault"} {
+		t.Run(faultName, func(t *testing.T) {
+			subscribePath, err := ygot.StringToStructuredPath(
+				"/openconfig-platform:components/component[name=PSU0]/healthz/faults/" + faultName + "[symptom=*]/state/status")
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Use the same validator and options as the gNMI URI conversion.
+			validator := path.NewPathValidator(&path.AppendModulePrefix{}, &path.AddWildcardKeys{})
+			if err := validator.Validate(subscribePath); err != nil {
+				t.Fatalf("validate subscription: %v", err)
+			}
+			uri, err := ygot.PathToString(subscribePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			app := &PlatformApp{}
+			mapping, err := app.translateSubscribe(translateSubRequest{path: uri})
+			if err != nil || len(mapping.ntfAppInfoTrgt) != 1 {
+				t.Fatalf("fault subscription mapping = %+v, %v", mapping, err)
+			}
+			info := mapping.ntfAppInfoTrgt[0]
+			if info.table == nil || info.table.Name != "FAULT_INFO" || info.handlerFunc == nil ||
+				info.key == nil || info.key.Get(0) != "PSU0" || info.key.Get(1) != "*" {
+				t.Fatalf("unexpected fault mapping: %+v", info)
+			}
+
+			key := db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}
+			active := validPlatformFaultEntry()
+			inactive := validPlatformFaultEntry()
+			inactive.Field["status"] = "INACTIVE"
+			inactive.Field["repair_actions"] = "[]"
+			for _, event := range []struct {
+				name   string
+				diff   apis.EntryDiff
+				status string
+			}{
+				{name: "initial", diff: apis.EntryDiff{NewValue: active, EntryCreated: true}, status: "ACTIVE"},
+				{name: "recovery", diff: apis.EntryDiff{OldValue: active, NewValue: inactive}, status: "INACTIVE"},
+			} {
+				t.Run(event.name, func(t *testing.T) {
+					sender := &recordingNotificationSender{}
+					info.handlerFunc(&apis.NotificationContext{Path: info.path, Key: &key, EntryDiff: event.diff}, sender)
+					if len(sender.notifications) != 1 || len(sender.notifications[0].UpdatePaths) != 1 {
+						t.Fatalf("notifications = %+v, want one value lookup", sender.notifications)
+					}
+					n := sender.notifications[0]
+					target := n.Path + n.UpdatePaths[0]
+					resolved, err := ygot.StringToStructuredPath(target)
+					if err != nil || path.HasWildcardKey(resolved) {
+						t.Fatalf("notification target still has wildcard: %s (%v)", target, err)
+					}
+					// The notification sender loads UpdatePaths through the normal
+					// GET binder before fetching and serializing the current row.
+					rootType := reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{})
+					root, _, err := getRequestBinder(&target, nil, GET, &rootType).unMarshall()
+					if err != nil {
+						t.Fatalf("bind notification GET: %v", err)
+					}
+					components := (*root).(*ocbinds.Device).Components
+					rows := []platformFaultRow{{key: key, entry: event.diff.NewValue}}
+					if count := addPlatformFaultRows(components, rows, "PSU0", "SYMPTOM_OVER_THRESHOLD"); count != 1 {
+						t.Fatalf("populated %d rows, want one", count)
+					}
+					response, err := generateGetResponse(target, root, TRANSLIB_FMT_YGOT)
+					if err != nil {
+						t.Fatalf("serialize notification GET: %v", err)
+					}
+					state, ok := response.ValueTree.(*ocbinds.OpenconfigPlatform_Components_Component_Healthz_Faults_Fault_State)
+					wantStatus, _ := platformFaultStatus(event.status)
+					if !ok || state.Status != wantStatus {
+						t.Fatalf("notification value = %+v, want %s", response.ValueTree, event.status)
+					}
+				})
+			}
+		})
 	}
 }
 

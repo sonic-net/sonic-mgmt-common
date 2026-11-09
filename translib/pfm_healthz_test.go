@@ -19,11 +19,13 @@
 package translib
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/internal/apis"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/path"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -202,6 +204,65 @@ func TestPlatformHealthzOnChange(t *testing.T) {
 		sender.notifications[0].Path != "/openconfig-platform:components/component[name=PSU+0:A]/healthz/state" ||
 		len(sender.notifications[0].Delete) != 1 || sender.notifications[0].Delete[0] != "/status" {
 		t.Fatalf("health leaf deletion: %+v", sender.notifications)
+	}
+}
+
+func TestPlatformHealthzQualifiedNotificationResolution(t *testing.T) {
+	for _, componentName := range []string{"component", "openconfig-platform:component"} {
+		t.Run(componentName, func(t *testing.T) {
+			subscribePath, err := ygot.StringToStructuredPath(
+				"/openconfig-platform:components/" + componentName + "[name=*]/healthz/state/status")
+			if err != nil {
+				t.Fatal(err)
+			}
+			validator := path.NewPathValidator(&path.AppendModulePrefix{}, &path.AddWildcardKeys{})
+			if err := validator.Validate(subscribePath); err != nil {
+				t.Fatal(err)
+			}
+			key := db.Key{Comp: []string{"PSU0"}}
+			app := &PlatformApp{}
+			resolved, err := app.processHealthzSubscribe(processSubRequest{
+				path: subscribePath, table: &platformHealthzTableSpec, key: &key,
+			})
+			if err != nil || path.HasWildcardKey(resolved.path) {
+				t.Fatalf("health subscription did not resolve component: %+v (%v)", resolved, err)
+			}
+			unhealthy := validPlatformHealthzEntry()
+			healthy := validPlatformHealthzEntry()
+			healthy.Field["status"] = "HEALTHY"
+			for _, diff := range []apis.EntryDiff{
+				{NewValue: unhealthy, EntryCreated: true},
+				{OldValue: unhealthy, NewValue: healthy},
+			} {
+				sender := &recordingNotificationSender{}
+				processPlatformHealthzOnChange(&apis.NotificationContext{
+					Path: subscribePath, Key: &key, EntryDiff: diff,
+				}, sender)
+				if len(sender.notifications) != 1 || len(sender.notifications[0].UpdatePaths) != 1 {
+					t.Fatalf("health notifications = %+v, want one lookup", sender.notifications)
+				}
+				n := sender.notifications[0]
+				target := n.Path + n.UpdatePaths[0]
+				rootType := reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{})
+				root, _, err := getRequestBinder(&target, nil, GET, &rootType).unMarshall()
+				if err != nil {
+					t.Fatalf("bind health notification GET: %v", err)
+				}
+				components := (*root).(*ocbinds.Device).Components
+				if count := addPlatformHealthzRows(components, []platformHealthzRow{{key: key, entry: diff.NewValue}}, "PSU0"); count != 1 {
+					t.Fatalf("populated %d health rows, want one", count)
+				}
+				response, err := generateGetResponse(target, root, TRANSLIB_FMT_YGOT)
+				if err != nil {
+					t.Fatalf("serialize health notification GET: %v", err)
+				}
+				state, ok := response.ValueTree.(*ocbinds.OpenconfigPlatform_Components_Component_Healthz_State)
+				want, _ := parsePlatformHealthzState(key, diff.NewValue)
+				if !ok || state.Status != want.status {
+					t.Fatalf("health notification value = %+v, want %s", response.ValueTree, diff.NewValue.Get("status"))
+				}
+			}
+		})
 	}
 }
 
