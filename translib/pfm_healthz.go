@@ -36,11 +36,6 @@ import (
 
 const platformHealthzStatePath = "/openconfig-platform:components/component/healthz/state"
 
-var platformHealthzPathNormalizer = strings.NewReplacer(
-	"/openconfig-platform-healthz:healthz", "/healthz",
-	"/openconfig-platform-healthz:state", "/state",
-)
-
 var platformHealthzTableSpec = db.TableSpec{Name: "COMPONENT_HEALTH_INFO", CompCt: 1}
 
 type platformHealthzState struct {
@@ -56,7 +51,7 @@ type platformHealthzRow struct {
 }
 
 func platformPathNeedsHealthzState(targetPath string) bool {
-	targetPath = platformHealthzPathNormalizer.Replace(targetPath)
+	targetPath = normalizePlatformSchemaPath(targetPath)
 	return targetPath == platformHealthzStatePath ||
 		strings.HasPrefix(targetPath, platformHealthzStatePath+"/") ||
 		strings.HasPrefix(platformHealthzStatePath, targetPath+"/")
@@ -183,7 +178,7 @@ func (app *PlatformApp) translateHealthzSubscribe(req translateSubRequest) (tran
 		isOnChangeSupported: true,
 		pType:               OnChange,
 	}
-	normalizedPath := platformHealthzPathNormalizer.Replace(targetPath)
+	normalizedPath := normalizePlatformSchemaPath(targetPath)
 	if normalizedPath == platformHealthzStatePath || strings.HasPrefix(normalizedPath, platformHealthzStatePath+"/") {
 		return translateSubResponse{ntfAppInfoTrgt: []*notificationAppInfo{info}}, nil
 	}

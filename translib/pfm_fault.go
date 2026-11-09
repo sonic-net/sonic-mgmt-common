@@ -44,11 +44,6 @@ const (
 	platformFaultModulePrefix = "oc-platform-healthz-fault"
 )
 
-var platformFaultPathNormalizer = strings.NewReplacer(
-	"/openconfig-platform-healthz:healthz", "/healthz",
-	"/openconfig-platform-healthz-fault:faults", "/faults",
-)
-
 var platformFaultTableSpec = db.TableSpec{Name: "FAULT_INFO", CompCt: 2}
 
 type platformFault struct {
@@ -72,8 +67,18 @@ type faultRepairAction struct {
 	Action string `json:"action"`
 }
 
+// normalizePlatformSchemaPath compares validated descendants by local name,
+// retaining the root module used for app dispatch. Schema paths have no keys.
+func normalizePlatformSchemaPath(schemaPath string) string {
+	elems := strings.Split(schemaPath, "/")
+	for i := 2; i < len(elems); i++ {
+		elems[i] = util.StripModulePrefix(elems[i])
+	}
+	return strings.Join(elems, "/")
+}
+
 func platformPathNeedsFaults(targetPath string) bool {
-	targetPath = platformFaultPathNormalizer.Replace(targetPath)
+	targetPath = normalizePlatformSchemaPath(targetPath)
 	return strings.HasPrefix(targetPath, platformFaultPath) ||
 		strings.HasPrefix(platformFaultPath, targetPath)
 }
@@ -513,7 +518,7 @@ func (app *PlatformApp) translateFaultSubscribe(req translateSubRequest) (transl
 		ntfAppInfoTrgt: []*notificationAppInfo{info},
 	}
 	if strings.HasPrefix(
-		platformFaultPathNormalizer.Replace(targetPath), platformFaultPath,
+		normalizePlatformSchemaPath(targetPath), platformFaultPath,
 	) {
 		return faultResponse, nil
 	}

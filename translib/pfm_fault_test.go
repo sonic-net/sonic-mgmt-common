@@ -19,6 +19,7 @@
 package translib
 
 import (
+	"encoding/json"
 	"math"
 	"reflect"
 	"testing"
@@ -594,6 +595,96 @@ func TestPlatformFaultQualifiedWildcardNotifications(t *testing.T) {
 						t.Fatalf("notification value = %+v, want %s", response.ValueTree, event.status)
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestPlatformFullyQualifiedSubscribeRouting(t *testing.T) {
+	const component = "DLDD_FIXES_Fx9N09b"
+	for _, test := range []struct {
+		name, uri, table string
+	}{
+		{
+			name:  "qualification fault path",
+			uri:   "/openconfig-platform:components/openconfig-platform:component[name=DLDD_FIXES_Fx9N09b]/openconfig-platform-healthz:healthz/openconfig-platform-healthz-fault:faults/openconfig-platform-healthz-fault:fault[symptom=SYMPTOM_UNKNOWN]",
+			table: "FAULT_INFO",
+		},
+		{
+			name:  "qualified aggregate path",
+			uri:   "/openconfig-platform:components/openconfig-platform:component[name=DLDD_FIXES_Fx9N09b]/openconfig-platform-healthz:healthz/openconfig-platform-healthz:state/openconfig-platform-healthz:status",
+			table: "COMPONENT_HEALTH_INFO",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			subscribePath, err := ygot.StringToStructuredPath(test.uri)
+			if err != nil {
+				t.Fatal(err)
+			}
+			validator := path.NewPathValidator(&path.AppendModulePrefix{}, &path.AddWildcardKeys{})
+			if err := validator.Validate(subscribePath); err != nil {
+				t.Fatalf("validate qualified path: %v", err)
+			}
+			uri, err := ygot.PathToString(subscribePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			app := &PlatformApp{}
+			mapping, err := app.translateSubscribe(translateSubRequest{path: uri})
+			if err != nil || len(mapping.ntfAppInfoTrgt) != 1 {
+				t.Fatalf("translate qualified subscription = %+v, %v", mapping, err)
+			}
+			info := mapping.ntfAppInfoTrgt[0]
+			if info.dbno != db.StateDB || info.table == nil || info.table.Name != test.table ||
+				!info.isOnChangeSupported || info.pType != OnChange || info.handlerFunc == nil {
+				t.Fatalf("qualified path lost ON_CHANGE mapping: %+v", info)
+			}
+			if mappedURI, _ := ygot.PathToString(info.path); mappedURI != uri {
+				t.Fatalf("mapping changed qualified path: %q, want %q", mappedURI, uri)
+			}
+			key := db.Key{Comp: []string{component}}
+			active, recovered := validPlatformHealthzEntry(), validPlatformHealthzEntry()
+			recovered.Field["status"] = "HEALTHY"
+			if test.table == "FAULT_INFO" {
+				key.Comp = append(key.Comp, "SYMPTOM_UNKNOWN")
+				active, recovered = validPlatformFaultEntry(), validPlatformFaultEntry()
+				for _, entry := range []db.Value{active, recovered} {
+					entry.Field["component_name"] = component
+					entry.Field["symptom"] = "openconfig-platform-healthz-fault:SYMPTOM_UNKNOWN"
+				}
+				recovered.Field["status"], recovered.Field["repair_actions"] = "INACTIVE", "[]"
+			}
+			for _, diff := range []apis.EntryDiff{
+				{NewValue: active, EntryCreated: true},
+				{OldValue: active, NewValue: recovered},
+			} {
+				sender := &recordingNotificationSender{}
+				info.handlerFunc(&apis.NotificationContext{Path: info.path, Key: &key, EntryDiff: diff}, sender)
+				if len(sender.notifications) != 1 || len(sender.notifications[0].UpdatePaths) != 1 {
+					t.Fatalf("qualified notifications = %+v, want one lookup", sender.notifications)
+				}
+				n := sender.notifications[0]
+				target := n.Path + n.UpdatePaths[0]
+				if target != uri {
+					t.Fatalf("notification changed qualified path: %q, want %q", target, uri)
+				}
+				rootType := reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{})
+				root, _, err := getRequestBinder(&target, nil, GET, &rootType).unMarshall()
+				if err != nil {
+					t.Fatalf("bind qualified notification: %v", err)
+				}
+				components := (*root).(*ocbinds.Device).Components
+				if test.table == "FAULT_INFO" {
+					if count := addPlatformFaultRows(components, []platformFaultRow{{key: key, entry: diff.NewValue}}, component, "SYMPTOM_UNKNOWN"); count != 1 {
+						t.Fatalf("populated %d fault rows, want one", count)
+					}
+				} else if count := addPlatformHealthzRows(components, []platformHealthzRow{{key: key, entry: diff.NewValue}}, component); count != 1 {
+					t.Fatalf("populated %d health rows, want one", count)
+				}
+				response, err := generateGetResponse(target, root, TRANSLIB_FMT_IETF_JSON)
+				if err != nil || !json.Valid(response.Payload) {
+					t.Fatalf("qualified notification serialization = %q, %v", response.Payload, err)
+				}
 			}
 		})
 	}
