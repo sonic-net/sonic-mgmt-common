@@ -297,9 +297,14 @@ func addPlatformFault(components *ocbinds.OpenconfigPlatform_Components, fault *
 		component.Healthz.Faults = &ocbinds.OpenconfigPlatform_Components_Component_Healthz_Faults{}
 	}
 
-	faultNode, err := component.Healthz.Faults.NewFault(fault.symptom)
-	if err != nil {
-		return err
+	// GET request binding can already have created this keyed list entry.
+	faultNode := component.Healthz.Faults.Fault[fault.symptom]
+	if faultNode == nil {
+		var err error
+		faultNode, err = component.Healthz.Faults.NewFault(fault.symptom)
+		if err != nil {
+			return err
+		}
 	}
 	faultNode.State = &ocbinds.OpenconfigPlatform_Components_Component_Healthz_Faults_Fault_State{
 		Counters: &ocbinds.OpenconfigPlatform_Components_Component_Healthz_Faults_Fault_State_Counters{
@@ -314,6 +319,7 @@ func addPlatformFault(components *ocbinds.OpenconfigPlatform_Components, fault *
 		faultNode.State.Description = &fault.description
 	}
 
+	faultNode.Remediations = nil
 	if len(fault.repairActions) == 0 {
 		return nil
 	}

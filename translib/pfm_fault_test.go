@@ -20,6 +20,7 @@ package translib
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -195,6 +196,63 @@ func TestAddPlatformFaultRowsIsolatesMalformedRows(t *testing.T) {
 	}
 	if _, ok := components.Component["BROKEN"]; ok {
 		t.Fatal("malformed row was exported")
+	}
+}
+
+func TestAddPlatformFaultRowsWithBoundGetTarget(t *testing.T) {
+	const faultPath = "/openconfig-platform:components/component[name=PSU0]/healthz/faults/fault[symptom=SYMPTOM_OVER_THRESHOLD]"
+	tests := []struct {
+		name   string
+		path   string
+		status string
+	}{
+		{name: "active fault", path: faultPath, status: "ACTIVE"},
+		{name: "inactive fault", path: faultPath, status: "INACTIVE"},
+		{name: "status leaf", path: faultPath + "/state/status", status: "ACTIVE"},
+		{name: "remediation leaf", path: faultPath + "/remediations/remediation[index=0]/state/action", status: "ACTIVE"},
+		{name: "absent inactive remediations", path: faultPath + "/remediations", status: "INACTIVE"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rootType := reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{})
+			root, _, err := getRequestBinder(&test.path, nil, GET, &rootType).unMarshall()
+			if err != nil {
+				t.Fatalf("binding GET target failed: %v", err)
+			}
+			components := (*root).(*ocbinds.Device).Components
+			symptom := ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_OVER_THRESHOLD
+			boundFault := components.Component["PSU0"].Healthz.Faults.Fault[symptom]
+			if boundFault == nil {
+				t.Fatal("GET binding did not create the keyed fault target")
+			}
+
+			entry := validPlatformFaultEntry()
+			entry.Field["status"] = test.status
+			if test.status == "INACTIVE" {
+				entry.Field["repair_actions"] = "[]"
+			}
+			rows := []platformFaultRow{{
+				key:   db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}},
+				entry: entry,
+			}}
+			if got := addPlatformFaultRows(components, rows, "PSU0", "SYMPTOM_OVER_THRESHOLD"); got != 1 {
+				t.Fatalf("added row count = %d, want 1 for bound GET target", got)
+			}
+			if got := components.Component["PSU0"].Healthz.Faults.Fault[symptom]; got != boundFault {
+				t.Fatal("fault population replaced the bound GET target")
+			}
+			wantStatus, err := platformFaultStatus(test.status)
+			if err != nil || boundFault.State.Status != wantStatus {
+				t.Fatalf("fault status = %v, want %s", boundFault.State.Status, test.status)
+			}
+			if test.status == "INACTIVE" && boundFault.Remediations != nil {
+				t.Fatal("inactive fault retained remediations created by GET binding")
+			}
+			response, err := generateGetResponse(test.path, root, TRANSLIB_FMT_YGOT)
+			if err != nil || response.ValueTree == nil {
+				t.Fatalf("bound GET response = %+v, %v; want populated value tree", response, err)
+			}
+		})
 	}
 }
 
