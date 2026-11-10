@@ -481,6 +481,22 @@ func TestUnMarshall(t *testing.T) {
 		payload:     []byte("{    \"acl-set\": [    {      \"name\": \"MyACL333\",    \"type\": \"ACL_IPV4\",   \"config\": {   \"name\": \"MyACL333\",                 \"type\": \"ACL_IPV4\",                 \"description\": \"Description for MyACL333\" }    }   ] } "),
 		appRootType: reflect.TypeOf(ocbinds.OpenconfigAcl_Acl{}),
 		want:        "XXX",
+	}, {
+		// gNMI Replace of a leaf: the value is the leaf, not a RESTCONF object keyed by the leaf name.
+		tid:         18,
+		uri:         "/openconfig-acl:acl/acl-sets/acl-set[name=MyACL1][type=ACL_IPV4]/acl-entries/acl-entry[sequence-id=1]/ipv4/config/source-address",
+		opcode:      3,
+		payload:     []byte(`"11.1.1.1/32"`),
+		appRootType: reflect.TypeOf(ocbinds.OpenconfigAcl_Acl{}),
+		want:        "11.1.1.1/32",
+	}, {
+		// gNMI Replace of a list instance: the value is the instance object, not {"acl-set":[ ... ]}.
+		tid:         19,
+		uri:         "/openconfig-acl:acl/acl-sets/acl-set[name=MyACL3][type=ACL_IPV4]",
+		opcode:      3,
+		payload:     []byte(`{"name":"MyACL3","type":"ACL_IPV4","config":{"name":"MyACL3","type":"ACL_IPV4","description":"Description for MyACL3"}}`),
+		appRootType: reflect.TypeOf(ocbinds.OpenconfigAcl_Acl{}),
+		want:        "MyACL3",
 	}}
 
 	for _, tt := range tests {
@@ -517,6 +533,15 @@ func TestUnMarshall(t *testing.T) {
 					t.Error("TestUnMarshall: Testcase 14 - Error in unmarshalling the payload: OpenconfigBgp_Bgp_Neighbors_Neighbor_EbgpMultihop_Config_multihop-ttl failed")
 				} else {
 					fmt.Println("TestUnMarshall: Testcase 14 passed - ptach method: => multihop-ttl value ==> ", *ttlVal)
+				}
+			} else if tt.tid == 18 {
+				if !strings.Contains(fmt.Sprintf("%v", *workObj), tt.want) {
+					t.Errorf("TestUnMarshall: Testcase 18 bare gNMI leaf was not applied: %v", *workObj)
+				}
+			} else if tt.tid == 19 {
+				aclSet, ok := (*workObj).(*ocbinds.OpenconfigAcl_Acl_AclSets_AclSet)
+				if !ok || aclSet.Name == nil || *aclSet.Name != tt.want {
+					t.Errorf("TestUnMarshall: Testcase 19 bare gNMI list instance was not applied: %T", *workObj)
 				}
 			} else if tt.tid == 4 {
 				aclSet, ok := (*workObj).(*ocbinds.OpenconfigAcl_Acl_AclSets_AclSet)
