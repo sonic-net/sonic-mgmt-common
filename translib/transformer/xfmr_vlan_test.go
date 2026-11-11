@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/sonic-mgmt-common/translib"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/Azure/sonic-mgmt-common/translib/transformer"
@@ -1434,4 +1435,53 @@ func Test_openconfig_vlan_catalog_subscribe_paths(t *testing.T) {
 			}
 		})
 	}
+}
+
+func processUpdateMustFail(url string, jsonPayload string) func(*testing.T) {
+	return func(t *testing.T) {
+		if _, err := translib.Update(translib.SetRequest{Path: url, Payload: []byte(jsonPayload)}); err == nil {
+			t.Fatalf("UPDATE on %s succeeded, expected an error", url)
+		}
+	}
+}
+
+func Test_openconfig_vlan_bulk_member_atomic(t *testing.T) {
+	const url = "/openconfig-interfaces:interfaces"
+	const vlanIfPrefix = "/openconfig-interfaces:interfaces/interface[name="
+
+	cleanup := func() {
+		t.Helper()
+		processDeleteRequest(vlanIfPrefix+"Vlan3200]", true)(t)
+		processDeleteRequest(vlanIfPrefix+"Vlan3201]", true)(t)
+		time.Sleep(1 * time.Second)
+	}
+	cleanup()
+	defer cleanup()
+
+	t.Log("\n\n--- Mismatch: member refers to Vlan3200 but the request only creates Vlan3201 ---")
+	mismatch := `{"interface":[` +
+		`{"name":"Ethernet0","openconfig-if-ethernet:ethernet":{"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"ACCESS","access-vlan":3200}}}},` +
+		`{"name":"Vlan3201","config":{"name":"Vlan3201","enabled":true}}]}`
+	t.Run("UPDATE with mismatched VLAN must fail", processUpdateMustFail(url, mismatch))
+	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n--- Member refers to a VLAN that does not exist and is not created ---")
+	memberOnly := `{"interface":[` +
+		`{"name":"Ethernet0","openconfig-if-ethernet:ethernet":{"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"ACCESS","access-vlan":3200}}}}]}`
+	t.Run("UPDATE with missing VLAN must fail", processUpdateMustFail(url, memberOnly))
+	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n--- Trunk: member refers to a trunk VLAN that is not created ---")
+	trunk := `{"interface":[` +
+		`{"name":"Ethernet0","openconfig-if-ethernet:ethernet":{"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"TRUNK","trunk-vlans":[3200,3201]}}}},` +
+		`{"name":"Vlan3200","config":{"name":"Vlan3200","enabled":true}}]}`
+	t.Run("UPDATE with missing trunk VLAN must fail", processUpdateMustFail(url, trunk))
+	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n--- Success: VLAN created and member attached in the same request (member listed first) ---")
+	valid := `{"interface":[` +
+		`{"name":"Ethernet0","openconfig-if-ethernet:ethernet":{"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"ACCESS","access-vlan":3200}}}},` +
+		`{"name":"Vlan3200","config":{"name":"Vlan3200","enabled":true}}]}`
+	t.Run("UPDATE creating VLAN and member", processSetRequest(url, valid, "PATCH", false, nil))
+	time.Sleep(1 * time.Second)
 }
