@@ -115,12 +115,40 @@ func (c *CVL) appendLeafValue(name string, value string, multileaf *[]*yparser.Y
 	*multileaf = append(*multileaf, &yparser.YParserLeafValue{Name: name, Value: value})
 }
 
+// isTableKeyField returns true if fieldName is one of the YANG list key
+// leaves for tableName.
+func isTableKeyField(tableName, fieldName string) bool {
+	for _, keyName := range modelInfo.tableInfo[tableName].keys {
+		if keyName == fieldName {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *CVL) generateTableFieldsData(config bool, tableName string, jsonNode *jsonquery.Node,
 	parent *yparser.YParserNode, multileaf *[]*yparser.YParserLeafValue) CVLErrorInfo {
 	var cvlErrObj CVLErrorInfo
 
 	//Traverse fields
 	for jsonFieldNode := jsonNode.FirstChild; jsonFieldNode != nil; jsonFieldNode = jsonFieldNode.NextSibling {
+		//Skip fields that duplicate one of the list's key leaves. The key
+		//leaf value(s) were already added to the list node by the caller
+		//(generateTableData()'s addListNode() call using the Redis key).
+		//Some callers legitimately include key leaves as regular fields in
+		//the field map too (e.g. RFC 7951 JSON encoding of a YANG list
+		//includes key leaves as ordinary object members, and translib's
+		//generic/default JSON-to-CVL conversion passes them through as-is
+		//for models without a table-specific transformer). Adding such a
+		//field again here would create a second leaf instance with the
+		//same name under the same list entry, which libyang rejects with
+		//"Duplicate instance of <field>" -- surfaced by CVL as a confusing
+		//"Field <field> has invalid value" syntax error that looks like an
+		//unrelated (leafref/semantic) validation failure.
+		if isTableKeyField(tableName, jsonFieldNode.Data) {
+			continue
+		}
+
 		//Add fields as leaf to the list
 		if jsonFieldNode.Type == jsonquery.ElementNode &&
 			jsonFieldNode.FirstChild != nil &&
