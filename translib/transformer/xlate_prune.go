@@ -92,6 +92,15 @@ func getPruneObjNode(ygRoot *ygot.GoStruct, uri string, requestUri string,
 	return curValList, depthDiff, pruneXpath, err
 }
 
+// PruneQueryParams applies the same query filtering used by subtree transformers
+// after an app composes additional state into an OpenConfig response.
+func PruneQueryParams(ygRoot *ygot.GoStruct, queryParams QueryParams, uri string, ctxt context.Context) error {
+	if !queryParams.IsEnabled() {
+		return nil
+	}
+	return xfmrPruneQP(ygRoot, queryParams, uri, uri, ctxt)
+}
+
 // Prune the ygRoot after running a subtree transformer.
 // ygRoot: as returned from GET subtree callback (I/O)
 // qp: QueryParams structure that was passed to GET subtree callback (I)

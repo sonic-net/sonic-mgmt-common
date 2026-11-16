@@ -20,7 +20,6 @@ package translib
 
 import (
 	"errors"
-	"reflect"
 	"strconv"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -39,37 +38,7 @@ type PlatformApp struct {
 	eepromTable map[string]dbEntry
 }
 
-func init() {
-	log.Info("Init called for Platform module")
-	err := register("/openconfig-platform:components",
-		&appInfo{appType: reflect.TypeOf(PlatformApp{}),
-			ygotRootType: reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{}),
-			isNative:     false})
-	if err != nil {
-		log.Fatal("Register Platform app module with App Interface failed with error=", err)
-	}
-
-	err = addModel(&ModelData{Name: "openconfig-platform",
-		Org: "OpenConfig working group",
-		Ver: "1.0.2"})
-	if err != nil {
-		log.Fatal("Adding model data to appinterface failed with error=", err)
-	}
-
-	err = addModel(&ModelData{Name: "openconfig-platform-healthz-fault",
-		Org: "OpenConfig working group",
-		Ver: "0.1.0"})
-	if err != nil {
-		log.Fatal("Adding Healthz fault model data to appinterface failed with error=", err)
-	}
-
-	err = addModel(&ModelData{Name: "openconfig-platform-healthz",
-		Org: "OpenConfig working group",
-		Ver: "0.1.1"})
-	if err != nil {
-		log.Fatal("Adding Healthz model data to appinterface failed with error=", err)
-	}
-}
+// CommonApp composes this Healthz adapter with transformer-backed platform data.
 
 func (app *PlatformApp) initialize(data appData) {
 	log.Info("initialize:if:path =", data.path)

@@ -136,7 +136,7 @@ func (app *CommonApp) translateGet(dbs [db.MaxDB]*db.DB) error {
 	return err
 }
 
-func (app *CommonApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
+func (app *CommonApp) translateTransformerSubscribe(req translateSubRequest) (translateSubResponse, error) {
 	txCache := new(sync.Map)
 	reqIdLogStr := "subReq Id:[" + fmt.Sprintf("%v", req.ctxID) + "] : "
 	if log.V(4) {
@@ -410,6 +410,9 @@ func (app *CommonApp) processDelete(d *db.DB) (SetResponse, error) {
 }
 
 func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
+	if isPlatformHealthzURI(app.pathInfo.Path) {
+		return app.platformHealthzApp(app.ygotRoot).processGet(dbs, fmtType)
+	}
 	var err error
 	var resp GetResponse
 	var payload []byte
@@ -429,6 +432,7 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 			break
 		}
 		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams, app.ctxt, app.ygSchema)
+		isEmptyPayload, err = app.composePlatformHealthz(&appYgotStruct, dbs, qParams, isEmptyPayload, err)
 		if err != nil {
 			// target URI for list GET request with QP content!=all and node's content-type mismatches the requested content-type, return empty payload
 			if isEmptyPayload && qParams.IsContentEnabled() && transformer.IsListNode(app.pathInfo.Path) {
@@ -550,6 +554,9 @@ func (app *CommonApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error
 }
 
 func (app *CommonApp) processSubscribe(param processSubRequest) (processSubResponse, error) {
+	if param.table != nil && (param.table.Name == platformFaultTableSpec.Name || param.table.Name == platformHealthzTableSpec.Name) {
+		return (&PlatformApp{}).processSubscribe(param)
+	}
 	var resp processSubResponse
 
 	subNotfRespXlator, err := transformer.NewSubscribeNotfRespXlator(param.ctxID, param.path, param.dbno, param.table, param.key, param.entry, param.dbs, param.opaque)
