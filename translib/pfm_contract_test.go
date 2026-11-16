@@ -73,6 +73,9 @@ func TestPlatformDirectHealthzGetQueryContract(t *testing.T) {
 				{name: "config", query: QueryParameters{Content: "config"}},
 				{name: "depth", query: QueryParameters{Depth: 1}},
 				{name: "fields", query: QueryParameters{Fields: []string{"state/status"}}, wantStatus: true},
+				{name: "qualified state field", query: QueryParameters{Fields: []string{"openconfig-platform-healthz:state/status"}}, wantStatus: true},
+				{name: "qualified status field", query: QueryParameters{Fields: []string{"state/openconfig-platform-healthz:status"}}, wantStatus: true},
+				{name: "qualified field path", query: QueryParameters{Fields: []string{"openconfig-platform-healthz:state/openconfig-platform-healthz:status"}}, wantStatus: true},
 			} {
 				t.Run(fmt.Sprintf("%s/%d", test.name, format), func(t *testing.T) {
 					response, err := Get(GetRequest{Path: uri, QueryParams: test.query, FmtType: format})

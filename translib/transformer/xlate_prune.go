@@ -478,7 +478,7 @@ func matchFields(yangNode *yangXpathInfo, yangEntry *yang.Entry, fields []string
 			continue
 		}
 
-		if yangEntry.Name == fieldList[depth] {
+		if yangEntry.Name == ygutil.StripModulePrefix(fieldList[depth]) {
 
 			keep = true
 			keepSubtree = (depth == (len(fieldList) - 1))
