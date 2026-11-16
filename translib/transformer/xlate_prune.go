@@ -98,6 +98,18 @@ func PruneQueryParams(ygRoot *ygot.GoStruct, queryParams QueryParams, uri string
 	if !queryParams.IsEnabled() {
 		return nil
 	}
+	if queryParams.isFieldsEnabled() {
+		xpath, _, err := XfmrRemoveXPATHPredicates(uri)
+		if err != nil {
+			return err
+		}
+		if _, ok := xYangSpecMap[xpath]; !ok {
+			return tlerr.InvalidArgs("Invalid query path: %v", uri)
+		}
+		if err := validateAndFillQpFields(xlateFromDbParams{xpath: xpath, queryParams: queryParams}); err != nil {
+			return err
+		}
+	}
 	return xfmrPruneQP(ygRoot, queryParams, uri, uri, ctxt)
 }
 

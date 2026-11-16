@@ -130,7 +130,7 @@ func TestParseAndBuildPlatformFault(t *testing.T) {
 	}
 
 	components := &ocbinds.OpenconfigPlatform_Components{}
-	if err := addPlatformFault(components, fault); err != nil {
+	if err := addPlatformFault(components, fault, nil); err != nil {
 		t.Fatalf("addPlatformFault failed: %v", err)
 	}
 	component := components.Component["PSU0"]
@@ -172,7 +172,7 @@ func TestParseInactivePlatformFaultWithNoRemediations(t *testing.T) {
 		t.Fatalf("inactive fault status = %v, want INACTIVE", fault.status)
 	}
 	components := &ocbinds.OpenconfigPlatform_Components{}
-	if err := addPlatformFault(components, fault); err != nil {
+	if err := addPlatformFault(components, fault, nil); err != nil {
 		t.Fatalf("addPlatformFault failed: %v", err)
 	}
 	faultNode := components.Component["PSU0"].Healthz.Faults.Fault[fault.symptom]
@@ -190,7 +190,7 @@ func TestAddPlatformFaultRowsIsolatesMalformedRows(t *testing.T) {
 		{key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}, entry: validPlatformFaultEntry()},
 	}
 	components := &ocbinds.OpenconfigPlatform_Components{}
-	if got := addPlatformFaultRows(components, rows, "", ""); got != 1 {
+	if got := addPlatformFaultRows(components, rows, "", "", nil); got != 1 {
 		t.Fatalf("added row count = %d, want 1", got)
 	}
 	if _, ok := components.Component["PSU0"]; !ok {
@@ -237,7 +237,7 @@ func TestAddPlatformFaultRowsWithBoundGetTarget(t *testing.T) {
 				key:   db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}},
 				entry: entry,
 			}}
-			if got := addPlatformFaultRows(components, rows, "PSU0", "SYMPTOM_OVER_THRESHOLD"); got != 1 {
+			if got := addPlatformFaultRows(components, rows, "PSU0", "SYMPTOM_OVER_THRESHOLD", nil); got != 1 {
 				t.Fatalf("added row count = %d, want 1 for bound GET target", got)
 			}
 			if got := components.Component["PSU0"].Healthz.Faults.Fault[symptom]; got != boundFault {
@@ -582,7 +582,7 @@ func TestPlatformFaultQualifiedWildcardNotifications(t *testing.T) {
 					}
 					components := (*root).(*ocbinds.Device).Components
 					rows := []platformFaultRow{{key: key, entry: event.diff.NewValue}}
-					if count := addPlatformFaultRows(components, rows, "PSU0", "SYMPTOM_OVER_THRESHOLD"); count != 1 {
+					if count := addPlatformFaultRows(components, rows, "PSU0", "SYMPTOM_OVER_THRESHOLD", nil); count != 1 {
 						t.Fatalf("populated %d rows, want one", count)
 					}
 					response, err := generateGetResponse(target, root, TRANSLIB_FMT_YGOT)
@@ -675,7 +675,7 @@ func TestPlatformFullyQualifiedSubscribeRouting(t *testing.T) {
 				}
 				components := (*root).(*ocbinds.Device).Components
 				if test.table == "FAULT_INFO" {
-					if count := addPlatformFaultRows(components, []platformFaultRow{{key: key, entry: diff.NewValue}}, component, "SYMPTOM_UNKNOWN"); count != 1 {
+					if count := addPlatformFaultRows(components, []platformFaultRow{{key: key, entry: diff.NewValue}}, component, "SYMPTOM_UNKNOWN", nil); count != 1 {
 						t.Fatalf("populated %d fault rows, want one", count)
 					}
 				} else if count := addPlatformHealthzRows(components, []platformHealthzRow{{key: key, entry: diff.NewValue}}, component); count != 1 {

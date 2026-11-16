@@ -120,12 +120,20 @@ func (app *PlatformApp) doGetFaults(stateDb *db.DB) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid symptom filter: %w", err)
 	}
+	var remediationIndex *uint64
+	if index := app.path.Var("index"); index != "" && index != "*" {
+		value, err := strconv.ParseUint(index, 10, 64)
+		if err != nil {
+			return 0, tlerr.InvalidArgs("invalid remediation index: %v", err)
+		}
+		remediationIndex = &value
+	}
 	return addPlatformFaultRows(
-		app.getAppRootObject(), rows, componentFilter, symptomFilter,
+		app.getAppRootObject(), rows, componentFilter, symptomFilter, remediationIndex,
 	), nil
 }
 
-func addPlatformFaultRows(components *ocbinds.OpenconfigPlatform_Components, rows []platformFaultRow, componentFilter, symptomFilter string) int {
+func addPlatformFaultRows(components *ocbinds.OpenconfigPlatform_Components, rows []platformFaultRow, componentFilter, symptomFilter string, remediationIndex *uint64) int {
 	added := 0
 	for _, row := range rows {
 		fault, err := parsePlatformFault(row.key, row.entry)
@@ -139,7 +147,7 @@ func addPlatformFaultRows(components *ocbinds.OpenconfigPlatform_Components, row
 		if symptomFilter != "" && symptomFilter != "*" && symptomFilter != fault.symptomName {
 			continue
 		}
-		if err := addPlatformFault(components, fault); err != nil {
+		if err := addPlatformFault(components, fault, remediationIndex); err != nil {
 			log.Warningf("Skipping FAULT_INFO key %v: %v", row.key.Comp, err)
 			continue
 		}
@@ -287,7 +295,7 @@ func parsePlatformRepairActions(value string) ([]ocbinds.E_OpenconfigPlatformHea
 	return actions, nil
 }
 
-func addPlatformFault(components *ocbinds.OpenconfigPlatform_Components, fault *platformFault) error {
+func addPlatformFault(components *ocbinds.OpenconfigPlatform_Components, fault *platformFault, remediationIndex *uint64) error {
 	component := components.Component[fault.component]
 	if component == nil {
 		var err error
@@ -332,6 +340,9 @@ func addPlatformFault(components *ocbinds.OpenconfigPlatform_Components, fault *
 	faultNode.Remediations = &ocbinds.OpenconfigPlatform_Components_Component_Healthz_Faults_Fault_Remediations{}
 	for i, action := range fault.repairActions {
 		index := uint64(i)
+		if remediationIndex != nil && index != *remediationIndex {
+			continue
+		}
 		remediation, err := faultNode.Remediations.NewRemediation(index)
 		if err != nil {
 			return err
@@ -517,7 +528,7 @@ func (app *PlatformApp) translateFaultSubscribe(req translateSubRequest) (transl
 	faultResponse := translateSubResponse{
 		ntfAppInfoTrgt: []*notificationAppInfo{info},
 	}
-	if strings.HasPrefix(
+	if normalizePlatformSchemaPath(targetPath) == platformHealthzPath || strings.HasPrefix(
 		normalizePlatformSchemaPath(targetPath), platformFaultPath,
 	) {
 		return faultResponse, nil
@@ -573,16 +584,58 @@ func processPlatformFaultOnChange(ctx *apis.NotificationContext, sender apis.Not
 		symptom = oldFault.symptomName
 	}
 
-	target := platformFaultNotificationPath(ctx.Path, component, symptom)
-	if target == "" {
-		return
+	notify := func(subscribePath *gnmi.Path, exists bool) {
+		target := platformFaultNotificationPath(subscribePath, component, symptom)
+		if target == "" {
+			return
+		}
+		parent, relative := path.SplitLastElem(target)
+		if exists {
+			sender.Send(&apis.Notification{Path: parent, UpdatePaths: []string{relative}})
+		} else {
+			sender.Send(&apis.Notification{Path: parent, Delete: []string{relative}})
+		}
 	}
-	parent, relative := path.SplitLastElem(target)
+	oldCount, newCount := 0, 0
+	if oldErr == nil {
+		oldCount = len(oldFault.repairActions)
+	}
 	if newErr == nil {
-		sender.Send(&apis.Notification{Path: parent, UpdatePaths: []string{relative}})
+		newCount = len(newFault.repairActions)
+	}
+	for i, elem := range ctx.Path.GetElem() {
+		if util.StripModulePrefix(elem.Name) != "remediation" {
+			continue
+		}
+		if value := elem.Key["index"]; value != "" && value != "*" {
+			index, err := strconv.ParseUint(value, 10, 64)
+			if err == nil && (index < uint64(oldCount) || index < uint64(newCount)) {
+				notify(ctx.Path, index < uint64(newCount))
+			}
+			return
+		}
+		for index := 0; index < oldCount || index < newCount; index++ {
+			resolved := path.Clone(ctx.Path)
+			path.SetKeyAt(resolved, i, "index", strconv.Itoa(index))
+			notify(resolved, index < newCount)
+		}
 		return
 	}
-	sender.Send(&apis.Notification{Path: parent, Delete: []string{relative}})
+	notify(ctx.Path, newErr == nil)
+	if newErr == nil && newCount < oldCount {
+		schemaPath, err := getYangPathFromUri(path.String(ctx.Path))
+		if err != nil || !strings.HasPrefix(platformFaultPath+"/fault/remediations", normalizePlatformSchemaPath(schemaPath)) {
+			return
+		}
+		deleted := make([]string, 0, oldCount-newCount)
+		for index := newCount; index < oldCount; index++ {
+			deleted = append(deleted, "/remediation[index="+strconv.Itoa(index)+"]")
+		}
+		sender.Send(&apis.Notification{
+			Path:   platformFaultNotificationPath(&gnmi.Path{}, component, symptom) + "/remediations",
+			Delete: deleted,
+		})
+	}
 }
 
 func platformFaultNotificationPath(subscribePath *gnmi.Path, component, symptom string) string {

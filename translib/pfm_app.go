@@ -79,6 +79,9 @@ func (app *PlatformApp) translateSubscribe(req translateSubRequest) (translateSu
 		if err != nil {
 			return translateSubResponse{}, err
 		}
+		if isPlatformHealthzURI(req.path) {
+			faultResponse.ntfAppInfoTrgt = append(faultResponse.ntfAppInfoTrgt, healthzResponse.ntfAppInfoTrgt...)
+		}
 		faultResponse.ntfAppInfoTrgtChlds = append(
 			faultResponse.ntfAppInfoTrgtChlds, healthzResponse.ntfAppInfoTrgtChlds...,
 		)
@@ -169,20 +172,25 @@ func (app *PlatformApp) processDelete(d *db.DB) (SetResponse, error) {
 }
 
 func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
+	if err := app.populateGet(dbs); err != nil {
+		return GetResponse{}, err
+	}
+	return generateGetResponse(app.path.Path, app.ygotRoot, fmtType)
+}
+
+func (app *PlatformApp) populateGet(dbs [db.MaxDB]*db.DB) error {
 	pathInfo := app.path
 	log.Infof("Received GET for PlatformApp Template: %s ,path: %s, vars: %v",
 		pathInfo.Template, pathInfo.Path, pathInfo.Vars)
 
-	var payload []byte
-
 	targetUriPath, perr := getYangPathFromUri(app.path.Path)
 	if perr != nil {
 		log.Infof("getYangPathFromUri failed.")
-		return GetResponse{Payload: payload}, perr
+		return perr
 	}
 
 	if !isSubtreeRequest(targetUriPath, "/openconfig-platform:components") {
-		return GetResponse{Payload: payload}, errors.New("Not supported component")
+		return errors.New("Not supported component")
 	}
 
 	stateDb := dbs[db.StateDB]
@@ -208,12 +216,12 @@ func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType
 	}
 
 	if err != nil {
-		return GetResponse{Payload: payload}, err
+		return err
 	}
 	if !populated {
-		return GetResponse{Payload: payload}, tlerr.NotFound("Resource not found")
+		return tlerr.NotFound("Resource not found")
 	}
-	return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
+	return nil
 }
 
 func (app *PlatformApp) loadEepromTable(stateDb *db.DB) error {

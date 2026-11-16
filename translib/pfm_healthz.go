@@ -179,7 +179,7 @@ func (app *PlatformApp) translateHealthzSubscribe(req translateSubRequest) (tran
 		pType:               OnChange,
 	}
 	normalizedPath := normalizePlatformSchemaPath(targetPath)
-	if normalizedPath == platformHealthzStatePath || strings.HasPrefix(normalizedPath, platformHealthzStatePath+"/") {
+	if normalizedPath == platformHealthzPath || normalizedPath == platformHealthzStatePath || strings.HasPrefix(normalizedPath, platformHealthzStatePath+"/") {
 		return translateSubResponse{ntfAppInfoTrgt: []*notificationAppInfo{info}}, nil
 	}
 	response, err := emptySubscribeResponse(req.path)

@@ -40,7 +40,7 @@ func TestPlatformHealthzStateGetProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := addPlatformFault(components, fault); err != nil {
+	if err := addPlatformFault(components, fault, nil); err != nil {
 		t.Fatal(err)
 	}
 	if components.Component["PSU+0:A"].Healthz.State != nil {
@@ -134,13 +134,12 @@ func TestPlatformHealthzSubscribePaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(response.ntfAppInfoTrgt) != 1 || response.ntfAppInfoTrgt[0].dbno != db.MaxDB ||
-		len(response.ntfAppInfoTrgtChlds) != 2 {
-		t.Fatalf("healthz ancestor does not include state and faults: %+v", response)
+	if len(response.ntfAppInfoTrgt) != 2 || len(response.ntfAppInfoTrgtChlds) != 0 {
+		t.Fatalf("healthz target does not include state and faults: %+v", response)
 	}
-	if response.ntfAppInfoTrgtChlds[0].table.Name != "FAULT_INFO" ||
-		response.ntfAppInfoTrgtChlds[1].table.Name != "COMPONENT_HEALTH_INFO" {
-		t.Fatalf("healthz ancestor table mappings: %+v", response.ntfAppInfoTrgtChlds)
+	if response.ntfAppInfoTrgt[0].table.Name != "FAULT_INFO" ||
+		response.ntfAppInfoTrgt[1].table.Name != "COMPONENT_HEALTH_INFO" {
+		t.Fatalf("healthz target table mappings: %+v", response.ntfAppInfoTrgt)
 	}
 	response, err = app.translateSubscribe(translateSubRequest{path: "/openconfig-platform:components"})
 	if err != nil {

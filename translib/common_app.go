@@ -410,10 +410,22 @@ func (app *CommonApp) processDelete(d *db.DB) (SetResponse, error) {
 }
 
 func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
-	if isPlatformHealthzURI(app.pathInfo.Path) {
-		return app.platformHealthzApp(app.ygotRoot).processGet(dbs, fmtType)
+	qParams, err := transformer.NewQueryParams(app.depth, app.content, app.fields)
+	if err != nil {
+		return GetResponse{Payload: []byte("{}")}, err
 	}
-	var err error
+	if isPlatformHealthzURI(app.pathInfo.Path) {
+		if process, err := transformer.ValidateQueryParams(app.pathInfo.Path, qParams); err != nil || !process {
+			return GetResponse{Payload: []byte("{}")}, err
+		}
+		if err := app.platformHealthzApp(app.ygotRoot).populateGet(dbs); err != nil {
+			return GetResponse{}, err
+		}
+		if err := transformer.PruneQueryParams(app.ygotRoot, qParams, app.pathInfo.Path, app.ctxt); err != nil {
+			return GetResponse{}, err
+		}
+		return generateGetResponse(app.pathInfo.Path, app.ygotRoot, fmtType)
+	}
 	var resp GetResponse
 	var payload []byte
 	log.Info("processGet:path =", app.pathInfo.Path)
@@ -424,13 +436,6 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 		origXfmrYgotRoot, _ := ygot.DeepCopy((*app.ygotRoot).(ygot.GoStruct))
 		isEmptyPayload := false
 		appYgotStruct := (*app.ygotRoot).(ygot.GoStruct)
-		var qParams transformer.QueryParams
-		qParams, err = transformer.NewQueryParams(app.depth, app.content, app.fields)
-		if err != nil {
-			log.Warning("transformer.NewQueryParams() returned : ", err)
-			resp.Payload = []byte("{}")
-			break
-		}
 		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams, app.ctxt, app.ygSchema)
 		isEmptyPayload, err = app.composePlatformHealthz(&appYgotStruct, dbs, qParams, isEmptyPayload, err)
 		if err != nil {
