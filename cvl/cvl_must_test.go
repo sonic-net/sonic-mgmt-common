@@ -825,3 +825,93 @@ func verifyRequestCacheYangDataCleared(t *testing.T, c *cvl.CVL, table, key stri
 			withYangData, entries, table, key)
 	}
 }
+
+func cacheKeyTestUpdate() []cmn.CVLEditConfigData {
+	return []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_UPDATE,
+			"CACHE_KEY_TEST|GLOBAL",
+			map[string]string{
+				"welf_firewall_name": "test-fw",
+			},
+			false,
+		},
+	}
+}
+
+func verifyCacheKeyTestYangDataCleared(t *testing.T, c *cvl.CVL) {
+	t.Helper()
+	entries, withYangData := c.RequestCacheYangDataState("CACHE_KEY_TEST", "GLOBAL")
+	if entries == 0 {
+		t.Fatalf("requestCache entry for CACHE_KEY_TEST|GLOBAL was removed")
+	}
+	if withYangData != 0 {
+		t.Errorf("%d of %d requestCache entries for CACHE_KEY_TEST|GLOBAL still point to YANG data after ValidateEditConfig returned",
+			withYangData, entries)
+	}
+}
+
+// ValidateEditConfig replaces its YANG data tree when it returns, so the
+// requestCache entries must not keep pointing into the old tree.
+// The format=standard case fails with a must-expression error, which can only
+// be raised by evaluating the generated YANG node; so the tree was built and
+// used during the call. The format=welf case takes the same path and succeeds.
+func TestValidateEditConfig_Update_ClearsRequestCacheYangData(t *testing.T) {
+	tests := []struct {
+		name   string
+		format string
+		exp    CVLErrorInfo
+	}{
+		{"success", "welf", Success},
+		{"must_failure", "standard", CVLErrorInfo{
+			ErrCode: CVL_SEMANTIC_ERROR,
+			Msg:     mustExpressionErrMessage,
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			setupTestData(t, map[string]interface{}{
+				"CACHE_KEY_TEST": map[string]interface{}{
+					"GLOBAL": map[string]interface{}{"format": tc.format},
+				},
+			})
+			c := NewTestSession(t)
+
+			res, _ := c.ValidateEditConfig(cacheKeyTestUpdate())
+			verifyErr(t, res, tc.exp)
+			verifyCacheKeyTestYangDataCleared(t, c)
+		})
+	}
+}
+
+// A second validation in the same session must build and evaluate its own
+// YANG tree. The DB format is flipped between the calls, so only a tree built
+// from the new data can produce the must-expression error: a skipped
+// validation or a node left over from the first call would return Success.
+func TestValidateEditConfig_Update_ReusedSession_UsesFreshYangData(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"CACHE_KEY_TEST": map[string]interface{}{
+			"GLOBAL": map[string]interface{}{"format": "welf"},
+		},
+	})
+	c := NewTestSession(t)
+
+	res, _ := c.ValidateEditConfig(cacheKeyTestUpdate())
+	verifyErr(t, res, Success)
+	verifyCacheKeyTestYangDataCleared(t, c)
+
+	loadConfigDB(rclient, map[string]interface{}{
+		"CACHE_KEY_TEST": map[string]interface{}{
+			"GLOBAL": map[string]interface{}{"format": "standard"},
+		},
+	})
+
+	res, _ = c.ValidateEditConfig(cacheKeyTestUpdate())
+	verifyErr(t, res, CVLErrorInfo{
+		ErrCode: CVL_SEMANTIC_ERROR,
+		Msg:     mustExpressionErrMessage,
+	})
+	verifyCacheKeyTestYangDataCleared(t, c)
+}
