@@ -18,7 +18,7 @@ require (
 	github.com/pkg/profile v1.7.0
 	github.com/redis/go-redis/v9 v9.6.3
 	golang.org/x/text v0.43.0
-	google.golang.org/grpc v1.83.1
+	google.golang.org/grpc v1.83.2
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a
 )
 
