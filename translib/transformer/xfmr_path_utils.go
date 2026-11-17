@@ -138,3 +138,12 @@ func SplitPath(path string) []string {
 	parts = append(parts, path[start:])
 	return parts
 }
+
+// Returns the key from InParams, else parses kname from the uri
+// If the uri contains multiple keys, inParams.key will be the last
+func keyFromInParamsOrUri(inParams XfmrParams, kname string) string {
+	if inParams.key != "" {
+		return inParams.key
+	}
+	return NewPathInfo(inParams.uri).Var(kname)
+}
