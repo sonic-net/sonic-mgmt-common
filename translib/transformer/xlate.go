@@ -452,6 +452,21 @@ func XlateToDb(path string, oper int, d *db.DB, yg *ygot.GoStruct, yt *interface
 	return result, yangDefValMap, yangAuxValMap, err
 }
 
+// ValidateQueryParams checks terminal-node query options and target content selection.
+func ValidateQueryParams(uri string, qParams QueryParams) (bool, error) {
+	if len(qParams.fields) == 0 {
+		return contentQParamTgtEval(uri, qParams)
+	}
+	yangType, err := getYangNodeTypeFromUri(uri)
+	if err != nil {
+		return false, err
+	}
+	if yangType == YANG_LEAF || yangType == YANG_LEAF_LIST {
+		return false, tlerr.InvalidArgsError{Format: "Bad Request - fields query parameter specified on a terminal node uri."}
+	}
+	return true, nil
+}
+
 func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB,
 	txCache interface{}, qParams QueryParams, reqCtxt context.Context, ygSchema *yang.Entry) ([]byte, bool, error) {
 	var err error
@@ -464,29 +479,19 @@ func GetAndXlateFromDB(uri string, ygRoot *ygot.GoStruct, dbs [db.MaxDB]*db.DB,
 	xfmrLogInfo("received xpath = %v", uri)
 	requestUri := uri
 
-	if len(qParams.fields) > 0 {
-		yngNdType, nd_err := getYangNodeTypeFromUri(uri)
-		if nd_err != nil {
-			return []byte("{}"), false, nd_err
-		} else if (yngNdType == YANG_LEAF) || (yngNdType == YANG_LEAF_LIST) {
-			err = tlerr.InvalidArgsError{Format: "Bad Request - fields query parameter specified on a terminal node uri."}
-			return []byte("{}"), false, err
+	processReq, err = ValidateQueryParams(uri, qParams)
+	if err != nil {
+		return []byte("{}"), false, err
+	}
+	if !processReq {
+		xfmrLogInfo("further processing of request not needed due to content query param.")
+		/* translib fills requested list-instance into ygot, but when there is content-mismatch
+		   we have to send empty payload response.So distinguish this case in common_app we send this err
+		*/
+		if IsListNode(uri) {
+			return []byte("{}"), true, tlerr.InternalError{Format: QUERY_CONTENT_MISMATCH_ERR}
 		}
-	} else {
-		processReq, err = contentQParamTgtEval(uri, qParams)
-		if err != nil {
-			return []byte("{}"), false, err
-		}
-		if !processReq {
-			xfmrLogInfo("further processing of request not needed due to content query param.")
-			/* translib fills requested list-instance into ygot, but when there is content-mismatch
-			   we have to send empty payload response.So distinguish this case in common_app we send this err
-			*/
-			if IsListNode(uri) {
-				return []byte("{}"), true, tlerr.InternalError{Format: QUERY_CONTENT_MISMATCH_ERR}
-			}
-			return []byte("{}"), true, err
-		}
+		return []byte("{}"), true, nil
 	}
 	dbTblKeyCache := make(map[string]tblKeyCache)
 	var dbresult = make(RedisDbMap)
