@@ -20,6 +20,7 @@
 package translib
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -202,6 +203,13 @@ func (binder *requestBinder) unMarshall() (*ygot.GoStruct, *interface{}, error) 
 		}
 
 	case UPDATE, REPLACE:
+		// gNMI Set carries the value of the path node. This binder unmarshals
+		// that JSON into the parent as a RESTCONF body: an object keyed by the
+		// node name, with a list instance as a one-element array. Wrap a bare
+		// value. A body that already has the key is a RESTCONF request and is
+		// left unchanged.
+		binder.acceptBareGnmiValue()
+
 		var tmpTargetNode *interface{}
 		var ygEntry *yang.Entry
 		if binder.pathParent != nil && !binder.targetNodeListInst {
@@ -286,6 +294,46 @@ func (binder *requestBinder) unMarshall() (*ygot.GoStruct, *interface{}, error) 
 	}
 
 	return ygotRootObj, workObj, nil
+}
+
+// acceptBareGnmiValue rewrites a bare gNMI JSON value into the RESTCONF
+// object this binder unmarshals. It no-ops when the payload is already keyed
+// by the target node name, including a module-qualified key.
+func (binder *requestBinder) acceptBareGnmiValue() {
+	if binder.payload == nil || len(*binder.payload) == 0 || binder.targetNodePath == nil || len(binder.targetNodePath.Elem) == 0 {
+		return
+	}
+	name := binder.targetNodePath.Elem[0].GetName()
+	if name == "" {
+		return
+	}
+
+	var v any
+	if err := json.Unmarshal(*binder.payload, &v); err != nil {
+		return
+	}
+	if obj, ok := v.(map[string]any); ok {
+		if _, exists := obj[name]; exists {
+			return
+		}
+		suffix := ":" + name
+		for k := range obj {
+			if strings.HasSuffix(k, suffix) {
+				return
+			}
+		}
+	}
+	if len(binder.targetNodePath.Elem[0].GetKey()) > 0 {
+		if _, isArr := v.([]any); !isArr {
+			v = []any{v}
+		}
+	}
+
+	wrapped, err := json.Marshal(map[string]any{name: v})
+	if err != nil {
+		return
+	}
+	*binder.payload = wrapped
 }
 
 func (binder *requestBinder) getUriPath() (*gnmi.Path, error) {
