@@ -2711,3 +2711,65 @@ func TestSWGetCompType_NWStackSplCase(t *testing.T) {
 		})
 	}
 }
+
+func TestXcvr_NormalizeVendorDate(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want string
+	}{
+		{"2023-12-26   ", "2023-12-26"}, // lot code blank (QSFP28 seen in the field)
+		{"2020-05-22 08", "2020-05-22"}, // lot code present
+		{"2024-01-01 00:00:00", "2024-01-01"},
+		{"2020-23-12 08", ""}, // not a calendar date
+		{"2024-02-30", ""},
+		{"N/A", ""},
+		{"", ""},
+		{"garbage", ""},
+	}
+	for _, c := range cases {
+		if got := normalizeXcvrVendorDate(c.raw, "Ethernet0"); got != c.want {
+			t.Errorf("normalizeXcvrVendorDate(%q) = %q, want %q", c.raw, got, c.want)
+		}
+	}
+}
+
+func TestXcvr_ConnectorTypeFromString(t *testing.T) {
+	cases := map[string]ocbinds.E_OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE{
+		"MPO 1x12":               ocbinds.OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE_MPO_CONNECTOR,
+		"LC":                     ocbinds.OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE_LC_CONNECTOR,
+		"No separable connector": ocbinds.OpenconfigTransportTypes_FIBER_CONNECTOR_TYPE_UNSET,
+	}
+	for in, want := range cases {
+		if got := connectorTypeFromString(in); got != want {
+			t.Errorf("connectorTypeFromString(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
+func TestXcvr_FillThresholds(t *testing.T) {
+	var root ocbinds.OpenconfigPlatform_Components
+	comp, _ := root.NewComponent("Ethernet0")
+	ygot.BuildEmptyTree(comp)
+
+	fillXcvrThresholds(comp, XcvrInfo{})
+	if len(comp.Transceiver.Thresholds.Threshold) != 0 {
+		t.Fatalf("expected no threshold entries without DOM_THRESHOLD data")
+	}
+
+	fillXcvrThresholds(comp, XcvrInfo{Thresholds: map[string]string{
+		"temphighalarm":  "75.0",
+		"vcclowwarning":  "3.135",
+		"txbiaslowalarm": "N/A",
+	}})
+	crit := comp.Transceiver.Thresholds.Threshold[ocbinds.OpenconfigAlarmTypes_OPENCONFIG_ALARM_SEVERITY_CRITICAL]
+	warn := comp.Transceiver.Thresholds.Threshold[ocbinds.OpenconfigAlarmTypes_OPENCONFIG_ALARM_SEVERITY_WARNING]
+	if crit == nil || crit.State.LaserTemperatureUpper == nil || *crit.State.LaserTemperatureUpper != 75 {
+		t.Errorf("CRITICAL laser-temperature-upper not filled: %+v", crit)
+	}
+	if crit != nil && crit.State.LaserBiasCurrentLower != nil {
+		t.Errorf("N/A threshold must be skipped")
+	}
+	if warn == nil || warn.State.SupplyVoltageLower == nil || *warn.State.SupplyVoltageLower != 3.13 {
+		t.Errorf("WARNING supply-voltage-lower not truncated to 2 digits: %+v", warn)
+	}
+}
