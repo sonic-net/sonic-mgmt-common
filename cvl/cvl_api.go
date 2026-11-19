@@ -409,7 +409,7 @@ func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErr
 					}
 
 					// Cannot delete leaf-list field having min-elements > 0
-					if isLeaflistHasMinElems(tbl, field) {
+					if isLeaflistHasMinElems(getRedisTblToYangList(tbl, key), field) {
 						cvlErrObj.ErrCode = CVL_SYNTAX_MINIMUM_INVALID
 						cvlErrObj.Msg = "Mandatory field getting deleted"
 						cvlErrObj.CVLErrDetails = cvlErrorMap[cvlErrObj.ErrCode]
