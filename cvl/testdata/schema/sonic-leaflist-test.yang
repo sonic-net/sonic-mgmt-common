@@ -46,5 +46,19 @@ module sonic-leaflist-test {
       }
     }
 
+    container TEST_LEAFLIST_SINGLETON {
+      container global {
+        leaf-list without-minmax {
+          type string;
+          description "No min-elements and max-elements constrains.";
+        }
+        leaf-list with-min1 {
+          type string;
+          min-elements 1;
+          description "min-elements 1";
+        }
+      }
+    }
+
   }
 }
