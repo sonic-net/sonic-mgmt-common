@@ -78,4 +78,16 @@ module openconfig-system-annot {
         sonic-ext:path-transformer "dns_servers_path_xfmr";
       }
     }
+
+    deviation /oc-sys:system/oc-sys:dns/oc-sys:config {
+      deviate add {
+        sonic-ext:subtree-transformer "dns_config_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-sys:dns/oc-sys:state {
+      deviate add {
+        sonic-ext:subtree-transformer "dns_state_xfmr";
+      }
+    }
 }

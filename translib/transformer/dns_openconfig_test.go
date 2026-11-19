@@ -98,3 +98,53 @@ func Test_openconfig_system_dns_servers(t *testing.T) {
 	t.Run("Verify IPv6 server deleted", verifyDbResult(rclient, "DNS_NAMESERVER|"+v6, dnsNameServerAbsent, false))
 	unloadDB(db.ConfigDB, cleanup)
 }
+
+const dnsConfigUrl = "/openconfig-system:system/dns/config"
+
+func dnsOptionsRow(fields map[string]interface{}) map[string]interface{} {
+	return map[string]interface{}{"DNS_OPTIONS": map[string]interface{}{"GLOBAL": fields}}
+}
+
+var dnsOptionsCleanup = map[string]interface{}{"DNS_OPTIONS": map[string]interface{}{"GLOBAL": ""}}
+
+func Test_openconfig_system_dns_search(t *testing.T) {
+	const ns = "192.0.2.1"
+	loadDB(db.ConfigDB, dnsNameServerRows(ns))
+
+	t.Run("Get without search domains", processGetRequest(dnsConfigUrl, nil, `{}`, false))
+
+	t.Run("Patch search domains", processSetRequest(dnsConfigUrl,
+		`{"openconfig-system:config":{"search":["example.com","corp.example.com"]}}`, "PATCH", false))
+	t.Run("Verify search domains", verifyDbResult(rclient, "DNS_OPTIONS|GLOBAL",
+		dnsOptionsRow(map[string]interface{}{"search@": "example.com,corp.example.com"}), false))
+	t.Run("Get config", processGetRequest(dnsConfigUrl, nil,
+		`{"openconfig-system:config":{"search":["example.com","corp.example.com"]}}`, false))
+	t.Run("Get state", processGetRequest("/openconfig-system:system/dns/state", nil,
+		`{"openconfig-system:state":{"search":["example.com","corp.example.com"]}}`, false))
+
+	t.Run("Patch adds a domain", processSetRequest(dnsConfigUrl+"/search",
+		`{"openconfig-system:search":["lab.example.com"]}`, "PATCH", false))
+	t.Run("Verify domain appended", verifyDbResult(rclient, "DNS_OPTIONS|GLOBAL",
+		dnsOptionsRow(map[string]interface{}{"search@": "example.com,corp.example.com,lab.example.com"}), false))
+
+	t.Run("Delete one domain", processDeleteRequest(dnsConfigUrl+"/search[search=corp.example.com]", false))
+	t.Run("Verify one domain removed", verifyDbResult(rclient, "DNS_OPTIONS|GLOBAL",
+		dnsOptionsRow(map[string]interface{}{"search@": "example.com,lab.example.com"}), false))
+
+	t.Run("Reject an invalid domain", processSetRequest(dnsConfigUrl+"/search",
+		`{"openconfig-system:search":["bad domain"]}`, "PATCH", true))
+	unloadDB(db.ConfigDB, dnsOptionsCleanup)
+
+	loadDB(db.ConfigDB, dnsOptionsRow(map[string]interface{}{"search@": "example.com", "ndots": "2"}))
+	t.Run("Replace config", processSetRequest(dnsConfigUrl,
+		`{"openconfig-system:config":{"search":["example.net"]}}`, "PUT", false))
+	t.Run("Verify replace keeps ndots", verifyDbResult(rclient, "DNS_OPTIONS|GLOBAL",
+		dnsOptionsRow(map[string]interface{}{"search@": "example.net", "ndots": "2"}), false))
+
+	t.Run("Delete search domains", processDeleteRequest(dnsConfigUrl+"/search", false))
+	t.Run("Verify delete keeps ndots", verifyDbResult(rclient, "DNS_OPTIONS|GLOBAL",
+		dnsOptionsRow(map[string]interface{}{"ndots": "2"}), false))
+	t.Run("Delete search domains again", processDeleteRequest(dnsConfigUrl+"/search", false))
+	unloadDB(db.ConfigDB, dnsOptionsCleanup)
+	unloadDB(db.ConfigDB, dnsNameServerRows(ns))
+}
