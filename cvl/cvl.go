@@ -1166,11 +1166,13 @@ func isMandatoryTrueNode(tblName, field string) bool {
 }
 
 // isLeaflistHasMinElems returns true if given field is a leaf-list node with min-elements > 0.
+// tblName is the YANG list name, as returned by getRedisTblToYangList.
 // Field name passed MUST have the '@' suffix. Otherwise, it will be treated as a leaf node.
-func isLeaflistHasMinElems(table, field string) bool {
-	if n := len(field) - 1; field[n] == '@' {
-		field = field[:n]
-		return modelInfo.tableInfo[table].mandatoryNodes[field]
+func isLeaflistHasMinElems(tblName, field string) bool {
+	if n := len(field) - 1; n >= 0 && field[n] == '@' {
+		if tInfo, exists := modelInfo.tableInfo[tblName]; exists {
+			return tInfo.mandatoryNodes[field[:n]]
+		}
 	}
 	return false
 }

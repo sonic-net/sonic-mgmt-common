@@ -412,3 +412,43 @@ func TestValidateEditConfig_Leaflist_MinMax(t *testing.T) {
 	})
 
 }
+
+// Field deletes on a singleton container table, whose YANG list name differs
+// from the redis table name.
+func TestValidateEditConfig_Leaflist_Singleton_Delete(t *testing.T) {
+
+	setupTestData(t, map[string]interface{}{
+		"TEST_LEAFLIST_SINGLETON": map[string]interface{}{
+			"global": map[string]interface{}{
+				"without-minmax@": "aaa,bbb",
+				"with-min1@":      "foo",
+			},
+		}})
+
+	key := "TEST_LEAFLIST_SINGLETON|global"
+
+	t.Run("delete_no_constraint", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_DELETE,
+			Key:   key,
+			Data:  map[string]string{"without-minmax@": ""},
+		}})
+		verifyErr(tt, res, Success)
+	})
+
+	t.Run("delete_min1", func(tt *testing.T) {
+		c := NewTestSession(tt)
+		res, _ := c.ValidateEditConfig([]CVLEditConfigData{{
+			VType: VALIDATE_ALL,
+			VOp:   OP_DELETE,
+			Key:   key,
+			Data:  map[string]string{"with-min1@": ""},
+		}})
+		// CVL errors carry no key components for a singleton table.
+		expErr := llistMinElemErr(key, "with-min1")
+		expErr.Keys = nil
+		verifyErr(tt, res, expErr)
+	})
+}
