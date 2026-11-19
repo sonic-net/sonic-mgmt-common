@@ -15,6 +15,7 @@ openconfig-sampling-sflow-annot.yang
 openconfig-sampling-sflow.yang
 openconfig-system.yang
 openconfig-system-annot.yang
+openconfig-system-ext.yang
 openconfig-vlan.yang
 sonic-platform-node.yang
 openconfig-p4rt.yang
