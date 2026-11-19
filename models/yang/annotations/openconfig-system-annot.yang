@@ -71,4 +71,11 @@ module openconfig-system-annot {
         sonic-ext:subtree-transformer "pathz_policies_xfmr";
       }
     }
+
+    deviation /oc-sys:system/oc-sys:dns/oc-sys:servers/oc-sys:server {
+      deviate add {
+        sonic-ext:subtree-transformer "dns_servers_xfmr";
+        sonic-ext:path-transformer "dns_servers_path_xfmr";
+      }
+    }
 }
