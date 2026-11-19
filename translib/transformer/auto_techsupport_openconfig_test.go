@@ -80,3 +80,30 @@ func Test_openconfig_system_core_file_cleanup(t *testing.T) {
 
 	t.Run("Get without AUTO_TECHSUPPORT|GLOBAL", processGetRequest(coreFileCleanupUrl+"/config", nil, `{}`, false))
 }
+
+const techSupportCleanupUrl = "/openconfig-system:system/openconfig-system-ext:tech-support-cleanup"
+
+func Test_openconfig_system_tech_support_cleanup(t *testing.T) {
+	row := func(techsupportLimit, coreLimit string) map[string]interface{} {
+		return autoTsGlobalRow(map[string]interface{}{
+			"state":                 "enabled",
+			"max_techsupport_limit": techsupportLimit,
+			"max_core_limit":        coreLimit,
+		})
+	}
+
+	loadDB(db.ConfigDB, row("10.0", "5.0"))
+	t.Run("Get tech-support-cleanup", processGetRequest(techSupportCleanupUrl, nil,
+		`{"openconfig-system-ext:tech-support-cleanup":{"config":{"max-techsupport-limit":"10"},"state":{"max-techsupport-limit":"10","enabled":true}}}`, false))
+
+	t.Run("Patch max-techsupport-limit", processSetRequest(techSupportCleanupUrl+"/config/max-techsupport-limit",
+		`{"openconfig-system-ext:max-techsupport-limit":"0.5"}`, "PATCH", false))
+	t.Run("Verify patch keeps max_core_limit", verifyDbResult(rclient, "AUTO_TECHSUPPORT|GLOBAL", row("0.5", "5.0"), false))
+
+	t.Run("Reject out-of-range max-techsupport-limit", processSetRequest(techSupportCleanupUrl+"/config/max-techsupport-limit",
+		`{"openconfig-system-ext:max-techsupport-limit":"-1"}`, "PATCH", true))
+
+	t.Run("Delete max-techsupport-limit", processDeleteRequest(techSupportCleanupUrl+"/config/max-techsupport-limit", false))
+	t.Run("Verify delete writes 0.0 and keeps max_core_limit", verifyDbResult(rclient, "AUTO_TECHSUPPORT|GLOBAL", row("0.0", "5.0"), false))
+	unloadDB(db.ConfigDB, autoTsGlobalCleanup)
+}

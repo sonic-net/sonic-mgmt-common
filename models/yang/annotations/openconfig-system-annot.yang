@@ -78,4 +78,10 @@ module openconfig-system-annot {
         sonic-ext:subtree-transformer "core_file_cleanup_xfmr";
       }
     }
+
+    deviation /oc-sys:system/oc-sys-ext:tech-support-cleanup {
+      deviate add {
+        sonic-ext:subtree-transformer "tech_support_cleanup_xfmr";
+      }
+    }
 }

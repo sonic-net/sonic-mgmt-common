@@ -33,8 +33,9 @@ const (
 	AUTO_TECHSUPPORT_TABLE      = "AUTO_TECHSUPPORT"
 	AUTO_TECHSUPPORT_GLOBAL_KEY = "GLOBAL"
 
-	autoTsStateField        = "state"
-	autoTsMaxCoreLimitField = "max_core_limit"
+	autoTsStateField               = "state"
+	autoTsMaxCoreLimitField        = "max_core_limit"
+	autoTsMaxTechsupportLimitField = "max_techsupport_limit"
 
 	// The cleanup scripts treat 0.0 as "no cleanup" but fail on a missing
 	// field, so a delete writes 0.0 instead of removing the field.
@@ -45,6 +46,9 @@ func init() {
 	XlateFuncBind("YangToDb_core_file_cleanup_xfmr", YangToDb_core_file_cleanup_xfmr)
 	XlateFuncBind("DbToYang_core_file_cleanup_xfmr", DbToYang_core_file_cleanup_xfmr)
 	XlateFuncBind("Subscribe_core_file_cleanup_xfmr", Subscribe_auto_techsupport_global_xfmr)
+	XlateFuncBind("YangToDb_tech_support_cleanup_xfmr", YangToDb_tech_support_cleanup_xfmr)
+	XlateFuncBind("DbToYang_tech_support_cleanup_xfmr", DbToYang_tech_support_cleanup_xfmr)
+	XlateFuncBind("Subscribe_tech_support_cleanup_xfmr", Subscribe_auto_techsupport_global_xfmr)
 }
 
 // formatAutoTsLimit renders a percent the way the AUTO_TECHSUPPORT defaults
@@ -163,6 +167,38 @@ var DbToYang_core_file_cleanup_xfmr SubTreeXfmrDbToYang = func(inParams XfmrPara
 	cleanup.State.MaxCoreLimit = autoTsLimitFromDb(entry, autoTsMaxCoreLimitField)
 	cleanup.State.Enabled = autoTsEnabledFromDb(entry)
 	deviceObj.System.CoreFileCleanup = cleanup
+	return nil
+}
+
+// YangToDb_tech_support_cleanup_xfmr maps
+// tech-support-cleanup/config/max-techsupport-limit to
+// AUTO_TECHSUPPORT|GLOBAL:max_techsupport_limit, which techsupport_cleanup.py
+// reads after every tech-support dump.
+var YangToDb_tech_support_cleanup_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (map[string]map[string]db.Value, error) {
+	var limit *float64
+	if sys := getAppRootObject(inParams); sys != nil && sys.TechSupportCleanup != nil && sys.TechSupportCleanup.Config != nil {
+		limit = sys.TechSupportCleanup.Config.MaxTechsupportLimit
+	}
+	return autoTsLimitToDb(inParams, autoTsMaxTechsupportLimitField, limit), nil
+}
+
+var DbToYang_tech_support_cleanup_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams) error {
+	entry, ok := autoTsGlobal(inParams)
+	if !ok {
+		return nil
+	}
+	deviceObj := (*inParams.ygRoot).(*ocbinds.Device)
+	if deviceObj.System == nil {
+		deviceObj.System = &ocbinds.OpenconfigSystem_System{}
+	}
+	cleanup := &ocbinds.OpenconfigSystem_System_TechSupportCleanup{
+		Config: &ocbinds.OpenconfigSystem_System_TechSupportCleanup_Config{},
+		State:  &ocbinds.OpenconfigSystem_System_TechSupportCleanup_State{},
+	}
+	cleanup.Config.MaxTechsupportLimit = autoTsLimitFromDb(entry, autoTsMaxTechsupportLimitField)
+	cleanup.State.MaxTechsupportLimit = autoTsLimitFromDb(entry, autoTsMaxTechsupportLimitField)
+	cleanup.State.Enabled = autoTsEnabledFromDb(entry)
+	deviceObj.System.TechSupportCleanup = cleanup
 	return nil
 }
 

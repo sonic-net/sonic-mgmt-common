@@ -22,9 +22,16 @@ module openconfig-system-ext {
     "This module extends the openconfig-system model with SONiC
     management-plane settings that the OpenConfig model does not cover:
 
-      * a disk-usage limit for automatic core file cleanup.";
+      * a disk-usage limit for automatic core file cleanup, and
+      * a disk-usage limit for automatic tech-support dump cleanup.";
 
-  oc-ext:openconfig-version "0.1.0";
+  oc-ext:openconfig-version "0.2.0";
+
+  revision "2026-11-20" {
+    description
+      "Add tech-support dump cleanup.";
+    reference "0.2.0";
+  }
 
   revision "2026-11-19" {
     description
@@ -98,6 +105,67 @@ module openconfig-system-ext {
     }
   }
 
+  grouping system-tech-support-cleanup-config {
+    description
+      "Configuration for automatic cleanup of tech-support dumps.";
+
+    leaf max-techsupport-limit {
+      type decimal64 {
+        fraction-digits 2;
+        range "0..99.99";
+      }
+      units "percent";
+      description
+        "Maximum share of the filesystem hosting /var/dump, in percent,
+        that tech-support dumps (sonic_dump_*) may occupy. Whenever a
+        tech-support dump is generated and the total size of the dumps
+        exceeds this limit, the oldest dumps are deleted until the total
+        is below it; the newest dump is always kept. A value of 0
+        disables this cleanup. Maps to the SONiC
+        AUTO_TECHSUPPORT|GLOBAL:max_techsupport_limit field.";
+    }
+  }
+
+  grouping system-tech-support-cleanup-state {
+    description
+      "Operational state for automatic cleanup of tech-support dumps.";
+
+    leaf enabled {
+      type boolean;
+      description
+        "True when size-based tech-support dump cleanup runs, that is
+        when the SONiC AUTO_TECHSUPPORT|GLOBAL:state field is 'enabled'.
+        That field also gates event-driven tech-support collection, so it
+        is not configurable through this container.";
+    }
+  }
+
+  grouping system-tech-support-cleanup-top {
+    description
+      "Top-level grouping for automatic tech-support dump cleanup.";
+
+    container tech-support-cleanup {
+      description
+        "Automatic cleanup of tech-support dumps under /var/dump.";
+
+      container config {
+        description
+          "Configuration data for tech-support dump cleanup.";
+
+        uses system-tech-support-cleanup-config;
+      }
+
+      container state {
+        config false;
+        description
+          "Operational state data for tech-support dump cleanup.";
+
+        uses system-tech-support-cleanup-config;
+        uses system-tech-support-cleanup-state;
+      }
+    }
+  }
+
   // augment statements
 
   augment "/oc-sys:system" {
@@ -105,5 +173,12 @@ module openconfig-system-ext {
       "Add automatic core file cleanup configuration and state.";
 
     uses system-core-file-cleanup-top;
+  }
+
+  augment "/oc-sys:system" {
+    description
+      "Add automatic tech-support dump cleanup configuration and state.";
+
+    uses system-tech-support-cleanup-top;
   }
 }
