@@ -310,6 +310,15 @@ func (c *CVL) ValidateEditConfig(cfgData []cmn.CVLEditConfigData) (cvlErr CVLErr
 		updateValidationTimeStats(time.Since(ts))
 		c.clearTmpDbCache()
 		c.yv.root = &xmlquery.Node{Type: xmlquery.DocumentNode}
+		// requestCache outlives the call but the YANG tree it points into
+		// does not; drop the node references along with the old root.
+		for _, reqTbl := range c.requestCache {
+			for _, reqs := range reqTbl {
+				for _, r := range reqs {
+					r.YangData = nil
+				}
+			}
+		}
 		c.depDataCache = make(DepDataCacheType)
 	}()
 

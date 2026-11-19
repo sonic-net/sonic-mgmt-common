@@ -308,7 +308,7 @@ func (c *CVL) generateYangListData(jsonNode *jsonquery.Node,
 
 			if storeInReqCache {
 				//store the list pointer in requestCache against the table/key
-				reqCache, exists := c.requestCache[tableName][redisKey]
+				reqCache, exists := c.requestCache[origTableName][redisKey]
 				if exists {
 					//Store same list instance in all requests under same table/key
 					for idx := 0; idx < len(reqCache); idx++ {
@@ -1704,7 +1704,7 @@ func (c *CVL) validateSemantics(node *xmlquery.Node,
 	}
 
 	if cfgData.VOp == cmn.OP_DELETE && len(cfgData.Data) == 0 {
-		for _, r := range c.requestCache[yangListName][key] {
+		for _, r := range c.requestCache[getYangListToRedisTbl(yangListName)][key] {
 			r.YangData = nil
 		}
 		listNodeParent := node.Parent
