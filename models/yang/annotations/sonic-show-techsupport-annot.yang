@@ -1,9 +1,9 @@
-module sonic-showtech-annot {
+module sonic-show-techsupport-annot {
 
     yang-version "1";
 
-    namespace "http://openconfig.net/Azure/sonic-showtech-annot";
-    prefix "showtech-annot";
+    namespace "http://openconfig.net/Azure/sonic-show-techsupport-annot";
+    prefix "show-techsupport-annot";
 
     import sonic-extensions { prefix sonic-ext; }
     import sonic-show-techsupport { prefix sshwtchspt; }
