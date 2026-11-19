@@ -1,0 +1,109 @@
+module openconfig-system-ext {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/system-ext";
+
+  prefix "oc-sys-ext";
+
+  // import some basic types
+  import openconfig-system { prefix oc-sys; }
+  import openconfig-extensions { prefix oc-ext; }
+
+  // meta
+  organization "SONiC";
+
+  contact
+    "SONiC community
+    https://github.com/sonic-net/SONiC";
+
+  description
+    "This module extends the openconfig-system model with SONiC
+    management-plane settings that the OpenConfig model does not cover:
+
+      * a disk-usage limit for automatic core file cleanup.";
+
+  oc-ext:openconfig-version "0.1.0";
+
+  revision "2026-11-19" {
+    description
+      "Initial revision: core file cleanup.";
+    reference "0.1.0";
+  }
+
+  oc-ext:regexp-posix;
+  oc-ext:catalog-organization "sonic";
+  oc-ext:origin "openconfig";
+
+  // grouping statements
+
+  grouping system-core-file-cleanup-config {
+    description
+      "Configuration for automatic cleanup of core files.";
+
+    leaf max-core-limit {
+      type decimal64 {
+        fraction-digits 2;
+        range "0..99.99";
+      }
+      units "percent";
+      description
+        "Maximum share of the filesystem hosting /var/core, in percent,
+        that core files may occupy. When a new core file is written and
+        the total size of the core files exceeds this limit, the oldest
+        core files are deleted until the total is below it; the newest
+        core file is always kept. A value of 0 disables this cleanup.
+        Maps to the SONiC AUTO_TECHSUPPORT|GLOBAL:max_core_limit field.";
+    }
+  }
+
+  grouping system-core-file-cleanup-state {
+    description
+      "Operational state for automatic cleanup of core files.";
+
+    leaf enabled {
+      type boolean;
+      description
+        "True when size-based core file cleanup runs, that is when the
+        SONiC AUTO_TECHSUPPORT|GLOBAL:state field is 'enabled'. That field
+        also gates event-driven tech-support collection, so it is not
+        configurable through this container.";
+    }
+  }
+
+  grouping system-core-file-cleanup-top {
+    description
+      "Top-level grouping for automatic core file cleanup.";
+
+    container core-file-cleanup {
+      description
+        "Automatic cleanup of core files under /var/core.";
+
+      container config {
+        description
+          "Configuration data for core file cleanup.";
+
+        uses system-core-file-cleanup-config;
+      }
+
+      container state {
+        config false;
+        description
+          "Operational state data for core file cleanup.";
+
+        uses system-core-file-cleanup-config;
+        uses system-core-file-cleanup-state;
+      }
+    }
+  }
+
+  // augment statements
+
+  augment "/oc-sys:system" {
+    description
+      "Add automatic core file cleanup configuration and state.";
+
+    uses system-core-file-cleanup-top;
+  }
+}

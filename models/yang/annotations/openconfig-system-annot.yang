@@ -10,6 +10,7 @@ module openconfig-system-annot {
     import openconfig-system-grpc { prefix oc-sys-grpc; }
     import gnsi-pathz { prefix gnsi-pathz; }
     import openconfig-gnsi-credentialz { prefix oc-gnsi-credz; }
+    import openconfig-system-ext { prefix oc-sys-ext; }
 
     deviation /oc-sys:system/oc-sys:ssh-server/oc-sys:state {
       deviate add {
@@ -69,6 +70,12 @@ module openconfig-system-annot {
       deviate add {
         sonic-ext:key-transformer "pathz_policies_key_xfmr";
         sonic-ext:subtree-transformer "pathz_policies_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-sys-ext:core-file-cleanup {
+      deviate add {
+        sonic-ext:subtree-transformer "core_file_cleanup_xfmr";
       }
     }
 }
