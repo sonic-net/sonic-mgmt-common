@@ -1,5 +1,5 @@
 diff --git a/build.go b/build.go
-index 7172608..79bb9bf 100644
+index 7172608..3e03fd3 100644
 --- a/build.go
 +++ b/build.go
 @@ -55,7 +55,12 @@ func axisPredicate(root *axisNode) func(NodeNavigator) bool {
@@ -46,7 +46,7 @@ index 7172608..79bb9bf 100644
  	return qyOutput, nil
  }
  
-@@ -170,6 +179,62 @@ func canBeNumber(q query) bool {
+@@ -170,6 +179,67 @@ func canBeNumber(q query) bool {
  	return true
  }
  
@@ -73,6 +73,8 @@ index 7172608..79bb9bf 100644
 +	case *functionQuery:
 +		isCallerFilterQ = typ.SFilter.UnderFilter
 +	case *logicalQuery:
++		isCallerFilterQ = typ.SFilter.UnderFilter
++	case *groupQuery:
 +		isCallerFilterQ = typ.SFilter.UnderFilter
 +	case *filterQuery:
 +		isCallerFilterQ = true
@@ -103,13 +105,16 @@ index 7172608..79bb9bf 100644
 +	case *currentQuery:
 +		typ.Caller = caller
 +		typ.SFilter.UnderFilter = isCallerFilterQ
++	case *groupQuery:
++		typ.Caller = caller
++		typ.SFilter.UnderFilter = isCallerFilterQ
 +	}
 +}
 +
  // processFilterNode builds query for the XPath filter predicate.
  func (b *builder) processFilter(root *filterNode, flags flag, props *builderProp) (query, error) {
  	first := (flags & flagsEnum.Filter) == 0
-@@ -281,6 +346,8 @@ func (b *builder) processFilter(root *filterNode, flags flag, props *builderProp
+@@ -281,6 +351,8 @@ func (b *builder) processFilter(root *filterNode, flags flag, props *builderProp
  			}
  			b.firstInput = nil
  			child := &filterQuery{Input: qyInput, Predicate: cond, NoPosition: false}
@@ -118,7 +123,7 @@ index 7172608..79bb9bf 100644
  			if parent != nil {
  				return &mergeQuery{Input: parent, Child: child}, nil
  			}
-@@ -294,6 +361,8 @@ func (b *builder) processFilter(root *filterNode, flags flag, props *builderProp
+@@ -294,6 +366,8 @@ func (b *builder) processFilter(root *filterNode, flags flag, props *builderProp
  		Predicate:  cond,
  		NoPosition: (propsCond & builderProps.HasPosition) == 0,
  	}
@@ -127,7 +132,7 @@ index 7172608..79bb9bf 100644
  	return resultQuery, nil
  }
  
-@@ -533,7 +602,8 @@ func (b *builder) processFunction(root *functionNode, props *builderProp) (query
+@@ -533,7 +607,8 @@ func (b *builder) processFunction(root *functionNode, props *builderProp) (query
  		if err != nil {
  			return nil, err
  		}
@@ -137,7 +142,7 @@ index 7172608..79bb9bf 100644
  	case "sum":
  		if len(root.Args) == 0 {
  			return nil, fmt.Errorf("xpath: sum(node-sets) function must with have parameters node-sets")
-@@ -594,6 +664,10 @@ func (b *builder) processFunction(root *functionNode, props *builderProp) (query
+@@ -594,6 +669,10 @@ func (b *builder) processFunction(root *functionNode, props *builderProp) (query
  			return nil, err
  		}
  		qyOutput = &functionQuery{Func: stringJoinFunc(input, arg1)}
@@ -148,7 +153,7 @@ index 7172608..79bb9bf 100644
  	default:
  		return nil, fmt.Errorf("not yet support this function %s()", root.FuncName)
  	}
-@@ -660,6 +734,10 @@ func (b *builder) processOperator(root *operatorNode, props *builderProp) (query
+@@ -660,6 +739,10 @@ func (b *builder) processOperator(root *operatorNode, props *builderProp) (query
  		*props |= builderProps.NonFlat
  		qyOutput = &unionQuery{Left: left, Right: right}
  	}
@@ -159,6 +164,17 @@ index 7172608..79bb9bf 100644
  	return qyOutput, nil
  }
  
+@@ -690,7 +773,9 @@ func (b *builder) processNode(root node, flags flag, props *builderProp) (q quer
+ 		if err != nil {
+ 			return
+ 		}
+-		q = &groupQuery{Input: q}
++		gq := &groupQuery{Input: q}
++		b.setCaller(q, gq)
++		q = gq
+ 		b.firstInput = q
+ 	}
+ 	b.parseDepth--
 diff --git a/func.go b/func.go
 index ffbee65..89bbe7e 100644
 --- a/func.go
@@ -299,7 +315,7 @@ index 2820152..4be4b42 100644
  
  func cmpStringNumeric(t iterator, op string, m, n interface{}) bool {
 diff --git a/query.go b/query.go
-index 8c5535e..d51787b 100644
+index 8c5535e..4a27f7a 100644
 --- a/query.go
 +++ b/query.go
 @@ -5,7 +5,10 @@ import (
@@ -313,7 +329,7 @@ index 8c5535e..d51787b 100644
  )
  
  // The return type of the XPath expression.
-@@ -81,9 +84,241 @@ func (nopQuery) Properties() queryProp {
+@@ -81,9 +84,251 @@ func (nopQuery) Properties() queryProp {
  	return queryProps.Merge | queryProps.Position | queryProps.Count | queryProps.Cached
  }
  
@@ -386,6 +402,16 @@ index 8c5535e..d51787b 100644
 +
 +		if sfl != nil && sfr != nil {
 +			typ.SFilter.Predicate = fmt.Sprintf("(%s %s %s)", sfl.Predicate, op, sfr.Predicate)
++		}
++
++		sf = &typ.SFilter
++	case *groupQuery:
++		// A parenthesized expression, as in "a and (b or c)". Its Lua
++		// condition is its input's, kept in parentheses so the
++		// precedence it was written with survives.
++		sfi := setScriptFilter(typ.Input, nil)
++		if sfi != nil && sfi.Predicate != "" {
++			typ.SFilter.Predicate = "(" + sfi.Predicate + ")"
 +		}
 +
 +		sf = &typ.SFilter
@@ -556,7 +582,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (c *contextQuery) Select(t iterator) NodeNavigator {
-@@ -288,16 +523,127 @@ func (a *attributeQuery) Properties() queryProp {
+@@ -288,16 +533,127 @@ func (a *attributeQuery) Properties() queryProp {
  	return queryProps.Merge
  }
  
@@ -686,7 +712,7 @@ index 8c5535e..d51787b 100644
  func (c *childQuery) Select(t iterator) NodeNavigator {
  	for {
  		if c.iterator == nil {
-@@ -306,6 +652,9 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
+@@ -306,6 +662,9 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
  			if node == nil {
  				return nil
  			}
@@ -696,7 +722,7 @@ index 8c5535e..d51787b 100644
  			node = node.Copy()
  			first := true
  			c.iterator = func() NodeNavigator {
-@@ -323,6 +672,10 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
+@@ -323,6 +682,10 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
  
  		if node := c.iterator(); node != nil {
  			c.posit++
@@ -707,7 +733,7 @@ index 8c5535e..d51787b 100644
  			return node
  		}
  		c.iterator = nil
-@@ -332,6 +685,12 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
+@@ -332,6 +695,12 @@ func (c *childQuery) Select(t iterator) NodeNavigator {
  func (c *childQuery) Evaluate(t iterator) interface{} {
  	c.Input.Evaluate(t)
  	c.iterator = nil
@@ -720,7 +746,7 @@ index 8c5535e..d51787b 100644
  	return c
  }
  
-@@ -340,7 +699,7 @@ func (c *childQuery) Test(n NodeNavigator) bool {
+@@ -340,7 +709,7 @@ func (c *childQuery) Test(n NodeNavigator) bool {
  }
  
  func (c *childQuery) Clone() query {
@@ -729,7 +755,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (c *childQuery) ValueType() resultType {
-@@ -358,13 +717,27 @@ func (c *childQuery) position() int {
+@@ -358,13 +727,27 @@ func (c *childQuery) position() int {
  
  type cachedChildQuery struct {
  	name     string
@@ -759,7 +785,7 @@ index 8c5535e..d51787b 100644
  func (c *cachedChildQuery) Select(t iterator) NodeNavigator {
  	for {
  		if c.iterator == nil {
-@@ -373,6 +746,7 @@ func (c *cachedChildQuery) Select(t iterator) NodeNavigator {
+@@ -373,6 +756,7 @@ func (c *cachedChildQuery) Select(t iterator) NodeNavigator {
  			if node == nil {
  				return nil
  			}
@@ -767,7 +793,7 @@ index 8c5535e..d51787b 100644
  			node = node.Copy()
  			first := true
  			c.iterator = func() NodeNavigator {
-@@ -390,6 +764,9 @@ func (c *cachedChildQuery) Select(t iterator) NodeNavigator {
+@@ -390,6 +774,9 @@ func (c *cachedChildQuery) Select(t iterator) NodeNavigator {
  
  		if node := c.iterator(); node != nil {
  			c.posit++
@@ -777,7 +803,7 @@ index 8c5535e..d51787b 100644
  			return node
  		}
  		c.iterator = nil
-@@ -399,6 +776,9 @@ func (c *cachedChildQuery) Select(t iterator) NodeNavigator {
+@@ -399,6 +786,9 @@ func (c *cachedChildQuery) Select(t iterator) NodeNavigator {
  func (c *cachedChildQuery) Evaluate(t iterator) interface{} {
  	c.Input.Evaluate(t)
  	c.iterator = nil
@@ -787,7 +813,7 @@ index 8c5535e..d51787b 100644
  	return c
  }
  
-@@ -411,7 +791,7 @@ func (c *cachedChildQuery) Test(n NodeNavigator) bool {
+@@ -411,7 +801,7 @@ func (c *cachedChildQuery) Test(n NodeNavigator) bool {
  }
  
  func (c *cachedChildQuery) Clone() query {
@@ -796,7 +822,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (c *cachedChildQuery) ValueType() resultType {
-@@ -697,6 +1077,8 @@ func (p *precedingQuery) position() int {
+@@ -697,6 +1087,8 @@ func (p *precedingQuery) position() int {
  type parentQuery struct {
  	Input     query
  	Predicate func(NodeNavigator) bool
@@ -805,7 +831,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (p *parentQuery) Select(t iterator) NodeNavigator {
-@@ -737,6 +1119,8 @@ func (p *parentQuery) Test(n NodeNavigator) bool {
+@@ -737,6 +1129,8 @@ func (p *parentQuery) Test(n NodeNavigator) bool {
  type selfQuery struct {
  	Input     query
  	Predicate func(NodeNavigator) bool
@@ -814,7 +840,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (s *selfQuery) Select(t iterator) NodeNavigator {
-@@ -781,6 +1165,8 @@ type filterQuery struct {
+@@ -781,6 +1175,8 @@ type filterQuery struct {
  
  	posit    int
  	positmap map[int]int
@@ -823,7 +849,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (f *filterQuery) do(t iterator) bool {
-@@ -805,7 +1191,144 @@ func (f *filterQuery) position() int {
+@@ -805,7 +1201,144 @@ func (f *filterQuery) position() int {
  	return f.posit
  }
  
@@ -968,7 +994,7 @@ index 8c5535e..d51787b 100644
  	if f.positmap == nil {
  		f.positmap = make(map[int]int)
  	}
-@@ -824,6 +1347,23 @@ func (f *filterQuery) Select(t iterator) NodeNavigator {
+@@ -824,6 +1357,23 @@ func (f *filterQuery) Select(t iterator) NodeNavigator {
  			level := getNodeDepth(f.Input)
  			f.positmap[level]++
  			f.posit = f.positmap[level]
@@ -992,7 +1018,7 @@ index 8c5535e..d51787b 100644
  			return node
  		}
  	}
-@@ -854,9 +1394,19 @@ func (f *filterQuery) Properties() queryProp {
+@@ -854,9 +1404,19 @@ func (f *filterQuery) Properties() queryProp {
  type functionQuery struct {
  	Input query                             // Node Set
  	Func  func(query, iterator) interface{} // The xpath function.
@@ -1012,7 +1038,7 @@ index 8c5535e..d51787b 100644
  	return nil
  }
  
-@@ -919,7 +1469,9 @@ func (f *transformFunctionQuery) Properties() queryProp {
+@@ -919,7 +1479,9 @@ func (f *transformFunctionQuery) Properties() queryProp {
  
  // constantQuery is an XPath constant operand.
  type constantQuery struct {
@@ -1023,7 +1049,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (c *constantQuery) Select(t iterator) NodeNavigator {
-@@ -927,6 +1479,7 @@ func (c *constantQuery) Select(t iterator) NodeNavigator {
+@@ -927,6 +1489,7 @@ func (c *constantQuery) Select(t iterator) NodeNavigator {
  }
  
  func (c *constantQuery) Evaluate(t iterator) interface{} {
@@ -1031,7 +1057,18 @@ index 8c5535e..d51787b 100644
  	return c.Val
  }
  
-@@ -981,7 +1534,9 @@ func (g *groupQuery) position() int {
+@@ -945,7 +1508,9 @@ func (c *constantQuery) Properties() queryProp {
+ type groupQuery struct {
+ 	posit int
+ 
+-	Input query
++	Input   query
++	Caller  query
++	SFilter scriptFilter
+ }
+ 
+ func (g *groupQuery) Select(t iterator) NodeNavigator {
+@@ -981,7 +1546,9 @@ func (g *groupQuery) position() int {
  type logicalQuery struct {
  	Left, Right query
  
@@ -1042,7 +1079,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (l *logicalQuery) Select(t iterator) NodeNavigator {
-@@ -991,7 +1546,13 @@ func (l *logicalQuery) Select(t iterator) NodeNavigator {
+@@ -991,7 +1558,13 @@ func (l *logicalQuery) Select(t iterator) NodeNavigator {
  func (l *logicalQuery) Evaluate(t iterator) interface{} {
  	m := l.Left.Evaluate(t)
  	n := l.Right.Evaluate(t)
@@ -1057,7 +1094,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (l *logicalQuery) Clone() query {
-@@ -1039,6 +1600,8 @@ type booleanQuery struct {
+@@ -1039,6 +1612,8 @@ type booleanQuery struct {
  	IsOr        bool
  	Left, Right query
  	iterator    func() NodeNavigator
@@ -1066,7 +1103,7 @@ index 8c5535e..d51787b 100644
  }
  
  func (b *booleanQuery) Select(t iterator) NodeNavigator {
-@@ -1110,14 +1673,32 @@ func (b *booleanQuery) Evaluate(t iterator) interface{} {
+@@ -1110,14 +1685,32 @@ func (b *booleanQuery) Evaluate(t iterator) interface{} {
  
  	m := b.Left.Evaluate(t)
  	left := asBool(t, m)
