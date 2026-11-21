@@ -85,5 +85,3 @@ patch -d ${DEST_DIR}/github.com/antchfx/jsonquery -p1 < ${PATCH_DIR}/jsonquery.p
 patch -d ${DEST_DIR}/github.com/antchfx/xmlquery -p1 < ${PATCH_DIR}/xmlquery.patch
 patch -d ${DEST_DIR}/github.com/antchfx/xpath -p1 < ${PATCH_DIR}/xpath.patch
 
-patch -d ${DEST_DIR}/github.com/golang/glog  -p1 < ${PATCH_DIR}/glog.patch
-
