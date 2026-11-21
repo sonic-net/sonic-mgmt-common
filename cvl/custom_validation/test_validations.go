@@ -23,6 +23,7 @@
 package custom_validation
 
 import (
+	"context"
 	"strings"
 
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/util"
@@ -53,7 +54,7 @@ func (t *CustomValidation) ValidateStpFeatureEnabled(vc *CustValidationCtxt) CVL
 			CVLErrDetails: "Database access failure",
 		}
 	}
-	if enabled, _ := applDb.HGet("SWITCH_TABLE:switch", "stp_supported").Result(); enabled != "true" {
+	if enabled, _ := applDb.HGet(context.Background(), "SWITCH_TABLE:switch", "stp_supported").Result(); enabled != "true" {
 		keys := strings.Split(vc.CurCfg.Key, "|")
 		return CVLErrorInfo{
 			ErrCode:          CVL_SEMANTIC_ERROR,
