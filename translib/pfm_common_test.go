@@ -27,6 +27,7 @@ import (
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/Azure/sonic-mgmt-common/translib/transformer"
+	"github.com/Workiva/go-datastructures/queue"
 )
 
 func TestPlatformCommonAppOwnership(t *testing.T) {
@@ -187,5 +188,88 @@ func TestPlatformCommonAppHealthzComposition(t *testing.T) {
 		if !tables[table] {
 			t.Errorf("parent subscription lost %s: %v", table, tables)
 		}
+	}
+}
+
+func TestPlatformWildcardComponentInitialSync(t *testing.T) {
+	stateDB := getStateDB()
+	if stateDB == nil {
+		t.Fatal("STATE_DB unavailable")
+	}
+	defer stateDB.DeleteDB()
+
+	const faultOnly = "DLDD_sync_fault_only"
+	const healthOnly = "DLDD_sync_health_only"
+	const mixed = "DLDD_sync_inventory_and_health"
+	const symptom = "SYMPTOM_OVER_THRESHOLD"
+	fault := validPlatformFaultEntry()
+	fault.Field["component_name"] = faultOnly
+	for _, row := range []struct {
+		table db.TableSpec
+		key   db.Key
+		value db.Value
+	}{
+		{platformFaultTableSpec, db.Key{Comp: []string{faultOnly, symptom}}, fault},
+		{platformHealthzTableSpec, db.Key{Comp: []string{healthOnly}}, validPlatformHealthzEntry()},
+		{platformHealthzTableSpec, db.Key{Comp: []string{mixed}}, validPlatformHealthzEntry()},
+		{db.TableSpec{Name: "SW_COMP_INFO"}, db.Key{Comp: []string{mixed}}, db.Value{Field: map[string]string{
+			"name": mixed, "type": "SOFTWARE_MODULE", "software-version": "dldd-sync-test", "oper-status": "active",
+		}}},
+	} {
+		if err := stateDB.SetEntry(&row.table, row.key, row.value); err != nil {
+			t.Fatal(err)
+		}
+		defer stateDB.DeleteEntry(&row.table, row.key)
+	}
+
+	const uri = "/openconfig-platform:components/component[name=*]"
+	for _, mode := range []NotificationType{OnChange, TargetDefined} {
+		t.Run(mode.String(), func(t *testing.T) {
+			session := NewSubscribeSession()
+			defer session.Close()
+			if mode == TargetDefined {
+				prefs, err := IsSubscribeSupported(IsSubscribeRequest{
+					Paths: []IsSubscribePath{{Path: uri, Mode: mode}}, Session: session,
+				})
+				if err != nil || len(prefs) == 0 || prefs[0].Err != nil ||
+					!prefs[0].IsOnChangeSupported || prefs[0].PreferredType != OnChange {
+					t.Fatalf("wildcard subscription preferences: %+v, %v", prefs, err)
+				}
+			}
+			q := queue.NewPriorityQueue(1, false)
+			stop := make(chan struct{})
+			defer close(stop)
+			if err := Subscribe(SubscribeRequest{Paths: []string{uri}, Q: q, Stop: stop, Session: session}); err != nil {
+				t.Fatal(err)
+			}
+			items, err := q.Get(q.Len())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var faultSeen, healthSeen, inventorySeen, mixedHealthSeen bool
+			for _, item := range items {
+				resp := item.(*SubscribeResponse)
+				if resp.SyncComplete {
+					if !faultSeen || !healthSeen || !inventorySeen || !mixedHealthSeen {
+						t.Fatalf("initial sync missing data: fault=%t health=%t inventory=%t mixed health=%t",
+							faultSeen, healthSeen, inventorySeen, mixedHealthSeen)
+					}
+					return
+				}
+				if resp.Update == nil {
+					continue
+				}
+				payload, err := dumpIetfJson(resp.Update)
+				if err != nil {
+					t.Fatal(err)
+				}
+				update := resp.Path + string(payload)
+				faultSeen = faultSeen || (strings.Contains(update, faultOnly) && strings.Contains(update, symptom))
+				healthSeen = healthSeen || (strings.Contains(update, healthOnly) && strings.Contains(update, "UNHEALTHY"))
+				inventorySeen = inventorySeen || (strings.Contains(update, mixed) && strings.Contains(update, "dldd-sync-test"))
+				mixedHealthSeen = mixedHealthSeen || (strings.Contains(update, mixed) && strings.Contains(update, "UNHEALTHY"))
+			}
+			t.Fatal("missing sync_complete")
+		})
 	}
 }

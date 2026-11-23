@@ -227,11 +227,22 @@ func processPlatformHealthzOnChange(ctx *apis.NotificationContext, sender apis.N
 		return
 	}
 	parent, relative := path.SplitLastElem(target)
-	if newErr == nil {
-		sender.Send(&apis.Notification{Path: parent, UpdatePaths: []string{relative}})
-	} else {
+	if newErr != nil {
 		sender.Send(&apis.Notification{Path: parent, Delete: []string{relative}})
+		return
 	}
+	notification := &apis.Notification{Path: parent, UpdatePaths: []string{relative}}
+	if oldErr == nil && oldState.lastUnhealthy != nil && newState.lastUnhealthy == nil {
+		// gNMI updates encode these children using unqualified YANG names.
+		switch util.StripModulePrefix(strings.TrimPrefix(relative, "/")) {
+		case "last-unhealthy":
+			notification.UpdatePaths = nil
+			notification.Delete = []string{"/last-unhealthy"}
+		case "state":
+			notification.Delete = []string{"/state/last-unhealthy"}
+		}
+	}
+	sender.Send(notification)
 }
 
 func platformHealthzSubscribedValueChanged(subscribePath *gnmi.Path, oldState, newState *platformHealthzState) bool {

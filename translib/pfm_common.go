@@ -94,6 +94,20 @@ func (app *CommonApp) translateSubscribe(req translateSubRequest) (translateSubR
 	if err != nil {
 		return healthz, nil
 	}
+	if req.mode != Sample && NewPathInfo(req.path).Var("name") == "*" && len(response.ntfAppInfoTrgt) > 0 {
+		scansInventory := true
+		for _, target := range response.ntfAppInfoTrgt {
+			if target.isNonDB() || target.isDataSrcDynamic || !target.isOnChangeSupported || target.pType == Sample {
+				scansInventory = false
+				break
+			}
+		}
+		if scansInventory {
+			// These tables can contain components absent from the inventory scan.
+			response.ntfAppInfoTrgt = append(response.ntfAppInfoTrgt, healthz.ntfAppInfoTrgtChlds...)
+			return response, nil
+		}
+	}
 	if len(response.ntfAppInfoTrgt) == 0 {
 		response.ntfAppInfoTrgt = healthz.ntfAppInfoTrgt
 	}

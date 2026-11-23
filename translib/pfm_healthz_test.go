@@ -206,6 +206,67 @@ func TestPlatformHealthzOnChange(t *testing.T) {
 	}
 }
 
+func TestPlatformHealthzOnChangeRemovesLastUnhealthy(t *testing.T) {
+	const components = "/openconfig-platform:components"
+	const component = components + "/component[name=*]"
+	const resolvedHealthz = components + "/component[name=PSU+0:A]/healthz"
+	const qualifiedComponent = components + "/openconfig-platform:component[name=*]"
+	const resolvedQualifiedHealthz = components + "/openconfig-platform:component[name=PSU+0:A]/openconfig-platform-healthz:healthz"
+	key := db.Key{Comp: []string{"PSU%2B0%3AA"}}
+	newValue := validPlatformHealthzEntry()
+	delete(newValue.Field, "last_unhealthy")
+	for _, test := range []struct {
+		name       string
+		subscribe  string
+		wantPath   string
+		wantDelete string
+		wantUpdate string
+	}{
+		{"leaf", component + "/healthz/state/last-unhealthy", resolvedHealthz + "/state", "/last-unhealthy", ""},
+		{"qualified leaf", qualifiedComponent + "/openconfig-platform-healthz:healthz/state/openconfig-platform-healthz:last-unhealthy",
+			resolvedQualifiedHealthz + "/state", "/last-unhealthy", ""},
+		{"qualified state", qualifiedComponent + "/openconfig-platform-healthz:healthz/openconfig-platform-healthz:state",
+			resolvedQualifiedHealthz, "/state/last-unhealthy", "/openconfig-platform-healthz:state"},
+		{"healthz", component + "/healthz", resolvedHealthz, "/state/last-unhealthy", "/state"},
+		{"component", component, resolvedHealthz, "/state/last-unhealthy", "/state"},
+		{"components", components, resolvedHealthz, "/state/last-unhealthy", "/state"},
+		{"status sibling", component + "/healthz/state/status", "", "", ""},
+		{"count sibling", component + "/healthz/state/unhealthy-count", "", "", ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			subscribePath, err := ygot.StringToStructuredPath(test.subscribe)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sender := &recordingNotificationSender{}
+			processPlatformHealthzOnChange(&apis.NotificationContext{
+				Path: subscribePath,
+				Key:  &key,
+				EntryDiff: apis.EntryDiff{
+					OldValue: validPlatformHealthzEntry(),
+					NewValue: newValue,
+				},
+			}, sender)
+			if test.wantDelete == "" {
+				if len(sender.notifications) != 0 {
+					t.Fatalf("got %d notifications for an unchanged leaf", len(sender.notifications))
+				}
+				return
+			}
+			if len(sender.notifications) != 1 {
+				t.Fatalf("got %d notifications, want 1", len(sender.notifications))
+			}
+			want := apis.Notification{Path: test.wantPath, Delete: []string{test.wantDelete}}
+			if test.wantUpdate != "" {
+				want.UpdatePaths = []string{test.wantUpdate}
+			}
+			if got := *sender.notifications[0]; !reflect.DeepEqual(got, want) {
+				t.Fatalf("notification = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
 func TestPlatformHealthzQualifiedNotificationResolution(t *testing.T) {
 	for _, componentName := range []string{"component", "openconfig-platform:component"} {
 		t.Run(componentName, func(t *testing.T) {
