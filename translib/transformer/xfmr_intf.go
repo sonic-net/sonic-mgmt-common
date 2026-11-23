@@ -511,6 +511,8 @@ var intf_table_xfmr TableXfmrFunc = func(inParams XfmrParams) ([]string, error) 
 		return nil, nil
 	} else if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/state/counters") {
 		tblList = append(tblList, "NONE")
+	} else if strings.HasPrefix(targetUriXpath, "/openconfig-interfaces:interfaces/interface/rates/state") {
+		tblList = append(tblList, "NONE")
 	} else if strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/state") ||
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/ethernet/state") ||
 		strings.HasPrefix(targetUriPath, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state") {
