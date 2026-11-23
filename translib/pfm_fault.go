@@ -95,28 +95,8 @@ func platformPathNeedsEeprom(targetPath, componentName string) bool {
 }
 
 func (app *PlatformApp) doGetFaults(stateDb *db.DB) (int, error) {
-	table, err := stateDb.GetTable(&platformFaultTableSpec)
-	if err != nil {
-		return 0, fmt.Errorf("FAULT_INFO table get failed: %w", err)
-	}
-
-	keys, err := table.GetKeys()
-	if err != nil {
-		return 0, fmt.Errorf("FAULT_INFO keys get failed: %w", err)
-	}
-
-	rows := make([]platformFaultRow, 0, len(keys))
-	for _, key := range keys {
-		entry, err := table.GetEntry(key)
-		if err != nil {
-			log.Warningf("Skipping FAULT_INFO key %v: %v", key.Comp, err)
-			continue
-		}
-		rows = append(rows, platformFaultRow{key: key, entry: entry})
-	}
-
-	componentFilter := app.path.Var("name")
-	symptomFilter, err := platformFaultIdentityName(app.path.Var("symptom"))
+	component := app.path.StringVar("name", "*")
+	symptom, err := platformFaultIdentityName(app.path.StringVar("symptom", "*"))
 	if err != nil {
 		return 0, fmt.Errorf("invalid symptom filter: %w", err)
 	}
@@ -128,8 +108,45 @@ func (app *PlatformApp) doGetFaults(stateDb *db.DB) (int, error) {
 		}
 		remediationIndex = &value
 	}
+
+	componentKey := faultKeyPattern(component)
+	symptomKey := faultKeyPattern(symptom)
+	if component == "*" {
+		// Discover keys once and filter the decoded identities before reading rows.
+		symptomKey = "*"
+	}
+	keys, err := platformHealthzKeys(stateDb, &platformFaultTableSpec, db.Key{Comp: []string{componentKey, symptomKey}})
+	if err != nil {
+		return 0, fmt.Errorf("FAULT_INFO keys get failed: %w", err)
+	}
+	if component != "*" && symptom != "*" {
+		// Accept either of the qualified identity spellings allowed in fault rows.
+		keys = append([]db.Key{
+			{Comp: []string{componentKey, encodeFaultKeyComponent(platformFaultModulePrefix + ":" + symptom)}},
+			{Comp: []string{componentKey, encodeFaultKeyComponent(platformFaultModule + ":" + symptom)}},
+		}, keys...)
+	}
+
+	rows := make([]platformFaultRow, 0, len(keys))
+	for _, key := range keys {
+		if symptom != "*" && component == "*" {
+			decoded, err := decodeFaultKeyComponent(key.Get(1))
+			identity, identityErr := platformFaultIdentityName(decoded)
+			if err != nil || identityErr != nil || identity != symptom {
+				continue
+			}
+		}
+		entry, err := stateDb.GetEntry(&platformFaultTableSpec, key)
+		if err != nil {
+			if !tlerr.IsTranslibRedisClientEntryNotExist(err) {
+				log.Warningf("Skipping FAULT_INFO key %v: %v", key.Comp, err)
+			}
+			continue
+		}
+		rows = append(rows, platformFaultRow{key: key, entry: entry})
+	}
 	return addPlatformFaultRows(
-		app.getAppRootObject(), rows, componentFilter, symptomFilter, remediationIndex,
+		app.getAppRootObject(), rows, component, symptom, remediationIndex,
 	), nil
 }
 
@@ -584,17 +601,20 @@ func processPlatformFaultOnChange(ctx *apis.NotificationContext, sender apis.Not
 		symptom = oldFault.symptomName
 	}
 
-	notify := func(subscribePath *gnmi.Path, exists bool) {
+	notify := func(subscribePath *gnmi.Path, exists bool) (string, string) {
 		target := platformFaultNotificationPath(subscribePath, component, symptom)
 		if target == "" {
-			return
+			return "", ""
 		}
 		parent, relative := path.SplitLastElem(target)
+		// Scalar updates qualify the prefix and leave child names unqualified.
+		wireRelative := "/" + util.StripModulePrefix(strings.TrimPrefix(relative, "/"))
 		if exists {
 			sender.Send(&apis.Notification{Path: parent, UpdatePaths: []string{relative}})
 		} else {
-			sender.Send(&apis.Notification{Path: parent, Delete: []string{relative}})
+			sender.Send(&apis.Notification{Path: parent, Delete: []string{wireRelative}})
 		}
+		return parent, wireRelative
 	}
 	oldCount, newCount := 0, 0
 	if oldErr == nil {
@@ -621,20 +641,24 @@ func processPlatformFaultOnChange(ctx *apis.NotificationContext, sender apis.Not
 		}
 		return
 	}
-	notify(ctx.Path, newErr == nil)
-	if newErr == nil && newCount < oldCount {
+	prefix, relative := notify(ctx.Path, newErr == nil)
+	if relative != "" && newErr == nil && newCount < oldCount {
 		schemaPath, err := getYangPathFromUri(path.String(ctx.Path))
-		if err != nil || !strings.HasPrefix(platformFaultPath+"/fault/remediations", normalizePlatformSchemaPath(schemaPath)) {
+		schemaPath = normalizePlatformSchemaPath(schemaPath)
+		remediations := platformFaultPath + "/fault/remediations"
+		if err != nil || !strings.HasPrefix(remediations, schemaPath) {
 			return
+		}
+
+		parent := prefix + relative
+		if schemaPath != remediations {
+			parent += "/remediations"
 		}
 		deleted := make([]string, 0, oldCount-newCount)
 		for index := newCount; index < oldCount; index++ {
 			deleted = append(deleted, "/remediation[index="+strconv.Itoa(index)+"]")
 		}
-		sender.Send(&apis.Notification{
-			Path:   platformFaultNotificationPath(&gnmi.Path{}, component, symptom) + "/remediations",
-			Delete: deleted,
-		})
+		sender.Send(&apis.Notification{Path: parent, Delete: deleted})
 	}
 }
 

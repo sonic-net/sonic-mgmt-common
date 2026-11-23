@@ -81,6 +81,19 @@ func init() {
 			}
 		}
 	}
+
+	// The platform Healthz adapter serves these augmentations without transformer annotations.
+	for _, model := range []ModelData{
+		{Name: "openconfig-platform-healthz", Org: "OpenConfig working group", Ver: "0.1.1"},
+		{Name: "openconfig-platform-healthz-fault", Org: "OpenConfig working group", Ver: "0.1.0"},
+	} {
+		if _, registered := mdlCpblt[model.Name]; registered {
+			continue
+		}
+		if err := addModel(&model); err != nil {
+			log.Warningf("Adding model data for module %v to appinterface failed with error=%v", model.Name, err)
+		}
+	}
 }
 
 func (app *CommonApp) initialize(data appData) {

@@ -22,12 +22,14 @@ import (
 	"encoding/json"
 	"math"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/internal/apis"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/path"
+	"github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/openconfig/ygot/ygot"
 )
 
@@ -606,7 +608,7 @@ func TestPlatformFullyQualifiedSubscribeRouting(t *testing.T) {
 		name, uri, table string
 	}{
 		{
-			name:  "qualification fault path",
+			name:  "qualified fault path",
 			uri:   "/openconfig-platform:components/openconfig-platform:component[name=DLDD_FIXES_Fx9N09b]/openconfig-platform-healthz:healthz/openconfig-platform-healthz-fault:faults/openconfig-platform-healthz-fault:fault[symptom=SYMPTOM_UNKNOWN]",
 			table: "FAULT_INFO",
 		},
@@ -654,16 +656,24 @@ func TestPlatformFullyQualifiedSubscribeRouting(t *testing.T) {
 				}
 				recovered.Field["status"], recovered.Field["repair_actions"] = "INACTIVE", "[]"
 			}
+			var remediationPath string
 			for _, diff := range []apis.EntryDiff{
 				{NewValue: active, EntryCreated: true},
 				{OldValue: active, NewValue: recovered},
 			} {
 				sender := &recordingNotificationSender{}
 				info.handlerFunc(&apis.NotificationContext{Path: info.path, Key: &key, EntryDiff: diff}, sender)
-				if len(sender.notifications) != 1 || len(sender.notifications[0].UpdatePaths) != 1 {
-					t.Fatalf("qualified notifications = %+v, want one lookup", sender.notifications)
+				wantNotifications := 1
+				if test.table == "FAULT_INFO" && !diff.EntryCreated {
+					wantNotifications++
+				}
+				if len(sender.notifications) != wantNotifications {
+					t.Fatalf("received %d qualified notifications, want %d", len(sender.notifications), wantNotifications)
 				}
 				n := sender.notifications[0]
+				if len(n.UpdatePaths) != 1 || len(n.Delete) != 0 {
+					t.Fatalf("qualified notification = %+v, want one lookup", n)
+				}
 				target := n.Path + n.UpdatePaths[0]
 				if target != uri {
 					t.Fatalf("notification changed qualified path: %q, want %q", target, uri)
@@ -684,6 +694,57 @@ func TestPlatformFullyQualifiedSubscribeRouting(t *testing.T) {
 				response, err := generateGetResponse(target, root, TRANSLIB_FMT_IETF_JSON)
 				if err != nil || !json.Valid(response.Payload) {
 					t.Fatalf("qualified notification serialization = %q, %v", response.Payload, err)
+				}
+				if test.table != "FAULT_INFO" {
+					continue
+				}
+				if !diff.EntryCreated {
+					deletion := sender.notifications[1]
+					if len(deletion.Delete) != 1 || len(deletion.UpdatePaths) != 0 {
+						t.Fatalf("qualified recovery notification = %+v, want one delete", deletion)
+					}
+					if removed := deletion.Path + deletion.Delete[0]; removed != remediationPath {
+						t.Fatalf("remediation delete = %q, want %q", removed, remediationPath)
+					}
+					continue
+				}
+
+				value, err := generateGetResponse(target, root, TRANSLIB_FMT_YGOT)
+				if err != nil {
+					t.Fatalf("load fault update: %v", err)
+				}
+				messages, err := ygot.TogNMINotifications(value.ValueTree, 0, ygot.GNMINotificationsConfig{
+					UsePathElem: true, Encoding: gnmi.Encoding_PROTO,
+				})
+				if err != nil || len(messages) != 1 {
+					t.Fatalf("render fault update: got %d notifications, %v", len(messages), err)
+				}
+				for _, update := range messages[0].GetUpdate() {
+					relative, err := ygot.PathToString(update.GetPath())
+					if err != nil {
+						t.Fatal(err)
+					}
+					if base, found := strings.CutSuffix(relative, "/state/action"); found {
+						remediationPath = n.Path + base
+						break
+					}
+				}
+				if remediationPath == "" {
+					t.Fatal("initial fault update omitted remediation action")
+				}
+			}
+			if test.table == "FAULT_INFO" {
+				sender := &recordingNotificationSender{}
+				info.handlerFunc(&apis.NotificationContext{
+					Path: info.path, Key: &key, EntryDiff: apis.EntryDiff{OldValue: recovered, EntryDeleted: true},
+				}, sender)
+				if len(sender.notifications) != 1 || len(sender.notifications[0].Delete) != 1 {
+					t.Fatalf("qualified fault removal = %+v, want one delete", sender.notifications)
+				}
+				want, _, _ := strings.Cut(remediationPath, "/remediations/")
+				removed := sender.notifications[0].Path + sender.notifications[0].Delete[0]
+				if removed != want {
+					t.Fatalf("fault delete = %q, want %q", removed, want)
 				}
 			}
 		})

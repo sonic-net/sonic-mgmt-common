@@ -25,9 +25,11 @@ import (
 	"testing"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	"github.com/Azure/sonic-mgmt-common/translib/transformer"
 	"github.com/Workiva/go-datastructures/queue"
+	"github.com/openconfig/ygot/ygot"
 )
 
 func TestPlatformCommonAppOwnership(t *testing.T) {
@@ -223,7 +225,7 @@ func TestPlatformWildcardComponentInitialSync(t *testing.T) {
 	}
 
 	const uri = "/openconfig-platform:components/component[name=*]"
-	for _, mode := range []NotificationType{OnChange, TargetDefined} {
+	for _, mode := range []NotificationType{OnChange, TargetDefined, Sample} {
 		t.Run(mode.String(), func(t *testing.T) {
 			session := NewSubscribeSession()
 			defer session.Close()
@@ -237,9 +239,23 @@ func TestPlatformWildcardComponentInitialSync(t *testing.T) {
 				}
 			}
 			q := queue.NewPriorityQueue(1, false)
-			stop := make(chan struct{})
-			defer close(stop)
-			if err := Subscribe(SubscribeRequest{Paths: []string{uri}, Q: q, Stop: stop, Session: session}); err != nil {
+			request := SubscribeRequest{Paths: []string{uri}, Q: q, Session: session}
+			var err error
+			if mode == Sample {
+				prefs, prepErr := IsSubscribeSupported(IsSubscribeRequest{
+					Paths: []IsSubscribePath{{Path: uri, Mode: mode}}, Session: session,
+				})
+				if prepErr != nil || len(prefs) != 1 || prefs[0].Err != nil || !prefs[0].IsWildcardSupported {
+					t.Fatalf("wildcard sample preferences: %+v, %v", prefs, prepErr)
+				}
+				err = Stream(request)
+			} else {
+				stop := make(chan struct{})
+				defer close(stop)
+				request.Stop = stop
+				err = Subscribe(request)
+			}
+			if err != nil {
 				t.Fatal(err)
 			}
 			items, err := q.Get(q.Len())
@@ -270,6 +286,75 @@ func TestPlatformWildcardComponentInitialSync(t *testing.T) {
 				mixedHealthSeen = mixedHealthSeen || (strings.Contains(update, mixed) && strings.Contains(update, "UNHEALTHY"))
 			}
 			t.Fatal("missing sync_complete")
+		})
+	}
+}
+
+func TestPlatformKeyedHealthzReads(t *testing.T) {
+	stateDB := getStateDB()
+	if stateDB == nil {
+		t.Fatal("STATE_DB unavailable")
+	}
+	defer stateDB.DeleteDB()
+
+	const component = "DLDD+keyed:one"
+	const neighbor = component + "-unrelated"
+	const symptom = "SYMPTOM_OVER_THRESHOLD"
+	componentKey := encodeFaultKeyComponent(component)
+	neighborKey := encodeFaultKeyComponent(neighbor)
+	fault := validPlatformFaultEntry()
+	fault.Field["component_name"] = component
+	otherFault := validPlatformFaultEntry()
+	otherFault.Field["component_name"] = neighbor
+	for _, row := range []struct {
+		table db.TableSpec
+		key   db.Key
+		value db.Value
+	}{
+		{platformHealthzTableSpec, db.Key{Comp: []string{componentKey}}, validPlatformHealthzEntry()},
+		{platformHealthzTableSpec, db.Key{Comp: []string{neighborKey}}, validPlatformHealthzEntry()},
+		{platformFaultTableSpec, db.Key{Comp: []string{componentKey, symptom}}, fault},
+		{platformFaultTableSpec, db.Key{Comp: []string{neighborKey, symptom}}, otherFault},
+	} {
+		if err := stateDB.SetEntry(&row.table, row.key, row.value); err != nil {
+			t.Fatal(err)
+		}
+		defer stateDB.DeleteEntry(&row.table, row.key)
+	}
+	const base = "/openconfig-platform:components/component[name=" + component + "]/healthz"
+	for _, tc := range []struct {
+		path      string
+		table     db.TableSpec
+		get       func(*PlatformApp, *db.DB) (int, error)
+		rowReads  uint
+		keySearch bool
+	}{
+		{base + "/state", platformHealthzTableSpec, (*PlatformApp).doGetHealthzState, 1, false},
+		{base + "/faults/fault[symptom=" + platformFaultModule + ":" + symptom + "]",
+			platformFaultTableSpec, (*PlatformApp).doGetFaults, 3, false},
+		{base + "/faults", platformFaultTableSpec, (*PlatformApp).doGetFaults, 1, true},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			stats := func() db.Stats {
+				stats := stateDB.GetStats()
+				if tableStats, ok := stats.Tables[tc.table.Name]; ok {
+					return tableStats
+				}
+				return stats.AllTables
+			}
+			components := &ocbinds.OpenconfigPlatform_Components{}
+			var root ygot.GoStruct = &ocbinds.Device{Components: components}
+			app := &PlatformApp{path: NewPathInfo(tc.path), ygotRoot: &root}
+			before := stats()
+			count, err := tc.get(app, stateDB)
+			after := stats()
+			if err != nil || count != 1 || components.Component[component] == nil || len(components.Component) != 1 {
+				t.Fatalf("read count=%d, components=%+v, error=%v", count, components.Component, err)
+			}
+			keySearch := after.GetKeysPatternHits > before.GetKeysPatternHits
+			if reads := after.GetEntryHits - before.GetEntryHits; reads == 0 || reads > tc.rowReads || keySearch != tc.keySearch {
+				t.Fatalf("row reads=%d, key search=%v, want 1 to %d reads and key search=%v", reads, keySearch, tc.rowReads, tc.keySearch)
+			}
 		})
 	}
 }

@@ -29,6 +29,16 @@ import (
 
 const platformHealthzPath = "/openconfig-platform:components/component/healthz"
 
+func platformHealthzKeys(stateDB *db.DB, table *db.TableSpec, key db.Key) ([]db.Key, error) {
+	if !stateDB.IsOpen() {
+		return nil, tlerr.TranslibDBConnectionReset{}
+	}
+	if key.IsPattern() {
+		return stateDB.GetKeysPattern(table, key)
+	}
+	return []db.Key{key}, nil
+}
+
 func isPlatformHealthzURI(uri string) bool {
 	schemaPath, err := getYangPathFromUri(uri)
 	if err != nil {
@@ -94,7 +104,12 @@ func (app *CommonApp) translateSubscribe(req translateSubRequest) (translateSubR
 	if err != nil {
 		return healthz, nil
 	}
-	if req.mode != Sample && NewPathInfo(req.path).Var("name") == "*" && len(response.ntfAppInfoTrgt) > 0 {
+	if NewPathInfo(req.path).Var("name") == "*" && len(response.ntfAppInfoTrgt) > 0 {
+		if req.mode == Sample {
+			// Sample reads only targets. Include components absent from inventory.
+			response.ntfAppInfoTrgt = append(response.ntfAppInfoTrgt, healthz.ntfAppInfoTrgtChlds...)
+			return response, nil
+		}
 		scansInventory := true
 		for _, target := range response.ntfAppInfoTrgt {
 			if target.isNonDB() || target.isDataSrcDynamic || !target.isOnChangeSupported || target.pType == Sample {

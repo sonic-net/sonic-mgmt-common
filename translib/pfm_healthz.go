@@ -58,25 +58,24 @@ func platformPathNeedsHealthzState(targetPath string) bool {
 }
 
 func (app *PlatformApp) doGetHealthzState(stateDb *db.DB) (int, error) {
-	table, err := stateDb.GetTable(&platformHealthzTableSpec)
-	if err != nil {
-		return 0, fmt.Errorf("COMPONENT_HEALTH_INFO table get failed: %w", err)
-	}
-	keys, err := table.GetKeys()
+	component := app.path.StringVar("name", "*")
+	keys, err := platformHealthzKeys(stateDb, &platformHealthzTableSpec, db.Key{Comp: []string{faultKeyPattern(component)}})
 	if err != nil {
 		return 0, fmt.Errorf("COMPONENT_HEALTH_INFO keys get failed: %w", err)
 	}
 
 	rows := make([]platformHealthzRow, 0, len(keys))
 	for _, key := range keys {
-		entry, err := table.GetEntry(key)
+		entry, err := stateDb.GetEntry(&platformHealthzTableSpec, key)
 		if err != nil {
-			log.Warningf("Skipping COMPONENT_HEALTH_INFO key %v: %v", key.Comp, err)
+			if !tlerr.IsTranslibRedisClientEntryNotExist(err) {
+				log.Warningf("Skipping COMPONENT_HEALTH_INFO key %v: %v", key.Comp, err)
+			}
 			continue
 		}
 		rows = append(rows, platformHealthzRow{key: key, entry: entry})
 	}
-	return addPlatformHealthzRows(app.getAppRootObject(), rows, app.path.Var("name")), nil
+	return addPlatformHealthzRows(app.getAppRootObject(), rows, component), nil
 }
 
 func addPlatformHealthzRows(components *ocbinds.OpenconfigPlatform_Components, rows []platformHealthzRow, componentFilter string) int {
