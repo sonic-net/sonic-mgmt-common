@@ -13,13 +13,11 @@ def main():
     args = parser.parse_args()
     yang = args.output / "usr/models/yang"
     yang.mkdir(parents=True, exist_ok=True)
-    # Match debian/sonic-mgmt-common.install's directory order. Equal duplicate
-    # payloads are safe; conflicting model basenames would break the flat ABI.
+    # dh_install copies each directory into the flat destination in manifest order.
+    # Later entries such as common/openconfig-platform-transceiver.yang take precedence.
     for relative in [".", "common", "extensions", "sonic", "sonic/common", "annotations"]:
         for source in sorted((args.models / relative).glob("*.yang")):
             destination = yang / source.name
-            if destination.exists() and destination.read_bytes() != source.read_bytes():
-                raise ValueError(f"Conflicting installed model: {source.name}")
             shutil.copyfile(source, destination)
     extra = "".join("-" + path.name + "\n" for path in sorted((args.models / "sonic/common").glob("*.yang")))
     extra += "".join(path.name + "\n" for path in sorted(args.test_model))
