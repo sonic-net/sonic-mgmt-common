@@ -20,6 +20,7 @@
 package cvl_test
 
 import (
+	"context"
 	"strconv"
 	"testing"
 
@@ -33,7 +34,7 @@ func mockStpFeatureEnabled(t *testing.T, v bool) {
 		t.Fatal("Failed to open APPL_DB client")
 	}
 	defer applDb.Close()
-	res := applDb.HSet("SWITCH_TABLE:switch", "stp_supported", strconv.FormatBool(v))
+	res := applDb.HSet(context.Background(), "SWITCH_TABLE:switch", "stp_supported", strconv.FormatBool(v))
 	if res.Err() != nil {
 		t.Fatalf("Failed to set stp_supported=%v in APPL_DB, err=%v", v, res.Err())
 	}
