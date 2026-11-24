@@ -11,7 +11,7 @@ go_library(
     importpath = "github.com/Azure/sonic-mgmt-common/cvl/internal/util",
     visibility = ["//cvl:__subpackages__"],
     deps = [
-        "@com_github_go_redis_redis_v7//:redis",
+        "@com_github_redis_go_redis_v9//:go-redis",
         "@com_github_golang_glog//:glog",
         "@com_github_workiva_go_datastructures//set",
     ],

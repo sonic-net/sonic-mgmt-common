@@ -67,6 +67,7 @@ filegroup(
 redis_go_test(
     name = "transformer_model_test",
     srcs = [
+        "sw_portchannel_test.go",
         "testxfmryang_test.go",
         "transformer_test.go",
         "utils_test.go",
@@ -94,6 +95,7 @@ redis_go_test(
         "portchannel_openconfig_test.go",
         "sflow_openconfig_test.go",
         "sflow_sonic_test.go",
+        "sw_portchannel_test.go",
         "transformer_test.go",
         "utils_test.go",
         "vlan_openconfig_test.go",

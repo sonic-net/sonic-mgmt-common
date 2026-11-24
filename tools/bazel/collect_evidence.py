@@ -72,7 +72,7 @@ def main():
         "os_release": Path("/etc/os-release").read_text(),
         "target": "@sonic_build_infra//platforms:x86_64_trixie",
         "bazel": Path(".bazelversion").read_text().strip(),
-        "go_sdk": "1.25.9",
+        "go_sdk": "1.26.0",
         "test_profiles": {
             "production/testapp": os.environ.get("CI_DEFAULT_TEST_RESULT", "unknown"),
             "xfmrtest with test models": os.environ.get("CI_XFMR_TEST_RESULT", "unknown"),
