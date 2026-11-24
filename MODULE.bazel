@@ -44,7 +44,7 @@ go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.26.0")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
-go_deps.from_file(go_work = "//:go.bazel.work")
+go_deps.from_file(go_mod = "//:go.mod")
 
 # goyang and ygot use their public owners above. These remaining overrides
 # preserve the existing gNMI and unrelated Go dependency behavior.

@@ -1,9 +1,0 @@
-// Keep the management runtime on the versions tested with Go 1.26.0.
-// The Bazel build tools also request these modules through Gazelle.
-go 1.26.0
-
-use .
-
-replace golang.org/x/net => golang.org/x/net v0.62.0
-replace golang.org/x/sys => golang.org/x/sys v0.49.0
-replace golang.org/x/text => golang.org/x/text v0.44.0

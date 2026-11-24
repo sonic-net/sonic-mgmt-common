@@ -19,7 +19,6 @@ config_setting(
 # gazelle:exclude tools
 
 exports_files([
-    "go.bazel.work",
     "go.mod",
     "go.sum",
     "requirements_lock.txt",
