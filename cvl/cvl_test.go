@@ -310,10 +310,11 @@ func clearDb() {
 
 	client := getConfigDbClient()
 	defer client.Close()
+	ctx := context.Background()
 	for _, tbl := range tblList {
-		keys, err := client.Keys(tbl + "|*").Result()
+		keys, err := client.Keys(ctx, tbl + "|*").Result()
 		if err == nil && len(keys) != 0 {
-			err = client.Del(keys...).Err()
+			err = client.Del(ctx, keys...).Err()
 		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "clearDb:", err)
