@@ -1,0 +1,60 @@
+module openconfig-lacp-deviation {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/lacp/deviation/extension";
+
+  prefix "oc-lacp-dev";
+
+  // import some basic types
+  import openconfig-extensions { prefix oc-ext; }
+  import openconfig-lacp { prefix oc-lacp; }
+
+  organization
+    "SONiC";
+
+  contact
+    "SONiC";
+
+  description
+    "This module describes a YANG model for openconfig-lacp deviations.";
+
+  oc-ext:openconfig-version "0.1.0";
+
+  revision "2026-11-24" {
+    description
+      "Remove top-level system-priority and the configurable per interface
+      system-priority. SONiC has no CONFIG_DB field for LACP system priority;
+      the operational value is reported in
+      lacp/interfaces/interface/state/system-priority.
+      Remove the configurable per interface lacp-mode, and the per interface
+      fallback-timeout.";
+    reference "0.1.0";
+  }
+
+  deviation /oc-lacp:lacp/oc-lacp:config/oc-lacp:system-priority {
+    deviate not-supported;
+  }
+
+  deviation /oc-lacp:lacp/oc-lacp:state/oc-lacp:system-priority {
+    deviate not-supported;
+  }
+
+  deviation /oc-lacp:lacp/oc-lacp:interfaces/oc-lacp:interface/oc-lacp:config/oc-lacp:system-priority {
+    deviate not-supported;
+  }
+
+  deviation /oc-lacp:lacp/oc-lacp:interfaces/oc-lacp:interface/oc-lacp:config/oc-lacp:lacp-mode {
+    deviate not-supported;
+  }
+
+  deviation /oc-lacp:lacp/oc-lacp:interfaces/oc-lacp:interface/oc-lacp:config/oc-lacp:fallback-timeout {
+    deviate not-supported;
+  }
+
+  deviation /oc-lacp:lacp/oc-lacp:interfaces/oc-lacp:interface/oc-lacp:state/oc-lacp:fallback-timeout {
+    deviate not-supported;
+  }
+
+}

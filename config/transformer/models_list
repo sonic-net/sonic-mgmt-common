@@ -7,6 +7,7 @@ openconfig-if-ip.yang
 openconfig-interfaces-annot.yang
 openconfig-interfaces.yang
 openconfig-lacp.yang
+openconfig-lacp-annot.yang
 openconfig-mclag-annot.yang
 openconfig-mclag.yang
 openconfig-p4rt.yang
