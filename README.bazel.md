@@ -2,7 +2,7 @@
 
 This build compiles this checkout's CVL and translib Go code and generates its
 YANG bindings, validation schemas, and install trees. It targets native AMD64
-Debian Trixie with Bazel 8.5.1, Go 1.25.9, the shared SONiC GCC toolchain and
+Debian Trixie with Bazel 8.5.1, Go 1.26.0, the shared SONiC GCC toolchain and
 Python 3.13. It does not generate Debian packages.
 
 | Consumer interface | Output |
@@ -96,7 +96,7 @@ configuration; their use does not change the checked-in build contract.
 
 ## Consuming the public Go libraries
 
-The consuming root selects Go 1.25.9, Python 3.13 and the public goyang/ygot
+The consuming root selects Go 1.26.0, Python 3.13 and the public goyang/ygot
 owners. Their Go import paths resolve to one shared type graph; downstream roots
 do not copy their patches. Gazelle permits the remaining unrelated dependency
 overrides only in the root module: those existing jsonquery/xmlquery/xpath/glog

@@ -40,7 +40,7 @@ go_library(
         "@com_github_antchfx_jsonquery//:jsonquery",
         "@com_github_antchfx_xmlquery//:xmlquery",
         "@com_github_antchfx_xpath//:xpath",
-        "@com_github_go_redis_redis_v7//:redis",
+        "@com_github_redis_go_redis_v9//:go-redis",
         "@com_github_google_go_cmp//cmp",
         "@com_github_philopon_go_toposort//:go-toposort",
     ],
@@ -69,6 +69,6 @@ redis_go_test(
         "//cvl/internal/util",
         "//translib/db",
         "//translib/tlerr",
-        "@com_github_go_redis_redis_v7//:redis",
+        "@com_github_redis_go_redis_v9//:go-redis",
     ],
 )
