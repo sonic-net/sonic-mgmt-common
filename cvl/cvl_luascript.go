@@ -20,9 +20,10 @@
 package cvl
 
 import (
+	"context"
 	"errors"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 )
 
 // RunLua is a temporary API to run a named lua script in ConfigDb. Script name
@@ -33,7 +34,7 @@ func RunLua(name string, args ...interface{}) (interface{}, error) {
 	if !ok || script == nil {
 		return nil, errors.New("unknown script: " + name)
 	}
-	return script.Run(redisClient, []string{}, args...).Result()
+	return script.Run(context.Background(), redisClient, []string{}, args...).Result()
 }
 
 // Redis server side script
