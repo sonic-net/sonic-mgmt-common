@@ -6,6 +6,9 @@ module openconfig-system-annot {
     prefix "oc-sys-annot";
 
     import openconfig-system { prefix oc-sys; }
+    import openconfig-system-logging { prefix oc-log; }
+    import openconfig-system-logging-ext { prefix oc-log-ext; }
+    import openconfig-system-ext { prefix oc-sys-ext; }
     import sonic-extensions {prefix sonic-ext; }
     import openconfig-system-grpc { prefix oc-sys-grpc; }
     import gnsi-pathz { prefix gnsi-pathz; }
@@ -69,6 +72,154 @@ module openconfig-system-annot {
       deviate add {
         sonic-ext:key-transformer "pathz_policies_key_xfmr";
         sonic-ext:subtree-transformer "pathz_policies_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers {
+      deviate add {
+        sonic-ext:subtree-transformer "remote_servers_list_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server {
+      deviate add {
+        sonic-ext:db-name "CONFIG_DB";
+        sonic-ext:table-name "SYSLOG_SERVER";
+        sonic-ext:path-transformer "remote_server_path_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:config {
+      deviate add {
+          sonic-ext:db-name "CONFIG_DB";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:config/oc-log:remote-port {
+      deviate add {
+        sonic-ext:field-name "port";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:config/oc-log:source-address {
+      deviate add {
+        sonic-ext:field-name "source";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:config/oc-log:network-instance {
+      deviate add {
+        sonic-ext:field-name "vrf";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:state/oc-log:remote-port {
+      deviate add {
+        sonic-ext:field-name "port";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:state/oc-log:source-address {
+      deviate add {
+        sonic-ext:field-name "source";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:state/oc-log:network-instance {
+      deviate add {
+        sonic-ext:field-name "vrf";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:config/oc-log:transport-security {
+      deviate add {
+        sonic-ext:field-name "transport_security";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:state/oc-log:transport-security {
+      deviate add {
+        sonic-ext:field-name "transport_security";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:config/oc-log:tls-profile-id {
+      deviate add {
+        sonic-ext:field-name "tls_profile_id";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:state/oc-log:tls-profile-id {
+      deviate add {
+        sonic-ext:field-name "tls_profile_id";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:config/oc-log-ext:tls-permitted-peers {
+      deviate add {
+        sonic-ext:field-name "tls_permitted_peers";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:state/oc-log-ext:tls-permitted-peers {
+      deviate add {
+        sonic-ext:field-name "tls_permitted_peers";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:state/oc-log:host {
+      deviate add {
+          sonic-ext:field-transformer "syslog_server_ip_fld_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:selectors {
+      deviate add {
+        sonic-ext:table-name "NONE";
+        sonic-ext:subtree-transformer "remote_servers_list_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:selectors/oc-log:selector {
+      deviate add {
+        sonic-ext:subtree-transformer "remote_servers_list_xfmr";
+        sonic-ext:key-transformer "syslog_selector_key_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:selectors/oc-log:selector/oc-log:config/oc-log:severity {
+      deviate add {
+        sonic-ext:field-transformer "syslog_selector_severity_fld_xfmr";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-log:remote-servers/oc-log:remote-server/oc-log:selectors/oc-log:selector/oc-log:config/oc-log:facility {
+      deviate add {
+        sonic-ext:field-transformer "syslog_selector_facility_fld_xfmr";
+      }
+    }
+
+    /* Global logging source-interface (openconfig-system-ext) is handled by a
+       subtree transformer that maps to SYSLOG_CONFIG|GLOBAL:src_intf. */
+    deviation /oc-sys:system/oc-log:logging/oc-sys-ext:config {
+      deviate add {
+        sonic-ext:subtree-transformer "logging_config_xfmr";
+      }
+    }
+
+    /* Global logging operational-state extensions live in a dedicated ext
+       container with no base-model backing, so bind it to SYSLOG_CONFIG|GLOBAL
+       explicitly. source-interface then mirrors the configured src_intf. */
+    deviation /oc-sys:system/oc-log:logging/oc-sys-ext:state {
+      deviate add {
+        sonic-ext:table-name "SYSLOG_CONFIG";
+        sonic-ext:key-name "GLOBAL";
+      }
+    }
+
+    deviation /oc-sys:system/oc-log:logging/oc-sys-ext:state/oc-sys-ext:source-interface {
+      deviate add {
+        sonic-ext:field-name "src_intf";
       }
     }
 }

@@ -992,6 +992,10 @@ func (d *DB) DeleteKeys(ts *TableSpec, key Key) error {
 }
 
 func (d *DB) doCVL(ts *TableSpec, cvlOps []cmn.CVLOperation, key Key, vals []Value) error {
+	return d.doCVLOp(ts, cvlOps, key, vals, false)
+}
+
+func (d *DB) doCVLOp(ts *TableSpec, cvlOps []cmn.CVLOperation, key Key, vals []Value, replaceOp bool) error {
 	var e error = nil
 
 	var cvlRetCode cvl.CVLRetCode
@@ -1022,10 +1026,10 @@ func (d *DB) doCVL(ts *TableSpec, cvlOps []cmn.CVLOperation, key Key, vals []Val
 	for i := 0; i < len(cvlOps); i++ {
 
 		cvlEditConfigData := cmn.CVLEditConfigData{
-			VType: cmn.VALIDATE_ALL,
-			VOp:   cvlOps[i],
-			Key:   d.key2redis(ts, key),
-			// Await CVL PR ReplaceOp: isReplaceOp,
+			VType:     cmn.VALIDATE_ALL,
+			VOp:       cvlOps[i],
+			Key:       d.key2redis(ts, key),
+			ReplaceOp: replaceOp,
 		}
 
 		switch cvlOps[i] {
@@ -1300,9 +1304,9 @@ func (d *DB) setEntry(ts *TableSpec, key Key, value Value, isCreate bool) error 
 
 	if !isCreate {
 		// Prepare the HDel list
-		// Note: This is for compatibililty with PySWSSDK semantics.
-		//       The CVL library will likely fail the SetEntry when
-		//       the item exists.
+		// Note: This is for compatibility with PySWSSDK semantics.
+		//       Fields present in the existing row but not in value are
+		//       deleted in the same CVL ReplaceOp as the UPDATE.
 		valueCurrent, e = d.GetEntry(ts, key)
 		if e == nil {
 			for k := range valueCurrent.Field {
@@ -1322,8 +1326,11 @@ func (d *DB) setEntry(ts *TableSpec, key Key, value Value, isCreate bool) error 
 			e = d.doCVL(ts, []cmn.CVLOperation{cmn.OP_UPDATE},
 				key, []Value{value})
 		} else {
-			e = d.doCVL(ts, []cmn.CVLOperation{cmn.OP_UPDATE, cmn.OP_DELETE},
-				key, []Value{value, valueComplement})
+			// One in-place replace: HMSET the new row and HDEL dropped fields.
+			// ReplaceOp tells CVL to validate the final row (not a field-delete
+			// of tls_profile_id while protocol is still tls).
+			e = d.doCVLOp(ts, []cmn.CVLOperation{cmn.OP_UPDATE, cmn.OP_DELETE},
+				key, []Value{value, valueComplement}, true)
 		}
 	} else {
 		if glog.V(3) {

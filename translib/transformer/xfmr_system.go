@@ -22,6 +22,8 @@ const (
 	WRITES    = "set"
 	GNXI_ID   = "gnxi"
 
+	LOGGING_TBL = "SYSLOG_SERVER"
+
 	/** Credential Tables **/
 	CREDENTIALS_TBL = "CREDENTIALS"
 	CRED_PATHZ_TBL  = "CREDENTIALS|PATHZ_POLICY"
@@ -120,6 +122,9 @@ func init() {
 	XlateFuncBind("DbToYang_pathz_policies_key_xfmr", DbToYang_pathz_policies_key_xfmr)
 	XlateFuncBind("DbToYang_console_counters_xfmr", DbToYang_console_counters_xfmr)
 	XlateFuncBind("Subscribe_console_counters_xfmr", Subscribe_console_counters_xfmr)
+	XlateFuncBind("YangToDb_syslog_server_ip_fld_xfmr", YangToDb_syslog_server_ip_fld_xfmr)
+	XlateFuncBind("DbToYang_syslog_server_ip_fld_xfmr", DbToYang_syslog_server_ip_fld_xfmr)
+	XlateFuncBind("DbToYangPath_remote_server_path_xfmr", DbToYangPath_remote_server_path_xfmr)
 }
 
 type grpcState struct {
@@ -933,4 +938,32 @@ var Subscribe_console_counters_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSub
 		onChange: OnchangeEnable,
 		nOpts:    &notificationOpts{mInterval: 0, pType: OnChange},
 	}, nil
+}
+
+func YangToDb_syslog_server_ip_fld_xfmr(inParams XfmrParams) (map[string]string, error) {
+	return make(map[string]string), nil
+}
+
+func DbToYang_syslog_server_ip_fld_xfmr(inParams XfmrParams) (map[string]interface{}, error) {
+	log.V(3).Infof("DbToYang_syslog_server_ip_fld_xfmr: key=\"%s\"", inParams.key)
+	result := make(map[string]interface{})
+	if len((*inParams.dbDataMap)[inParams.curDb]) > 0 {
+		result["host"] = inParams.key
+	}
+	return result, nil
+}
+
+var DbToYangPath_remote_server_path_xfmr PathXfmrDbToYangFunc = func(inParams XfmrDbToYgPathParams) error {
+	rootPath := "/openconfig-system:system/logging/remote-servers/remote-server/host"
+
+	log.V(3).Infof("DbToYangPath_remote_server_path_xfmr: inParams: %#v", inParams)
+	if len(inParams.tblKeyComp) != 1 {
+		return fmt.Errorf("Invalid tblKeyCom for DbToYangPath_remote_server_path_xmfr:%v", inParams.tblKeyComp)
+	}
+	if LOGGING_TBL != inParams.tblName {
+		return nil
+	}
+	inParams.ygPathKeys[rootPath] = inParams.tblKeyComp[0]
+	log.V(3).Info("DbToYangPath_remote_server_path_xfmr: returned params.ygPathKeys: ", inParams.ygPathKeys)
+	return nil
 }

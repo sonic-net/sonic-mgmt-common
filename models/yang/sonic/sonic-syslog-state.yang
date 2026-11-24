@@ -1,0 +1,50 @@
+module sonic-syslog-state {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/sonic-system-syslog-state";
+    prefix syslog-st;
+
+    import sonic-syslog {
+        prefix syslog;
+    }
+
+    description
+        "Operational TLS apply state for remote syslog servers.
+
+         ConfigDB SYSLOG_SERVER / SYSLOG_CONFIG live in the imported
+         sonic-syslog module (sonic-yang-models). hostcfgd writes these
+         two leaves to STATE_DB SYSLOG_SERVER|<addr> after rsyslog-config
+         runs. They are an augment so CVL does not register a second
+         SYSLOG_SERVER table.";
+
+    revision 2026-08-31 {
+        description
+            "Initial revision: TLS omfwd apply-state leaves.";
+    }
+
+    augment "/syslog:sonic-syslog/syslog:SYSLOG_SERVER/syslog:SYSLOG_SERVER_LIST" {
+        description
+            "hostcfgd TLS apply status for this server. Redis: STATE_DB
+             SYSLOG_SERVER. Not ConfigDB; do not put these leaves in
+             sonic-yang-models.";
+
+        leaf applied_transport_security {
+            description
+                "STATE_DB: whether TLS omfwd was actually applied for this server";
+            type boolean;
+        }
+
+        leaf failure_reason {
+            description
+                "STATE_DB: why TLS was not applied, if applicable";
+            type enumeration {
+                enum NONE;
+                enum NO_PROFILE;
+                enum NO_CERTIFICATE;
+                enum INVALID_CERTIFICATE;
+                enum RSYSLOG_APPLY_FAILED;
+            }
+        }
+    }
+}

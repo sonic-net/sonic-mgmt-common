@@ -782,7 +782,7 @@ func dbMapCreate(d *db.DB, ygRoot *ygot.GoStruct, oper Operation, uri string, re
 		}
 	} else {
 		replaceInfo = replaceProcessingInfo{isDeleteForReplace, replaceSubtreeMap, subOpDataMapForReplace, targetHasNonTerminalNode, nil, isNonTblOwnerDefaultValProcess}
-		xlateToData := formXlateToDbParam(d, ygRoot, oper, root, uri, "", "", jsonData, resultMap, result, txCache, tblXpathMap, subOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", "", false, invokeSubtreeOnceMap, nil, nil, &replaceInfo)
+		xlateToData := formXlateToDbParam(d, ygRoot, oper, root, uri, "", "", jsonData, resultMap, result, txCache, tblXpathMap, subOpDataMap, &cascadeDelTbl, &xfmrErr, "", "", "", false, invokeSubtreeOnceMap, yangDefValMap, yangAuxValMap, &replaceInfo)
 		/* Invoke pre-xfmr is present for the YANG module */
 		if xYangModSpecMap != nil {
 			if modSpecInfo, specOk := xYangModSpecMap[moduleNm]; specOk && (len(modSpecInfo.xfmrPre) > 0) {
@@ -1044,7 +1044,7 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 				curKey = keyCreate(xlateParams, curUri, data)
 			}
 
-			curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, xlateParams.xpath, curKey, data, xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, "", "", "", false, xlateParams.invokeCRUSubtreeOnceMap, nil, nil, xlateParams.replaceInfo)
+			curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, xlateParams.xpath, curKey, data, xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, "", "", "", false, xlateParams.invokeCRUSubtreeOnceMap, xlateParams.yangDefValMap, xlateParams.yangAuxValMap, xlateParams.replaceInfo)
 
 			if xlateParams.oper == REPLACE { //propagate table-name to children
 				curTbl := xlateParams.tableName
@@ -1169,6 +1169,8 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 									curYgotNode = nil
 								}
 								inParams := formXfmrInputRequest(xlateParams.d, dbs, db.MaxDB, xlateParams.ygRoot, curUri, xlateParams.requestUri, xlateParams.oper, "", nil, xlateParams.subOpDataMap, curYgotNode, xlateParams.txCache)
+								inParams.yangDefValMap = xlateParams.yangDefValMap
+								inParams.yangAuxValMap = xlateParams.yangAuxValMap
 								stRetData, err := xfmrHandler(inParams, xfmrFunc)
 								if err != nil {
 									if xlateParams.xfmrErr != nil && *xlateParams.xfmrErr == nil {
@@ -1203,7 +1205,7 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 						}
 					}
 					xfmrLogDebug("Before yangReqToDbMapCreate() uri - %v, result map - %v, subOpDataMap - %v", curUri, xlateParams.result, xlateParams.subOpDataMap)
-					curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, xpath, curKey, jData.MapIndex(key).Interface(), xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, "", "", "", false, xlateParams.invokeCRUSubtreeOnceMap, nil, nil, xlateParams.replaceInfo)
+					curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, curUri, xlateParams.requestUri, xpath, curKey, jData.MapIndex(key).Interface(), xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, "", "", "", false, xlateParams.invokeCRUSubtreeOnceMap, xlateParams.yangDefValMap, xlateParams.yangAuxValMap, xlateParams.replaceInfo)
 					if ok && (xYangSpecMap[xpath] != nil) && (len(xYangSpecMap[xpath].xfmrFunc) == 0) && (xlateParams.oper == REPLACE) && (len(curXpath) > len(reqXpath)) && (xYangSpecMap[xpath].yangType == YANG_CONTAINER) {
 						/*propagate table-name to children.Also add table-instance, corresponding to the container,
 						  if different from parent, to translated result */
@@ -1242,7 +1244,7 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 								value := jData.MapIndex(key).Interface()
 								xfmrLogDebug("Processing data field: key(\"%v\").", key)
 								xfmrLogDebug("Before mapFillData uri - %v, node - %v, result map - %v, subOpDataMap - %v", xlateParams.uri, pathAttr, xlateParams.result, xlateParams.subOpDataMap)
-								curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, xlateParams.xpath, curKey, xlateParams.jsonData, xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, pathAttr, value, "", false, xlateParams.invokeCRUSubtreeOnceMap, nil, nil, xlateParams.replaceInfo)
+								curXlateParams := formXlateToDbParam(xlateParams.d, xlateParams.ygRoot, xlateParams.oper, xlateParams.uri, xlateParams.requestUri, xlateParams.xpath, curKey, xlateParams.jsonData, xlateParams.resultMap, xlateParams.result, xlateParams.txCache, xlateParams.tblXpathMap, xlateParams.subOpDataMap, xlateParams.pCascadeDelTbl, xlateParams.xfmrErr, pathAttr, value, "", false, xlateParams.invokeCRUSubtreeOnceMap, xlateParams.yangDefValMap, xlateParams.yangAuxValMap, xlateParams.replaceInfo)
 								retErr = mapFillData(curXlateParams)
 								xfmrLogDebug("After mapFillData uri - %v, node - %v, result map - %v, subOpDataMap - %v", xlateParams.uri, pathAttr, xlateParams.result, xlateParams.subOpDataMap)
 								if retErr != nil {
@@ -1257,6 +1259,8 @@ func yangReqToDbMapCreate(xlateParams xlateToParams) error {
 									curYgotNode = nil
 								}
 								inParams := formXfmrInputRequest(xlateParams.d, dbs, db.MaxDB, xlateParams.ygRoot, curUri, xlateParams.requestUri, xlateParams.oper, curKey, nil, xlateParams.subOpDataMap, curYgotNode, xlateParams.txCache)
+								inParams.yangDefValMap = xlateParams.yangDefValMap
+								inParams.yangAuxValMap = xlateParams.yangAuxValMap
 								stRetData, err := xfmrHandler(inParams, xYangSpecMap[xpath].xfmrFunc)
 								if err != nil {
 									if xlateParams.xfmrErr != nil && *xlateParams.xfmrErr == nil {

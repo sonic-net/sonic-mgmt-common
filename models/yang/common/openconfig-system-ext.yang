@@ -1,0 +1,82 @@
+module openconfig-system-ext {
+
+  yang-version "1";
+
+  // namespace
+  namespace "http://openconfig.net/yang/system-ext";
+
+  prefix "oc-sys-ext";
+
+  // import some basic types
+  import openconfig-system { prefix oc-sys; }
+  import openconfig-system-logging { prefix oc-log; }
+  import openconfig-extensions { prefix oc-ext; }
+
+  // meta
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "This module adds vendor extensions to the base openconfig-system
+    model to support management-plane features that are not covered by
+    the upstream model:
+
+      * a source interface for remote syslog management traffic.";
+
+  oc-ext:openconfig-version "0.1.0";
+
+  revision "2026-08-27" {
+    description
+      "Add a source-interface leaf for remote syslog logging
+      (maps to the SONiC SYSLOG_CONFIG|GLOBAL src_intf field).";
+    reference "0.1.0";
+  }
+
+  oc-ext:regexp-posix;
+  oc-ext:catalog-organization "openconfig";
+  oc-ext:origin "openconfig";
+
+  grouping system-source-interface-config {
+    description
+      "Source interface used to originate management-plane traffic for
+      a service.";
+
+    leaf source-interface {
+      type string;
+      description
+        "Name of the interface (e.g. Loopback0) whose IP address is
+        used as the source address for packets originated by this
+        service. Equivalent to the EOS 'logging source-interface <intf>'
+        setting; maps to the SONiC SYSLOG_CONFIG|GLOBAL src_intf field.";
+    }
+  }
+
+  // augment statements
+
+  augment "/oc-sys:system/oc-log:logging" {
+    description
+      "Add a global source interface for remote syslog forwarding.
+      The base openconfig-system-logging model has no global logging
+      config container, so this extension adds config/state containers
+      to hold the source-interface leaf (maps to
+      SYSLOG_CONFIG|GLOBAL:src_intf).";
+
+    container config {
+      description
+        "Global logging configuration extensions.";
+
+      uses system-source-interface-config;
+    }
+
+    container state {
+      config false;
+      description
+        "Global logging operational state extensions.";
+
+      uses system-source-interface-config;
+    }
+  }
+}
