@@ -674,3 +674,87 @@ func testNullAdd(data ...cmn.CVLEditConfigData) func(*testing.T) {
 		}
 	}
 }
+
+// A port untagged in one VLAN may be tagged in another: the predicate's
+// parenthesized "or" must not be dropped, or every member of the port counts.
+func TestValidateEditConfig_MustExp_Parenthesized_Or_In_Predicate_Positive(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"VLAN": map[string]interface{}{
+			"Vlan20": map[string]interface{}{
+				"vlanid": "20",
+			},
+			"Vlan30": map[string]interface{}{
+				"vlanid": "30",
+			},
+		},
+		"VLAN_MEMBER": map[string]interface{}{
+			"Vlan20|Ethernet4": map[string]interface{}{
+				"tagging_mode": "untagged",
+			},
+			// Other ports' members, which a count that lost the
+			// predicate would include.
+			"Vlan20|Ethernet8": map[string]interface{}{
+				"tagging_mode": "untagged",
+			},
+			"Vlan30|Ethernet12": map[string]interface{}{
+				"tagging_mode": "untagged",
+			},
+		},
+	})
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
+			"VLAN_MEMBER|Vlan30|Ethernet4",
+			map[string]string{
+				"tagging_mode": "tagged",
+			},
+			false,
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, Success)
+}
+
+// Either alternative of the parenthesized "or" counts toward the limit.
+func TestValidateEditConfig_MustExp_Parenthesized_Or_In_Predicate_Negative(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"VLAN": map[string]interface{}{
+			"Vlan20": map[string]interface{}{
+				"vlanid": "20",
+			},
+			"Vlan30": map[string]interface{}{
+				"vlanid": "30",
+			},
+		},
+		"VLAN_MEMBER": map[string]interface{}{
+			"Vlan20|Ethernet4": map[string]interface{}{
+				"tagging_mode": "untagged",
+			},
+		},
+	})
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_CREATE,
+			"VLAN_MEMBER|Vlan30|Ethernet4",
+			map[string]string{
+				"tagging_mode": "priority_tagged",
+			},
+			false,
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode:          CVL_SEMANTIC_ERROR,
+		TableName:        "VLAN_MEMBER",
+		Keys:             []string{"Vlan30", "Ethernet4"},
+		Field:            "ifname",
+		Value:            "Ethernet4",
+		Msg:              mustExpressionErrMessage,
+		ConstraintErrMsg: "Port can be untagged or priority-tagged in at most one VLAN.",
+		ErrAppTag:        "vlan-member-multiple-pvid",
+	})
+}

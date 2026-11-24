@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//cvl",
-        "@com_github_go_redis_redis_v7//:redis",
+        "@com_github_redis_go_redis_v9//:go-redis",
         "@com_github_pkg_profile//:profile",
     ],
 )

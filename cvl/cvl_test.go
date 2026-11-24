@@ -20,6 +20,7 @@
 package cvl_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -33,7 +34,7 @@ import (
 	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 
 	//"syscall"
 
@@ -191,7 +192,7 @@ func unloadConfigDB(rclient *redis.Client, mpi map[string]interface{}) {
 		case map[string]interface{}:
 			for subKey, subValue := range fv.(map[string]interface{}) {
 				newKey := key + getSeparator() + subKey
-				_, err := rclient.Del(newKey).Result()
+				_, err := rclient.Del(context.Background(), newKey).Result()
 
 				if err != nil {
 					fmt.Printf("Invalid data for db: %v : %v %v", newKey, subValue, err)
@@ -212,7 +213,7 @@ func loadConfigDB(rclient *redis.Client, mpi map[string]interface{}) {
 		case map[string]interface{}:
 			for subKey, subValue := range fv.(map[string]interface{}) {
 				newKey := key + getSeparator() + subKey
-				_, err := rclient.HMSet(newKey, subValue.(map[string]interface{})).Result()
+				_, err := rclient.HMSet(context.Background(), newKey, subValue.(map[string]interface{})).Result()
 
 				if err != nil {
 					fmt.Printf("Invalid data for db: %v : %v %v", newKey, subValue, err)
@@ -246,7 +247,7 @@ func prepareDb() {
 	}
 
 	//Load device data map on which application of deviation files depends
-	dm, err := rclient.Keys("DEVICE_METADATA|localhost").Result()
+	dm, err := rclient.Keys(context.Background(), "DEVICE_METADATA|localhost").Result()
 	if (err != nil) || (len(dm) == 0) {
 		loadConfigDB(rclient, deviceDataMap)
 		loadDeviceDataMap = true
@@ -254,7 +255,7 @@ func prepareDb() {
 
 	port_map = loadConfig("", PortsMapByte)
 
-	portKeys, err := rclient.Keys("PORT|*").Result()
+	portKeys, err := rclient.Keys(context.Background(), "PORT|*").Result()
 	//Load only the port config which are not there in Redis
 	if err == nil {
 		portMapKeys := port_map["PORT"].(map[string]interface{})
@@ -309,10 +310,11 @@ func clearDb() {
 
 	client := getConfigDbClient()
 	defer client.Close()
+	ctx := context.Background()
 	for _, tbl := range tblList {
-		keys, err := client.Keys(tbl + "|*").Result()
+		keys, err := client.Keys(ctx, tbl + "|*").Result()
 		if err == nil && len(keys) != 0 {
-			err = client.Del(keys...).Err()
+			err = client.Del(ctx, keys...).Err()
 		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "clearDb:", err)
@@ -364,7 +366,7 @@ func TestMain(m *testing.M) {
 
 	cvl.Finish()
 	rclient.Close()
-	rclient.FlushDB()
+	rclient.FlushDB(context.Background())
 
 	if redisAlreadyRunning == false {
 		//If Redis was not already running, close the instance that we ran

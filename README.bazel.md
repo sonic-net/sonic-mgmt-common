@@ -2,7 +2,7 @@
 
 This build compiles this checkout's CVL and translib Go code and generates its
 YANG bindings, validation schemas, and install trees. It targets native AMD64
-Debian Trixie with Bazel 8.5.1, Go 1.25.9, the shared SONiC GCC toolchain and
+Debian Trixie with Bazel 8.5.1, Go 1.26.0, the shared SONiC GCC toolchain and
 Python 3.13. It does not generate Debian packages.
 
 | Consumer interface | Output |
@@ -66,12 +66,9 @@ mutates `vendor`, `go.mod`, or a generated source file in the checkout.
 
 Go inputs remain pinned by `go.mod`/`go.sum`. Reusable goyang and ygot sources,
 SONiC patches and dependency tests now belong to `openconfig_goyang` and
-`openconfig_ygot`; this repository consumes their public targets. Legacy
-Make/vendor patch files remain unchanged. Other existing Go patches still apply
-inside the shared dependency graph. That graph also
-contains the rules_go tool dependencies; it selects `golang.org/x/text` 0.40.0
-over the source module's 0.39.0 minimum. Source `go.mod` is unchanged. The generated
-module resolution and test artifacts record the actual selected graph.
+`openconfig_ygot`; this repository consumes their public targets. Gazelle reads the source module directly.
+A consuming module can select a newer compatible Go dependency through its own
+`go.mod`. CI records the selected versions for review.
 
 Python tool dependencies are pinned with hashes in `requirements_lock.txt`.
 `tools/test/apt.lock.json` freezes the AMD64 Redis 8.0.2 test runtime and its
@@ -96,7 +93,7 @@ configuration; their use does not change the checked-in build contract.
 
 ## Consuming the public Go libraries
 
-The consuming root selects Go 1.25.9, Python 3.13 and the public goyang/ygot
+The consuming root selects Go 1.26.0, Python 3.13 and the public goyang/ygot
 owners. Their Go import paths resolve to one shared type graph; downstream roots
 do not copy their patches. Gazelle permits the remaining unrelated dependency
 overrides only in the root module: those existing jsonquery/xmlquery/xpath/glog

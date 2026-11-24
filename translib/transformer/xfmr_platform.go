@@ -15,12 +15,31 @@ import (
 )
 
 const (
-	NODE_CFG_TBL    = "NODE_CFG"
-	EEPROM_INFO_TBL = "EEPROM_INFO"
+	CONTROLLER_CARD_TBL = "CONTROLLER_CARD_INFO"
+	NODE_CFG_TBL        = "NODE_CFG"
+	EEPROM_INFO_TBL     = "EEPROM_INFO"
+	TRANSCEIVER_TBL     = "TRANSCEIVER_INFO"
+	TRANSCEIVER_STATUS  = "TRANSCEIVER_STATUS"
+	TRANSCEIVER_DOM     = "TRANSCEIVER_DOM_SENSOR"
 
+	XCVR_LANE_LIMIT = 8
+
+	XCVR_KEY_PREFIX = "Ethernet"
 	IC_NAME_PREFIX  = "integrated_circuit"
 	CHASSIS_PREFIX  = "chassis"
 	SYS_EEPROM_NAME = "System Eeprom"
+	SW_COMP_TBL     = "SW_COMP_INFO"
+	BOOTL_TYPE      = "BOOT_LOADER"
+	OS_TYPE         = "OPERATING_SYSTEM"
+	NW_STACK_TYPE   = "SOFTWARE_MODULE"
+
+	NW_STACK_PREFIX = "network_stack"
+	OS_PREFIX       = "os"
+	BOOTL_PREFIX    = "boot_loader"
+
+	/** Transceiver status values **/
+	SFP_STATUS_REMOVED  = "0"
+	SFP_STATUS_INSERTED = "1"
 
 	/** Upper-level URIs **/
 	COMP     = "/openconfig-platform:components/component"
@@ -36,24 +55,43 @@ const (
 	COMP_STATE_MFG_DATE          = "/openconfig-platform:components/component/state/mfg-date"
 	COMP_STATE_MFG_NAME          = "/openconfig-platform:components/component/state/mfg-name"
 	COMP_STATE_NAME              = "/openconfig-platform:components/component/state/name"
+	COMP_STATE_OPER_STATUS       = "/openconfig-platform:components/component/state/oper-status"
 	COMP_STATE_PART_NO           = "/openconfig-platform:components/component/state/part-no"
+	COMP_STATE_REMOVABLE         = "/openconfig-platform:components/component/state/removable"
 	COMP_STATE_SERIAL_NO         = "/openconfig-platform:components/component/state/serial-no"
 	COMP_STATE_TYPE              = "/openconfig-platform:components/component/state/type"
 	COMP_STATE_PARENT            = "/openconfig-platform:components/component/state/parent"
 	COMP_STATE_TEMP_CTR          = "/openconfig-platform:components/component/state/temperature"
+	COMP_STATE_TEMP              = "/openconfig-platform:components/component/state/temperature/instant"
 
 	/** Supported Integrated Circuit URIs **/
 	COMP_IC     = "/openconfig-platform:components/component/integrated-circuit"
 	COMP_IC_CFG = "/openconfig-platform:components/component/integrated-circuit/config"
 	COMP_IC_ST  = "/openconfig-platform:components/component/integrated-circuit/state"
+
+	/** Supported Xcvr URIs **/
+	XCVR_BASE_PREFIX  = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver"
+	XCVR_BASE_STATE   = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state"
+	XCVR_FORM_FACTOR  = "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver/state/form-factor"
+	COMP_STATE_SW_VER = "/openconfig-platform:components/component/state/software-version"
+
+	/** Supported Software Module URIs **/
+	COMP_SW_MOD                 = "/openconfig-platform:components/component/software-module"
+	COMP_SW_MOD_ST              = "/openconfig-platform:components/component/software-module/state"
+	SW_MODULE_STATE_MODULE_TYPE = "/openconfig-platform:components/component/software-module/state/openconfig-platform-software:module-type"
+	SW_BOOT_LOADER_STATE_TYPE   = "/openconfig-platform:components/component/boot-loader/state/openconfig-platform-boot-loader:type"
 )
 
 type componentType int64
 
 const (
 	CompTypeInvalid componentType = iota
+	CompTypeXcvr
 	CompTypeIC
 	CompTypeSysEeprom
+	CompTypeNWStack
+	CompTypeOS
+	CompTypeBootLoader
 )
 
 /* Structures to read syseeprom from redis-db */
@@ -81,9 +119,62 @@ type EepromDb struct {
 	Model_Name          string
 }
 
-/*ICInfo structure read from State DB*/
+/* ICInfo structure read from State DB */
 type ICInfo struct {
 	NodeID string
+}
+
+type XcvrLane struct {
+	RxPowerLane string
+	TxBiasLane  string
+	TxPowerLane string
+	TxDisable   string
+}
+
+type XcvrInfo struct {
+	/* Most are strings since media sends 'N/A' when data is not available
+	   Conversion will be done before sending along */
+	Presence    bool
+	Lanes       [XCVR_LANE_LIMIT]XcvrLane
+	Temperature string
+	Parent      string
+	MfgName     string
+	MfgDate     string
+	PartNo      string
+	SerialNo    string
+	HardwareRev string
+	Type        string
+}
+
+/*SWCompInfo structure read from State DB*/
+type SWCompInfo struct {
+	Name            string
+	SoftwareVersion string
+	Parent          string
+	OperStatus      string
+	Type            string
+	BootLoaderType  string
+}
+
+var dbToYangBootLoaderTypeMap = map[string]ocbinds.E_OpenconfigPlatformBootLoader_BOOT_LOADER_BASE{
+	"GRUB":         ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_GRUB,
+	"ONIE":         ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_ONIE,
+	"UBOOT":        ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_UBOOT,
+	"SYSTEMD_BOOT": ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_SYSTEMD_BOOT,
+	"LINUXBOOT":    ocbinds.OpenconfigPlatformBootLoader_BOOT_LOADER_BASE_BOOT_LOADER_LINUXBOOT,
+}
+
+func operStatusFromString(status string) (ocbinds.E_OpenconfigPlatformTypes_COMPONENT_OPER_STATUS, error) {
+	switch strings.ToLower(status) {
+	case "active":
+		return ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_ACTIVE, nil
+	case "inactive":
+		return ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_INACTIVE, nil
+	case "disabled":
+		return ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_DISABLED, nil
+	default:
+		return ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_DISABLED, fmt.Errorf("unknown oper-status: %s", status)
+	}
 }
 
 type PathType int
@@ -95,6 +186,11 @@ const (
 	ConfigPaths
 	/* Represents all paths under /components/component/state */
 	StatePaths
+	/* Represents all paths under a component subtree, e.g.
+	 * /components/component/port or /components/component/fan */
+	AllCompPaths
+	/* Represents a path to a specific leaf */
+	SinglePath
 )
 
 func (pt PathType) String() string {
@@ -103,8 +199,12 @@ func (pt PathType) String() string {
 		return "AllPaths"
 	case ConfigPaths:
 		return "ConfigPaths"
+	case AllCompPaths:
+		return "AllComponentPaths"
 	case StatePaths:
 		return "StatePaths"
+	case SinglePath:
+		return "SinglePath"
 	}
 	return strconv.Itoa(int(pt))
 }
@@ -113,17 +213,29 @@ func (ct componentType) String() string {
 	switch ct {
 	case CompTypeInvalid:
 		return "CompTypeInvalid"
+	case CompTypeXcvr:
+		return "CompTypeXcvr"
 	case CompTypeIC:
 		return "CompTypeIC"
 	case CompTypeSysEeprom:
 		return "CompTypeSysEeprom"
+	case CompTypeNWStack:
+		return "CompTypeNWStack"
+	case CompTypeOS:
+		return "CompTypeOS"
+	case CompTypeBootLoader:
+		return "CompTypeBootLoader"
 	}
 	return strconv.Itoa(int(ct))
 }
 
 var compTblMap = map[componentType][]string{
-	CompTypeIC:        {NODE_CFG_TBL, "*"},
-	CompTypeSysEeprom: {EEPROM_INFO_TBL, "*"},
+	CompTypeXcvr:       {TRANSCEIVER_STATUS, XCVR_KEY_PREFIX + "*"},
+	CompTypeIC:         {NODE_CFG_TBL, "*"},
+	CompTypeSysEeprom:  {EEPROM_INFO_TBL, "*"},
+	CompTypeNWStack:    {SW_COMP_TBL, "*"},
+	CompTypeOS:         {SW_COMP_TBL, "*"},
+	CompTypeBootLoader: {SW_COMP_TBL, "*"},
 }
 
 func init() {
@@ -144,16 +256,45 @@ func validICName(name string) bool {
 	return err == nil
 }
 
+func validXcvrName(name *string) bool {
+	if name == nil || *name == "" {
+		return false
+	}
+
+	/* Expect transceiver name of form EthernetX, where X is an integer */
+	if !strings.HasPrefix(*name, XCVR_KEY_PREFIX) {
+		return false
+	}
+
+	sp := strings.SplitAfter(*name, XCVR_KEY_PREFIX)
+	if len(sp) < 2 {
+		return false
+	}
+
+	if _, err := strconv.Atoi(sp[1]); err != nil {
+		return false
+	}
+	return true
+}
+
 func validSysEepromName(name string) bool {
 	return name == SYS_EEPROM_NAME || name == "eeprom" || name == CHASSIS_PREFIX
 }
 
 func getCompTypeByName(compName string) (componentType, error) {
 	switch {
+	case validXcvrName(&compName):
+		return CompTypeXcvr, nil
 	case validICName(compName):
 		return CompTypeIC, nil
 	case validSysEepromName(compName):
 		return CompTypeSysEeprom, nil
+	case validSWCompName(&compName, NW_STACK_PREFIX):
+		return CompTypeNWStack, nil
+	case validSWCompName(&compName, OS_PREFIX):
+		return CompTypeOS, nil
+	case strings.HasPrefix(compName, BOOTL_PREFIX):
+		return CompTypeBootLoader, nil
 	default:
 		return CompTypeInvalid, fmt.Errorf("component name %s did not match with supported types.", compName)
 	}
@@ -171,27 +312,56 @@ func keyInDbTable(tableName, key string, d *db.DB) bool {
 	return len(keys) > 0
 }
 
-func getCompType(name string, d *db.DB) componentType {
+func getCompType(name string, stdb, cfgdb *db.DB) componentType {
 	if name == "*" {
+		log.V(3).Infof("Invalid comp type for name as *")
 		return CompTypeInvalid
 	}
 	if val, ok := compTypeCache.Load(name); ok {
 		return val.(componentType)
 	}
+	if stdb != nil {
+		if swcEntry, err := stdb.GetEntry(&db.TableSpec{Name: SW_COMP_TBL}, db.Key{Comp: []string{name}}); err == nil {
+			switch swcEntry.Get("type") {
+			case BOOTL_TYPE:
+				compTypeCache.Store(name, CompTypeBootLoader)
+				return CompTypeBootLoader
+			case NW_STACK_TYPE:
+				// Need to check if actually NW_STACK_TYPE or older boot loader
+				if swcEntry.Get("module-type") == BOOTL_TYPE {
+					compTypeCache.Store(name, CompTypeBootLoader)
+					return CompTypeBootLoader
+				}
+				compTypeCache.Store(name, CompTypeNWStack)
+				return CompTypeNWStack
+			case OS_TYPE:
+				compTypeCache.Store(name, CompTypeOS)
+				return CompTypeOS
+			}
+		}
+	}
+	/* SysEEPROM and Transceiver - StateDB */
+	if stdb != nil {
+		if keyInDbTable(EEPROM_INFO_TBL, name, stdb) {
+			compTypeCache.Store(name, CompTypeSysEeprom)
+			return CompTypeSysEeprom
+		}
+		if keyInDbTable(TRANSCEIVER_STATUS, name, stdb) {
+			compTypeCache.Store(name, CompTypeXcvr)
+			return CompTypeXcvr
+		}
+	}
+	/* IC - ConfigDB */
+	if cfgdb != nil {
+		if keyInDbTable(NODE_CFG_TBL, name, cfgdb) {
+			compTypeCache.Store(name, CompTypeIC)
+			return CompTypeIC
+		}
+	}
 	compType, err := getCompTypeByName(name)
 	if err == nil {
 		compTypeCache.Store(name, compType)
 		return compType
-	}
-	if d != nil {
-		if keyInDbTable(EEPROM_INFO_TBL, name, d) {
-			compTypeCache.Store(name, CompTypeSysEeprom)
-			return CompTypeSysEeprom
-		}
-		if keyInDbTable(NODE_CFG_TBL, name, d) {
-			compTypeCache.Store(name, CompTypeIC)
-			return CompTypeIC
-		}
 	}
 	return CompTypeInvalid
 }
@@ -251,24 +421,38 @@ var Subscribe_pfm_components_xfmr SubTreeXfmrSubscribe = func(inParams XfmrSubsc
 	return result, err
 }
 
+/* Given a URI for a subscription, return a list of component types which apply
+ * to it.  For example a URI of "/components/component/port" would return
+ * [CompTypePort] while a URI of "/components/component/state/software-version"
+ * would return a list of all component types which report software version. */
+
+func compTypesForSubscriptionUri(uri string) []componentType {
+	cTypes := []componentType{}
+	if strings.HasPrefix(uri, "/openconfig-platform:components/component/integrated-circuit") {
+		cTypes = []componentType{CompTypeIC}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/oc-transceiver:transceiver") ||
+		strings.HasPrefix(uri, "/openconfig-platform:components/component/openconfig-platform-transceiver:transceiver") {
+		cTypes = []componentType{CompTypeXcvr}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/software-module") {
+		cTypes = []componentType{CompTypeNWStack, CompTypeOS}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/state/oper-status") {
+		cTypes = []componentType{CompTypeNWStack, CompTypeOS}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/state/boot-loader") {
+		cTypes = []componentType{CompTypeBootLoader}
+	} else if strings.HasPrefix(uri, COMP_STATE_PARENT) {
+		cTypes = []componentType{CompTypeNWStack, CompTypeOS, CompTypeBootLoader}
+	} else if strings.HasPrefix(uri, "/openconfig-platform:components/component/state/software-version") {
+		cTypes = []componentType{CompTypeNWStack, CompTypeOS, CompTypeBootLoader}
+	}
+	return cTypes
+}
+
 func getPfmRootObject(s *ygot.GoStruct) *ocbinds.OpenconfigPlatform_Components {
 	if s == nil {
 		return nil
 	}
 	deviceObj := (*s).(*ocbinds.Device)
 	return deviceObj.Components
-}
-
-/* Given a URI for a subscription, return a list of component types which apply
- * to it.  For example a URI of "/components/component/port" would return
- * [CompTypePort] while a URI of "/components/component/state/software-version"
- * would return a list of all component types which report software version. */
-func compTypesForSubscriptionUri(uri string) []componentType {
-	cTypes := []componentType{}
-	if strings.HasPrefix(uri, "/openconfig-platform:components/component/integrated-circuit") {
-		cTypes = []componentType{CompTypeIC}
-	}
-	return cTypes
 }
 
 /* Helper for the main subscribe transformer handling the TRANSLATE_EXISTS case. */
@@ -287,7 +471,7 @@ func translateExists(inParams XfmrSubscInParams, key string) (XfmrSubscOutParams
 	if d == nil {
 		return result, fmt.Errorf("translateExists: No usable DB client in inParams (checked %v and %v)", db.StateDB.Name(), db.ConfigDB.Name())
 	}
-	compType := getCompType(key, d)
+	compType := getCompType(key, inParams.dbs[db.StateDB], inParams.dbs[db.ConfigDB])
 	if compType == CompTypeInvalid {
 		return result, nil
 	}
@@ -303,7 +487,7 @@ func translateExists(inParams XfmrSubscInParams, key string) (XfmrSubscOutParams
 	switch compType {
 	case CompTypeIC:
 		dbNum = db.ConfigDB
-	case CompTypeSysEeprom:
+	case CompTypeSysEeprom, CompTypeXcvr:
 		dbNum = db.StateDB
 	}
 	result.dbDataMap = RedisDbSubscribeMap{dbNum: {tblName: {tblKey: {}}}}
@@ -316,35 +500,31 @@ func translateSubscribe(inParams XfmrSubscInParams, key, targetUriPath string) (
 	var result XfmrSubscOutParams
 	result.dbDataMap = make(RedisDbSubscribeMap)
 	/* Handle TRANSLATE_SUBSCRIBE by expanding the wildcard yang key to a set of
-	 * DB tables and keys.  If the key is not a wildcard then identify the set
+	 * DB tables and keys. If the key is not a wildcard then identify the set
 	 * of DB tables and keys which apply to it. */
 	result.isVirtualTbl = false
 	result.needCache = true
 	result.onChange = OnchangeEnable
 	result.nOpts = &notificationOpts{mInterval: 0, pType: OnChange}
 
-	/* Use the requested path to create a positive filter of component types to
-	 * process.  Note that a completely empty filter means no filtering is
-	 * required. */
+	/* Use the requested path to create a positive filter of component types to process. */
 	compTypeFilter := []componentType{}
+	cType := getCompType(key, inParams.dbs[db.StateDB], inParams.dbs[db.ConfigDB])
 	if key == "*" {
 		compTypeFilter = compTypesForSubscriptionUri(targetUriPath)
 	} else {
-		cType := getCompType(key, inParams.dbs[db.StateDB])
+		compTypeFilter = []componentType{cType}
 		if cType == CompTypeInvalid {
 			return result, nil
 		}
-		compTypeFilter = []componentType{cType}
-	}
 
+	}
 	for cType, tblNames := range compTblMap {
 		if len(tblNames) < 2 {
 			continue
 		}
-		/* An empty filter means no filtering is required. */
+		/* Filtering is required, skip all component types not present in the filter. */
 		if len(compTypeFilter) > 0 {
-			/* Filtering is required, skip all component types not present in the
-			 * filter. */
 			filteredOut := true
 			for _, ct := range compTypeFilter {
 				if ct == cType {
@@ -360,19 +540,10 @@ func translateSubscribe(inParams XfmrSubscInParams, key, targetUriPath string) (
 		tblKey := tblNames[1]
 		tblDb := db.StateDB
 		if key != "*" {
-			/* Generally the DB key will be the component name (yang key), for
-			 * the cases where it is not (e.g. Port components) there will be
-			 * special casing just below to handle it. */
 			tblKey = key
 		}
 
 		if cType == CompTypeIC {
-			/* The integrated-circuit subtree is backed by multiple DB tables but
-			 * our compTblMap only captures one.  The special handling here is to
-			 * cover all tables.
-			 * For wildcard expansion we use the NODE_CFG_TBL in ConfigDB but for
-			 * sample cases on the specific counter paths we need the counter
-			 * tables. */
 			tblDb = db.ConfigDB
 		}
 
@@ -389,10 +560,10 @@ func translateSubscribe(inParams XfmrSubscInParams, key, targetUriPath string) (
 		}
 	}
 	if log.V(3) {
-		for db, _ := range result.dbDataMap {
-			for tbl, _ := range result.dbDataMap[db] {
-				for k, v := range result.dbDataMap[db][tbl] {
-					log.Infof("+++ Subscribe_pfm_components_xfmr result: DB=%d, Table=%s, Key=%s, Flds=%v +++", db, tbl, k, v)
+		for dbIdx, _ := range result.dbDataMap {
+			for tbl, _ := range result.dbDataMap[dbIdx] {
+				for k, v := range result.dbDataMap[dbIdx][tbl] {
+					log.Infof("+++ Subscribe_pfm_components_xfmr result: DB=%d, Table=%s, Key=%s, Flds=%v +++", dbIdx, tbl, k, v)
 				}
 			}
 		}
@@ -804,6 +975,332 @@ func fillSysEepromInfo(comp *ocbinds.OpenconfigPlatform_Components_Component,
 	return nil
 }
 
+func test_if_available(s string) bool {
+	return ((s != "") && (s != "N/A") && (s != "n/a"))
+}
+
+func fillXcvrLaneInfo(xcvrCom *ocbinds.OpenconfigPlatform_Components_Component, laneIdx uint16, xcvrInfo XcvrInfo, name string, maxLanes int) (err error) {
+	channel, ok := xcvrCom.Transceiver.PhysicalChannels.Channel[laneIdx]
+	if !ok || channel == nil {
+		channel, err = xcvrCom.Transceiver.PhysicalChannels.NewChannel(laneIdx)
+		if err != nil {
+			return fmt.Errorf("cannot create channel object: %w", err)
+		}
+	}
+	ygot.BuildEmptyTree(channel)
+	ygot.BuildEmptyTree(channel.Config)
+	ygot.BuildEmptyTree(channel.State)
+	channel.Config.Index = &laneIdx
+	channel.State.Index = &laneIdx
+
+	if laneIdx < XCVR_LANE_LIMIT {
+		lane := &xcvrInfo.Lanes[laneIdx]
+		convAndFillDBValues(lane.RxPowerLane, lane.TxPowerLane, lane.TxBiasLane, lane.TxDisable, channel)
+	} else {
+		return errors.New("lane index is invalid.")
+	}
+	return nil
+}
+
+func fillXcvrInfo(xcvrCom *ocbinds.OpenconfigPlatform_Components_Component,
+	name string, all bool, laneIdx string, targetUriPath string, dbs [db.MaxDB]*db.DB) error {
+	var err error
+
+	ygot.BuildEmptyTree(xcvrCom)
+	ygot.BuildEmptyTree(xcvrCom.Transceiver)
+	ygot.BuildEmptyTree(xcvrCom.Transceiver.State)
+
+	log.V(3).Infof("fillXcvrInfo: name %s, all %v laneIdx %s targetUriPath %s", name, all, laneIdx, targetUriPath)
+
+	d := dbs[db.StateDB]
+	if d == nil {
+		d, err = db.NewDB(getDBOptions(db.StateDB))
+		if err != nil {
+			return tlerr.InvalidArgsError{Format: err.Error()}
+		}
+		defer d.DeleteDB()
+	}
+	cfgdb := dbs[db.ConfigDB]
+	if cfgdb == nil {
+		cfgdb, err = db.NewDB(getDBOptions(db.ConfigDB))
+		if err != nil {
+			return tlerr.InvalidArgsError{Format: err.Error()}
+		}
+		defer cfgdb.DeleteDB()
+	}
+
+	xcvrStatusState, err := getXcvrStatusInfoFromDb(name, d)
+
+	nm := name
+	xcvrEEPROMState := xcvrCom.State
+	xcvrEEPROMState.Name = &nm
+	var xcvrInfo XcvrInfo
+	if !xcvrStatusState.Presence {
+		p := !xcvrStatusState.Presence
+		xcvrEEPROMState.Empty = &p
+	} else {
+		xcvrInfo, err = getXcvrInfoFromDb(name, d)
+		if err != nil {
+			log.V(3).Info("Error Getting transceiver info from dB")
+			return err
+		}
+	}
+
+	if xcvrInfo.Type != "" && laneIdx != "" {
+		maxLanes, ok := sfpTypeToMaxLanesMap[xcvrInfo.Type]
+		if !ok {
+			return errors.New("could not find the max number of lanes for transceiver.")
+		}
+		idx, err := strconv.ParseUint(laneIdx, 10, 16)
+		if err != nil {
+			return err
+		}
+		if idx >= uint64(maxLanes) {
+			return errors.New("lane index greater than the max number of lanes for transceiver.")
+		}
+		if err := fillXcvrLaneInfo(xcvrCom, uint16(idx), xcvrInfo, name, maxLanes); err != nil {
+			return err
+		}
+	}
+
+	xcvrState := xcvrCom.Transceiver.State
+
+	if all {
+		/* Top level */
+		xcvrEEPROMState.Name = &nm
+		xcvrCom.Config.Name = &nm
+
+		/* Present state */
+		p := !xcvrInfo.Presence
+		xcvrEEPROMState.Empty = &p
+
+		q := true
+		xcvrEEPROMState.Removable = &q
+
+		xcvrEEPROMState.Type, _ = xcvrCom.State.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+			ocbinds.OpenconfigPlatformTypes_OPENCONFIG_HARDWARE_COMPONENT_TRANSCEIVER)
+
+		if test_if_available(xcvrInfo.Parent) {
+			xcvrEEPROMState.Parent = &xcvrInfo.Parent
+		}
+
+		/* Vendor info */
+		if xcvrInfo.SerialNo != "" {
+			xcvrEEPROMState.SerialNo = &xcvrInfo.SerialNo
+		}
+		if xcvrInfo.PartNo != "" {
+			xcvrEEPROMState.PartNo = &xcvrInfo.PartNo
+		}
+		if xcvrInfo.MfgName != "" {
+			xcvrEEPROMState.MfgName = &xcvrInfo.MfgName
+		}
+		if xcvrInfo.HardwareRev != "" {
+			xcvrEEPROMState.HardwareVersion = &xcvrInfo.HardwareRev
+			// Using the 'hardware_rev' field to also populate the firmware-version path.
+			xcvrEEPROMState.FirmwareVersion = &xcvrInfo.HardwareRev
+		}
+		if xcvrInfo.MfgDate != "" {
+			xcvrEEPROMState.MfgDate = &xcvrInfo.MfgDate
+		}
+		/* Not present */
+		if xcvrInfo.Presence {
+			xcvrEEPROMState.OperStatus = ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_ACTIVE
+		}
+
+		if xcvrInfo.Temperature != "" {
+			if float64val, err := strconv.ParseFloat(xcvrInfo.Temperature, 64); err == nil {
+				xcvrEEPROMState.Temperature.Instant = &float64val
+			}
+		}
+
+		/* Physical-Channels level */
+		if xcvrInfo.Type != "" && laneIdx == "" {
+			if maxLanes, ok := sfpTypeToMaxLanesMap[xcvrInfo.Type]; ok {
+				for i := 0; i < maxLanes; i++ {
+					if err := fillXcvrLaneInfo(xcvrCom, uint16(i), xcvrInfo, name, maxLanes); err != nil {
+						return err
+					}
+				}
+			} else {
+				log.V(3).Info("Could not find the max number of lanes for transceiver.")
+			}
+		}
+		return err
+	}
+
+	switch targetUriPath {
+	case COMP_STATE_EMPTY:
+		q := !xcvrInfo.Presence
+		xcvrEEPROMState.Empty = &q
+	case COMP_STATE_NAME:
+		nm := name
+		xcvrEEPROMState.Name = &nm
+	case COMP_STATE_TYPE:
+		xcvrEEPROMState.Type, _ = xcvrCom.State.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+			ocbinds.OpenconfigPlatformTypes_OPENCONFIG_HARDWARE_COMPONENT_TRANSCEIVER)
+	case COMP_STATE_PARENT:
+		if test_if_available(xcvrInfo.Parent) {
+			xcvrEEPROMState.Parent = &xcvrInfo.Parent
+		}
+	case COMP_STATE_SERIAL_NO:
+		if xcvrInfo.SerialNo != "" {
+			xcvrEEPROMState.SerialNo = &xcvrInfo.SerialNo
+		}
+	case COMP_STATE_PART_NO:
+		if xcvrInfo.PartNo != "" {
+			xcvrEEPROMState.PartNo = &xcvrInfo.PartNo
+		}
+	case COMP_STATE_MFG_NAME:
+		if xcvrInfo.MfgName != "" {
+			xcvrEEPROMState.MfgName = &xcvrInfo.MfgName
+		}
+	case COMP_STATE_HW_VER:
+		if xcvrInfo.HardwareRev != "" {
+			xcvrEEPROMState.HardwareVersion = &xcvrInfo.HardwareRev
+		}
+	// Using the 'hardware_rev' field to also populate the firmware-version path.
+	case COMP_STATE_FIRM_VER:
+		if xcvrInfo.HardwareRev != "" {
+			xcvrEEPROMState.FirmwareVersion = &xcvrInfo.HardwareRev
+		}
+	case COMP_STATE_MFG_DATE:
+		if xcvrInfo.MfgDate != "" {
+			xcvrEEPROMState.MfgDate = &xcvrInfo.MfgDate
+		}
+	case COMP_STATE_OPER_STATUS:
+		xcvrEEPROMState.OperStatus = ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_ACTIVE
+	case COMP_STATE_TEMP:
+		if xcvrInfo.Temperature != "" {
+			float64val, err := strconv.ParseFloat(xcvrInfo.Temperature, 64)
+			if err != nil {
+				return err
+			}
+			xcvrEEPROMState.Temperature.Instant = &float64val
+		}
+	case COMP_STATE_REMOVABLE:
+		q := true
+		xcvrEEPROMState.Removable = &q
+	case XCVR_FORM_FACTOR:
+		if xcvrInfo.Type != "" {
+			xcvrState.FormFactor = formFactorTypeFromString(xcvrInfo.Type)
+		}
+	}
+	return err
+}
+
+func formFactorTypeFromString(ft string) ocbinds.E_OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE {
+	switch {
+	case ft == "N/A" || ft == "":
+		return ocbinds.OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE_UNSET
+	case strings.HasPrefix(ft, "Unknown"):
+		return ocbinds.OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE_OTHER
+	case strings.HasPrefix(ft, "SFP"):
+		return ocbinds.OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE_SFP
+	case ft == "QSFP":
+		return ocbinds.OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE_QSFP
+	case strings.HasPrefix(ft, "QSFP+"):
+		return ocbinds.OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE_QSFP_PLUS
+	case strings.HasPrefix(ft, "QSFP28"):
+		return ocbinds.OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE_QSFP28
+	case strings.HasPrefix(ft, "OSFP") || strings.HasPrefix(ft, "QSFP-DD"):
+		return ocbinds.OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE_OSFP
+	default:
+		return ocbinds.OpenconfigTransportTypes_TRANSCEIVER_FORM_FACTOR_TYPE_UNSET
+	}
+}
+
+func getXcvrStatusInfoFromDb(name string, d *db.DB) (XcvrInfo, error) {
+	xcvrStatusEntry, err := d.GetEntry(&db.TableSpec{Name: TRANSCEIVER_STATUS}, db.Key{Comp: []string{name}})
+	if err != nil {
+		return XcvrInfo{}, err
+	}
+
+	var xcvrStatus XcvrInfo
+
+	status := xcvrStatusEntry.Get("status")
+	switch status {
+	case SFP_STATUS_INSERTED:
+		xcvrStatus.Presence = true
+	case SFP_STATUS_REMOVED, "":
+		xcvrStatus.Presence = false
+	default:
+		return XcvrInfo{}, fmt.Errorf("Unknown status for transceiver %s: %s", name, status)
+	}
+	return xcvrStatus, nil
+}
+
+func getXcvrInfoFromDb(name string, d *db.DB) (XcvrInfo, error) {
+	var xcvrInfo XcvrInfo
+	var err error
+
+	xcvrEntry, err := d.GetEntry(&db.TableSpec{Name: TRANSCEIVER_TBL}, db.Key{Comp: []string{name}})
+
+	if err != nil {
+		xcvrInfo.Presence = false
+		return xcvrInfo, err
+	}
+
+	/* Existence of entry implies presence */
+	xcvrInfo.Presence = true
+	xcvrInfo.Parent = xcvrEntry.Get("parent")
+	xcvrInfo.MfgName = xcvrEntry.Get("manufacturer")
+	xcvrInfo.MfgDate = xcvrEntry.Get("vendor_date")
+	xcvrInfo.PartNo = xcvrEntry.Get("model")
+	xcvrInfo.SerialNo = xcvrEntry.Get("serial")
+	xcvrInfo.HardwareRev = xcvrEntry.Get("hardware_rev")
+	xcvrInfo.Type = xcvrEntry.Get("type")
+
+	xcvrDOMEntry, err := d.GetEntry(&db.TableSpec{Name: TRANSCEIVER_DOM}, db.Key{Comp: []string{name}})
+	if err != nil {
+		log.V(3).Infof("DOM sensor info not available for transceiver %s: %v", name, err)
+	} else {
+		for i := 0; i < XCVR_LANE_LIMIT; i++ {
+			xcvrInfo.Lanes[i].RxPowerLane = xcvrDOMEntry.Get(fmt.Sprintf("rx%dpower", i+1))
+			xcvrInfo.Lanes[i].TxBiasLane = xcvrDOMEntry.Get(fmt.Sprintf("tx%dbias", i+1))
+			xcvrInfo.Lanes[i].TxPowerLane = xcvrDOMEntry.Get(fmt.Sprintf("tx%dpower", i+1))
+			xcvrInfo.Lanes[i].TxDisable = xcvrDOMEntry.Get(fmt.Sprintf("tx%ddisable", i+1))
+		}
+		xcvrInfo.Temperature = xcvrDOMEntry.Get("temperature")
+	}
+
+	return xcvrInfo, nil
+}
+
+func convAndFillDBValues(rxpField, txpField, txbField, txdisableField string, channel *ocbinds.OpenconfigPlatform_Components_Component_Transceiver_PhysicalChannels_Channel) {
+	ygot.BuildEmptyTree(channel)
+	ygot.BuildEmptyTree(channel.State)
+	ygot.BuildEmptyTree(channel.State.InputPower)
+	ygot.BuildEmptyTree(channel.State.OutputPower)
+	ygot.BuildEmptyTree(channel.State.LaserBiasCurrent)
+
+	if rxpField != "" {
+		if rxPower, err := strconv.ParseFloat(rxpField, 64); err == nil {
+			channel.State.InputPower.Instant = &rxPower
+		} else {
+			log.V(3).Infof("Error converting rxPower (\"%s\") from string to float64", rxpField)
+		}
+	}
+	if txpField != "" {
+		if txPower, err := strconv.ParseFloat(txpField, 64); err == nil {
+			channel.State.OutputPower.Instant = &txPower
+		} else {
+			log.V(3).Infof("Error converting txPower (\"%s\") from string to float64", txpField)
+		}
+	}
+	if txbField != "" {
+		if txBias, err := strconv.ParseFloat(txbField, 64); err == nil {
+			channel.State.LaserBiasCurrent.Instant = &txBias
+		} else {
+			log.V(3).Infof("Error converting txBias (\"%s\") from string to float64", txbField)
+		}
+	}
+	txLaserEnable := false
+	if txdisableField == "False" || txdisableField == "false" {
+		txLaserEnable = true
+	}
+	channel.State.TxLaser = &txLaserEnable
+}
+
 /* Helper to go from a component type to the type specific helper which reads
  * the DB data and populates the ocbinds structs.
  * createCompAndFuncCall - when fetching /components/component
@@ -814,12 +1311,17 @@ func fillSysEepromInfo(comp *ocbinds.OpenconfigPlatform_Components_Component,
  */
 func compTypeToFuncCall(cType componentType, compName, subKey string, pfComp *ocbinds.OpenconfigPlatform_Components_Component, targetUriPath string, dbs [db.MaxDB]*db.DB, pType PathType, ygRoot *ygot.GoStruct) error {
 	log.V(3).Infof("compTypeToFuncCall with name=%s type=%v pType=%v", compName, cType, pType)
+	d := dbs[db.StateDB]
 	ygot.BuildEmptyTree(pfComp)
 	switch cType {
+	case CompTypeXcvr:
+		return fillXcvrInfo(pfComp, compName, pType != SinglePath, "", targetUriPath, dbs)
 	case CompTypeIC:
 		return fillICInfo(pfComp, compName, targetUriPath, dbs, ygRoot)
 	case CompTypeSysEeprom:
 		return fillSysEepromInfo(pfComp, compName, targetUriPath, dbs, ygRoot)
+	case CompTypeNWStack, CompTypeOS, CompTypeBootLoader:
+		return fillSWCompInfo(pfComp, compName, pType, targetUriPath, d, cType)
 	}
 	return errors.New("Invalid component type")
 }
@@ -828,27 +1330,42 @@ func createCompAndFuncCall(pfCpts *ocbinds.OpenconfigPlatform_Components, target
 	var compNames []string
 	var err error
 	dbs := inParams.dbs
-	d := dbs[db.StateDB]
+	stdb := dbs[db.StateDB]
 	cfgdb := dbs[db.ConfigDB]
+
+	var keySep string
 	switch compType {
 	case CompTypeIC:
 		compNames, err = getAllTableEntries(cfgdb, tblName, tblKey)
+		if cfgdb != nil {
+			keySep = cfgdb.Opts.KeySeparator
+		}
 	case CompTypeSysEeprom:
 		compNames = []string{SYS_EEPROM_NAME}
+		if stdb != nil {
+			keySep = stdb.Opts.KeySeparator
+		}
 	default:
-		compNames, err = getAllTableEntries(d, tblName, tblKey)
+		compNames, err = getAllTableEntries(stdb, tblName, tblKey)
+		if stdb != nil {
+			keySep = stdb.Opts.KeySeparator
+		}
 	}
 	if err != nil {
 		log.V(3).Info(err)
 	}
 
+	if keySep == "" {
+		keySep = "|"
+	}
+
 	for _, compAndKey := range compNames {
-		compKeys := strings.Split(compAndKey, d.Opts.KeySeparator)
+		compKeys := strings.Split(compAndKey, keySep)
 		if len(compKeys) == 0 {
 			continue
 		}
 		comp := compKeys[0]
-		derivedCompType := getCompType(comp, d)
+		derivedCompType := getCompType(comp, stdb, cfgdb)
 		if derivedCompType != compType {
 			continue
 		}
@@ -868,31 +1385,37 @@ func createCompAndFuncCall(pfCpts *ocbinds.OpenconfigPlatform_Components, target
 	}
 }
 
-/* Main workhorse of the DbToYang transformer.  The get is either for the entire
+/* Main workhorse of the DbToYang transformer. The get is either for the entire
  * component list (/components/component) or for a specific component name; no
  * wildcards are handled here. */
 func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriPath string, inParams XfmrParams, compName, subKey string) error {
 
+	if pf_cpts == nil {
+		return nil
+	}
+
 	log.V(3).Infof("Preparing dB for system components")
 
+	uri := inParams.uri
 	dbs := inParams.dbs
 	ygRoot := inParams.ygRoot
 
 	var err error
-	d := dbs[db.StateDB]
+	stdb := dbs[db.StateDB]
+	cfgdb := dbs[db.ConfigDB]
 	log.V(3).Infof("getSysComponents: compName: %s targetUriPath: %s", compName, targetUriPath)
 	switch targetUriPath {
 	case COMP:
 		log.V(3).Infof("compName: %v", compName)
 		subCompName := "" /* Get all subcomponents */
 		if compName == "" {
-			/* Handle all component types except for ports, they will be handled just below. */
+			/* Handle all component types */
 			for cType, tbl := range compTblMap {
 				tblName := tbl[0]
 				createCompAndFuncCall(pf_cpts, targetUriPath, cType, inParams, tblName, tbl[1])
 			}
 		} else {
-			compType := getCompType(compName, d)
+			compType := getCompType(compName, stdb, cfgdb)
 			if compType == CompTypeInvalid {
 				return nil
 			}
@@ -911,7 +1434,7 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 			}
 		}
 	case COMP_ST:
-		compType := getCompType(compName, d)
+		compType := getCompType(compName, stdb, cfgdb)
 		if compType == CompTypeInvalid {
 			return nil
 		}
@@ -929,7 +1452,7 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 			log.V(3).Info(err)
 		}
 	case COMP_CFG:
-		compType := getCompType(compName, d)
+		compType := getCompType(compName, stdb, cfgdb)
 		if compType == CompTypeInvalid {
 			return nil
 		}
@@ -957,7 +1480,7 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 		 * so the request must be for a specific component's leaf or subtree,
 		 * e.g. /components/component[name=integrated_circuit]/integrated-circuit */
 		// TODO - Can we de-dup this code with compTypeToFuncCall?  No good way to set pathType...
-		compType := getCompType(compName, d)
+		compType := getCompType(compName, stdb, cfgdb)
 		if compType == CompTypeInvalid {
 			return nil
 		}
@@ -971,10 +1494,38 @@ func getSysComponents(pf_cpts *ocbinds.OpenconfigPlatform_Components, targetUriP
 		}
 		ygot.BuildEmptyTree(pf_comp)
 		switch compType {
+		case CompTypeXcvr:
+			ygot.BuildEmptyTree(pf_comp.Transceiver)
+			ygot.BuildEmptyTree(pf_comp.Transceiver.State)
+			ygot.BuildEmptyTree(pf_comp.Transceiver.Config)
+
+			laneIdx := NewPathInfo(uri).Var("index")
+			switch targetUriPath {
+			case XCVR_BASE_PREFIX, XCVR_BASE_STATE:
+				return fillXcvrInfo(pf_comp, compName, true, laneIdx, targetUriPath, dbs)
+			default:
+				/* For individual components */
+				return fillXcvrInfo(pf_comp, compName, false, laneIdx, targetUriPath, dbs)
+			}
 		case CompTypeIC:
 			return fillICInfo(pf_comp, compName, targetUriPath, inParams.dbs, inParams.ygRoot)
 		case CompTypeSysEeprom:
 			return fillSysEepromInfo(pf_comp, compName, targetUriPath, inParams.dbs, inParams.ygRoot)
+		case CompTypeNWStack:
+			fallthrough
+		case CompTypeOS:
+			fallthrough
+		case CompTypeBootLoader:
+			ygot.BuildEmptyTree(pf_comp.SoftwareModule)
+			ygot.BuildEmptyTree(pf_comp.SoftwareModule.State)
+			switch targetUriPath {
+			case COMP_SW_MOD:
+				fallthrough
+			case COMP_SW_MOD_ST:
+				return fillSWCompInfo(pf_comp, compName, AllCompPaths, targetUriPath, stdb, compType)
+			default:
+				return fillSWCompInfo(pf_comp, compName, SinglePath, targetUriPath, stdb, compType)
+			}
 		default:
 			return fmt.Errorf("Unhandled Component: %s", compName)
 		}
@@ -1003,8 +1554,178 @@ var DbToYang_pfm_components_xfmr SubTreeXfmrDbToYang = func(inParams XfmrParams)
 		reqPathInfo := NewPathInfo(inParams.requestUri)
 		compName = reqPathInfo.Var("name")
 	}
-	/*subkey is second level key set to null which is not used for now*/
+	/* subkey is second level key set to null which is not used for now */
 	subKey := ""
 
 	return getSysComponents(getPfmRootObject(inParams.ygRoot), targetUriPath, inParams, compName, subKey)
+}
+
+func validSWCompName(name *string, prefix string) bool {
+	if name == nil || *name == "" {
+		return false
+	}
+	// Expect node name of form network_stackX or osX, where X is an integer (either 0 or 1)
+	if !strings.HasPrefix(*name, prefix) {
+		return false
+	}
+
+	/* Currently restricted to indices 0 or 1. Update this upper-bound
+	check if future hardware configurations require support for more instances. */
+	sp := strings.SplitAfter(*name, prefix)
+	if len(sp) < 2 {
+		return false
+	}
+
+	if val, err := strconv.Atoi(sp[1]); err != nil || val > 1 {
+		return false
+	}
+	return true
+}
+
+func getSWCompInfoFromDb(name string, d *db.DB, tblName string) (SWCompInfo, error) {
+	if d == nil {
+		return SWCompInfo{}, errors.New("DB instance is nil")
+	}
+
+	swcEntry, err := d.GetEntry(&db.TableSpec{Name: tblName}, db.Key{Comp: []string{name}})
+	if err != nil {
+		log.Info("Cannot get entry: ", name, "; Error: ", err)
+		return SWCompInfo{}, err
+	}
+
+	swcInfo := SWCompInfo{
+		Name:            swcEntry.Get("name"),
+		SoftwareVersion: swcEntry.Get("software-version"),
+		Parent:          swcEntry.Get("parent"),
+		OperStatus:      swcEntry.Get("oper-status"),
+		Type:            swcEntry.Get("type"),
+		BootLoaderType:  swcEntry.Get("boot-loader-type"),
+	}
+
+	return swcInfo, nil
+}
+
+func fillBootLoaderContainer(info SWCompInfo, comp *ocbinds.OpenconfigPlatform_Components_Component) {
+	if info.BootLoaderType == "" {
+		return
+	}
+	ygot.BuildEmptyTree(comp.BootLoader)
+	ygot.BuildEmptyTree(comp.BootLoader.State)
+	if et, ok := dbToYangBootLoaderTypeMap[info.BootLoaderType]; ok {
+		comp.BootLoader.State.Type = et
+	}
+}
+
+/* Filling in the state info for software components available in Redis DB */
+func fillSWCompInfo(comp *ocbinds.OpenconfigPlatform_Components_Component,
+	name string, pType PathType, targetUriPath string, stdb *db.DB, cType componentType) error {
+	swcInfo, err := getSWCompInfoFromDb(name, stdb, SW_COMP_TBL)
+	if err != nil {
+		log.V(3).Info("Error Getting SW Comp info from State DB: ", err.Error())
+		return err
+	}
+	ygot.BuildEmptyTree(comp)
+	compState := comp.State
+
+	defaultVal := ""
+	/*getChassis function is not used here . Parent name used as chassis*/
+	defaultParentVal := CHASSIS_PREFIX
+
+	if pType == AllPaths || pType == AllCompPaths || pType == StatePaths {
+		// Filling in state values
+		// State Name
+		compState.Name = &name
+		// State Software Version
+		compState.SoftwareVersion = &defaultVal
+		if swcInfo.SoftwareVersion != "" {
+			compState.SoftwareVersion = &swcInfo.SoftwareVersion
+		}
+		// State Parent
+		compState.Parent = &defaultParentVal
+		if swcInfo.Parent != "" {
+			compState.Parent = &swcInfo.Parent
+		}
+		// State Type
+		switch cType {
+		case CompTypeOS:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_OPERATING_SYSTEM)
+		case CompTypeBootLoader:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_BOOT_LOADER)
+			fillBootLoaderContainer(swcInfo, comp)
+			return nil
+		case CompTypeNWStack:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_SOFTWARE_MODULE)
+		}
+		// State Oper Status
+		if operStatus, err := operStatusFromString(swcInfo.OperStatus); err == nil {
+			compState.OperStatus = operStatus
+		} else {
+			compState.OperStatus = ocbinds.OpenconfigPlatformTypes_COMPONENT_OPER_STATUS_DISABLED
+		}
+		if pType == StatePaths {
+			return nil
+		}
+		// SW Module State Module Type
+		if cType == CompTypeNWStack {
+			ygot.BuildEmptyTree(comp.SoftwareModule)
+			ygot.BuildEmptyTree(comp.SoftwareModule.State)
+			if comp.SoftwareModule != nil && comp.SoftwareModule.State != nil {
+				comp.SoftwareModule.State.ModuleType = ocbinds.OpenconfigPlatformSoftware_SOFTWARE_MODULE_TYPE_USERSPACE_PACKAGE_BUNDLE
+			}
+		}
+		return nil
+	}
+
+	switch targetUriPath {
+	case COMP_STATE_NAME:
+		compState.Name = &name
+	case COMP_STATE_SW_VER:
+		if swcInfo.SoftwareVersion == "" {
+			return errors.New("software_version field not present in State DB")
+		}
+		compState.SoftwareVersion = &swcInfo.SoftwareVersion
+	case COMP_STATE_PARENT:
+		compState.Parent = &defaultParentVal
+		if swcInfo.Parent != "" {
+			compState.Parent = &swcInfo.Parent
+		}
+	case COMP_STATE_TYPE:
+		switch cType {
+		case CompTypeOS:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_OPERATING_SYSTEM)
+		case CompTypeBootLoader:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_BOOT_LOADER)
+		case CompTypeNWStack:
+			compState.Type, _ = compState.To_OpenconfigPlatform_Components_Component_State_Type_Union(
+				ocbinds.OpenconfigPlatformTypes_OPENCONFIG_SOFTWARE_COMPONENT_SOFTWARE_MODULE)
+		default:
+			return errors.New("invalid component type for software component")
+		}
+	case COMP_STATE_OPER_STATUS:
+		if cType == CompTypeBootLoader {
+			return errors.New("invalid path for this component type.")
+		}
+		if operStatus, err := operStatusFromString(swcInfo.OperStatus); err == nil {
+			compState.OperStatus = operStatus
+		} else {
+			return errors.New("oper_status is missing/invalid field value in State DB: " + swcInfo.OperStatus)
+		}
+	case SW_MODULE_STATE_MODULE_TYPE:
+		if cType != CompTypeNWStack {
+			return errors.New("invalid component for software-module/state/module-type path.")
+		}
+		ygot.BuildEmptyTree(comp.SoftwareModule)
+		ygot.BuildEmptyTree(comp.SoftwareModule.State)
+		if comp.SoftwareModule != nil && comp.SoftwareModule.State != nil {
+			comp.SoftwareModule.State.ModuleType = ocbinds.OpenconfigPlatformSoftware_SOFTWARE_MODULE_TYPE_USERSPACE_PACKAGE_BUNDLE
+		}
+	case SW_BOOT_LOADER_STATE_TYPE:
+		fillBootLoaderContainer(swcInfo, comp)
+	}
+	return nil
 }

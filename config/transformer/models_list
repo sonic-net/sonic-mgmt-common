@@ -6,9 +6,11 @@ openconfig-if-ethernet.yang
 openconfig-if-ip.yang
 openconfig-interfaces-annot.yang
 openconfig-interfaces.yang
+openconfig-lacp.yang
 openconfig-mclag-annot.yang
 openconfig-mclag.yang
 openconfig-p4rt.yang
+openconfig-platform-transceiver.yang
 openconfig-sampling-sflow-annot.yang
 openconfig-sampling-sflow.yang
 openconfig-system-annot.yang
@@ -17,8 +19,8 @@ sonic-platform-node.yang
 openconfig-p4rt.yang
 openconfig-platform-annot.yang
 openconfig-platform.yang
+openconfig-platform-boot-loader.yang
 gnsi-authz.yang
 gnsi-pathz.yang
 gnsi-certz.yang
 gnsi-credentialz.yang
-
