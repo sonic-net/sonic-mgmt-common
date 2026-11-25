@@ -312,7 +312,7 @@ func clearDb() {
 	defer client.Close()
 	ctx := context.Background()
 	for _, tbl := range tblList {
-		keys, err := client.Keys(ctx, tbl + "|*").Result()
+		keys, err := client.Keys(ctx, tbl+"|*").Result()
 		if err == nil && len(keys) != 0 {
 			err = client.Del(ctx, keys...).Err()
 		}
