@@ -265,6 +265,10 @@ func getPortTableNameByDBId(intftbl IntfTblData, curDb db.DBNum) (string, error)
 /* It should handle only Interface name key xfmr operations */
 func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName *string, ifType E_InterfaceType, subintfid uint32) error {
 	var err error
+	if log.V(3) {
+		log.Infof("performIfNameKeyXfmrOp: op=%v requestUri=%s ifName=%s ifType=%v subintf=%d",
+			inParams.oper, *requestUriPath, *ifName, ifType, subintfid)
+	}
 	switch inParams.oper {
 	case DELETE:
 		if strings.HasPrefix(*requestUriPath, "/openconfig-interfaces:interfaces/interface/subinterfaces/subinterface") && subintfid != 0 {
@@ -316,9 +320,16 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 			}
 			if inParams.oper == REPLACE {
 				if strings.Contains(*requestUriPath, "/openconfig-interfaces:interfaces/interface") {
+					if log.V(3) {
+						log.Infof("performIfNameKeyXfmrOp: REPLACE guard evaluation requestUri=%s", *requestUriPath)
+					}
 					if strings.Contains(*requestUriPath, "openconfig-if-ethernet:ethernet/openconfig-vlan:switched-vlan") {
 						if log.V(3) {
 							log.Infof("allow replace operation for switched-vlan")
+						}
+					} else if isVrrpL3Path(*requestUriPath) {
+						if log.V(3) {
+							log.Infof("allow replace operation for VRRP L3 path")
 						}
 					} else {
 						// OC interfaces yang does not have attributes to set Physical interface critical attributes like speed, alias, lanes, index.
@@ -332,6 +343,20 @@ func performIfNameKeyXfmrOp(inParams *XfmrParams, requestUriPath *string, ifName
 		}
 	}
 	return err
+}
+
+func isVrrpL3Path(requestUriPath string) bool {
+	if requestUriPath == "" {
+		return false
+	}
+	match := strings.Contains(requestUriPath, "/vrrp/") &&
+		(strings.Contains(requestUriPath, "/subinterfaces/subinterface/") ||
+			strings.Contains(requestUriPath, "/routed-vlan/") ||
+			strings.Contains(requestUriPath, "/openconfig-vlan:routed-vlan/"))
+	if log.V(4) {
+		log.Infof("isVrrpL3Path: requestUri=%s match=%v", requestUriPath, match)
+	}
+	return match
 }
 
 /* Validate interface in L3 mode, if true return error */
@@ -2857,6 +2882,9 @@ var YangToDb_intf_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrParams) (
 			log.Error(oerr)
 			return nil, tlerr.InvalidArgsError{Format: oerr.Error()}
 		} else {
+			if verr := validateIntfPrefixRemoveBlockedByVrrp(inParams.d, ifName, overlapIP); verr != nil {
+				return nil, verr
+			}
 			subIntfmap_del[tblName] = make(map[string]db.Value)
 			key := ifName + "|" + overlapIP
 			subIntfmap_del[tblName][key] = value
@@ -3176,6 +3204,9 @@ func intf_ip_addr_del(d *db.DB, ifName string, tblName string, subIntf *ocbinds.
 		}
 	}
 	if len(intfIpMap) > 0 {
+		if verr := validateIntfIpRemoveBlockedByVrrp(d, ifName, intfIpMap); verr != nil {
+			return nil, verr
+		}
 		if _, ok := subIntfmap[tblName]; !ok {
 			subIntfmap[tblName] = make(map[string]db.Value)
 		}
@@ -3289,6 +3320,9 @@ func routed_vlan_ip_addr_del(d *db.DB, ifName string, tblName string, routedVlan
 	// There is atleast one IP Address Configured on Vlan Intf
 	// Add the key "<ifname>|<IP>" to the Map
 	if len(intfIpMap) > 0 {
+		if verr := validateIntfIpRemoveBlockedByVrrp(d, ifName, intfIpMap); verr != nil {
+			return nil, verr
+		}
 		if _, ok := vlanIntfmap[tblName]; !ok {
 			vlanIntfmap[tblName] = make(map[string]db.Value)
 		}
@@ -3714,6 +3748,9 @@ var YangToDb_routed_vlan_ip_addr_xfmr SubTreeXfmrYangToDb = func(inParams XfmrPa
 			log.Warning(oerr)
 			return nil, tlerr.InvalidArgsError{Format: oerr.Error()}
 		} else {
+			if verr := validateIntfPrefixRemoveBlockedByVrrp(inParams.d, ifName, overlapIP); verr != nil {
+				return nil, verr
+			}
 			vlanIntfmap_del[tblName] = make(map[string]db.Value)
 			key := ifName + "|" + overlapIP
 			vlanIntfmap_del[tblName][key] = value

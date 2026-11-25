@@ -1,0 +1,171 @@
+module openconfig-if-ip-vrrp-ext {
+
+  yang-version "1";
+
+  namespace "http://openconfig.net/yang/interfaces/ip-vrrp-ext";
+
+  prefix "oc-ip-vrrp-ext";
+
+  import openconfig-interfaces { prefix oc-if; }
+  import openconfig-if-ip { prefix oc-ip; }
+  import openconfig-vlan { prefix oc-vlan; }
+  import openconfig-extensions { prefix oc-ext; }
+  import openconfig-yang-types { prefix oc-yang; }
+
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+  "This module extends the OpenConfig IP interface model for
+   VRRP feature.
+
+   To maintain alignment with upstream OpenConfig models,
+   new VRRP specific extension is introduced instead of using openconfig-if-ip-ext modules.";
+
+  oc-ext:openconfig-version "0.1.0";
+
+  revision "2026-10-05" {
+    description
+      "Add read-only VRRP FSM state on IPv4 and IPv6 VRRP groups.
+       RFC 5798 section 6.4.";
+    reference "0.1.0";
+  }
+
+  oc-ext:catalog-organization "openconfig";
+  oc-ext:origin "openconfig";
+
+  typedef vrrp-state-type {
+    type enumeration {
+      enum INITIALIZE {
+        description
+          "The virtual router is not actively participating in VRRP.";
+      }
+      enum BACKUP {
+        description
+          "The virtual router is monitoring the current master.";
+      }
+      enum MASTER {
+        description
+          "The virtual router is forwarding for the virtual router.";
+      }
+    }
+    description
+      "Current state of the VRRP finite-state machine.";
+  }
+
+  grouping vrrp-oper-state {
+    description
+      "Operational VRRP FSM state overlay.";
+
+    leaf vrrp-state {
+      type vrrp-state-type;
+      description
+        "Current state of the VRRP finite-state machine as reported by
+        the routing stack.";
+      reference "RFC 5798 section 6.4.";
+    }
+  }
+
+  grouping vrrp-common-counters {
+    description
+      "Counters common to IPv4 and IPv6 VRRP groups.";
+
+    leaf advertisements-sent {
+      type oc-yang:counter64;
+      description
+        "Number of VRRP advertisement packets sent.";
+    }
+
+    leaf advertisements-received {
+      type oc-yang:counter64;
+      description
+        "Number of VRRP advertisement packets received.";
+    }
+
+    leaf state-transitions {
+      type oc-yang:counter64;
+      description
+        "Number of finite-state-machine transitions.";
+    }
+  }
+
+  grouping vrrp-ipv4-counters {
+    description
+      "Operational counters for an IPv4 VRRP group.";
+
+    container counters {
+      description
+        "IPv4 VRRP counters. Values increase while the underlying FRR
+        virtual-router instance exists. They reset when that instance is
+        recreated or vrrpd restarts, and the current FRR producer can wrap
+        at 2^32.";
+      uses vrrp-common-counters;
+
+      leaf gratuitous-arp-sent {
+        type oc-yang:counter64;
+        description
+          "Number of gratuitous ARP packets sent for virtual addresses.";
+      }
+    }
+  }
+
+  grouping vrrp-ipv6-counters {
+    description
+      "Operational counters for an IPv6 VRRP group.";
+
+    container counters {
+      description
+        "IPv6 VRRP counters. Values increase while the underlying FRR
+        virtual-router instance exists. They reset when that instance is
+        recreated or vrrpd restarts, and the current FRR producer can wrap
+        at 2^32.";
+      uses vrrp-common-counters;
+
+      leaf neighbor-advertisements-sent {
+        type oc-yang:counter64;
+        description
+          "Number of unsolicited IPv6 Neighbor Advertisement packets sent
+          for virtual addresses.";
+      }
+    }
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-vlan:routed-vlan/" +
+          "oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/" +
+          "oc-ip:vrrp-group/oc-ip:state" {
+    description
+      "Add VRRP FSM state and counters for routed-VLAN IPv4.";
+    uses vrrp-oper-state;
+    uses vrrp-ipv4-counters;
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-vlan:routed-vlan/" +
+          "oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/" +
+          "oc-ip:vrrp-group/oc-ip:state" {
+    description
+      "Add VRRP FSM state and counters for routed-VLAN IPv6.";
+    uses vrrp-oper-state;
+    uses vrrp-ipv6-counters;
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/" +
+          "oc-if:subinterface/oc-ip:ipv4/oc-ip:addresses/" +
+          "oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state" {
+    description
+      "Add VRRP FSM state and counters for subinterface IPv4.";
+    uses vrrp-oper-state;
+    uses vrrp-ipv4-counters;
+  }
+
+  augment "/oc-if:interfaces/oc-if:interface/oc-if:subinterfaces/" +
+          "oc-if:subinterface/oc-ip:ipv6/oc-ip:addresses/" +
+          "oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state" {
+    description
+      "Add VRRP FSM state and counters for subinterface IPv6.";
+    uses vrrp-oper-state;
+    uses vrrp-ipv6-counters;
+  }
+}

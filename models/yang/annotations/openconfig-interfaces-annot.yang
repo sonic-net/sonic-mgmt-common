@@ -274,10 +274,128 @@ module openconfig-interfaces-annot {
         }
     }
 
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group {
+        deviate add {
+            sonic-ext:table-name "VRRP";
+            sonic-ext:key-transformer "vrrp_group_key_xfmr";
+            sonic-ext:subtree-transformer "routed_vlan_ipv4_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ipv4_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:config {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ipv4_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ipv4_vrrp_xfmr";
+        }
+    }
+
     deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:addresses {
         deviate add {
             sonic-ext:table-name "NONE";
             sonic-ext:subtree-transformer "routed_vlan_ip_addr_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group {
+        deviate add {
+            sonic-ext:table-name "VRRP6";
+            sonic-ext:key-transformer "vrrp_group_key_xfmr";
+            sonic-ext:subtree-transformer "routed_vlan_ipv6_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ipv6_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:config {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ipv6_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "routed_vlan_ipv6_vrrp_xfmr";
+        }
+    }
+
+    // Enable subinterface address VRRP subtree so OpenConfig keyed GET/SET
+    // is handled by dedicated VRRP transformer for interface routes as well.
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group {
+        deviate add {
+            sonic-ext:table-name "VRRP";
+            sonic-ext:key-transformer "vrrp_group_key_xfmr";
+            sonic-ext:subtree-transformer "subintf_ipv4_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "subintf_ipv4_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:config {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "subintf_ipv4_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv4/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "subintf_ipv4_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group {
+        deviate add {
+            sonic-ext:table-name "VRRP6";
+            sonic-ext:key-transformer "vrrp_group_key_xfmr";
+            sonic-ext:subtree-transformer "subintf_ipv6_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "subintf_ipv6_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:config {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "subintf_ipv6_vrrp_xfmr";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-intf:subinterfaces/oc-intf:subinterface/oc-ip:ipv6/oc-ip:addresses/oc-ip:address/oc-ip:vrrp/oc-ip:vrrp-group/oc-ip:state {
+        deviate add {
+            sonic-ext:table-name "NONE";
+            sonic-ext:subtree-transformer "subintf_ipv6_vrrp_xfmr";
         }
     }
 
