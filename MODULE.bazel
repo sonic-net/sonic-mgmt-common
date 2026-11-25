@@ -20,7 +20,7 @@ bazel_dep(name = "rules_cc", version = "0.2.22")
 bazel_dep(name = "rules_distroless", version = "0.9.4.sonic.26")
 bazel_dep(name = "rules_python", version = "1.9.0.sonic.2")
 bazel_dep(name = "rules_shell", version = "0.8.0")
-bazel_dep(name = "sonic-build-infra", version = "0.0.44-35726399908a3beb947174e9359f902077928289", repo_name = "sonic_build_infra")
+bazel_dep(name = "sonic-build-infra", version = "0.0.45-77ef625a4ddafc8cdc15f3cc6aee31eabac8a5de", repo_name = "sonic_build_infra")
 bazel_dep(name = "sonic-yang-models", version = "1.0.1-dd732f9512a84966487951250adae8e3e5c9943e", repo_name = "sonic_yang_models")
 bazel_dep(name = "tar.bzl", version = "0.10.5.sonic.2")
 
