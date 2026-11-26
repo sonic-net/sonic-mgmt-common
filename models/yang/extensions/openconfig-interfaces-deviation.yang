@@ -227,15 +227,7 @@ module openconfig-interfaces-deviation {
     deviate not-supported;
   }
 
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-mac-pause-frames {
-    deviate not-supported;
-  }
-
   deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-8021q-frames {
-    deviate not-supported;
-  }
-
-  deviation /oc-intf:interfaces/oc-intf:interface/oc-eth:ethernet/oc-eth:state/oc-eth:counters/oc-eth:in-crc-errors {
     deviate not-supported;
   }
 
