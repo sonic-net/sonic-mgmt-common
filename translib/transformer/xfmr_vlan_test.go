@@ -22,10 +22,14 @@
 package transformer_test
 
 import (
-	"github.com/Azure/sonic-mgmt-common/translib/db"
-	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/Azure/sonic-mgmt-common/translib"
+	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"github.com/Azure/sonic-mgmt-common/translib/transformer"
 )
 
 func Test_openconfig_vlan_interface(t *testing.T) {
@@ -1041,5 +1045,443 @@ func Test_openconfig_vlan_interface_delete(t *testing.T) {
 	err_str = "Resource not found"
 	expected_err_invalid = tlerr.NotFoundError{Format: err_str}
 	t.Run("Test GET on deleted VLAN interface", processGetRequest(url, nil, "", true, expected_err_invalid))
+	time.Sleep(1 * time.Second)
+}
+
+func vlanCatalogPath(vlanID int, extra string) string {
+	path := "/openconfig-vlan:vlans/vlan[vlan-id=" + strconv.Itoa(vlanID) + "]"
+	if extra != "" {
+		path += extra
+	}
+	return path
+}
+
+func vlanCatalogDb(vlanID int, admin string) map[string]interface{} {
+	name := "Vlan" + strconv.Itoa(vlanID)
+	fields := map[string]interface{}{"vlanid": strconv.Itoa(vlanID)}
+	if admin != "" {
+		fields["admin_status"] = admin
+	}
+	return map[string]interface{}{
+		"VLAN": map[string]interface{}{name: fields},
+	}
+}
+
+func cleanupVlanCatalog(t *testing.T, vlanIDs ...int) {
+	t.Helper()
+	for _, id := range vlanIDs {
+		processDeleteRequest(vlanCatalogPath(id, ""), true)(t)
+	}
+	time.Sleep(1 * time.Second)
+}
+
+func vlanCatalogGetFixture() map[string]interface{} {
+	return map[string]interface{}{
+		"VLAN": map[string]interface{}{
+			"Vlan100": map[string]interface{}{"vlanid": "100", "admin_status": "up"},
+			"Vlan200": map[string]interface{}{"vlanid": "200", "admin_status": "down"},
+			"Vlan250": map[string]interface{}{"vlanid": "250"},
+			"Vlan251": map[string]interface{}{"vlanid": "251", "admin_status": "DOWN"},
+		},
+		"VLAN_MEMBER": map[string]interface{}{
+			"Vlan100|Ethernet0": map[string]interface{}{"tagging_mode": "untagged"},
+			"Vlan100|Ethernet4": map[string]interface{}{"tagging_mode": "tagged"},
+		},
+	}
+}
+
+func vlanCatalogApplFixture() map[string]interface{} {
+	return map[string]interface{}{
+		"VLAN_TABLE": map[string]interface{}{
+			"Vlan100": map[string]interface{}{"admin_status": "up", "mtu": "9100"},
+			"Vlan200": map[string]interface{}{"admin_status": "down", "mtu": "9100"},
+			"Vlan251": map[string]interface{}{"admin_status": "DOWN", "mtu": "9100"},
+		},
+		"VLAN_MEMBER_TABLE": map[string]interface{}{
+			"Vlan100:Ethernet0": map[string]interface{}{"tagging_mode": "untagged"},
+			"Vlan100:Ethernet4": map[string]interface{}{"tagging_mode": "tagged"},
+		},
+	}
+}
+
+func Test_openconfig_vlan_catalog_set(t *testing.T) {
+	setIDs := []int{2, 100, 200, 201, 4094}
+	cleanupVlanCatalog(t, setIDs...)
+
+	nameErr := tlerr.InvalidArgsError{Format: "VLAN name must be Vlan100"}
+	vlan1Err := tlerr.InvalidArgsError{Format: "Invalid VLAN id 1: SONiC supports VLAN ids 2-4094"}
+	mismatchIdErr := tlerr.InvalidArgsError{Format: "VLAN id in payload does not match 100"}
+	stateErr := tlerr.NotSupportedError{Format: "SET not supported on /openconfig-vlan:vlans/vlan/state"}
+	stateLeafErr := tlerr.NotSupportedError{Format: "SET not supported on /openconfig-vlan:vlans/vlan/state/status"}
+	membersErr := tlerr.NotSupportedError{Format: "SET not supported on /openconfig-vlan:vlans/vlan/members"}
+
+	t.Log("\n\n++++++++++++ SET CREATE ++++++++++++")
+	url := vlanCatalogPath(100, "/config")
+	body := `{"openconfig-vlan:config":{"vlan-id":100,"name":"Vlan100","status":"ACTIVE"}}`
+	t.Run("PATCH create VLAN 100", processSetRequest(url, body, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 100 in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", vlanCatalogDb(100, "up"), false))
+	t.Run("GET VLAN 100 config after create", processGetRequest(url, nil, `{"openconfig-vlan:config":{"name":"Vlan100","status":"ACTIVE","vlan-id":100}}`, false))
+
+	url = vlanCatalogPath(200, "/config")
+	body = `{"openconfig-vlan:config":{"vlan-id":200}}`
+	t.Run("PATCH create VLAN 200 without name or status", processSetRequest(url, body, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 200 defaults in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan200", vlanCatalogDb(200, "up"), false))
+	t.Run("GET VLAN 200 config after create", processGetRequest(url, nil, `{"openconfig-vlan:config":{"name":"Vlan200","status":"ACTIVE","vlan-id":200}}`, false))
+
+	url = vlanCatalogPath(2, "/config")
+	body = `{"openconfig-vlan:config":{"vlan-id":2,"name":"Vlan2","status":"ACTIVE"}}`
+	t.Run("PATCH create VLAN 2", processSetRequest(url, body, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 2 in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan2", vlanCatalogDb(2, "up"), false))
+	t.Run("GET VLAN 2 config after create", processGetRequest(url, nil, `{"openconfig-vlan:config":{"name":"Vlan2","status":"ACTIVE","vlan-id":2}}`, false))
+
+	url = vlanCatalogPath(4094, "/config")
+	body = `{"openconfig-vlan:config":{"vlan-id":4094,"name":"Vlan4094","status":"SUSPENDED"}}`
+	t.Run("PATCH create VLAN 4094", processSetRequest(url, body, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 4094 in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan4094", vlanCatalogDb(4094, "down"), false))
+	t.Run("GET VLAN 4094 config after create", processGetRequest(url, nil, `{"openconfig-vlan:config":{"name":"Vlan4094","status":"SUSPENDED","vlan-id":4094}}`, false))
+
+	url = "/openconfig-vlan:vlans"
+	body = `{"openconfig-vlan:vlan":[{"vlan-id":201,"config":{"vlan-id":201,"name":"Vlan201","status":"SUSPENDED"}}]}`
+	t.Run("POST create VLAN 201", processSetRequest(url, body, "POST", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 201 in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan201", vlanCatalogDb(201, "down"), false))
+	t.Run("GET VLAN 201 config after create", processGetRequest(vlanCatalogPath(201, "/config"), nil, `{"openconfig-vlan:config":{"name":"Vlan201","status":"SUSPENDED","vlan-id":201}}`, false))
+
+	t.Log("\n\n++++++++++++ SET UPDATE AND REPLACE ++++++++++++")
+	url = vlanCatalogPath(100, "/config/status")
+	body = `{"openconfig-vlan:status":"SUSPENDED"}`
+	t.Run("PATCH VLAN 100 status SUSPENDED", processSetRequest(url, body, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 100 suspended in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", vlanCatalogDb(100, "down"), false))
+	t.Run("GET VLAN 100 config after suspend", processGetRequest(vlanCatalogPath(100, "/config"), nil, `{"openconfig-vlan:config":{"name":"Vlan100","status":"SUSPENDED","vlan-id":100}}`, false))
+
+	url = vlanCatalogPath(100, "/config")
+	body = `{"openconfig-vlan:config":{"vlan-id":100,"name":"Vlan100"}}`
+	t.Run("PATCH VLAN 100 without status", processSetRequest(url, body, "PATCH", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 100 still suspended in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", vlanCatalogDb(100, "down"), false))
+	t.Run("GET VLAN 100 still SUSPENDED", processGetRequest(url, nil, `{"openconfig-vlan:config":{"name":"Vlan100","status":"SUSPENDED","vlan-id":100}}`, false))
+
+	url = vlanCatalogPath(100, "")
+	body = `{"openconfig-vlan:vlan":[{"vlan-id":100,"config":{"vlan-id":100,"name":"Vlan100"}}]}`
+	t.Run("PUT replace VLAN 100 without status", processSetRequest(url, body, "PUT", false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 100 replaced ACTIVE in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", vlanCatalogDb(100, "up"), false))
+	t.Run("GET VLAN 100 config after PUT", processGetRequest(vlanCatalogPath(100, "/config"), nil, `{"openconfig-vlan:config":{"name":"Vlan100","status":"ACTIVE","vlan-id":100}}`, false))
+
+	t.Log("\n\n++++++++++++ SET REJECTS ++++++++++++")
+	t.Run("PATCH mismatched VLAN name rejected", processSetRequest(vlanCatalogPath(100, "/config"), `{"openconfig-vlan:config":{"name":"engineering"}}`, "PATCH", true, nameErr))
+	t.Run("PATCH mismatched VLAN id rejected", processSetRequest(vlanCatalogPath(100, "/config"), `{"openconfig-vlan:config":{"vlan-id":201}}`, "PATCH", true, mismatchIdErr))
+	t.Run("PATCH VLAN id 1 rejected", processSetRequest(vlanCatalogPath(1, "/config"), `{"openconfig-vlan:config":{"vlan-id":1}}`, "PATCH", true, vlan1Err))
+	t.Run("PATCH VLAN state rejected", processSetRequest(vlanCatalogPath(100, "/state"), `{"openconfig-vlan:state":{"vlan-id":100,"name":"Vlan100","status":"ACTIVE"}}`, "PATCH", true, stateErr))
+	t.Run("PATCH VLAN state status rejected", processSetRequest(vlanCatalogPath(100, "/state/status"), `{"openconfig-vlan:status":"SUSPENDED"}`, "PATCH", true, stateLeafErr))
+	t.Run("PATCH VLAN members rejected", processSetRequest(vlanCatalogPath(100, "/members"), `{"openconfig-vlan:members":{"member":[{"state":{"interface":"Ethernet0"}}]}}`, "PATCH", true, membersErr))
+
+	cleanupVlanCatalog(t, setIDs...)
+	t.Run("Verify VLAN 100 deleted from CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", map[string]interface{}{}, false))
+}
+
+func Test_openconfig_vlan_catalog_delete_with_members(t *testing.T) {
+	fixture := map[string]interface{}{
+		"VLAN": map[string]interface{}{
+			"Vlan100": map[string]interface{}{"vlanid": "100", "admin_status": "up"},
+		},
+		"VLAN_MEMBER": map[string]interface{}{
+			"Vlan100|Ethernet0": map[string]interface{}{"tagging_mode": "untagged"},
+		},
+	}
+	memberOnly := map[string]interface{}{
+		"VLAN_MEMBER": fixture["VLAN_MEMBER"],
+	}
+	cleanupVlanCatalog(t, 100)
+	unloadDB(db.ConfigDB, fixture)
+	loadDB(db.ConfigDB, fixture)
+	time.Sleep(1 * time.Second)
+	defer func() {
+		unloadDB(db.ConfigDB, fixture)
+		cleanupVlanCatalog(t, 100)
+	}()
+
+	membersErr := tlerr.InvalidArgsError{Format: "VLAN ID 100 can not be removed. First remove all members assigned to this VLAN."}
+	url := vlanCatalogPath(100, "")
+	t.Run("DELETE VLAN 100 with members rejected", processDeleteRequest(url, true, membersErr))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 100 still in CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", vlanCatalogDb(100, "up"), false))
+	t.Run("Verify VLAN member still in CONFIG_DB", verifyDbResult(rclient, "VLAN_MEMBER|Vlan100|Ethernet0", map[string]interface{}{
+		"VLAN_MEMBER": map[string]interface{}{
+			"Vlan100|Ethernet0": map[string]interface{}{"tagging_mode": "untagged"},
+		},
+	}, false))
+
+	unloadDB(db.ConfigDB, memberOnly)
+	time.Sleep(1 * time.Second)
+	t.Run("DELETE VLAN 100 after members removed", processDeleteRequest(url, false))
+	time.Sleep(1 * time.Second)
+	t.Run("Verify VLAN 100 deleted from CONFIG_DB", verifyDbResult(rclient, "VLAN|Vlan100", map[string]interface{}{}, false))
+}
+
+func Test_openconfig_vlan_catalog_get(t *testing.T) {
+	getIDs := []int{100, 200, 250, 251}
+	fixture := vlanCatalogGetFixture()
+	appl := vlanCatalogApplFixture()
+	cleanupVlanCatalog(t, getIDs...)
+	unloadDB(db.ConfigDB, fixture)
+	unloadDB(db.ApplDB, appl)
+	loadDB(db.ConfigDB, fixture)
+	loadDB(db.ApplDB, appl)
+	time.Sleep(1 * time.Second)
+	defer func() {
+		unloadDB(db.ApplDB, appl)
+		unloadDB(db.ConfigDB, fixture)
+		cleanupVlanCatalog(t, getIDs...)
+	}()
+
+	notFound := tlerr.NotFoundError{Format: "Resource not found"}
+
+	t.Log("\n\n++++++++++++ GET CONFIG ++++++++++++")
+	t.Run("GET VLAN 100 config", processGetRequest(vlanCatalogPath(100, "/config"), nil, `{"openconfig-vlan:config":{"name":"Vlan100","status":"ACTIVE","vlan-id":100}}`, false))
+	t.Run("GET VLAN 100 config vlan-id", processGetRequest(vlanCatalogPath(100, "/config/vlan-id"), nil, `{"openconfig-vlan:vlan-id":100}`, false))
+	t.Run("GET VLAN 100 config name", processGetRequest(vlanCatalogPath(100, "/config/name"), nil, `{"openconfig-vlan:name":"Vlan100"}`, false))
+	t.Run("GET VLAN 100 config status", processGetRequest(vlanCatalogPath(100, "/config/status"), nil, `{"openconfig-vlan:status":"ACTIVE"}`, false))
+	t.Run("GET VLAN 200 config", processGetRequest(vlanCatalogPath(200, "/config"), nil, `{"openconfig-vlan:config":{"name":"Vlan200","status":"SUSPENDED","vlan-id":200}}`, false))
+	t.Run("GET VLAN 250 config missing admin_status", processGetRequest(vlanCatalogPath(250, "/config"), nil, `{"openconfig-vlan:config":{"name":"Vlan250","status":"ACTIVE","vlan-id":250}}`, false))
+	t.Run("GET VLAN 251 config DOWN", processGetRequest(vlanCatalogPath(251, "/config"), nil, `{"openconfig-vlan:config":{"name":"Vlan251","status":"SUSPENDED","vlan-id":251}}`, false))
+
+	t.Log("\n\n++++++++++++ GET STATE ++++++++++++")
+	t.Run("GET VLAN 100 state", processGetRequest(vlanCatalogPath(100, "/state"), nil, `{"openconfig-vlan:state":{"name":"Vlan100","status":"ACTIVE","vlan-id":100}}`, false))
+	t.Run("GET VLAN 200 state vlan-id", processGetRequest(vlanCatalogPath(200, "/state/vlan-id"), nil, `{"openconfig-vlan:vlan-id":200}`, false))
+	t.Run("GET VLAN 200 state name", processGetRequest(vlanCatalogPath(200, "/state/name"), nil, `{"openconfig-vlan:name":"Vlan200"}`, false))
+	t.Run("GET VLAN 200 state status", processGetRequest(vlanCatalogPath(200, "/state/status"), nil, `{"openconfig-vlan:status":"SUSPENDED"}`, false))
+	t.Run("GET VLAN 251 state DOWN", processGetRequest(vlanCatalogPath(251, "/state"), nil, `{"openconfig-vlan:state":{"name":"Vlan251","status":"SUSPENDED","vlan-id":251}}`, false))
+
+	t.Log("\n\n++++++++++++ GET MEMBERS AND INSTANCE ++++++++++++")
+	t.Run("GET VLAN 100 members", processGetRequest(vlanCatalogPath(100, "/members"), nil, `{"openconfig-vlan:members":{"member":[{"state":{"interface":"Ethernet0"}},{"state":{"interface":"Ethernet4"}}]}}`, false))
+	t.Run("GET VLAN 200 members empty", processGetRequest(vlanCatalogPath(200, "/members"), nil, `{"openconfig-vlan:members":{}}`, false))
+	t.Run("GET VLAN 100 instance", processGetRequest(vlanCatalogPath(100, ""), nil, `{"openconfig-vlan:vlan":[{"config":{"name":"Vlan100","status":"ACTIVE","vlan-id":100},"members":{"member":[{"state":{"interface":"Ethernet0"}},{"state":{"interface":"Ethernet4"}}]},"state":{"name":"Vlan100","status":"ACTIVE","vlan-id":100},"vlan-id":100}]}`, false))
+	t.Run("GET missing VLAN 300", processGetRequest(vlanCatalogPath(300, ""), nil, "", true, notFound))
+
+	t.Log("\n\n++++++++++++ GET WITHOUT APPL_DB ++++++++++++")
+	t.Run("GET VLAN 250 state missing APPL_DB", processGetRequest(vlanCatalogPath(250, "/state"), nil, "", true, notFound))
+	t.Run("GET VLAN 250 members missing APPL_DB", processGetRequest(vlanCatalogPath(250, "/members"), nil, "", true, notFound))
+	t.Run("GET VLAN 250 instance config only", processGetRequest(vlanCatalogPath(250, ""), nil, `{"openconfig-vlan:vlan":[{"config":{"name":"Vlan250","status":"ACTIVE","vlan-id":250},"vlan-id":250}]}`, false))
+}
+
+func Test_openconfig_vlan_catalog_get_appl_divergence(t *testing.T) {
+	getIDs := []int{100}
+	cfg := map[string]interface{}{
+		"VLAN": map[string]interface{}{
+			"Vlan100": map[string]interface{}{"vlanid": "100", "admin_status": "up"},
+		},
+	}
+	appl := map[string]interface{}{
+		"VLAN_TABLE": map[string]interface{}{
+			"Vlan100": map[string]interface{}{"admin_status": "down", "mtu": "9100"},
+		},
+	}
+	cleanupVlanCatalog(t, getIDs...)
+	unloadDB(db.ConfigDB, cfg)
+	unloadDB(db.ApplDB, appl)
+	loadDB(db.ConfigDB, cfg)
+	loadDB(db.ApplDB, appl)
+	time.Sleep(1 * time.Second)
+	defer func() {
+		unloadDB(db.ApplDB, appl)
+		unloadDB(db.ConfigDB, cfg)
+		cleanupVlanCatalog(t, getIDs...)
+	}()
+
+	t.Run("GET VLAN 100 config ACTIVE from CONFIG_DB", processGetRequest(vlanCatalogPath(100, "/config"), nil, `{"openconfig-vlan:config":{"name":"Vlan100","status":"ACTIVE","vlan-id":100}}`, false))
+	t.Run("GET VLAN 100 state SUSPENDED from APPL_DB", processGetRequest(vlanCatalogPath(100, "/state"), nil, `{"openconfig-vlan:state":{"name":"Vlan100","status":"SUSPENDED","vlan-id":100}}`, false))
+}
+
+func Test_openconfig_vlan_catalog_subscribe_exists(t *testing.T) {
+	dbMap, virtual, _, err := transformer.SubscribeOcVlans("/openconfig-vlan:vlans/vlan[vlan-id=100]/state", true)
+	if err != nil {
+		t.Fatalf("SubscribeOcVlans failed: %v", err)
+	}
+	if !virtual {
+		t.Fatalf("TRANSLATE_EXISTS should be virtual-table")
+	}
+	if len(dbMap) != 0 {
+		t.Fatalf("TRANSLATE_EXISTS should not emit DB maps, got %v", dbMap)
+	}
+}
+
+func Test_openconfig_vlan_catalog_subscribe_parent_check(t *testing.T) {
+	dbMap, virtual, _, err := transformer.SubscribeOcVlansParentCheck("/openconfig-vlan:vlans/vlan[vlan-id=100]")
+	if err != nil {
+		t.Fatalf("SubscribeOcVlansParentCheck failed: %v", err)
+	}
+	if !virtual {
+		t.Fatalf("parent-existence check should be virtual-table so UPDATE can create a missing VLAN")
+	}
+	if len(dbMap) != 0 {
+		t.Fatalf("parent-existence check should not emit DB maps, got %v", dbMap)
+	}
+}
+
+func Test_openconfig_vlan_catalog_subscribe_paths(t *testing.T) {
+	tests := []struct {
+		name           string
+		uri            string
+		wantCfgKey     string
+		wantApplKey    string
+		wantMemberKey  string
+		wantMemberComp bool
+	}{
+		{
+			name:           "wildcard parent",
+			uri:            "/openconfig-vlan:vlans",
+			wantCfgKey:     "*",
+			wantApplKey:    "*",
+			wantMemberKey:  "*",
+			wantMemberComp: true,
+		},
+		{
+			name:           "keyed parent",
+			uri:            "/openconfig-vlan:vlans/vlan[vlan-id=100]",
+			wantCfgKey:     "Vlan100",
+			wantApplKey:    "Vlan100",
+			wantMemberKey:  "Vlan100:*",
+			wantMemberComp: true,
+		},
+		{
+			name:       "wildcard config",
+			uri:        "/openconfig-vlan:vlans/vlan/config",
+			wantCfgKey: "*",
+		},
+		{
+			name:       "keyed config",
+			uri:        "/openconfig-vlan:vlans/vlan[vlan-id=100]/config",
+			wantCfgKey: "Vlan100",
+		},
+		{
+			name:       "keyed config status",
+			uri:        "/openconfig-vlan:vlans/vlan[vlan-id=100]/config/status",
+			wantCfgKey: "Vlan100",
+		},
+		{
+			name:        "wildcard state",
+			uri:         "/openconfig-vlan:vlans/vlan/state",
+			wantApplKey: "*",
+		},
+		{
+			name:        "keyed state",
+			uri:         "/openconfig-vlan:vlans/vlan[vlan-id=100]/state",
+			wantApplKey: "Vlan100",
+		},
+		{
+			name:        "keyed state status",
+			uri:         "/openconfig-vlan:vlans/vlan[vlan-id=200]/state/status",
+			wantApplKey: "Vlan200",
+		},
+		{
+			name:           "wildcard members",
+			uri:            "/openconfig-vlan:vlans/vlan/members",
+			wantMemberKey:  "*",
+			wantMemberComp: true,
+		},
+		{
+			name:           "keyed members",
+			uri:            "/openconfig-vlan:vlans/vlan[vlan-id=100]/members",
+			wantMemberKey:  "Vlan100:*",
+			wantMemberComp: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dbMap, virtual, onChange, err := transformer.SubscribeOcVlans(tc.uri, false)
+			if err != nil {
+				t.Fatalf("SubscribeOcVlans failed: %v", err)
+			}
+			if virtual {
+				t.Fatalf("isVirtualTbl=true, want false so translib keeps Redis watches (map=%v)", dbMap)
+			}
+			if !onChange {
+				t.Fatalf("onChange=false, want OnchangeEnable+OnChange")
+			}
+
+			if tc.wantCfgKey != "" {
+				if _, ok := dbMap[db.ConfigDB][transformer.VLAN_TN][tc.wantCfgKey]; !ok {
+					t.Fatalf("missing CONFIG_DB VLAN[%s]: %v", tc.wantCfgKey, dbMap)
+				}
+			} else if cfg, ok := dbMap[db.ConfigDB][transformer.VLAN_TN]; ok {
+				t.Fatalf("unexpected CONFIG_DB VLAN watch: %v", cfg)
+			}
+
+			if tc.wantApplKey != "" {
+				if _, ok := dbMap[db.ApplDB][transformer.VLAN_APP_TBL][tc.wantApplKey]; !ok {
+					t.Fatalf("missing APPL_DB VLAN_TABLE[%s]: %v", tc.wantApplKey, dbMap)
+				}
+			} else if app, ok := dbMap[db.ApplDB][transformer.VLAN_APP_TBL]; ok {
+				t.Fatalf("unexpected APPL_DB VLAN_TABLE watch: %v", app)
+			}
+
+			if tc.wantMemberKey != "" {
+				fields, ok := dbMap[db.ApplDB][transformer.VLAN_MEMBER_APP_TBL][tc.wantMemberKey]
+				if !ok {
+					t.Fatalf("missing APPL_DB VLAN_MEMBER_TABLE[%s]: %v", tc.wantMemberKey, dbMap)
+				}
+				if tc.wantMemberComp && fields[transformer.KEY_COMP_CNT] != "2" {
+					t.Fatalf("KEY_COMP_CNT=%q, want 2 for members key %s", fields[transformer.KEY_COMP_CNT], tc.wantMemberKey)
+				}
+			} else if mem, ok := dbMap[db.ApplDB][transformer.VLAN_MEMBER_APP_TBL]; ok {
+				t.Fatalf("unexpected APPL_DB VLAN_MEMBER_TABLE watch: %v", mem)
+			}
+		})
+	}
+}
+
+func processUpdateMustFail(url string, jsonPayload string) func(*testing.T) {
+	return func(t *testing.T) {
+		if _, err := translib.Update(translib.SetRequest{Path: url, Payload: []byte(jsonPayload)}); err == nil {
+			t.Fatalf("UPDATE on %s succeeded, expected an error", url)
+		}
+	}
+}
+
+func Test_openconfig_vlan_bulk_member_atomic(t *testing.T) {
+	const url = "/openconfig-interfaces:interfaces"
+	const vlanIfPrefix = "/openconfig-interfaces:interfaces/interface[name="
+
+	cleanup := func() {
+		t.Helper()
+		processDeleteRequest(vlanIfPrefix+"Vlan3200]", true)(t)
+		processDeleteRequest(vlanIfPrefix+"Vlan3201]", true)(t)
+		time.Sleep(1 * time.Second)
+	}
+	cleanup()
+	defer cleanup()
+
+	t.Log("\n\n--- Mismatch: member refers to Vlan3200 but the request only creates Vlan3201 ---")
+	mismatch := `{"interface":[` +
+		`{"name":"Ethernet0","openconfig-if-ethernet:ethernet":{"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"ACCESS","access-vlan":3200}}}},` +
+		`{"name":"Vlan3201","config":{"name":"Vlan3201","enabled":true}}]}`
+	t.Run("UPDATE with mismatched VLAN must fail", processUpdateMustFail(url, mismatch))
+	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n--- Member refers to a VLAN that does not exist and is not created ---")
+	memberOnly := `{"interface":[` +
+		`{"name":"Ethernet0","openconfig-if-ethernet:ethernet":{"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"ACCESS","access-vlan":3200}}}}]}`
+	t.Run("UPDATE with missing VLAN must fail", processUpdateMustFail(url, memberOnly))
+	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n--- Trunk: member refers to a trunk VLAN that is not created ---")
+	trunk := `{"interface":[` +
+		`{"name":"Ethernet0","openconfig-if-ethernet:ethernet":{"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"TRUNK","trunk-vlans":[3200,3201]}}}},` +
+		`{"name":"Vlan3200","config":{"name":"Vlan3200","enabled":true}}]}`
+	t.Run("UPDATE with missing trunk VLAN must fail", processUpdateMustFail(url, trunk))
+	time.Sleep(1 * time.Second)
+
+	t.Log("\n\n--- Success: VLAN created and member attached in the same request (member listed first) ---")
+	valid := `{"interface":[` +
+		`{"name":"Ethernet0","openconfig-if-ethernet:ethernet":{"openconfig-vlan:switched-vlan":{"config":{"interface-mode":"ACCESS","access-vlan":3200}}}},` +
+		`{"name":"Vlan3200","config":{"name":"Vlan3200","enabled":true}}]}`
+	t.Run("UPDATE creating VLAN and member", processSetRequest(url, valid, "PATCH", false, nil))
 	time.Sleep(1 * time.Second)
 }

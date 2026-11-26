@@ -107,6 +107,14 @@ func validateVlanExists(d *db.DB, vlanName *string) error {
 	return nil
 }
 
+/* Validate whether VLAN exists */
+func requireVlanExists(d *db.DB, vlanName string) error {
+	if err := validateVlanExists(d, &vlanName); err != nil {
+		return tlerr.InvalidArgsError{Format: err.Error()}
+	}
+	return nil
+}
+
 /* Validates whether physical interface or port-channel interface configured as member of any existing VLAN */
 func validateIntfAssociatedWithExistingVlan(d *db.DB, ifName *string) error {
 	var err error
@@ -825,15 +833,16 @@ func intfVlanMemberAdd(swVlanConfig *swVlanMemberPort_t,
 			log.Info("Removing existing untagged VLAN: "+vlanId+" configuration, vlan delete subopmap:", (*inParams.subOpDataMap[DELETE])[db.ConfigDB])
 
 		}
-		err = validateVlanExists(inParams.d, &accessVlan)
-		if err == nil {
-			//If VLAN exists add to vlanMembersListMap
-			if vlanMembersListMap[accessVlan] == nil {
-				vlanMembersListMap[accessVlan] = make(map[string]db.Value)
-			}
-			vlanMembersListMap[accessVlan][*ifName] = db.Value{Field: make(map[string]string)}
-			vlanMembersListMap[accessVlan][*ifName].Field["tagging_mode"] = "untagged"
+		err = requireVlanExists(inParams.d, accessVlan)
+		if err != nil {
+			log.Errorf("Cannot add Interface: %s to %s: %v", *ifName, accessVlan, err)
+			return err
 		}
+		if vlanMembersListMap[accessVlan] == nil {
+			vlanMembersListMap[accessVlan] = make(map[string]db.Value)
+		}
+		vlanMembersListMap[accessVlan][*ifName] = db.Value{Field: make(map[string]string)}
+		vlanMembersListMap[accessVlan][*ifName].Field["tagging_mode"] = "untagged"
 	}
 
 TRUNKCONFIG:
@@ -845,14 +854,16 @@ TRUNKCONFIG:
 			vlanName := vlanId
 			log.Infof("%s", vlanName)
 
-			err = validateVlanExists(inParams.d, &vlanId)
-			if err == nil {
-				if vlanMembersListMap[vlanId] == nil {
-					vlanMembersListMap[vlanId] = make(map[string]db.Value)
-				}
-				vlanMembersListMap[vlanId][*ifName] = db.Value{Field: make(map[string]string)}
-				vlanMembersListMap[vlanId][*ifName].Field["tagging_mode"] = "tagged"
+			err = requireVlanExists(inParams.d, vlanId)
+			if err != nil {
+				log.Errorf("Cannot add Interface: %s to %s: %v", *ifName, vlanId, err)
+				return err
 			}
+			if vlanMembersListMap[vlanId] == nil {
+				vlanMembersListMap[vlanId] = make(map[string]db.Value)
+			}
+			vlanMembersListMap[vlanId][*ifName] = db.Value{Field: make(map[string]string)}
+			vlanMembersListMap[vlanId][*ifName].Field["tagging_mode"] = "tagged"
 		}
 	}
 
@@ -1035,20 +1046,22 @@ func intfVlanMemberReplace(swVlanConfig *swVlanMemberPort_t,
 		if accessVlanFound {
 			accessVlan = "Vlan" + strconv.Itoa(int(accessVlanId))
 
-			err = validateVlanExists(inParams.d, &accessVlan)
-			if err == nil {
-				if cfgredAccessVlan != accessVlan {
-					newAccessVlanFound = true
+			err = requireVlanExists(inParams.d, accessVlan)
+			if err != nil {
+				log.Errorf("Cannot replace Interface: %s access VLAN with %s: %v", *ifName, accessVlan, err)
+				return err
+			}
+			if cfgredAccessVlan != accessVlan {
+				newAccessVlanFound = true
+			}
+			if newAccessVlanFound {
+				// If new accessVlanExist, add it
+				//Adding VLAN to be configured(accessVlan) to the vlanMembersListMap
+				if vlanMembersListMap[accessVlan] == nil {
+					vlanMembersListMap[accessVlan] = make(map[string]db.Value)
 				}
-				if newAccessVlanFound {
-					// If new accessVlanExist, add it
-					//Adding VLAN to be configured(accessVlan) to the vlanMembersListMap
-					if vlanMembersListMap[accessVlan] == nil {
-						vlanMembersListMap[accessVlan] = make(map[string]db.Value)
-					}
-					vlanMembersListMap[accessVlan][*ifName] = db.Value{Field: make(map[string]string)}
-					vlanMembersListMap[accessVlan][*ifName].Field["tagging_mode"] = "untagged"
-				}
+				vlanMembersListMap[accessVlan][*ifName] = db.Value{Field: make(map[string]string)}
+				vlanMembersListMap[accessVlan][*ifName].Field["tagging_mode"] = "untagged"
 			}
 		}
 		if cfgredAccessVlan != "" {
@@ -1073,9 +1086,12 @@ TRUNKCONFIG:
 		memberPortEntry.Field["tagging_mode"] = "tagged"
 		//Update vlanMembersListMap with trunk vlans to be configured
 		for _, vlanName := range addTrunkVlansList {
-			err = validateVlanExists(inParams.d, &vlanName)
-			if err == nil && accessVlan != vlanName {
-				//Update vlanMembersListMap if the VLAN exists and there is no conflicting untagged configuration.
+			err = requireVlanExists(inParams.d, vlanName)
+			if err != nil {
+				log.Errorf("Cannot replace Interface: %s trunk VLANs, %s: %v", *ifName, vlanName, err)
+				return err
+			}
+			if accessVlan != vlanName {
 				if vlanMembersListMap[vlanName] == nil {
 					vlanMembersListMap[vlanName] = make(map[string]db.Value)
 				}
