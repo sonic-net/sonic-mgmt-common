@@ -1,6 +1,6 @@
 module(name = "management_common_consumer")
 
-bazel_dep(name = "sonic-mgmt-common", version = "1.0.1", repo_name = "sonic_mgmt_common")
+bazel_dep(name = "sonic-mgmt-common", version = "1.0.2", repo_name = "sonic_mgmt_common")
 bazel_dep(name = "gazelle", version = "0.54.0.sonic.2")
 bazel_dep(name = "openconfig_goyang", version = "0.0.0.sonic.2-20200309174518-a00bece872fc", repo_name = "com_github_openconfig_goyang")
 bazel_dep(name = "openconfig_ygot", version = "0.7.1.sonic.2", repo_name = "com_github_openconfig_ygot")

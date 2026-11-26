@@ -20,14 +20,10 @@ owner targets and use the runtime TAR in their container composition.
 
 ## Build and test
 
-The committed `.bazelrc` uses the maintained SONiC `main` registry and BCR.
-The OpenConfig linter from
-[registry PR #163](https://github.com/securely1g/sonic-bazel-registry/pull/163),
-the shared goyang owner from
-[registry PR #212](https://github.com/securely1g/sonic-bazel-registry/pull/212),
-and the shared ygot owner from
-[registry PR #214](https://github.com/securely1g/sonic-bazel-registry/pull/214)
-are published there. Run these commands directly with standard `bazel`:
+The committed `.bazelrc` uses the SONiC registry and Bazel Central Registry.
+The SONiC registry publishes the [OpenConfig linter](https://github.com/sonic-net/sonic-bazel-registry/tree/main/modules/oc-pyang),
+[goyang](https://github.com/sonic-net/sonic-bazel-registry/tree/main/modules/openconfig_goyang)
+and [ygot](https://github.com/sonic-net/sonic-bazel-registry/tree/main/modules/openconfig_ygot).
 
 ```sh
 bazel build //cvl //translib //dist:runtime //dist:codegen
@@ -95,17 +91,12 @@ configuration; their use does not change the checked-in build contract.
 
 The consuming root selects Go 1.26.0, Python 3.13 and the public goyang/ygot
 owners. Their Go import paths resolve to one shared type graph; downstream roots
-do not copy their patches. Gazelle permits the remaining unrelated dependency
-overrides only in the root module: those existing jsonquery/xmlquery/xpath/glog
-settings remain explicit in the consumer. See [the checked consumer module](tests/consumer/MODULE.bazel)
-and its [Go replacements](tests/consumer/go.mod). It compiles against the public
-CVL, translib and generated bindings without copying their source. In particular,
-retain the pinned glog replacement required by the existing glog patch.
-
-CI also builds this separate consumer workspace with `--override_module` pointing
-to the tested source checkout. Registry validation replaces that local override
-with the immutable source registration. The consumer-root configuration is not
-an isolated second copy of the owner's Go dependency graph.
+do not copy their patches. The [consumer module](tests/consumer/MODULE.bazel)
+applies the jsonquery, xmlquery and xpath patches in its own Gazelle configuration.
+CI sets `--override_module` so the fixture compiles CVL, translib and the
+generated bindings from the checkout under test. For a registry build, select a
+[published management-common version](https://github.com/sonic-net/sonic-bazel-registry/tree/main/modules/sonic-mgmt-common)
+with its full commit suffix.
 
 The inherited patched YANG generator used map iteration for ordered child lists,
 identity inheritance, cross-module augments, and union enum reflection candidates. The shared goyang owner keeps YANG declaration order and makes unordered
@@ -123,11 +114,4 @@ The ygot owner also carries explicitly documented compatibility corrections foun
 by its complete original test suite, including incompatible-assignment errors,
 binary/container validation, destination-map preservation and annotation handling.
 It retains SONiC's deliberate compact JSON output without implicit validation.
-Those source changes are described by registry #214; legacy Make uses its existing
-vendor patches until separately updated.
-
-[Registry #212](https://github.com/securely1g/sonic-bazel-registry/pull/212)
-published the selected goyang owner on `main`, and
-[registry #214](https://github.com/securely1g/sonic-bazel-registry/pull/214)
-published the selected ygot owner on `main`. Both modules are consumed directly
-from the maintained registry.
+Legacy Make uses its existing vendor patches.
