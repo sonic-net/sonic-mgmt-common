@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/cvl"
+	"github.com/Azure/sonic-mgmt-common/cvl/tests/testutil"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -88,7 +89,7 @@ func main() {
 		vlanNoStart, _ := strconv.Atoi(os.Args[2])
 		vlanNoEnd, _ := strconv.Atoi(os.Args[3])
 		for vlanNum := vlanNoStart; vlanNum <= vlanNoEnd; vlanNum++ {
-			cvSess, _ := cvl.ValidationSessOpen()
+			cvSess, _ := cvl.ValidationSessOpen(testutil.NewTestDbAccess(rclient))
 
 			cfgDataVlan := []cvl.CVLEditConfigData{
 				cvl.CVLEditConfigData{
@@ -145,7 +146,7 @@ func main() {
 		vlanNoStart, _ := strconv.Atoi(os.Args[2])
 		vlanNoEnd, _ := strconv.Atoi(os.Args[3])
 		for vlanNum := vlanNoStart; vlanNum <= vlanNoEnd; vlanNum++ {
-			cvSess, _ := cvl.ValidationSessOpen()
+			cvSess, _ := cvl.ValidationSessOpen(testutil.NewTestDbAccess(rclient))
 
 			//Delete ACL
 
@@ -193,7 +194,7 @@ func main() {
 		}
 		return
 	}
-	cv, ret := cvl.ValidationSessOpen()
+	cv, ret := cvl.ValidationSessOpen(testutil.NewTestDbAccess(rclient))
 	if ret != cvl.CVL_SUCCESS {
 		fmt.Printf("NewDB: Could not create CVL session")
 		return
