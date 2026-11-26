@@ -56,6 +56,8 @@ jobs:
           test "$(. /etc/os-release; echo "$VERSION_CODENAME")" = trixie
           $BAZEL_COMMAND test //dist:bindings_repro_test
           python3 tools/bazel/check_incremental.py
+      - name: Compile standalone database examples
+        run: $BAZEL_COMMAND build //translib/db/test:all
       - name: Run source tests and installed TAR contracts
         id: source_tests
         env:
