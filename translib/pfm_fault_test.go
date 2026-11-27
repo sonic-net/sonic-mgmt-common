@@ -1,0 +1,871 @@
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//  Copyright 2026 SONiC contributors.                                       //
+//                                                                            //
+//  Licensed under the Apache License, Version 2.0 (the "License");           //
+//  you may not use this file except in compliance with the License.          //
+//  You may obtain a copy of the License at                                   //
+//                                                                            //
+//     http://www.apache.org/licenses/LICENSE-2.0                             //
+//                                                                            //
+//  Unless required by applicable law or agreed to in writing, software       //
+//  distributed under the License is distributed on an "AS IS" BASIS,         //
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  //
+//  See the License for the specific language governing permissions and       //
+//  limitations under the License.                                            //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+package translib
+
+import (
+	"encoding/json"
+	"math"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/Azure/sonic-mgmt-common/translib/db"
+	"github.com/Azure/sonic-mgmt-common/translib/internal/apis"
+	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
+	"github.com/Azure/sonic-mgmt-common/translib/path"
+	"github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/openconfig/ygot/ygot"
+)
+
+func TestDecimalEpochToNanoseconds(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  uint64
+	}{
+		{name: "seconds", input: "1745614206", want: 1745614206000000000},
+		{name: "fraction", input: "1745614206.0123456", want: 1745614206012345600},
+		{name: "nanoseconds", input: "1.000000001", want: 1000000001},
+		{name: "exact trailing precision", input: "1.1234567890", want: 1123456789},
+		{name: "zero", input: "0.0000000000", want: 0},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := decimalEpochToNanoseconds(test.input)
+			if err != nil {
+				t.Fatalf("decimalEpochToNanoseconds(%q) failed: %v", test.input, err)
+			}
+			if got != test.want {
+				t.Fatalf("decimalEpochToNanoseconds(%q) = %d, want %d", test.input, got, test.want)
+			}
+		})
+	}
+
+	invalid := []string{"", "-1", "+1", ".1", "1.", "1.2.3", "1e3", "1.1234567891", "18446744074"}
+	for _, input := range invalid {
+		if got, err := decimalEpochToNanoseconds(input); err == nil {
+			t.Errorf("decimalEpochToNanoseconds(%q) = %d, want error", input, got)
+		}
+	}
+
+	maxSeconds := uint64(math.MaxUint64 / 1_000_000_000)
+	if _, err := decimalEpochToNanoseconds("18446744073.709551616"); err == nil || maxSeconds != 18446744073 {
+		t.Errorf("overflowing fractional timestamp was accepted")
+	}
+}
+
+func TestPlatformPathNeedsFaultsWithAugmentModules(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "components ancestor",
+			path: "/openconfig-platform:components",
+			want: true,
+		},
+		{
+			name: "unqualified faults",
+			path: "/openconfig-platform:components/component/healthz/faults",
+			want: true,
+		},
+		{
+			name: "module qualified augment",
+			path: "/openconfig-platform:components/component/openconfig-platform-healthz:healthz/openconfig-platform-healthz-fault:faults",
+			want: true,
+		},
+		{
+			name: "module qualified fault leaf",
+			path: "/openconfig-platform:components/component/openconfig-platform-healthz:healthz/openconfig-platform-healthz-fault:faults/fault/state/status",
+			want: true,
+		},
+		{
+			name: "unrelated component state",
+			path: "/openconfig-platform:components/component/state",
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := platformPathNeedsFaults(test.path); got != test.want {
+				t.Fatalf("platformPathNeedsFaults(%q) = %t, want %t", test.path, got, test.want)
+			}
+		})
+	}
+}
+
+func TestParseAndBuildPlatformFault(t *testing.T) {
+	entry := validPlatformFaultEntry()
+	entry.Field["repair_actions"] = `[
+		{"action":"ACTION_RESEAT"},
+		{"action":"openconfig-platform-healthz-fault:ACTION_COLD_REBOOT"},
+		{"action":"ACTION_POWER_CYCLE"},
+		{"action":"ACTION_FACTORY_RESET"},
+		{"action":"ACTION_REPLACE"},
+		{"action":"ACTION_WARM_REBOOT"}
+	]`
+
+	fault, err := parsePlatformFault(db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}, entry)
+	if err != nil {
+		t.Fatalf("parsePlatformFault failed: %v", err)
+	}
+	if fault.originTime != 1745614206012345600 || fault.lastDetectionTime != 1745614206987654321 {
+		t.Fatalf("timestamps were not converted exactly: %#v", fault)
+	}
+
+	components := &ocbinds.OpenconfigPlatform_Components{}
+	if err := addPlatformFault(components, fault, nil); err != nil {
+		t.Fatalf("addPlatformFault failed: %v", err)
+	}
+	component := components.Component["PSU0"]
+	faultNode := component.Healthz.Faults.Fault[fault.symptom]
+	if faultNode.State.Status != ocbinds.OpenconfigPlatform_Components_Component_Healthz_Faults_Fault_State_Status_ACTIVE {
+		t.Errorf("status = %v, want ACTIVE", faultNode.State.Status)
+	}
+	if got := *faultNode.State.Counters.Occurrences; got != 2 {
+		t.Errorf("occurrences = %d, want 2", got)
+	}
+	if got := len(faultNode.Remediations.Remediation); got != 6 {
+		t.Fatalf("remediation count = %d, want 6", got)
+	}
+	for i := uint64(0); i < 6; i++ {
+		remediation := faultNode.Remediations.Remediation[i]
+		if remediation == nil || *remediation.State.Index != i {
+			t.Fatalf("remediation %d does not use its zero-based list position", i)
+		}
+		if got := *remediation.State.Target; got != "PSU0" {
+			t.Errorf("remediation %d target = %q, want PSU0", i, got)
+		}
+	}
+}
+
+func TestParseInactivePlatformFaultWithNoRemediations(t *testing.T) {
+	entry := validPlatformFaultEntry()
+	entry.Field["status"] = "INACTIVE"
+	entry.Field["repair_actions"] = "[]"
+
+	fault, err := parsePlatformFault(
+		db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}, entry)
+	if err != nil {
+		t.Fatalf("parsePlatformFault rejected inactive fault without remediations: %v", err)
+	}
+	if len(fault.repairActions) != 0 {
+		t.Fatalf("inactive fault remediation count = %d, want 0", len(fault.repairActions))
+	}
+	if fault.status != ocbinds.OpenconfigPlatform_Components_Component_Healthz_Faults_Fault_State_Status_INACTIVE {
+		t.Fatalf("inactive fault status = %v, want INACTIVE", fault.status)
+	}
+	components := &ocbinds.OpenconfigPlatform_Components{}
+	if err := addPlatformFault(components, fault, nil); err != nil {
+		t.Fatalf("addPlatformFault failed: %v", err)
+	}
+	faultNode := components.Component["PSU0"].Healthz.Faults.Fault[fault.symptom]
+	if faultNode.Remediations != nil {
+		t.Fatal("inactive fault with empty repair_actions exported a remediations container")
+	}
+}
+
+func TestAddPlatformFaultRowsIsolatesMalformedRows(t *testing.T) {
+	bad := validPlatformFaultEntry()
+	bad.Field["component_name"] = ""
+
+	rows := []platformFaultRow{
+		{key: db.Key{Comp: []string{"BROKEN", "SYMPTOM_OVER_THRESHOLD"}}, entry: bad},
+		{key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}, entry: validPlatformFaultEntry()},
+	}
+	components := &ocbinds.OpenconfigPlatform_Components{}
+	if got := addPlatformFaultRows(components, rows, "", "", nil); got != 1 {
+		t.Fatalf("added row count = %d, want 1", got)
+	}
+	if _, ok := components.Component["PSU0"]; !ok {
+		t.Fatal("valid row after malformed row was not exported")
+	}
+	if _, ok := components.Component["BROKEN"]; ok {
+		t.Fatal("malformed row was exported")
+	}
+}
+
+func TestAddPlatformFaultRowsWithBoundGetTarget(t *testing.T) {
+	const faultPath = "/openconfig-platform:components/component[name=PSU0]/healthz/faults/fault[symptom=SYMPTOM_OVER_THRESHOLD]"
+	tests := []struct {
+		name   string
+		path   string
+		status string
+	}{
+		{name: "active fault", path: faultPath, status: "ACTIVE"},
+		{name: "inactive fault", path: faultPath, status: "INACTIVE"},
+		{name: "status leaf", path: faultPath + "/state/status", status: "ACTIVE"},
+		{name: "remediation leaf", path: faultPath + "/remediations/remediation[index=0]/state/action", status: "ACTIVE"},
+		{name: "absent inactive remediations", path: faultPath + "/remediations", status: "INACTIVE"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rootType := reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{})
+			root, _, err := getRequestBinder(&test.path, nil, GET, &rootType).unMarshall()
+			if err != nil {
+				t.Fatalf("binding GET target failed: %v", err)
+			}
+			components := (*root).(*ocbinds.Device).Components
+			symptom := ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_OVER_THRESHOLD
+			boundFault := components.Component["PSU0"].Healthz.Faults.Fault[symptom]
+			if boundFault == nil {
+				t.Fatal("GET binding did not create the keyed fault target")
+			}
+
+			entry := validPlatformFaultEntry()
+			entry.Field["status"] = test.status
+			if test.status == "INACTIVE" {
+				entry.Field["repair_actions"] = "[]"
+			}
+			rows := []platformFaultRow{{
+				key:   db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}},
+				entry: entry,
+			}}
+			if got := addPlatformFaultRows(components, rows, "PSU0", "SYMPTOM_OVER_THRESHOLD", nil); got != 1 {
+				t.Fatalf("added row count = %d, want 1 for bound GET target", got)
+			}
+			if got := components.Component["PSU0"].Healthz.Faults.Fault[symptom]; got != boundFault {
+				t.Fatal("fault population replaced the bound GET target")
+			}
+			wantStatus, err := platformFaultStatus(test.status)
+			if err != nil || boundFault.State.Status != wantStatus {
+				t.Fatalf("fault status = %v, want %s", boundFault.State.Status, test.status)
+			}
+			if test.status == "INACTIVE" && boundFault.Remediations != nil {
+				t.Fatal("inactive fault retained remediations created by GET binding")
+			}
+			response, err := generateGetResponse(test.path, root, TRANSLIB_FMT_YGOT)
+			if err != nil || response.ValueTree == nil {
+				t.Fatalf("bound GET response = %+v, %v; want populated value tree", response, err)
+			}
+		})
+	}
+}
+
+func TestFaultKeyComponentCodecMatchesProducer(t *testing.T) {
+	tests := []struct {
+		plain   string
+		encoded string
+	}{
+		{plain: "PSU0", encoded: "PSU0"},
+		{plain: "a-b_c.d~e", encoded: "a-b_c.d~e"},
+		{plain: "*", encoded: "%2A"},
+		{plain: "a+b:c@d&e=f|g/h i%j", encoded: "a%2Bb%3Ac%40d%26e%3Df%7Cg%2Fh%20i%25j"},
+		{plain: "PSU-é", encoded: "PSU-%C3%A9"},
+	}
+	if got := faultKeyPattern("*"); got != "*" {
+		t.Errorf("faultKeyPattern(*) = %q, want wildcard", got)
+	}
+	for _, test := range tests {
+		if got := encodeFaultKeyComponent(test.plain); got != test.encoded {
+			t.Errorf("encodeFaultKeyComponent(%q) = %q, want %q", test.plain, got, test.encoded)
+		}
+		if got, err := decodeFaultKeyComponent(test.encoded); err != nil || got != test.plain {
+			t.Errorf("decodeFaultKeyComponent(%q) = %q, %v; want %q", test.encoded, got, err, test.plain)
+		}
+	}
+
+	entry := validPlatformFaultEntry()
+	entry.Field["component_name"] = "PSU+0:A"
+	fault, err := parsePlatformFault(
+		db.Key{Comp: []string{"PSU%2B0%3AA", "SYMPTOM_OVER_THRESHOLD"}}, entry)
+	if err != nil {
+		t.Fatalf("parsePlatformFault rejected producer-compatible escaped key: %v", err)
+	}
+	if fault.component != "PSU+0:A" {
+		t.Errorf("decoded component = %q, want PSU+0:A", fault.component)
+	}
+}
+
+func TestParsePlatformFaultRejectsInvalidMappings(t *testing.T) {
+	tests := []struct {
+		name  string
+		field string
+		value string
+		key   db.Key
+	}{
+		{name: "empty component type", field: "component_type", value: "", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "empty component name", field: "component_name", value: "", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "key mismatch", field: "component_name", value: "PSU1", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "unknown symptom", field: "symptom", value: "VENDOR_SYMPTOM", key: db.Key{Comp: []string{"PSU0", "VENDOR_SYMPTOM"}}},
+		{name: "wrong symptom namespace", field: "symptom", value: "vendor:SYMPTOM_OVER_THRESHOLD", key: db.Key{Comp: []string{"PSU0", "vendor%3ASYMPTOM_OVER_THRESHOLD"}}},
+		{name: "unknown status", field: "status", value: "BROKEN", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "prefixed status", field: "status", value: "vendor:ACTIVE", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "zero occurrences", field: "occurrences", value: "0", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "empty description", field: "description", value: " ", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "nested action json", field: "repair_actions", value: `[{"action":`, key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "unknown action", field: "repair_actions", value: `[{"action":"ACTION_VENDOR"}]`, key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "wrong action namespace", field: "repair_actions", value: `[{"action":"vendor:ACTION_RESEAT"}]`, key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "missing action list", field: "repair_actions", value: "", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "null action list", field: "repair_actions", value: "null", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+		{name: "active empty action list", field: "repair_actions", value: "[]", key: db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			entry := validPlatformFaultEntry()
+			entry.Field[test.field] = test.value
+			if _, err := parsePlatformFault(test.key, entry); err == nil {
+				t.Fatal("parsePlatformFault succeeded, want error")
+			}
+		})
+	}
+}
+
+func TestPlatformFaultIdentityValueSupportsCompiledVendorIdentity(t *testing.T) {
+	identities := map[int64]ygot.EnumDefinition{
+		1: {Name: "ACTION_RESEAT", DefiningModule: platformFaultModule},
+		7: {Name: "ACTION_REPAIR_FABRIC", DefiningModule: "vendor-healthz"},
+	}
+	tests := []struct {
+		value string
+		want  int64
+	}{
+		{value: "ACTION_RESEAT", want: 1},
+		{value: platformFaultModule + ":ACTION_RESEAT", want: 1},
+		{value: platformFaultModulePrefix + ":ACTION_RESEAT", want: 1},
+		{value: "vendor-healthz:ACTION_REPAIR_FABRIC", want: 7},
+	}
+	for _, test := range tests {
+		got, err := platformFaultIdentityValue(test.value, identities)
+		if err != nil {
+			t.Errorf("platformFaultIdentityValue(%q) failed: %v", test.value, err)
+			continue
+		}
+		if got != test.want {
+			t.Errorf("platformFaultIdentityValue(%q) = %d, want %d", test.value, got, test.want)
+		}
+	}
+
+	for _, value := range []string{
+		"ACTION_REPAIR_FABRIC",
+		"vendor-healthz:ACTION_RESEAT",
+		"vendor-healthz:",
+		"vendor:extra:ACTION_RESEAT",
+	} {
+		if _, err := platformFaultIdentityValue(value, identities); err == nil {
+			t.Errorf("platformFaultIdentityValue(%q) succeeded, want error", value)
+		}
+	}
+}
+
+func TestPlatformFaultIdentityNameRejectsUnsupportedWildcardNamespace(t *testing.T) {
+	for _, value := range []string{"*", platformFaultModule + ":*", platformFaultModulePrefix + ":*"} {
+		got, err := platformFaultIdentityName(value)
+		if err != nil {
+			t.Errorf("platformFaultIdentityName(%q) failed: %v", value, err)
+			continue
+		}
+		if got != "*" {
+			t.Errorf("platformFaultIdentityName(%q) = %q, want wildcard", value, got)
+		}
+	}
+
+	if _, err := platformFaultIdentityName("vendor-healthz:*"); err == nil {
+		t.Error("platformFaultIdentityName accepted a wildcard from an unsupported namespace")
+	}
+}
+
+func TestPlatformFaultSymptomUsesGeneratedIdentities(t *testing.T) {
+	tests := []struct {
+		value string
+		want  ocbinds.E_OpenconfigPlatformHealthzFault_SYMPTOM_BASE
+	}{
+		{"SYMPTOM_OVER_THRESHOLD", ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_OVER_THRESHOLD},
+		{"oc-platform-healthz-fault:SYMPTOM_UNDER_THRESHOLD", ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_UNDER_THRESHOLD},
+		{"openconfig-platform-healthz-fault:SYMPTOM_UNKNOWN", ocbinds.OpenconfigPlatformHealthzFault_SYMPTOM_BASE_SYMPTOM_UNKNOWN},
+	}
+	for _, test := range tests {
+		got, err := platformFaultSymptom(test.value)
+		if err != nil {
+			t.Errorf("platformFaultSymptom(%q) failed: %v", test.value, err)
+			continue
+		}
+		if got != test.want {
+			t.Errorf("platformFaultSymptom(%q) = %v, want %v", test.value, got, test.want)
+		}
+	}
+	if _, err := platformFaultSymptom("vendor-healthz:SYMPTOM_UNKNOWN"); err == nil {
+		t.Error("platformFaultSymptom accepted an identity from an unavailable module")
+	}
+}
+
+func TestProcessPlatformFaultOnChange(t *testing.T) {
+	subscribePath, err := ygot.StringToStructuredPath(
+		"/openconfig-platform:components/component[name=PSU0]/healthz/faults")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}
+	sender := &recordingNotificationSender{}
+
+	processPlatformFaultOnChange(&apis.NotificationContext{
+		Path: subscribePath,
+		Key:  &key,
+		EntryDiff: apis.EntryDiff{
+			NewValue:     validPlatformFaultEntry(),
+			EntryCreated: true,
+		},
+	}, sender)
+	if len(sender.notifications) != 1 {
+		t.Fatalf("create notifications = %d, want 1", len(sender.notifications))
+	}
+	wantPath := "/openconfig-platform:components/component[name=PSU0]/healthz/faults/fault[symptom=SYMPTOM_OVER_THRESHOLD]"
+	wantParent := "/openconfig-platform:components/component[name=PSU0]/healthz/faults"
+	if got := sender.notifications[0].Path; got != wantParent {
+		t.Errorf("create notification path = %q, want %q", got, wantParent)
+	}
+	if len(sender.notifications[0].UpdatePaths) != 1 {
+		t.Error("create notification does not request a fresh GET")
+	} else if got := sender.notifications[0].UpdatePaths[0]; got != "/fault[symptom=SYMPTOM_OVER_THRESHOLD]" {
+		t.Errorf("create relative update path = %q, want fault list entry", got)
+	}
+
+	sender.notifications = nil
+	processPlatformFaultOnChange(&apis.NotificationContext{
+		Path: subscribePath,
+		Key:  &key,
+		EntryDiff: apis.EntryDiff{
+			OldValue:     validPlatformFaultEntry(),
+			EntryDeleted: true,
+		},
+	}, sender)
+	if len(sender.notifications) != 1 || len(sender.notifications[0].Delete) != 1 {
+		t.Fatal("delete did not produce one fault-path deletion")
+	}
+	wantDeleteParent := "/openconfig-platform:components/component[name=PSU0]/healthz/faults"
+	if got := sender.notifications[0].Path; got != wantDeleteParent {
+		t.Errorf("delete notification path = %q, want %q", got, wantDeleteParent)
+	}
+	if got := sender.notifications[0].Delete[0]; got != "/fault[symptom=SYMPTOM_OVER_THRESHOLD]" {
+		t.Errorf("delete relative path = %q, want fault list entry", got)
+	}
+
+	leafPath, err := ygot.StringToStructuredPath(wantPath + "/state/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sender.notifications = nil
+	processPlatformFaultOnChange(&apis.NotificationContext{
+		Path: leafPath,
+		Key:  &key,
+		EntryDiff: apis.EntryDiff{
+			NewValue:     validPlatformFaultEntry(),
+			EntryCreated: true,
+		},
+	}, sender)
+	if len(sender.notifications) != 1 {
+		t.Fatalf("leaf update notifications = %d, want 1", len(sender.notifications))
+	}
+	if got := sender.notifications[0].Path; got != wantPath+"/state" {
+		t.Errorf("leaf update notification path = %q, want state container", got)
+	}
+	if len(sender.notifications[0].UpdatePaths) != 1 {
+		t.Fatalf("leaf update paths = %d, want 1", len(sender.notifications[0].UpdatePaths))
+	}
+	if got := sender.notifications[0].UpdatePaths[0]; got != "/status" {
+		t.Errorf("leaf update relative path = %q, want /status", got)
+	}
+
+	sender.notifications = nil
+	processPlatformFaultOnChange(&apis.NotificationContext{
+		Path: leafPath,
+		Key:  &key,
+		EntryDiff: apis.EntryDiff{
+			OldValue:     validPlatformFaultEntry(),
+			EntryDeleted: true,
+		},
+	}, sender)
+	if len(sender.notifications) != 1 {
+		t.Fatalf("leaf delete notifications = %d, want 1", len(sender.notifications))
+	}
+	if got := sender.notifications[0].Path; got != wantPath+"/state" {
+		t.Errorf("leaf delete notification path = %q, want state container", got)
+	}
+	if len(sender.notifications[0].Delete) != 1 {
+		t.Fatalf("leaf delete paths = %d, want 1", len(sender.notifications[0].Delete))
+	}
+	if got := sender.notifications[0].Delete[0]; got != "/status" {
+		t.Errorf("leaf delete relative path = %q, want /status", got)
+	}
+
+	sender.notifications = nil
+	bad := validPlatformFaultEntry()
+	bad.Field["component_name"] = ""
+	processPlatformFaultOnChange(&apis.NotificationContext{
+		Path: subscribePath,
+		Key:  &key,
+		EntryDiff: apis.EntryDiff{
+			NewValue:     bad,
+			EntryCreated: true,
+		},
+	}, sender)
+	if len(sender.notifications) != 0 {
+		t.Fatal("malformed new row produced an update")
+	}
+}
+
+func TestPlatformFaultQualifiedWildcardNotifications(t *testing.T) {
+	for _, faultName := range []string{"fault", "openconfig-platform-healthz-fault:fault"} {
+		t.Run(faultName, func(t *testing.T) {
+			subscribePath, err := ygot.StringToStructuredPath(
+				"/openconfig-platform:components/component[name=PSU0]/healthz/faults/" + faultName + "[symptom=*]/state/status")
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Use the same validator and options as the gNMI URI conversion.
+			validator := path.NewPathValidator(&path.AppendModulePrefix{}, &path.AddWildcardKeys{})
+			if err := validator.Validate(subscribePath); err != nil {
+				t.Fatalf("validate subscription: %v", err)
+			}
+			uri, err := ygot.PathToString(subscribePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			app := &PlatformApp{}
+			mapping, err := app.translateSubscribe(translateSubRequest{path: uri})
+			if err != nil || len(mapping.ntfAppInfoTrgt) != 1 {
+				t.Fatalf("fault subscription mapping = %+v, %v", mapping, err)
+			}
+			info := mapping.ntfAppInfoTrgt[0]
+			if info.table == nil || info.table.Name != "FAULT_INFO" || info.handlerFunc == nil ||
+				info.key == nil || info.key.Get(0) != "PSU0" || info.key.Get(1) != "*" {
+				t.Fatalf("unexpected fault mapping: %+v", info)
+			}
+
+			key := db.Key{Comp: []string{"PSU0", "SYMPTOM_OVER_THRESHOLD"}}
+			active := validPlatformFaultEntry()
+			inactive := validPlatformFaultEntry()
+			inactive.Field["status"] = "INACTIVE"
+			inactive.Field["repair_actions"] = "[]"
+			for _, event := range []struct {
+				name   string
+				diff   apis.EntryDiff
+				status string
+			}{
+				{name: "initial", diff: apis.EntryDiff{NewValue: active, EntryCreated: true}, status: "ACTIVE"},
+				{name: "recovery", diff: apis.EntryDiff{OldValue: active, NewValue: inactive}, status: "INACTIVE"},
+			} {
+				t.Run(event.name, func(t *testing.T) {
+					sender := &recordingNotificationSender{}
+					info.handlerFunc(&apis.NotificationContext{Path: info.path, Key: &key, EntryDiff: event.diff}, sender)
+					if len(sender.notifications) != 1 || len(sender.notifications[0].UpdatePaths) != 1 {
+						t.Fatalf("notifications = %+v, want one value lookup", sender.notifications)
+					}
+					n := sender.notifications[0]
+					target := n.Path + n.UpdatePaths[0]
+					resolved, err := ygot.StringToStructuredPath(target)
+					if err != nil || path.HasWildcardKey(resolved) {
+						t.Fatalf("notification target still has wildcard: %s (%v)", target, err)
+					}
+					// The notification sender loads UpdatePaths through the normal
+					// GET binder before fetching and serializing the current row.
+					rootType := reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{})
+					root, _, err := getRequestBinder(&target, nil, GET, &rootType).unMarshall()
+					if err != nil {
+						t.Fatalf("bind notification GET: %v", err)
+					}
+					components := (*root).(*ocbinds.Device).Components
+					rows := []platformFaultRow{{key: key, entry: event.diff.NewValue}}
+					if count := addPlatformFaultRows(components, rows, "PSU0", "SYMPTOM_OVER_THRESHOLD", nil); count != 1 {
+						t.Fatalf("populated %d rows, want one", count)
+					}
+					response, err := generateGetResponse(target, root, TRANSLIB_FMT_YGOT)
+					if err != nil {
+						t.Fatalf("serialize notification GET: %v", err)
+					}
+					state, ok := response.ValueTree.(*ocbinds.OpenconfigPlatform_Components_Component_Healthz_Faults_Fault_State)
+					wantStatus, _ := platformFaultStatus(event.status)
+					if !ok || state.Status != wantStatus {
+						t.Fatalf("notification value = %+v, want %s", response.ValueTree, event.status)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestPlatformFullyQualifiedSubscribeRouting(t *testing.T) {
+	const component = "DLDD_FIXES_Fx9N09b"
+	for _, test := range []struct {
+		name, uri, table string
+	}{
+		{
+			name:  "qualified fault path",
+			uri:   "/openconfig-platform:components/openconfig-platform:component[name=DLDD_FIXES_Fx9N09b]/openconfig-platform-healthz:healthz/openconfig-platform-healthz-fault:faults/openconfig-platform-healthz-fault:fault[symptom=SYMPTOM_UNKNOWN]",
+			table: "FAULT_INFO",
+		},
+		{
+			name:  "qualified aggregate path",
+			uri:   "/openconfig-platform:components/openconfig-platform:component[name=DLDD_FIXES_Fx9N09b]/openconfig-platform-healthz:healthz/openconfig-platform-healthz:state/openconfig-platform-healthz:status",
+			table: "COMPONENT_HEALTH_INFO",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			subscribePath, err := ygot.StringToStructuredPath(test.uri)
+			if err != nil {
+				t.Fatal(err)
+			}
+			validator := path.NewPathValidator(&path.AppendModulePrefix{}, &path.AddWildcardKeys{})
+			if err := validator.Validate(subscribePath); err != nil {
+				t.Fatalf("validate qualified path: %v", err)
+			}
+			uri, err := ygot.PathToString(subscribePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			app := &PlatformApp{}
+			mapping, err := app.translateSubscribe(translateSubRequest{path: uri})
+			if err != nil || len(mapping.ntfAppInfoTrgt) != 1 {
+				t.Fatalf("translate qualified subscription = %+v, %v", mapping, err)
+			}
+			info := mapping.ntfAppInfoTrgt[0]
+			if info.dbno != db.StateDB || info.table == nil || info.table.Name != test.table ||
+				!info.isOnChangeSupported || info.pType != OnChange || info.handlerFunc == nil {
+				t.Fatalf("qualified path lost ON_CHANGE mapping: %+v", info)
+			}
+			if mappedURI, _ := ygot.PathToString(info.path); mappedURI != uri {
+				t.Fatalf("mapping changed qualified path: %q, want %q", mappedURI, uri)
+			}
+			key := db.Key{Comp: []string{component}}
+			active, recovered := validPlatformHealthzEntry(), validPlatformHealthzEntry()
+			recovered.Field["status"] = "HEALTHY"
+			if test.table == "FAULT_INFO" {
+				key.Comp = append(key.Comp, "SYMPTOM_UNKNOWN")
+				active, recovered = validPlatformFaultEntry(), validPlatformFaultEntry()
+				for _, entry := range []db.Value{active, recovered} {
+					entry.Field["component_name"] = component
+					entry.Field["symptom"] = "openconfig-platform-healthz-fault:SYMPTOM_UNKNOWN"
+				}
+				recovered.Field["status"], recovered.Field["repair_actions"] = "INACTIVE", "[]"
+			}
+			var remediationPath string
+			for _, diff := range []apis.EntryDiff{
+				{NewValue: active, EntryCreated: true},
+				{OldValue: active, NewValue: recovered},
+			} {
+				sender := &recordingNotificationSender{}
+				info.handlerFunc(&apis.NotificationContext{Path: info.path, Key: &key, EntryDiff: diff}, sender)
+				wantNotifications := 1
+				if test.table == "FAULT_INFO" && !diff.EntryCreated {
+					wantNotifications++
+				}
+				if len(sender.notifications) != wantNotifications {
+					t.Fatalf("received %d qualified notifications, want %d", len(sender.notifications), wantNotifications)
+				}
+				n := sender.notifications[0]
+				if len(n.UpdatePaths) != 1 || len(n.Delete) != 0 {
+					t.Fatalf("qualified notification = %+v, want one lookup", n)
+				}
+				target := n.Path + n.UpdatePaths[0]
+				if target != uri {
+					t.Fatalf("notification changed qualified path: %q, want %q", target, uri)
+				}
+				rootType := reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{})
+				root, _, err := getRequestBinder(&target, nil, GET, &rootType).unMarshall()
+				if err != nil {
+					t.Fatalf("bind qualified notification: %v", err)
+				}
+				components := (*root).(*ocbinds.Device).Components
+				if test.table == "FAULT_INFO" {
+					if count := addPlatformFaultRows(components, []platformFaultRow{{key: key, entry: diff.NewValue}}, component, "SYMPTOM_UNKNOWN", nil); count != 1 {
+						t.Fatalf("populated %d fault rows, want one", count)
+					}
+				} else if count := addPlatformHealthzRows(components, []platformHealthzRow{{key: key, entry: diff.NewValue}}, component); count != 1 {
+					t.Fatalf("populated %d health rows, want one", count)
+				}
+				response, err := generateGetResponse(target, root, TRANSLIB_FMT_IETF_JSON)
+				if err != nil || !json.Valid(response.Payload) {
+					t.Fatalf("qualified notification serialization = %q, %v", response.Payload, err)
+				}
+				if test.table != "FAULT_INFO" {
+					continue
+				}
+				if !diff.EntryCreated {
+					deletion := sender.notifications[1]
+					if len(deletion.Delete) != 1 || len(deletion.UpdatePaths) != 0 {
+						t.Fatalf("qualified recovery notification = %+v, want one delete", deletion)
+					}
+					if removed := deletion.Path + deletion.Delete[0]; removed != remediationPath {
+						t.Fatalf("remediation delete = %q, want %q", removed, remediationPath)
+					}
+					continue
+				}
+
+				value, err := generateGetResponse(target, root, TRANSLIB_FMT_YGOT)
+				if err != nil {
+					t.Fatalf("load fault update: %v", err)
+				}
+				messages, err := ygot.TogNMINotifications(value.ValueTree, 0, ygot.GNMINotificationsConfig{
+					UsePathElem: true, Encoding: gnmi.Encoding_PROTO,
+				})
+				if err != nil || len(messages) != 1 {
+					t.Fatalf("render fault update: got %d notifications, %v", len(messages), err)
+				}
+				for _, update := range messages[0].GetUpdate() {
+					relative, err := ygot.PathToString(update.GetPath())
+					if err != nil {
+						t.Fatal(err)
+					}
+					if base, found := strings.CutSuffix(relative, "/state/action"); found {
+						remediationPath = n.Path + base
+						break
+					}
+				}
+				if remediationPath == "" {
+					t.Fatal("initial fault update omitted remediation action")
+				}
+			}
+			if test.table == "FAULT_INFO" {
+				sender := &recordingNotificationSender{}
+				info.handlerFunc(&apis.NotificationContext{
+					Path: info.path, Key: &key, EntryDiff: apis.EntryDiff{OldValue: recovered, EntryDeleted: true},
+				}, sender)
+				if len(sender.notifications) != 1 || len(sender.notifications[0].Delete) != 1 {
+					t.Fatalf("qualified fault removal = %+v, want one delete", sender.notifications)
+				}
+				want, _, _ := strings.Cut(remediationPath, "/remediations/")
+				removed := sender.notifications[0].Path + sender.notifications[0].Delete[0]
+				if removed != want {
+					t.Fatalf("fault delete = %q, want %q", removed, want)
+				}
+			}
+		})
+	}
+}
+
+func TestTranslateFaultSubscribe(t *testing.T) {
+	app := &PlatformApp{}
+	response, err := app.translateFaultSubscribe(translateSubRequest{
+		path: "/openconfig-platform:components/component[name=PSU+0:A]/healthz/faults/fault[symptom=SYMPTOM_OVER_THRESHOLD]",
+	})
+	if err != nil {
+		t.Fatalf("translateFaultSubscribe failed: %v", err)
+	}
+	if len(response.ntfAppInfoTrgt) != 1 {
+		t.Fatalf("target mapping count = %d, want 1", len(response.ntfAppInfoTrgt))
+	}
+	info := response.ntfAppInfoTrgt[0]
+	if info.table == nil || info.table.Name != "FAULT_INFO" || info.table.CompCt != 2 || info.dbno != db.StateDB {
+		t.Fatalf("unexpected subscription mapping: %+v", info)
+	}
+	if info.key == nil || info.key.Len() != 2 ||
+		info.key.Get(0) != "PSU%2B0%3AA" || info.key.Get(1) != "SYMPTOM_OVER_THRESHOLD" {
+		t.Fatalf("unexpected subscription key mapping: %+v", info.key)
+	}
+	if !info.isOnChangeSupported || info.pType != OnChange || info.handlerFunc == nil {
+		t.Fatalf("subscription is not configured for on-change: %+v", info)
+	}
+
+	qualifiedResponse, err := app.translateFaultSubscribe(translateSubRequest{
+		path: "/openconfig-platform:components/component[name=PSU+0:A]/openconfig-platform-healthz:healthz/openconfig-platform-healthz-fault:faults",
+	})
+	if err != nil {
+		t.Fatalf("module-qualified translateFaultSubscribe failed: %v", err)
+	}
+	if len(qualifiedResponse.ntfAppInfoTrgt) != 1 {
+		t.Fatalf("module-qualified target mapping count = %d, want 1", len(qualifiedResponse.ntfAppInfoTrgt))
+	}
+}
+
+func TestTranslateFaultSubscribePathCoverage(t *testing.T) {
+	app := &PlatformApp{}
+	tests := []struct {
+		name       string
+		path       string
+		wantFaults bool
+	}{
+		{
+			name:       "ancestor",
+			path:       "/openconfig-platform:components",
+			wantFaults: true,
+		},
+		{
+			name:       "descendant",
+			path:       "/openconfig-platform:components/component/healthz/faults/fault/state/status",
+			wantFaults: true,
+		},
+		{
+			name:       "unrelated",
+			path:       "/openconfig-platform:components/component/state",
+			wantFaults: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response, err := app.translateFaultSubscribe(translateSubRequest{path: test.path})
+			if err != nil {
+				t.Fatalf("translateFaultSubscribe(%q) failed: %v", test.path, err)
+			}
+			if len(response.ntfAppInfoTrgt) != 1 {
+				t.Fatalf("target mapping count = %d, want 1", len(response.ntfAppInfoTrgt))
+			}
+
+			if test.wantFaults {
+				infos := response.ntfAppInfoTrgt
+				if test.name == "ancestor" {
+					if response.ntfAppInfoTrgt[0].dbno != db.MaxDB ||
+						len(response.ntfAppInfoTrgtChlds) != 1 {
+						t.Fatalf("ancestor mapping did not preserve its non-DB target: %+v", response)
+					}
+					infos = response.ntfAppInfoTrgtChlds
+				}
+				info := infos[0]
+				if info.table == nil || info.table.Name != "FAULT_INFO" || info.table.CompCt != 2 || info.dbno != db.StateDB {
+					t.Fatalf("fault path mapped to %+v", info)
+				}
+				if info.key == nil || info.key.Len() != 2 ||
+					info.key.Get(0) != "*" || info.key.Get(1) != "*" {
+					t.Fatalf("fault path key mapping = %+v, want wildcard FAULT_INFO key", info.key)
+				}
+				return
+			}
+
+			info := response.ntfAppInfoTrgt[0]
+			if info.table != nil || info.dbno != db.MaxDB || info.isOnChangeSupported {
+				t.Fatalf("unrelated path mapped to database subscription: %+v", info)
+			}
+		})
+	}
+}
+
+type recordingNotificationSender struct {
+	notifications []*apis.Notification
+}
+
+func (s *recordingNotificationSender) Send(notification *apis.Notification) {
+	s.notifications = append(s.notifications, notification)
+}
+
+func validPlatformFaultEntry() db.Value {
+	return db.Value{Field: map[string]string{
+		"component_type":          "PSU",
+		"component_name":          "PSU0",
+		"component_serial_number": "serial",
+		"symptom":                 "openconfig-platform-healthz-fault:SYMPTOM_OVER_THRESHOLD",
+		"status":                  "ACTIVE",
+		"origin_time":             "1745614206.0123456",
+		"last_detection_time":     "1745614206.987654321",
+		"occurrences":             "2",
+		"description":             "PSU output voltage is above threshold",
+		"repair_actions":          `[{"action":"ACTION_RESEAT"}]`,
+	}}
+}

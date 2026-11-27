@@ -20,12 +20,13 @@ package translib
 
 import (
 	"errors"
+	"strconv"
+
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/ocbinds"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
 	log "github.com/golang/glog"
 	"github.com/openconfig/ygot/ygot"
-	"strconv"
 )
 
 type PlatformApp struct {
@@ -37,41 +38,7 @@ type PlatformApp struct {
 	eepromTable map[string]dbEntry
 }
 
-func init() {
-	/*
-				 * DEPRECATED:
-				 * The PlatformApp module is deprecated and deactivated. App registration is commented
-				 * out because registering at /openconfig-platform:components claims exclusive ownership
-				 * over the root platform URI, preventing Transceivers, IC, and Software components
-				 * from coexisting.
-				 *
-				 * All platform component translation (System EEPROM, Integrated Circuits,
-				 * Transceivers, and Software Modules) has been ported to the standard declarative
-				 * Transformer framework in translib/transformer/xfmr_platform.go.
-				 *
-				 * The remaining code in this file is kept intact temporarily for reference
-		                 * and rollback safety.
-				 *
-				 * TODO: Remove this file completely once transformer-based platform component
-				 * support is verified and stabilized across all SONiC platforms.
-				 *
-				log.Info("Init called for Platform module")
-				err := register("/openconfig-platform:components",
-					&appInfo{appType: reflect.TypeOf(PlatformApp{}),
-						ygotRootType: reflect.TypeOf(ocbinds.OpenconfigPlatform_Components{}),
-						isNative:     false})
-				if err != nil {
-					log.Fatal("Register Platform app module with App Interface failed with error=", err)
-				}
-
-				err = addModel(&ModelData{Name: "openconfig-platform",
-					Org: "OpenConfig working group",
-					Ver: "1.0.2"})
-				if err != nil {
-					log.Fatal("Adding model data to appinterface failed with error=", err)
-				}
-	*/
-}
+// CommonApp composes this Healthz adapter with transformer-backed platform data.
 
 func (app *PlatformApp) initialize(data appData) {
 	log.Info("initialize:if:path =", data.path)
@@ -95,11 +62,44 @@ func (app *PlatformApp) translateAction(dbs [db.MaxDB]*db.DB) error {
 }
 
 func (app *PlatformApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
-	return emptySubscribeResponse(req.path)
+	targetPath, err := getYangPathFromUri(req.path)
+	if err != nil {
+		return emptySubscribeResponse(req.path)
+	}
+
+	faults := platformPathNeedsFaults(targetPath)
+	healthz := platformPathNeedsHealthzState(targetPath)
+	switch {
+	case faults && healthz:
+		faultResponse, err := app.translateFaultSubscribe(req)
+		if err != nil {
+			return translateSubResponse{}, err
+		}
+		healthzResponse, err := app.translateHealthzSubscribe(req)
+		if err != nil {
+			return translateSubResponse{}, err
+		}
+		if isPlatformHealthzURI(req.path) {
+			faultResponse.ntfAppInfoTrgt = append(faultResponse.ntfAppInfoTrgt, healthzResponse.ntfAppInfoTrgt...)
+		}
+		faultResponse.ntfAppInfoTrgtChlds = append(
+			faultResponse.ntfAppInfoTrgtChlds, healthzResponse.ntfAppInfoTrgtChlds...,
+		)
+		return faultResponse, nil
+	case faults:
+		return app.translateFaultSubscribe(req)
+	case healthz:
+		return app.translateHealthzSubscribe(req)
+	default:
+		return emptySubscribeResponse(req.path)
+	}
 }
 
 func (app *PlatformApp) processSubscribe(req processSubRequest) (processSubResponse, error) {
-	return processSubResponse{}, tlerr.New("not implemented")
+	if req.table != nil && req.table.Name == platformHealthzTableSpec.Name {
+		return app.processHealthzSubscribe(req)
+	}
+	return app.processFaultSubscribe(req)
 }
 
 func (app *PlatformApp) translateCreate(d *db.DB) ([]db.WatchKeys, error) {
@@ -172,52 +172,77 @@ func (app *PlatformApp) processDelete(d *db.DB) (SetResponse, error) {
 }
 
 func (app *PlatformApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
+	if err := app.populateGet(dbs); err != nil {
+		return GetResponse{}, err
+	}
+	return generateGetResponse(app.path.Path, app.ygotRoot, fmtType)
+}
+
+func (app *PlatformApp) populateGet(dbs [db.MaxDB]*db.DB) error {
 	pathInfo := app.path
 	log.Infof("Received GET for PlatformApp Template: %s ,path: %s, vars: %v",
 		pathInfo.Template, pathInfo.Path, pathInfo.Vars)
 
+	targetUriPath, perr := getYangPathFromUri(app.path.Path)
+	if perr != nil {
+		log.Infof("getYangPathFromUri failed.")
+		return perr
+	}
+
+	if !isSubtreeRequest(targetUriPath, "/openconfig-platform:components") {
+		return errors.New("Not supported component")
+	}
+
 	stateDb := dbs[db.StateDB]
+	var err error
+	populated := false
 
-	var payload []byte
+	if platformPathNeedsEeprom(targetUriPath, app.path.Var("name")) {
+		if err = app.loadEepromTable(stateDb); err == nil {
+			err = app.doGetSysEeprom()
+			populated = len(app.eepromTable) > 0
+		}
+	}
 
-	// Read eeprom info from DB
+	if err == nil && platformPathNeedsFaults(targetUriPath) {
+		var count int
+		count, err = app.doGetFaults(stateDb)
+		populated = populated || count > 0
+	}
+	if err == nil && platformPathNeedsHealthzState(targetUriPath) {
+		var count int
+		count, err = app.doGetHealthzState(stateDb)
+		populated = populated || count > 0
+	}
+
+	if err != nil {
+		return err
+	}
+	if !populated {
+		return tlerr.NotFound("Resource not found")
+	}
+	return nil
+}
+
+func (app *PlatformApp) loadEepromTable(stateDb *db.DB) error {
 	app.eepromTable = make(map[string]dbEntry)
 
-	tbl, derr := stateDb.GetTable(app.eepromTs)
-	if derr != nil {
+	tbl, err := stateDb.GetTable(app.eepromTs)
+	if err != nil {
 		log.Error("EEPROM_INFO table get failed!")
-		return GetResponse{Payload: payload}, derr
+		return err
 	}
 
 	keys, _ := tbl.GetKeys()
 	for _, key := range keys {
-		e, kerr := tbl.GetEntry(key)
-		if kerr != nil {
+		entry, err := tbl.GetEntry(key)
+		if err != nil {
 			log.Error("EEPROM_INFO entry get failed!")
-			return GetResponse{Payload: payload}, kerr
+			return err
 		}
-
-		app.eepromTable[key.Get(0)] = dbEntry{entry: e}
+		app.eepromTable[key.Get(0)] = dbEntry{entry: entry}
 	}
-
-	targetUriPath, perr := getYangPathFromUri(app.path.Path)
-	if perr != nil {
-		log.Infof("getYangPathFromUri failed.")
-		return GetResponse{Payload: payload}, perr
-	}
-
-	var err error
-
-	if isSubtreeRequest(targetUriPath, "/openconfig-platform:components") {
-		err = app.doGetSysEeprom()
-	} else {
-		err = errors.New("Not supported component")
-	}
-
-	if err == nil {
-		return generateGetResponse(pathInfo.Path, app.ygotRoot, fmtType)
-	}
-	return GetResponse{Payload: payload}, err
+	return nil
 }
 
 func (app *PlatformApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error) {

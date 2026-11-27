@@ -81,6 +81,19 @@ func init() {
 			}
 		}
 	}
+
+	// The platform Healthz adapter serves these augmentations without transformer annotations.
+	for _, model := range []ModelData{
+		{Name: "openconfig-platform-healthz", Org: "OpenConfig working group", Ver: "0.1.1"},
+		{Name: "openconfig-platform-healthz-fault", Org: "OpenConfig working group", Ver: "0.1.0"},
+	} {
+		if _, registered := mdlCpblt[model.Name]; registered {
+			continue
+		}
+		if err := addModel(&model); err != nil {
+			log.Warningf("Adding model data for module %v to appinterface failed with error=%v", model.Name, err)
+		}
+	}
 }
 
 func (app *CommonApp) initialize(data appData) {
@@ -136,7 +149,7 @@ func (app *CommonApp) translateGet(dbs [db.MaxDB]*db.DB) error {
 	return err
 }
 
-func (app *CommonApp) translateSubscribe(req translateSubRequest) (translateSubResponse, error) {
+func (app *CommonApp) translateTransformerSubscribe(req translateSubRequest) (translateSubResponse, error) {
 	txCache := new(sync.Map)
 	reqIdLogStr := "subReq Id:[" + fmt.Sprintf("%v", req.ctxID) + "] : "
 	if log.V(4) {
@@ -410,7 +423,22 @@ func (app *CommonApp) processDelete(d *db.DB) (SetResponse, error) {
 }
 
 func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) (GetResponse, error) {
-	var err error
+	qParams, err := transformer.NewQueryParams(app.depth, app.content, app.fields)
+	if err != nil {
+		return GetResponse{Payload: []byte("{}")}, err
+	}
+	if isPlatformHealthzURI(app.pathInfo.Path) {
+		if process, err := transformer.ValidateQueryParams(app.pathInfo.Path, qParams); err != nil || !process {
+			return GetResponse{Payload: []byte("{}")}, err
+		}
+		if err := app.platformHealthzApp(app.ygotRoot).populateGet(dbs); err != nil {
+			return GetResponse{}, err
+		}
+		if err := transformer.PruneQueryParams(app.ygotRoot, qParams, app.pathInfo.Path, app.ctxt); err != nil {
+			return GetResponse{}, err
+		}
+		return generateGetResponse(app.pathInfo.Path, app.ygotRoot, fmtType)
+	}
 	var resp GetResponse
 	var payload []byte
 	log.Info("processGet:path =", app.pathInfo.Path)
@@ -421,14 +449,8 @@ func (app *CommonApp) processGet(dbs [db.MaxDB]*db.DB, fmtType TranslibFmtType) 
 		origXfmrYgotRoot, _ := ygot.DeepCopy((*app.ygotRoot).(ygot.GoStruct))
 		isEmptyPayload := false
 		appYgotStruct := (*app.ygotRoot).(ygot.GoStruct)
-		var qParams transformer.QueryParams
-		qParams, err = transformer.NewQueryParams(app.depth, app.content, app.fields)
-		if err != nil {
-			log.Warning("transformer.NewQueryParams() returned : ", err)
-			resp.Payload = []byte("{}")
-			break
-		}
 		payload, isEmptyPayload, err = transformer.GetAndXlateFromDB(app.pathInfo.Path, &appYgotStruct, dbs, txCache, qParams, app.ctxt, app.ygSchema)
+		isEmptyPayload, err = app.composePlatformHealthz(&appYgotStruct, dbs, qParams, isEmptyPayload, err)
 		if err != nil {
 			// target URI for list GET request with QP content!=all and node's content-type mismatches the requested content-type, return empty payload
 			if isEmptyPayload && qParams.IsContentEnabled() && transformer.IsListNode(app.pathInfo.Path) {
@@ -550,6 +572,9 @@ func (app *CommonApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error
 }
 
 func (app *CommonApp) processSubscribe(param processSubRequest) (processSubResponse, error) {
+	if param.table != nil && (param.table.Name == platformFaultTableSpec.Name || param.table.Name == platformHealthzTableSpec.Name) {
+		return (&PlatformApp{}).processSubscribe(param)
+	}
 	var resp processSubResponse
 
 	subNotfRespXlator, err := transformer.NewSubscribeNotfRespXlator(param.ctxID, param.path, param.dbno, param.table, param.key, param.entry, param.dbs, param.opaque)
