@@ -1356,7 +1356,7 @@ var portCntList []string = []string{"in-octets", "in-unicast-pkts", "in-broadcas
 	"in-errors", "in-discards", "in-pkts", "in-fcs-errors", "out-octets", "out-unicast-pkts",
 	"out-broadcast-pkts", "out-multicast-pkts", "out-errors", "out-discards",
 	"out-pkts"}
-var etherCntList []string = []string{"in-oversize-frames", "in-undersize-frames", "in-jabber-frames", "in-fragment-frames", "in-distribution/in-frames-128-255-octets"}
+var etherCntList []string = []string{"in-oversize-frames", "in-undersize-frames", "in-jabber-frames", "in-fragment-frames", "in-mac-pause-frames", "in-crc-errors", "in-distribution/in-frames-128-255-octets"}
 var etherCntInList []string = []string{"in-frames-64-octets", "in-frames-65-127-octets", "in-frames-128-255-octets",
 	"in-frames-256-511-octets", "in-frames-512-1023-octets", "in-frames-1024-1518-octets"}
 var subV4CntList = []string{"in-pkts", "out-pkts"}
@@ -1502,6 +1502,14 @@ func getSpecificCounterAttr(targetUriPath string, entry *db.Value, counter inter
 	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters/in-fragment-frames",
 		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/in-fragment-frames":
 		e = getCounters(entry, "SAI_PORT_STAT_ETHER_STATS_FRAGMENTS", &eth_counter_val.InFragmentFrames)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters/in-mac-pause-frames",
+		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/in-mac-pause-frames":
+		e = getCounters(entry, "SAI_PORT_STAT_PAUSE_RX_PKTS", &eth_counter_val.InMacPauseFrames)
+		return true, e
+	case "/openconfig-interfaces:interfaces/interface/ethernet/state/counters/in-crc-errors",
+		"/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/in-crc-errors":
+		e = getCounters(entry, "SAI_PORT_STAT_ETHER_STATS_CRC_ALIGN_ERRORS", &eth_counter_val.InCrcErrors)
 		return true, e
 	case "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state/counters/openconfig-if-ethernet-ext:in-distribution/in-frames-64-octets":
 		ygot.BuildEmptyTree(eth_counter_val)
