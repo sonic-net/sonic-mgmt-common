@@ -39,6 +39,7 @@ import (
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <regex.h>
 
 // Version detection. libyang3's <libyang/tree.h> defines LY_ARRAY_COUNT;
 // libyang1 has no such macro. <libyang/libyang.h> pulls in tree.h, so the
@@ -396,6 +397,8 @@ int lyd_node_leafref_match_in_union(struct lys_module *module, const char *xpath
 	struct lys_node *node = NULL;
 	struct lys_node_leaflist *lNode;
 	int idx = 0;
+	struct lys_node_leaflist* lNode;
+	int pat_idx = 0;
 
 	if (module == NULL)
 	{
@@ -410,6 +413,75 @@ int lyd_node_leafref_match_in_union(struct lys_module *module, const char *xpath
 	node = set->set.s[0];
 	ly_set_free(set);
 
+	//Now check if it matches with any leafref node
+	lNode = (struct lys_node_leaflist*)node;
+
+	// Step 1: Check non-leafref union members FIRST.
+	// Return -1 only when the value satisfies a non-leafref type AND does NOT
+	// also satisfy the leafref target type — i.e. it is a pure literal that
+	// can never be a real port/interface name.
+	for (idx = 0; idx < lNode->type.info.uni.count; idx++)
+	{
+		struct lys_type *utype = &lNode->type.info.uni.types[idx];
+
+		if (utype->base == LY_TYPE_LEAFREF) continue;
+
+		if (utype->base == LY_TYPE_STRING)
+		{
+			// Walk der chain — patterns may be in typedef, not directly on type
+			struct lys_type *stype = utype;
+			while (stype->info.str.pat_count == 0 && stype->der != NULL)
+				stype = &stype->der->type;
+
+			// Loophole guard: string with NO pattern matches any value,
+			// including real port names — do not treat as a definitive
+			// non-leafref match; fall through to leafref check.
+			if (stype->info.str.pat_count == 0)
+				continue;
+
+			// All patterns must match (AND semantics per RFC 7950 §9.4.5).
+			int all_match = 1;
+			for (pat_idx = 0; pat_idx < stype->info.str.pat_count; pat_idx++)
+			{
+				const char *pat = stype->info.str.patterns[pat_idx].expr;
+				if (pat == NULL) { all_match = 0; break; }
+
+				// libyang stores a one-byte prefix before the regex text:
+				//   0x06 = normal match, 0x15 = invert-match
+				int invert = 0;
+				if (*pat == 0x06)      { pat++; }
+				else if (*pat == 0x15) { invert = 1; pat++; }
+
+				char anchored[1024];
+				int alen = snprintf(anchored, sizeof(anchored), "^(%s)$", pat);
+				int matched = 0;
+				if (alen > 0 && (size_t)alen < sizeof(anchored)) {
+					regex_t re;
+					if (regcomp(&re, anchored, REG_EXTENDED|REG_NOSUB) == 0) {
+						matched = (regexec(&re, value, 0, NULL, 0) == 0);
+						if (invert) matched = !matched;
+						regfree(&re);
+					} else {
+						// regex compile failed — treat as non-match
+						all_match = 0;
+						break;
+					}
+				} else {
+					// snprintf truncated — treat as non-match
+					all_match = 0;
+					break;
+				}
+				if (!matched) { all_match = 0; break; }
+			}
+
+			if (all_match)
+			{
+				return -1;  // pure string literal — skip Redis check
+			}
+		}
+	}
+
+	// Step 2: Value did not exclusively match a non-leafref type.
 	// Walk union members looking for a leafref whose target accepts value.
 	lNode = (struct lys_node_leaflist *)node;
 	for (idx = 0; idx < lNode->type.info.uni.count; idx++)
