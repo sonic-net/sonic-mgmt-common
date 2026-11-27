@@ -758,3 +758,244 @@ func TestValidateEditConfig_MustExp_Parenthesized_Or_In_Predicate_Negative(t *te
 		ErrAppTag:        "vlan-member-multiple-pvid",
 	})
 }
+
+// Regression coverage for sonic-net/sonic-buildimage#29052: CACHE_KEY_TEST is
+// a singleton container (Redis table "CACHE_KEY_TEST", key "GLOBAL") that
+// generate_yin.py converts into list CACHE_KEY_TEST_GLOBAL_LIST, so the Redis
+// table name and the generated YANG list name differ, same as SYSLOG_CONFIG /
+// SYSLOG_CONFIG_GLOBAL in the reported issue.
+func TestValidateEditConfig_Update_MismatchedTableName_MustExp_Positive(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"CACHE_KEY_TEST": map[string]interface{}{
+			"GLOBAL": map[string]interface{}{
+				"format": "welf",
+			},
+		},
+	})
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_UPDATE,
+			"CACHE_KEY_TEST|GLOBAL",
+			map[string]string{
+				"welf_firewall_name": "test-fw",
+			},
+			false,
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, Success)
+}
+
+func TestValidateEditConfig_Update_MismatchedTableName_MustExp_Negative(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"CACHE_KEY_TEST": map[string]interface{}{
+			"GLOBAL": map[string]interface{}{
+				"format": "standard",
+			},
+		},
+	})
+
+	cfgData := []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_UPDATE,
+			"CACHE_KEY_TEST|GLOBAL",
+			map[string]string{
+				"welf_firewall_name": "test-fw",
+			},
+			false,
+		},
+	}
+
+	verifyValidateEditConfig(t, cfgData, CVLErrorInfo{
+		ErrCode: CVL_SEMANTIC_ERROR,
+		Msg:     mustExpressionErrMessage,
+	})
+}
+
+// Checks the lifecycle transition on a full-entry DELETE: validation detaches
+// the entry's YANG list node from the data tree, so it must also clear the
+// YangData references cached for that entry in requestCache. Otherwise later
+// requests in the same session can reuse the detached node.
+//
+// requestCache is keyed by Redis table name, which differs from the YANG list
+// name for singletons (CACHE_KEY_TEST -> CACHE_KEY_TEST_GLOBAL) and for tables
+// split into several lists (STATIC_ROUTE -> STATIC_ROUTE_INST); SCHEDULER
+// covers the 1:1 case.
+func TestValidateEditConfig_Delete_ClearsRequestCacheYangData(t *testing.T) {
+	tests := []struct {
+		name     string
+		dbData   map[string]interface{}
+		key      string
+		table    string
+		tableKey string
+	}{
+		{
+			name: "singleton",
+			dbData: map[string]interface{}{
+				"CACHE_KEY_TEST": map[string]interface{}{
+					"GLOBAL": map[string]interface{}{
+						"format": "welf",
+					},
+				},
+			},
+			key:      "CACHE_KEY_TEST|GLOBAL",
+			table:    "CACHE_KEY_TEST",
+			tableKey: "GLOBAL",
+		},
+		{
+			name: "multi_list",
+			dbData: map[string]interface{}{
+				"STATIC_ROUTE": map[string]interface{}{
+					"192.168.1.0/24": map[string]interface{}{
+						"advertise": "true",
+					},
+					"Vrf1|192.168.1.0/24": map[string]interface{}{
+						"blackhole": "true",
+					},
+				},
+			},
+			key:      "STATIC_ROUTE|Vrf1|192.168.1.0/24",
+			table:    "STATIC_ROUTE",
+			tableKey: "Vrf1|192.168.1.0/24",
+		},
+		{
+			name: "ordinary",
+			dbData: map[string]interface{}{
+				"SCHEDULER": map[string]interface{}{
+					"TEST_SCHED": map[string]interface{}{
+						"type":   "DWRR",
+						"weight": "25",
+					},
+				},
+			},
+			key:      "SCHEDULER|TEST_SCHED",
+			table:    "SCHEDULER",
+			tableKey: "TEST_SCHED",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			setupTestData(t, tc.dbData)
+			c := NewTestSession(t)
+
+			cfgData := []cmn.CVLEditConfigData{
+				cmn.CVLEditConfigData{
+					cmn.VALIDATE_ALL,
+					cmn.OP_DELETE,
+					tc.key,
+					map[string]string{},
+					false,
+				},
+			}
+			res, _ := c.ValidateEditConfig(cfgData)
+			verifyErr(t, res, Success)
+			verifyRequestCacheYangDataCleared(t, c, tc.table, tc.tableKey)
+		})
+	}
+}
+
+func verifyRequestCacheYangDataCleared(t *testing.T, c *cvl.CVL, table, key string) {
+	t.Helper()
+	entries, withYangData := c.RequestCacheYangDataState(table, key)
+	if entries == 0 {
+		t.Fatalf("no requestCache entry for %s|%s", table, key)
+	}
+	if withYangData != 0 {
+		t.Errorf("%d of %d requestCache entries for %s|%s still point to YANG data after full DELETE",
+			withYangData, entries, table, key)
+	}
+}
+
+func cacheKeyTestUpdate() []cmn.CVLEditConfigData {
+	return []cmn.CVLEditConfigData{
+		cmn.CVLEditConfigData{
+			cmn.VALIDATE_ALL,
+			cmn.OP_UPDATE,
+			"CACHE_KEY_TEST|GLOBAL",
+			map[string]string{
+				"welf_firewall_name": "test-fw",
+			},
+			false,
+		},
+	}
+}
+
+func verifyCacheKeyTestYangDataCleared(t *testing.T, c *cvl.CVL) {
+	t.Helper()
+	entries, withYangData := c.RequestCacheYangDataState("CACHE_KEY_TEST", "GLOBAL")
+	if entries == 0 {
+		t.Fatalf("requestCache entry for CACHE_KEY_TEST|GLOBAL was removed")
+	}
+	if withYangData != 0 {
+		t.Errorf("%d of %d requestCache entries for CACHE_KEY_TEST|GLOBAL still point to YANG data after ValidateEditConfig returned",
+			withYangData, entries)
+	}
+}
+
+// ValidateEditConfig replaces its YANG data tree when it returns, so the
+// requestCache entries must not keep pointing into the old tree.
+// The format=standard case fails with a must-expression error, which can only
+// be raised by evaluating the generated YANG node; so the tree was built and
+// used during the call. The format=welf case takes the same path and succeeds.
+func TestValidateEditConfig_Update_ClearsRequestCacheYangData(t *testing.T) {
+	tests := []struct {
+		name   string
+		format string
+		exp    CVLErrorInfo
+	}{
+		{"success", "welf", Success},
+		{"must_failure", "standard", CVLErrorInfo{
+			ErrCode: CVL_SEMANTIC_ERROR,
+			Msg:     mustExpressionErrMessage,
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			setupTestData(t, map[string]interface{}{
+				"CACHE_KEY_TEST": map[string]interface{}{
+					"GLOBAL": map[string]interface{}{"format": tc.format},
+				},
+			})
+			c := NewTestSession(t)
+
+			res, _ := c.ValidateEditConfig(cacheKeyTestUpdate())
+			verifyErr(t, res, tc.exp)
+			verifyCacheKeyTestYangDataCleared(t, c)
+		})
+	}
+}
+
+// A second validation in the same session must build and evaluate its own
+// YANG tree. The DB format is flipped between the calls, so only a tree built
+// from the new data can produce the must-expression error: a skipped
+// validation or a node left over from the first call would return Success.
+func TestValidateEditConfig_Update_ReusedSession_UsesFreshYangData(t *testing.T) {
+	setupTestData(t, map[string]interface{}{
+		"CACHE_KEY_TEST": map[string]interface{}{
+			"GLOBAL": map[string]interface{}{"format": "welf"},
+		},
+	})
+	c := NewTestSession(t)
+
+	res, _ := c.ValidateEditConfig(cacheKeyTestUpdate())
+	verifyErr(t, res, Success)
+	verifyCacheKeyTestYangDataCleared(t, c)
+
+	loadConfigDB(rclient, map[string]interface{}{
+		"CACHE_KEY_TEST": map[string]interface{}{
+			"GLOBAL": map[string]interface{}{"format": "standard"},
+		},
+	})
+
+	res, _ = c.ValidateEditConfig(cacheKeyTestUpdate())
+	verifyErr(t, res, CVLErrorInfo{
+		ErrCode: CVL_SEMANTIC_ERROR,
+		Msg:     mustExpressionErrMessage,
+	})
+	verifyCacheKeyTestYangDataCleared(t, c)
+}
