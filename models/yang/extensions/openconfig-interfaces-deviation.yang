@@ -15,6 +15,7 @@ module openconfig-interfaces-deviation {
   import openconfig-if-ethernet {prefix oc-eth; }
   import openconfig-if-aggregate {prefix oc-lag; }
   import openconfig-if-tunnel {prefix oc-tun; }
+  import openconfig-if-rates { prefix oc-if-rates; }
 
   organization
     "SONiC";
@@ -270,5 +271,9 @@ module openconfig-interfaces-deviation {
   deviation /oc-intf:interfaces/oc-intf:interface/oc-vlan:routed-vlan/oc-ip:ipv6/oc-ip:unnumbered {
         deviate not-supported;
   }
- 
+
+  deviation /oc-intf:interfaces/oc-intf:interface/oc-if-rates:rates/oc-if-rates:config {
+    deviate not-supported;
+  }
+
 }

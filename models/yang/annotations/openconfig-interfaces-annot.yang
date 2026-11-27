@@ -13,6 +13,7 @@ module openconfig-interfaces-annot {
     import openconfig-p4rt { prefix "p4rt-if"; }
     import openconfig-platform-port { prefix "oc-plat-port"; }
     import openconfig-platform-transceiver { prefix "oc-plat-xcvr"; }
+    import openconfig-if-rates { prefix oc-if-rates; }
 
     deviation /oc-intf:interfaces/oc-intf:interface {
         deviate add {
@@ -147,6 +148,14 @@ module openconfig-interfaces-annot {
         deviate add {
             sonic-ext:db-name "COUNTERS_DB";
             sonic-ext:subtree-transformer "intf_get_ether_counters_xfmr";
+            sonic-ext:subscribe-on-change "disable";
+        }
+    }
+
+    deviation /oc-intf:interfaces/oc-intf:interface/oc-if-rates:rates/oc-if-rates:state {
+        deviate add {
+            sonic-ext:subtree-transformer "intf_get_rates_xfmr";
+            sonic-ext:db-name "COUNTERS_DB";
             sonic-ext:subscribe-on-change "disable";
         }
     }
