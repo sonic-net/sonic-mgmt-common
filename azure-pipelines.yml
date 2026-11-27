@@ -66,10 +66,22 @@ stages:
             target/debs/trixie/libnl-genl-3-200_*.deb
             target/debs/trixie/libnl-route-3-200_*.deb
             target/debs/trixie/libnl-nf-3-200_*.deb
-            target/debs/trixie/libswsscommon_*.deb
-            target/debs/trixie/libswsscommon-dev_*.deb
             target/python-wheels/trixie/sonic_yang_models*.whl
       displayName: "Download sonic buildimage"
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        source: specific
+        project: build
+        pipeline: '9'
+        runVersion: specific
+        runId: '1288226'
+        artifact: sonic-swss-common-trixie
+        patterns: |
+          libswsscommon_*.deb
+          libswsscommon-dev_*.deb
+        targetPath: $(Pipeline.Workspace)/target/debs/trixie
+      displayName: "Download swss-common Trixie packages"
 
     - script: |
         # REDIS
