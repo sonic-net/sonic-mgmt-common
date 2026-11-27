@@ -943,6 +943,9 @@ func annotEntryFill(xYangSpecMap map[string]*yangXpathInfo, xpath string, entry 
 			case "rpc-callback":
 				xYangRpcSpecMap[xpath] = ext.NName()
 				xpathData.yangType = YANG_RPC
+			case "action-callback":
+				xYangRpcSpecMap[xpath] = ext.NName()
+				xpathData.yangType = YANG_ACTION
 			case "path-transformer":
 				xpathData.xfmrPath = ext.NName()
 			case "use-self-key":
@@ -1071,6 +1074,8 @@ func annotDbSpecMapFill(xDbSpecMap map[string]*dbInfo, dbXpath string, entry *ya
 				tagType := dataTagArr[len(dataTagArr)-1]
 				switch tagType {
 				case "rpc-callback":
+					xDbRpcSpecMap[dbXpath] = ext.NName()
+				case "action-callback":
 					xDbRpcSpecMap[dbXpath] = ext.NName()
 				default:
 				}

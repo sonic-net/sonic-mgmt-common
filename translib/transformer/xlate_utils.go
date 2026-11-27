@@ -2506,6 +2506,8 @@ func getYangTypeStrId(yangTypeInt yangElementType) string {
 		yangTypeStr = "case"
 	case YANG_RPC:
 		yangTypeStr = "rpc"
+	case YANG_ACTION:
+		yangTypeStr = "action"
 	case YANG_NOTIF:
 		yangTypeStr = "notification"
 	default:

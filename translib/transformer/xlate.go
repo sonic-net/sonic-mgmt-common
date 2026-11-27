@@ -738,7 +738,7 @@ func GetTablesToWatch(xfmrTblList []string, uriModuleNm string) []string {
 	return depTblList
 }
 
-func CallRpcMethod(path string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
+func CallRpcMethod(path string, vars map[string]string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, error) {
 	const (
 		RPC_XFMR_RET_ARGS     = 2
 		RPC_XFMR_RET_VAL_INDX = 0
@@ -749,6 +749,10 @@ func CallRpcMethod(path string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, erro
 	var data []reflect.Value
 	var rpcFunc = ""
 
+	// Strip list keys so that action paths (which may or may not include keys from
+	// their parent list) match the key-less xpath stored in the annotation map.
+	xpath, _, _ := XfmrRemoveXPATHPredicates(path)
+
 	// TODO - check module name
 	if isSonicYang(path) {
 		if rpcFuncNm, ok := xDbRpcSpecMap[path]; ok {
@@ -757,12 +761,23 @@ func CallRpcMethod(path string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, erro
 	} else {
 		if rpcFuncNm, ok := xYangRpcSpecMap[path]; ok {
 			rpcFunc = rpcFuncNm
+		} else if rpcFuncNm, ok := xYangRpcSpecMap[xpath]; ok {
+			rpcFunc = rpcFuncNm
 		}
 	}
 
 	if rpcFunc != "" {
-		xfmrLogInfo("RPC callback invoked (%v) \r\n", rpcFunc)
-		data, err = XlateFuncCall(rpcFunc, body, dbs)
+		xfmrLogInfo("RPC/Action callback invoked (%v) \r\n", rpcFunc)
+		// Check if the callback accepts path variables (3 params: vars, body, dbs)
+		// or uses the legacy signature (2 params: body, dbs).
+		if fn, ok := XlateFuncs[rpcFunc]; ok && fn.Type().NumIn() == 3 {
+			if vars == nil {
+				vars = make(map[string]string)
+			}
+			data, err = XlateFuncCall(rpcFunc, vars, body, dbs)
+		} else {
+			data, err = XlateFuncCall(rpcFunc, body, dbs)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -785,8 +800,8 @@ func CallRpcMethod(path string, body []byte, dbs [db.MaxDB]*db.DB) ([]byte, erro
 			}
 		}
 	} else {
-		log.Warning("Not supported RPC", path)
-		err = tlerr.NotSupported("Not supported RPC")
+		log.Warning("Not supported RPC/Action", path)
+		err = tlerr.NotSupported("Not supported RPC/Action")
 	}
 	return ret, err
 }

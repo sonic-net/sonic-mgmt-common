@@ -538,7 +538,7 @@ func (app *CommonApp) processAction(dbs [db.MaxDB]*db.DB) (ActionResponse, error
 	var err error
 
 	log.Info("Before calling transformer.CallRpcMethod() for path ", app.pathInfo.Path)
-	resp.Payload, err = transformer.CallRpcMethod(app.pathInfo.Path, app.body, dbs)
+	resp.Payload, err = transformer.CallRpcMethod(app.pathInfo.Path, app.pathInfo.Vars, app.body, dbs)
 	if log.V(5) {
 		payload := fmt.Sprintf("%v", string(resp.Payload))
 		log.Info("After calling transformer.CallRpcMethod() returns", payload)
