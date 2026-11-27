@@ -783,14 +783,6 @@ func getDBOptions(dbNo db.DBNum, opts ...func(*db.Options)) db.Options {
 	for _, setopt := range opts {
 		setopt(&o)
 	}
-	switch dbNo {
-	case db.ApplDB, db.CountersDB, db.AsicDB, db.FlexCounterDB, db.LogLevelDB, db.ErrorDB:
-		o.TableNameSeparator = ":"
-		o.KeySeparator = ":"
-	case db.ConfigDB, db.StateDB, db.SnmpDB:
-		o.TableNameSeparator = "|"
-		o.KeySeparator = "|"
-	}
 	return o
 }
 

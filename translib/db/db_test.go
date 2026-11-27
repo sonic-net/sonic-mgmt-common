@@ -252,6 +252,37 @@ func TestNewDB(t *testing.T) {
 	}
 }
 
+// NewDB() takes the separators from the DB config file, whatever the caller
+// passes in the Options.
+func TestNewDBSeparatorFromConfig(t *testing.T) {
+	for dbNo := DBNum(0); dbNo < MaxDB; dbNo++ {
+		name := getDBInstName(dbNo)
+		if len(name) == 0 || !isDbInstPresent(name) {
+			continue
+		}
+		want := getDbSeparator(name)
+		if got := dbNo.Separator(); got != want {
+			t.Errorf("%s: Separator() = %q, want %q", name, got, want)
+		}
+		for _, sep := range []string{"", "|", ":"} {
+			d, e := NewDB(Options{
+				DBNo:               dbNo,
+				TableNameSeparator: sep,
+				KeySeparator:       sep,
+				IsWriteDisabled:    true,
+			})
+			if e != nil {
+				t.Fatalf("%s: NewDB() fails e = %v", name, e)
+			}
+			if d.Opts.TableNameSeparator != want || d.Opts.KeySeparator != want {
+				t.Errorf("%s: NewDB() with separator %q: got (%q, %q), want %q",
+					name, sep, d.Opts.TableNameSeparator, d.Opts.KeySeparator, want)
+			}
+			d.DeleteDB()
+		}
+	}
+}
+
 /*
 
 2.  Get an entry (GetEntry())

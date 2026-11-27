@@ -616,16 +616,8 @@ func findInMap(m map[string]string, str string) string {
 }
 
 func getDBOptions(dbNo db.DBNum) db.Options {
-	var opt db.Options
-
-	switch dbNo {
-	case db.ApplDB, db.CountersDB, db.FlexCounterDB, db.AsicDB:
-		opt = getDBOptionsWithSeparator(dbNo, "", ":", ":")
-	case db.ConfigDB, db.StateDB:
-		opt = getDBOptionsWithSeparator(dbNo, "", "|", "|")
-	}
-
-	return opt
+	sep := dbNo.Separator()
+	return getDBOptionsWithSeparator(dbNo, "", sep, sep)
 }
 
 func getDBOptionsWithSeparator(dbNo db.DBNum, initIndicator string, tableSeparator string, keySeparator string) db.Options {
