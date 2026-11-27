@@ -257,12 +257,11 @@ func (d *DB) Rollback2SP() error {
 			cECD := d.cvlEditConfigData[0 : ix+1]
 			cECD[ix].VType = cmn.VALIDATE_ALL
 			lenCvlOps := 1
-			// TBD Wait for CVL PR
-			// if cECD[ix].ReplaceOp {
-			// 	cECD = d.cvlEditConfigData[0 : ix+2]
-			// 	cECD[ix+1].VType = cmn.VALIDATE_ALL
-			// 	lenCvlOps = 2
-			// }
+			if cECD[ix].ReplaceOp && (ix+1) < len(d.cvlEditConfigData) {
+				cECD = d.cvlEditConfigData[0 : ix+2]
+				cECD[ix+1].VType = cmn.VALIDATE_ALL
+				lenCvlOps = 2
+			}
 
 			cei, ret := d.cv.ValidateEditConfig(cECD)
 
@@ -295,19 +294,17 @@ func (d *DB) Rollback2SP() error {
 					delete(d.txTsEntryMap[ts.Name][rk].Field, fk)
 				}
 			}
-			// TBD Wait for CVL PR
-			// if cECD[ix].ReplaceOp {
-			// 	for fk := range cECD[ix+1].Data {
-			// 		delete(d.txTsEntryMap[ts.Name][rk].Field, fk)
-			// 	}
-			// }
+			if cECD[ix].ReplaceOp && (ix+1) < len(cECD) {
+				for fk := range cECD[ix+1].Data {
+					delete(d.txTsEntryMap[ts.Name][rk].Field, fk)
+				}
+			}
 
 			cECD[ix].VType = cmn.VALIDATE_NONE
-			// TBD Wait for CVL PR
-			// if cECD[ix].ReplaceOp {
-			// 	cECD[ix+1].VType = cmn.VALIDATE_NONE
-			// 	ix++
-			// }
+			if cECD[ix].ReplaceOp && (ix+1) < len(cECD) {
+				cECD[ix+1].VType = cmn.VALIDATE_NONE
+				ix++
+			}
 		}
 
 		// Zeroise the remaining Hints

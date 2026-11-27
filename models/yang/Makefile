@@ -38,6 +38,7 @@ $(info SONICYANG_IMPORT_DIR = $(SONICYANG_IMPORT_DIR))
 SONIC_YANG_IMPORT_FILES   := $(sort $(foreach pat,$(SONICYANG_IMPORTS),$(wildcard $(SONICYANG_IMPORT_DIR)/$(pat))))
 SONIC_YANG_IMPORT_NAMES   := $(notdir $(SONIC_YANG_IMPORT_FILES))
 SONIC_YANG_LOCAL_NAMES    := $(notdir $(wildcard sonic/*.yang))
+SONIC_YANG_LOCAL_COPY     := $(filter-out $(SONIC_YANG_OVERLAPS) $(SONIC_YANG_DEFERRED_NAMES),$(SONIC_YANG_LOCAL_NAMES))
 SONIC_YANG_OVERLAPS       := $(filter $(SONIC_YANG_LOCAL_NAMES),$(SONIC_YANG_IMPORT_NAMES))
 SHOULD_IMPORT_SONIC_YANGS := $(if $(SONIC_YANG_IMPORT_NAMES),y,)
 SHOULD_IMPORT_SONIC_PORT  := $(if $(filter sonic-port.yang, $(SONIC_YANG_IMPORT_NAMES)),y,)
@@ -189,7 +190,7 @@ else
 		$(SONIC_YANG_OVERLAPS:%=--exclude=%) \
 		$(if $(SHOULD_IMPORT_SONIC_PORT),--subst-port-ref=ifname:name,) \
 		--keep-comments \
-		$(SONIC_YANG_LOCAL_NAMES)
+		$(SONIC_YANG_LOCAL_COPY)
 
 	# Copy sonic yangs specified in SONICYANG_IMPORTS, from SONICYANG_IMPORT_DIR
 	$(TOPDIR)/tools/pyang/import_yang.py \
@@ -197,6 +198,16 @@ else
 		--to=$(@D)/sonic \
 		$(if $(SHOULD_IMPORT_SONIC_PORT),,--subst-port-ref=name:ifname) \
 		$(SONIC_YANG_IMPORT_NAMES)
+
+	# Copy local yangs that depend on imported sonic yangs
+ifneq ($(filter $(SONIC_YANG_DEFERRED_NAMES),$(SONIC_YANG_LOCAL_NAMES)),)
+	$(TOPDIR)/tools/pyang/import_yang.py \
+		--from=sonic --from=$(@D)/sonic --from=common \
+		--to=$(@D)/sonic \
+		$(if $(SHOULD_IMPORT_SONIC_PORT),--subst-port-ref=ifname:name,) \
+		--keep-comments \
+		$(filter $(SONIC_YANG_DEFERRED_NAMES),$(SONIC_YANG_LOCAL_NAMES))
+endif
 endif
 ifneq ($(TEST_SONIC_YANGS),)
 	rsync -oavh $(TEST_SONIC_YANGS) $(@D)/sonic

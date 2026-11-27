@@ -1,0 +1,74 @@
+module openconfig-system-logging-ext {
+
+  yang-version "1";
+
+  namespace "http://openconfig.net/yang/system/logging-ext";
+
+  prefix "oc-log-ext";
+
+  import openconfig-system { prefix oc-sys; }
+  import openconfig-system-logging { prefix oc-log; }
+  import openconfig-extensions { prefix oc-ext; }
+
+  organization "OpenConfig working group";
+
+  contact
+    "OpenConfig working group
+    www.openconfig.net";
+
+  description
+    "Vendor extensions augmenting openconfig-system-logging remote-server
+     configuration for SONiC syslog over TLS.";
+
+  oc-ext:openconfig-version "0.1.0";
+
+  revision "2026-10-05" {
+    description
+      "Add tls-permitted-peers to logging-remote-config for syslog TLS.";
+    reference "0.1.0";
+  }
+
+  oc-ext:catalog-organization "openconfig";
+  oc-ext:origin "openconfig";
+
+  grouping logging-remote-tls-permitted-peers-config {
+    description
+      "Server certificate names the remote syslog server may present when
+       transport-security is enabled.";
+
+    leaf tls-permitted-peers {
+      type string {
+        pattern '(\*\.)?[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?(,(\*\.)?[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?)*';
+      }
+      description
+        "Comma-separated list of server certificate names the remote syslog
+         server must present (rsyslog StreamDriverPermittedPeers, x509/name
+         authentication). Each entry is a DNS name, optionally with a leading
+         wildcard label such as *.example.com. Required when transport-security
+         is true.
+
+         Note: rsyslog 8.2504 and earlier match a wildcard entry only against
+         the certificate subject CN, never against subjectAltName names, and
+         '*' stands for exactly one DNS label. Use the exact DNS name present
+         in the server certificate SAN (for example
+         syslog1.lab.example.com) unless the server certificate CN is itself
+         a host name matched by the wildcard.";
+    }
+  }
+
+  augment "/oc-sys:system/oc-log:logging/oc-log:remote-servers/" +
+    "oc-log:remote-server/oc-log:config" {
+    description
+      "Augments logging-remote-config with TLS permitted peer names.";
+
+    uses logging-remote-tls-permitted-peers-config;
+  }
+
+  augment "/oc-sys:system/oc-log:logging/oc-log:remote-servers/" +
+    "oc-log:remote-server/oc-log:state" {
+    description
+      "Operational state for TLS permitted peer names.";
+
+    uses logging-remote-tls-permitted-peers-config;
+  }
+}

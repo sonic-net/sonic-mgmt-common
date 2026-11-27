@@ -20,7 +20,6 @@ package translib
 
 import (
 	"errors"
-	"reflect"
 	"strconv"
 
 	"github.com/Azure/sonic-mgmt-common/translib/db"
@@ -51,21 +50,23 @@ type dbEntry struct {
 }
 
 func init() {
-	log.Info("SysApp: Init called for System module")
-	err := register("/openconfig-system:system",
-		&appInfo{appType: reflect.TypeOf(SysApp{}),
-			ygotRootType: reflect.TypeOf(ocbinds.OpenconfigSystem_System{}),
-			isNative:     false})
-	if err != nil {
-		log.Fatal("SysApp:  Register System app module with App Interface failed with error=", err)
-	}
-
-	err = addModel(&ModelData{Name: "openconfig-system",
-		Org: "OpenConfig working group",
-		Ver: "1.0.2"})
-	if err != nil {
-		log.Fatal("SysApp:  Adding model data to appinterface failed with error=", err)
-	}
+	// Native SysApp registration disabled so the transformer (xfmr_system.go +
+	// openconfig-system-annot.yang) owns the /openconfig-system:system subtree.
+	// log.Info("SysApp: Init called for System module")
+	// err := register("/openconfig-system:system",
+	// 	&appInfo{appType: reflect.TypeOf(SysApp{}),
+	// 		ygotRootType: reflect.TypeOf(ocbinds.OpenconfigSystem_System{}),
+	// 		isNative:     false})
+	// if err != nil {
+	// 	log.Fatal("SysApp:  Register System app module with App Interface failed with error=", err)
+	// }
+	//
+	// err = addModel(&ModelData{Name: "openconfig-system",
+	// 	Org: "OpenConfig working group",
+	// 	Ver: "1.0.2"})
+	// if err != nil {
+	// 	log.Fatal("SysApp:  Adding model data to appinterface failed with error=", err)
+	// }
 }
 
 func (app *SysApp) initialize(data appData) {

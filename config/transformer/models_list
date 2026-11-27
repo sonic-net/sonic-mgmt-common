@@ -13,6 +13,10 @@ openconfig-p4rt.yang
 openconfig-platform-transceiver.yang
 openconfig-sampling-sflow-annot.yang
 openconfig-sampling-sflow.yang
+openconfig-system.yang
+openconfig-system-ext.yang
+openconfig-system-logging.yang
+openconfig-system-logging-ext.yang
 openconfig-system-annot.yang
 openconfig-vlan.yang
 sonic-platform-node.yang
