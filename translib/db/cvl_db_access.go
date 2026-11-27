@@ -57,16 +57,16 @@ func NewValidationSession() (*cvl.CVL, error) {
 }
 
 func (c *cvlDBAccess) Exists(key string) ctypes.IntResult {
-	keys, err := c.Keys(key).Result()
+	ts, k := c.Db.redis2ts_key(key)
+	_, err := c.Db.GetEntry(&ts, k)
 	switch err.(type) {
 	case tlerr.TranslibRedisClientEntryNotExist:
-		err = redis.Nil
+		return intResult{0, nil}
 	}
-	if len(keys) > 1 {
-		//TODO have an optimized implementation in DBAL for Exists
-		return intResult{int64(0), err}
+	if err != nil {
+		return intResult{0, err}
 	}
-	return intResult{int64(len(keys)), err}
+	return intResult{1, nil}
 }
 
 func (c *cvlDBAccess) Keys(pattern string) ctypes.StrSliceResult {

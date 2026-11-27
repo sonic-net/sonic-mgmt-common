@@ -1417,7 +1417,7 @@ func (app *CommonApp) cmnAppDelDbOpn(d *db.DB, opcode int, dbMap map[string]map[
 								break
 							}
 							dbTblSpec = &db.TableSpec{Name: ordtbl}
-							keyPattern := tblKey + "|*"
+							keyPattern := escapeRedisGlob(tblKey) + "|*"
 							log.Info("Key pattern to be matched for deletion = ", keyPattern)
 							err = d.DeleteKeys(dbTblSpec, db.Key{Comp: []string{keyPattern}})
 							if err != nil {
@@ -1633,4 +1633,15 @@ func markChildTablesToCleanFromTranslatedResult(d *db.DB, resultDbMap map[string
 		}
 		childTblToCleanMap[tblNm] = true
 	}
+}
+
+// escapeRedisGlob keeps a concrete database key literal inside a match pattern.
+func escapeRedisGlob(s string) string {
+	return strings.NewReplacer(
+		"\\", "\\\\",
+		"*", "\\*",
+		"?", "\\?",
+		"[", "\\[",
+		"]", "\\]",
+	).Replace(s)
 }
