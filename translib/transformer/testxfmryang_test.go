@@ -22,12 +22,15 @@
 package transformer_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/cvl"
+	"github.com/Azure/sonic-mgmt-common/translib"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
+	"github.com/Workiva/go-datastructures/queue"
 )
 
 type verifyDbResultData struct {
@@ -1794,4 +1797,40 @@ func Test_Sonic_NestedList_Delete(t *testing.T) {
 	//Teardown
 	unloadDB(db.ConfigDB, prereq)
 
+}
+
+// Wildcard subscribe on a list with a key-transformer and a static table-name (no table-transformer) must not panic
+func Test_Subscribe_WildcardKey_StaticTableName(t *testing.T) {
+	parent_prereq := map[string]interface{}{"TEST_SENSOR_GROUP": map[string]interface{}{"sensor_group_1": map[string]interface{}{"NULL": "NULL"}}}
+	prereq := map[string]interface{}{"TEST_SENSOR_ZONE_TABLE": map[string]interface{}{"sensor_group_1|zoneA": map[string]interface{}{"description": "zoneA instance"}, "sensor_group_1|zoneB": map[string]interface{}{"description": "zoneB instance"}}}
+	loadDB(db.ConfigDB, parent_prereq)
+	loadDB(db.ConfigDB, prereq)
+	defer unloadDB(db.ConfigDB, parent_prereq)
+	defer unloadDB(db.ConfigDB, prereq)
+
+	url := "/openconfig-test-xfmr:test-xfmr/test-sensor-groups/test-sensor-group[id=sensor_group_1]/test-sensor-zones/test-sensor-zone[zone=*]/config"
+	q := queue.NewPriorityQueue(10, false)
+	err := translib.Stream(translib.SubscribeRequest{Paths: []string{url}, Q: q, User: translib.UserRoles{Name: "admin", Roles: []string{"admin"}}})
+	if err != nil {
+		t.Fatalf("Stream on %v failed: %v", url, err)
+	}
+	zones := make(map[string]bool)
+	for q.Len() > 0 {
+		items, _ := q.Get(1)
+		resp := items[0].(*translib.SubscribeResponse)
+		if resp.SyncComplete {
+			continue
+		}
+		if strings.Contains(resp.Path, "[zone=*]") {
+			t.Errorf("Notification path still has the wildcard: %v", resp.Path)
+		}
+		for _, z := range []string{"zoneA", "zoneB"} {
+			if strings.Contains(resp.Path, "[zone="+z+"]") {
+				zones[z] = true
+			}
+		}
+	}
+	if !zones["zoneA"] || !zones["zoneB"] {
+		t.Errorf("Expected notifications for zoneA and zoneB, got %v", zones)
+	}
 }
