@@ -1,0 +1,46 @@
+module openconfig-lacp-annot {
+
+    yang-version "1";
+
+    namespace "http://openconfig.net/yang/annotation/oc-lacp-annot";
+    prefix "oc-lacp-annot";
+
+    import sonic-extensions { prefix sonic-ext; }
+    import openconfig-lacp { prefix oc-lacp; }
+
+    deviation /oc-lacp:lacp/oc-lacp:config {
+      deviate add {
+          sonic-ext:db-name "CONFIG_DB";
+          sonic-ext:subtree-transformer "lacp_config_xfmr";
+      }
+    }
+    deviation /oc-lacp:lacp/oc-lacp:state {
+      deviate add {
+          sonic-ext:subtree-transformer "lacp_state_xfmr";
+      }
+    }
+    deviation /oc-lacp:lacp/oc-lacp:interfaces {
+      deviate add {
+          sonic-ext:subtree-transformer "lacp_intfs_xfmr";
+      }
+    }
+    deviation /oc-lacp:lacp/oc-lacp:interfaces/oc-lacp:interface/oc-lacp:members/oc-lacp:member {
+      deviate add {
+          sonic-ext:db-name "STATE_DB";
+          sonic-ext:table-name "LAG_MEMBER_TABLE";
+      }
+    }
+
+    deviation /oc-lacp:lacp/oc-lacp:interfaces/oc-lacp:interface {
+      deviate add {
+          sonic-ext:db-name "CONFIG_DB";
+          sonic-ext:table-name "PORTCHANNEL";
+      }
+    }
+    deviation /oc-lacp:lacp/oc-lacp:interfaces/oc-lacp:interface/oc-lacp:state {
+      deviate add {
+          sonic-ext:db-name "STATE_DB";
+          sonic-ext:table-name "LAG_TABLE";
+      }
+    }
+}
