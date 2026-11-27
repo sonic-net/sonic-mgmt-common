@@ -1,0 +1,12 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = ["test_db.go"],
+    importpath = "github.com/Azure/sonic-mgmt-common/cvl/tests/testutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cvl/common",
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)

@@ -277,7 +277,7 @@ func prepareDb() {
 // prior to starting execution of test cases.
 // "DEVICE_METADATA" should not be cleaned as it is used
 // during cvl package init() phase.
-func clearDb() {
+func clearDb() error {
 
 	tblList := []string{
 		"ACL_RULE",
@@ -317,10 +317,10 @@ func clearDb() {
 			err = client.Del(ctx, keys...).Err()
 		}
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "clearDb:", err)
-			os.Exit(1)
+			return fmt.Errorf("clearDb %s: %w", tbl, err)
 		}
 	}
+	return nil
 }
 
 /* Setup before starting of test. */
@@ -345,8 +345,22 @@ func TestMain(m *testing.M) {
 
 	}
 
+	stopRedis := func() {
+		if redisAlreadyRunning == false {
+			//If Redis was not already running, close the instance that we ran
+			_, err := exec.Command("/bin/sh", "-c", "sudo /etc/init.d/redis-server stop").Output()
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		}
+	}
+
 	//Clear all tables which are used for testing
-	clearDb()
+	if err := clearDb(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		stopRedis()
+		os.Exit(1)
+	}
 
 	/* Prepare the Redis database. */
 	prepareDb()
@@ -362,20 +376,18 @@ func TestMain(m *testing.M) {
 	}
 
 	//Clear all tables which were used for testing
-	clearDb()
+	if err := clearDb(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		if code == 0 {
+			code = 1
+		}
+	}
 
 	cvl.Finish()
 	rclient.Close()
 	rclient.FlushDB(context.Background())
 
-	if redisAlreadyRunning == false {
-		//If Redis was not already running, close the instance that we ran
-		_, err := exec.Command("/bin/sh", "-c", "sudo /etc/init.d/redis-server stop").Output()
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-
-	}
+	stopRedis()
 
 	os.Exit(code)
 
