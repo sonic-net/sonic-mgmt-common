@@ -23,6 +23,8 @@ BUILD_DIR := build
 GOPATH ?= /tmp/go
 GO     ?= /usr/local/go/bin/go
 
+REDISCONN_GO = redisconn/dial.go
+
 GO_MOD     = go.mod
 GO_DEPS    = vendor/.done
 GO_PATCHES = $(shell find patches -type f)
@@ -35,7 +37,7 @@ all: models cvl translib
 $(GO_MOD):
 	$(GO) mod init github.com/Azure/sonic-mgmt-common
 
-$(GO_DEPS): $(GO_MOD) $(GO_PATCHES)
+$(GO_DEPS): $(GO_MOD) $(GO_PATCHES) $(REDISCONN_GO)
 	@# Run go mod tidy only if installed Go >= go.mod's go directive
 	@GO_MOD_VER=$$(sed -n 's/^go //p' go.mod) && \
 	 GO_CUR_VER=$$($(GO) env GOVERSION | sed 's/go//') && \
@@ -48,6 +50,12 @@ $(GO_DEPS): $(GO_MOD) $(GO_PATCHES)
 	$(GO) mod vendor
 	patches/apply.sh vendor
 	touch  $@
+
+.PHONY: FORCE
+FORCE:
+
+$(REDISCONN_GO): /usr/share/swss/go/redisconn/dial.go FORCE
+	cmp -s $< $@ || install -D -m 644 $< $@
 
 go-deps: $(GO_DEPS)
 

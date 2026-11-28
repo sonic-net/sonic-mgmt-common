@@ -13,3 +13,4 @@ models/yang/*.md
 .idea
 MODULE.bazel.lock
 bazel-*
+/redisconn/dial.go
