@@ -33,13 +33,32 @@ import (
 	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 	custv "github.com/Azure/sonic-mgmt-common/cvl/custom_validation"
 	"github.com/Azure/sonic-mgmt-common/cvl/internal/yparser"
-	"github.com/go-redis/redis/v7"
 	"github.com/google/go-cmp/cmp"
 	toposort "github.com/philopon/go-toposort"
+	"github.com/redis/go-redis/v9"
 
 	//lint:ignore ST1001 This is safe to dot import for util package
 	. "github.com/Azure/sonic-mgmt-common/cvl/internal/util"
 	"github.com/antchfx/xmlquery"
+)
+
+// Re-export common types and constants for backwards compatibility
+type CVLEditConfigData = cmn.CVLEditConfigData
+type CVLValidateType = cmn.CVLValidateType
+type CVLOperation = cmn.CVLOperation
+
+const (
+	VALIDATE_NONE      = cmn.VALIDATE_NONE
+	VALIDATE_SYNTAX    = cmn.VALIDATE_SYNTAX
+	VALIDATE_SEMANTICS = cmn.VALIDATE_SEMANTICS
+	VALIDATE_ALL       = cmn.VALIDATE_ALL
+)
+
+const (
+	OP_NONE   = cmn.OP_NONE
+	OP_CREATE = cmn.OP_CREATE
+	OP_UPDATE = cmn.OP_UPDATE
+	OP_DELETE = cmn.OP_DELETE
 )
 
 var cvlErrorMap = map[CVLRetCode]string{

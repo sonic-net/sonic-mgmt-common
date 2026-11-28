@@ -1,0 +1,39 @@
+load("@rules_distroless//distroless:defs.bzl", "flatten")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+package(default_visibility = ["//visibility:private"])
+
+exports_files(["run_go_tests.py"])
+
+flatten(
+    name = "test_runtime",
+    testonly = True,
+    deduplicate = True,
+    tars = [
+        "@mgmt_test_deps//redis-server/amd64",
+        "@libyang//:libyang_pkg",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+py_binary(
+    name = "prepare_models",
+    srcs = ["prepare_models.py"],
+    deps = ["//tools/pyang:import_yang"],
+)
+
+py_binary(
+    name = "generate_ocbinds",
+    srcs = ["generate_ocbinds.py"],
+    visibility = ["//dist:__pkg__"],
+)
+
+py_binary(
+    name = "stage_runtime",
+    srcs = ["stage_runtime.py"],
+)
+
+py_binary(
+    name = "stage_codegen",
+    srcs = ["stage_codegen.py"],
+)

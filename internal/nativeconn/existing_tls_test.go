@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	redis7 "github.com/go-redis/redis/v7"
 	redis9 "github.com/redis/go-redis/v9"
 )
 
@@ -46,16 +45,6 @@ func TestUnselectedTLSConfigPreserved(t *testing.T) {
 				forwarded = &tls.Config{ServerName: "unused-with-custom-dialer"}
 			}
 			address := net.JoinHostPort("127.0.0.1", fmt.Sprint(f.port))
-			v7Options := &redis7.Options{Addr: address, DB: 6, TLSConfig: forwarded, DialTimeout: time.Second}
-			v7Options.Dialer = existing
-			v7 := redis7.NewClient(v7Options)
-			defer v7.Close()
-			if err := v7.Ping().Err(); err != nil {
-				t.Fatal("v7 lost its existing TLS configuration", err)
-			}
-			if err := v7.Set("unselected-forbidden", "value", 0).Err(); err == nil || !strings.Contains(err.Error(), "NOPERM") {
-				t.Fatal("unselected v7 reader received writer access", err)
-			}
 			ctx := context.Background()
 			v9Options := &redis9.Options{Addr: address, DB: 6, TLSConfig: forwarded, DialTimeout: time.Second}
 			v9Options.Dialer = existing
@@ -71,7 +60,7 @@ func TestUnselectedTLSConfigPreserved(t *testing.T) {
 				configuration.MinVersion != tls.VersionTLS12 || !configuration.SessionTicketsDisabled {
 				t.Fatal("caller TLS configuration was modified")
 			}
-			if customDialer && calls != 2 {
+			if customDialer && calls != 1 {
 				t.Fatal("custom dialer was not retained", calls)
 			}
 		})

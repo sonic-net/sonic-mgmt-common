@@ -1,0 +1,44 @@
+# gazelle:ignore
+
+load("@io_bazel_rules_go//go:def.bzl", "go_binary")
+
+go_binary(
+    name = "arloIssue29",
+    srcs = ["arloIssue29.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//translib/db",
+        "@com_github_golang_glog//:glog",
+    ],
+)
+
+go_binary(
+    name = "testdb",
+    srcs = ["testdb.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//translib/db",
+        "//translib/tlerr",
+        "@com_github_golang_glog//:glog",
+    ],
+)
+
+go_binary(
+    name = "testmap",
+    srcs = ["testmap.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//translib/db",
+        "@com_github_golang_glog//:glog",
+    ],
+)
+
+go_binary(
+    name = "testsubscribe",
+    srcs = ["testsubscribe.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//translib/db",
+        "@com_github_golang_glog//:glog",
+    ],
+)

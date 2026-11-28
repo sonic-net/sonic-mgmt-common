@@ -31,7 +31,7 @@ func main() {
 	count := 0
 
 	cvl.Initialize()
-	cv, _ := cvl.ValidationSessOpen()
+	cv, _ := cvl.ValidationSessOpen(nil)
 
 	if (len(os.Args) > 1) && (os.Args[1] == "debug") {
 		cvl.Debug(true)

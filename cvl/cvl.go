@@ -20,6 +20,7 @@
 package cvl
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -31,7 +32,7 @@ import (
 	"github.com/antchfx/jsonquery"
 	"github.com/antchfx/xmlquery"
 	"github.com/antchfx/xpath"
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 	"io/ioutil"
 	"path/filepath"
 	"sync"
@@ -285,7 +286,7 @@ func loadSchemaFiles() CVLRetCode {
 	// This is needed to apply deviation file
 	retryCnt := 0
 	for ; retryCnt < MAX_DEVICE_METADATA_FETCH_RETRY; retryCnt++ {
-		deviceMetaDataKey, err := redisClient.Keys("DEVICE_METADATA|localhost").Result()
+		deviceMetaDataKey, err := redisClient.Keys(context.Background(), "DEVICE_METADATA|localhost").Result()
 		if (err != nil) || (len(deviceMetaDataKey) == 0) {
 			//Retry for 1 min
 			time.Sleep(100 * time.Millisecond) //sleep for 1 sec and then retry
@@ -298,7 +299,7 @@ func loadSchemaFiles() CVLRetCode {
 
 	//Now try to fetch the platform details
 	if retryCnt < MAX_DEVICE_METADATA_FETCH_RETRY {
-		deviceMetaData, err := redisClient.HGetAll("DEVICE_METADATA|localhost").Result()
+		deviceMetaData, err := redisClient.HGetAll(context.Background(), "DEVICE_METADATA|localhost").Result()
 		var exists bool
 		platformName, exists = deviceMetaData["platform"]
 		if !exists || (err != nil) || (platformName == "") {

@@ -78,8 +78,8 @@ import (
 
 	"github.com/Azure/sonic-mgmt-common/redisconn"
 	set "github.com/Workiva/go-datastructures/set"
-	"github.com/go-redis/redis/v7"
 	log "github.com/golang/glog"
+	"github.com/redis/go-redis/v9"
 )
 
 var CVL_SCHEMA string = "schema/"

@@ -1,0 +1,44 @@
+# gazelle:ignore
+
+load("@io_bazel_rules_go//go:def.bzl", "go_binary")
+
+go_binary(
+    name = "cfg_validator",
+    srcs = ["cfg_validator.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cvl",
+    ],
+)
+
+go_binary(
+    name = "cv_acl",
+    srcs = ["cv_acl.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cvl",
+        "//cvl/tests/testutil",
+        "@com_github_pkg_profile//:profile",
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)
+
+go_binary(
+    name = "cv_edit_op",
+    srcs = ["cv_edit_op.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cvl",
+    ],
+)
+
+go_binary(
+    name = "cv_vlan",
+    srcs = ["cv_vlan.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cvl",
+        "//cvl/tests/testutil",
+        "@com_github_redis_go_redis_v9//:go-redis",
+    ],
+)

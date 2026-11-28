@@ -20,13 +20,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/Azure/sonic-mgmt-common/cvl"
-	"github.com/go-redis/redis/v7"
+	"github.com/Azure/sonic-mgmt-common/cvl/tests/testutil"
+	"github.com/redis/go-redis/v9"
 )
 
 func getConfigDbClient() *redis.Client {
@@ -36,7 +38,7 @@ func getConfigDbClient() *redis.Client {
 		DB:          4,
 		DialTimeout: 0,
 	})
-	_, err := rclient.Ping().Result()
+	_, err := rclient.Ping(context.Background()).Result()
 	if err != nil {
 		fmt.Printf("failed to connect to redis server %v", err)
 	}
@@ -45,7 +47,7 @@ func getConfigDbClient() *redis.Client {
 
 /* Unloads the Config DB based on JSON File. */
 func unloadConfigDB(rclient *redis.Client, key string, data map[string]string) {
-	_, err := rclient.Del(key).Result()
+	_, err := rclient.Del(context.Background(), key).Result()
 
 	if err != nil {
 		fmt.Printf("Failed to delete for key %s, data %v, err %v", key, data, err)
@@ -62,7 +64,7 @@ func loadConfigDB(rclient *redis.Client, key string, data map[string]string) {
 		dataTmp[k] = v
 	}
 
-	_, err := rclient.HMSet(key, dataTmp).Result()
+	_, err := rclient.HMSet(context.Background(), key, dataTmp).Result()
 
 	if err != nil {
 		fmt.Printf("Failed to add for key %s, data %v, err %v", key, data, err)
@@ -87,7 +89,7 @@ func main() {
 		vlanNoStart, _ := strconv.Atoi(os.Args[2])
 		vlanNoEnd, _ := strconv.Atoi(os.Args[3])
 		for vlanNum := vlanNoStart; vlanNum <= vlanNoEnd; vlanNum++ {
-			cvSess, _ := cvl.ValidationSessOpen()
+			cvSess, _ := cvl.ValidationSessOpen(testutil.NewTestDbAccess(rclient))
 
 			cfgDataVlan := []cvl.CVLEditConfigData{
 				cvl.CVLEditConfigData{
@@ -144,7 +146,7 @@ func main() {
 		vlanNoStart, _ := strconv.Atoi(os.Args[2])
 		vlanNoEnd, _ := strconv.Atoi(os.Args[3])
 		for vlanNum := vlanNoStart; vlanNum <= vlanNoEnd; vlanNum++ {
-			cvSess, _ := cvl.ValidationSessOpen()
+			cvSess, _ := cvl.ValidationSessOpen(testutil.NewTestDbAccess(rclient))
 
 			//Delete ACL
 
@@ -192,7 +194,7 @@ func main() {
 		}
 		return
 	}
-	cv, ret := cvl.ValidationSessOpen()
+	cv, ret := cvl.ValidationSessOpen(testutil.NewTestDbAccess(rclient))
 	if ret != cvl.CVL_SUCCESS {
 		fmt.Printf("NewDB: Could not create CVL session")
 		return

@@ -21,12 +21,14 @@ package main
 
 import (
 	"flag"
-	"github.com/Azure/sonic-mgmt-common/translib"
 	"io/ioutil"
 	"strings"
 	//"sync"
+
+	"github.com/Azure/sonic-mgmt-common/translib"
 	"github.com/Workiva/go-datastructures/queue"
 	log "github.com/golang/glog"
+	"github.com/openconfig/ygot/ygot"
 )
 
 func main() {
@@ -67,11 +69,21 @@ func main() {
 		paths := strings.Split(*uriPtr, ",")
 		log.Info("Paths =", paths)
 
-		resp, _ := translib.IsSubscribeSupported(paths)
+		subPaths := make([]translib.IsSubscribePath, len(paths))
+		for i, p := range paths {
+			subPaths[i] = translib.IsSubscribePath{Path: p}
+		}
+		resp, err := translib.IsSubscribeSupported(translib.IsSubscribeRequest{Paths: subPaths})
+		if err != nil {
+			log.Errorf("IsSubscribeSupported failed: %v", err)
+			return
+		}
 
 		for i, path := range paths {
 			log.Info("Response returned for path=", path)
-			log.Info(*(resp[i]))
+			if i < len(resp) && resp[i] != nil {
+				log.Info(*(resp[i]))
+			}
 		}
 
 	} else if *operationPtr == "subscribe" {
@@ -82,7 +94,7 @@ func main() {
 
 		q = queue.NewPriorityQueue(1, false)
 		stop = make(chan struct{}, 1)
-		translib.Subscribe(paths, q, stop)
+		translib.Subscribe(translib.SubscribeRequest{Paths: paths, Q: q, Stop: stop})
 		log.Info("Subscribe completed")
 		for {
 			log.Info("Before calling Get")
@@ -99,7 +111,16 @@ func main() {
 			}
 
 			resp, _ := (items[0]).(*translib.SubscribeResponse)
-			log.Info("SubscribeResponse received =", string(resp.Payload))
+			if resp.Update != nil {
+				updateJSON, err := ygot.EmitJSON(resp.Update, &ygot.EmitJSONConfig{Format: ygot.RFC7951})
+				if err != nil {
+					log.Infof("SubscribeResponse received (struct) = %v", resp.Update)
+				} else {
+					log.Info("SubscribeResponse received =", updateJSON)
+				}
+			} else {
+				log.Info("SubscribeResponse.Update is nil")
+			}
 			log.Info("IsSync complete = ", resp.SyncComplete)
 
 			if resp.SyncComplete {
@@ -112,7 +133,7 @@ func main() {
 
 		q1 = queue.NewPriorityQueue(1, false)
 		stop1 = make(chan struct{}, 1)
-		translib.Subscribe(paths, q1, stop1)
+		translib.Subscribe(translib.SubscribeRequest{Paths: paths, Q: q1, Stop: stop1})
 		log.Info("Subscribe completed")
 		for {
 			log.Info("Before calling Get")
@@ -129,7 +150,16 @@ func main() {
 			}
 
 			resp, _ := (items[0]).(*translib.SubscribeResponse)
-			log.Info("SubscribeResponse received =", string(resp.Payload))
+			if resp.Update != nil {
+				updateJSON, err := ygot.EmitJSON(resp.Update, &ygot.EmitJSONConfig{Format: ygot.RFC7951})
+				if err != nil {
+					log.Infof("SubscribeResponse received (struct) = %v", resp.Update)
+				} else {
+					log.Info("SubscribeResponse received =", updateJSON)
+				}
+			} else {
+				log.Info("SubscribeResponse.Update is nil")
+			}
 			log.Info("IsSync complete = ", resp.SyncComplete)
 
 			if resp.SyncComplete {

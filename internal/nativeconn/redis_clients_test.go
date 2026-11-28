@@ -2,32 +2,24 @@ package nativeconn_test
 
 import (
 	"context"
-	"github.com/Azure/sonic-mgmt-common/redisconn"
 	"net"
 	"strings"
 	"testing"
 	"time"
 
-	redis7 "github.com/go-redis/redis/v7"
+	"github.com/Azure/sonic-mgmt-common/redisconn"
 	redis9 "github.com/redis/go-redis/v9"
 )
 
-func TestGoRedisV7AndV9Reconnect(t *testing.T) {
+func TestGoRedisReconnect(t *testing.T) {
 	f := setup(t, false)
 	address := f.socket
 	ctx := context.Background()
-	v7 := redis7.NewClient(&redis7.Options{Network: "unix", Addr: address, DB: 6, Dialer: func(ctx context.Context, _ string, address string) (net.Conn, error) {
-		return redisconn.DialUnixContext(ctx, address, time.Second, true)
-	}})
-	defer v7.Close()
 	v9 := redis9.NewClient(&redis9.Options{Network: "unix", Addr: address, DB: 6, Dialer: func(ctx context.Context, _ string, address string) (net.Conn, error) {
 		return redisconn.DialUnixContext(ctx, address, time.Second, true)
 	}})
 	defer v9.Close()
-	if err := v7.Set("version-seven", "value", 0).Err(); err != nil {
-		t.Fatal(err)
-	}
-	if err := v9.Set(ctx, "version-nine", "value", 0).Err(); err != nil {
+	if err := v9.Set(ctx, "reconnect-key", "value", 0).Err(); err != nil {
 		t.Fatal(err)
 	}
 	pipe := v9.Pipeline()
@@ -35,15 +27,15 @@ func TestGoRedisV7AndV9Reconnect(t *testing.T) {
 	if _, err := pipe.Exec(ctx); err != nil {
 		t.Fatal(err)
 	}
-	sub := v7.PSubscribe("go-auth-events")
+	sub := v9.PSubscribe(ctx, "go-auth-events")
 	defer sub.Close()
-	if _, err := sub.ReceiveTimeout(time.Second); err != nil {
+	if _, err := sub.ReceiveTimeout(ctx, time.Second); err != nil {
 		t.Fatal(err)
 	}
 	if err := v9.Publish(ctx, "go-auth-events", "message").Err(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sub.ReceiveTimeout(time.Second); err != nil {
+	if _, err := sub.ReceiveTimeout(ctx, time.Second); err != nil {
 		t.Fatal(err)
 	}
 	control, err := redisconn.DialUnixContext(ctx, address, time.Second, true)
@@ -54,20 +46,9 @@ func TestGoRedisV7AndV9Reconnect(t *testing.T) {
 	if reply, err := command(control, "CLIENT", "KILL", "TYPE", "normal", "SKIPME", "yes"); err != nil || !strings.HasPrefix(reply, ":") {
 		t.Fatal(reply, err)
 	}
-	// v7 can return the first dropped request when retries are disabled.
-	// A following request must open a new connection and authenticate.
 	var value string
 	for attempt := 0; attempt < 3; attempt++ {
-		value, err = v7.Get("version-nine").Result()
-		if err == nil {
-			break
-		}
-	}
-	if err != nil || value != "value" {
-		t.Fatal(value, err)
-	}
-	for attempt := 0; attempt < 3; attempt++ {
-		value, err = v9.Get(ctx, "version-seven").Result()
+		value, err = v9.Get(ctx, "reconnect-key").Result()
 		if err == nil {
 			break
 		}
@@ -78,10 +59,6 @@ func TestGoRedisV7AndV9Reconnect(t *testing.T) {
 	write(t, testSecret, []byte("wrong-password"), 0400)
 	if reply, err := command(control, "CLIENT", "KILL", "TYPE", "normal", "SKIPME", "yes"); err != nil || !strings.HasPrefix(reply, ":") {
 		t.Fatal(reply, err)
-	}
-	v7.Set("forbidden", "value", 0) // Discard the already-closed socket.
-	if err := v7.Set("forbidden", "value", 0).Err(); err == nil || !strings.Contains(err.Error(), "authentication") {
-		t.Fatal("v7 did not reject new authentication", err)
 	}
 	v9.Set(ctx, "forbidden", "value", 0)
 	if err := v9.Set(ctx, "forbidden", "value", 0).Err(); err == nil || !strings.Contains(err.Error(), "authentication") {

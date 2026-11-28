@@ -1,0 +1,27 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("@gazelle//:def.bzl", "gazelle")
+
+bool_flag(
+    name = "include_test_models",
+    build_setting_default = False,
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "with_test_models",
+    flag_values = {":include_test_models": "true"},
+    visibility = ["//visibility:public"],
+)
+
+# gazelle:prefix github.com/Azure/sonic-mgmt-common
+# gazelle:exclude build
+# gazelle:exclude vendor
+# gazelle:exclude tools
+
+exports_files([
+    "go.mod",
+    "go.sum",
+    "requirements_lock.txt",
+])
+
+gazelle(name = "gazelle")

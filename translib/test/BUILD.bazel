@@ -1,0 +1,15 @@
+# gazelle:ignore
+
+load("@io_bazel_rules_go//go:def.bzl", "go_binary")
+
+go_binary(
+    name = "translibtest",
+    srcs = ["translibtest.go"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//translib",
+        "@com_github_golang_glog//:glog",
+        "@com_github_openconfig_ygot//ygot",
+        "@com_github_workiva_go_datastructures//queue",
+    ],
+)

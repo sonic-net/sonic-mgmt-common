@@ -79,7 +79,7 @@ func main() {
 	fmt.Println("ts: ", tsa, " keys: ", keys)
 
 	fmt.Println("Testing GetKeys ==============")
-	keys, _ := d.GetKeysPattern(&tsa, akey)
+	keys, _ = d.GetKeysPattern(&tsa, akey)
 	fmt.Println("ts: ", tsa, " keys: ", keys)
 
 	fmt.Println("Testing NoTransaction DeleteEntry ==============")

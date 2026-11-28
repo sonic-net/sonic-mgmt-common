@@ -162,7 +162,7 @@ func main() {
 		jsonData = string(b)
 	}
 
-	cv, ret := cvl.ValidationSessOpen()
+	cv, ret := cvl.ValidationSessOpen(nil)
 	if ret != cvl.CVL_SUCCESS {
 		fmt.Printf("NewDB: Could not create CVL session")
 		return

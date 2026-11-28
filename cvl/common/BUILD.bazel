@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = [
+        "cvl_types.go",
+        "db_access.go",
+        "db_utils.go",
+    ],
+    importpath = "github.com/Azure/sonic-mgmt-common/cvl/common",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_antchfx_xmlquery//:xmlquery"],
+)

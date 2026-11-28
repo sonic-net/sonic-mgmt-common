@@ -20,6 +20,7 @@
 package cvl_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -33,7 +34,7 @@ import (
 	cmn "github.com/Azure/sonic-mgmt-common/cvl/common"
 	"github.com/Azure/sonic-mgmt-common/translib/db"
 	"github.com/Azure/sonic-mgmt-common/translib/tlerr"
-	"github.com/go-redis/redis/v7"
+	"github.com/redis/go-redis/v9"
 
 	//"syscall"
 
@@ -191,7 +192,7 @@ func unloadConfigDB(rclient *redis.Client, mpi map[string]interface{}) {
 		case map[string]interface{}:
 			for subKey, subValue := range fv.(map[string]interface{}) {
 				newKey := key + getSeparator() + subKey
-				_, err := rclient.Del(newKey).Result()
+				_, err := rclient.Del(context.Background(), newKey).Result()
 
 				if err != nil {
 					fmt.Printf("Invalid data for db: %v : %v %v", newKey, subValue, err)
@@ -212,7 +213,7 @@ func loadConfigDB(rclient *redis.Client, mpi map[string]interface{}) {
 		case map[string]interface{}:
 			for subKey, subValue := range fv.(map[string]interface{}) {
 				newKey := key + getSeparator() + subKey
-				_, err := rclient.HMSet(newKey, subValue.(map[string]interface{})).Result()
+				_, err := rclient.HMSet(context.Background(), newKey, subValue.(map[string]interface{})).Result()
 
 				if err != nil {
 					fmt.Printf("Invalid data for db: %v : %v %v", newKey, subValue, err)
@@ -246,7 +247,7 @@ func prepareDb() {
 	}
 
 	//Load device data map on which application of deviation files depends
-	dm, err := rclient.Keys("DEVICE_METADATA|localhost").Result()
+	dm, err := rclient.Keys(context.Background(), "DEVICE_METADATA|localhost").Result()
 	if (err != nil) || (len(dm) == 0) {
 		loadConfigDB(rclient, deviceDataMap)
 		loadDeviceDataMap = true
@@ -254,7 +255,7 @@ func prepareDb() {
 
 	port_map = loadConfig("", PortsMapByte)
 
-	portKeys, err := rclient.Keys("PORT|*").Result()
+	portKeys, err := rclient.Keys(context.Background(), "PORT|*").Result()
 	//Load only the port config which are not there in Redis
 	if err == nil {
 		portMapKeys := port_map["PORT"].(map[string]interface{})
@@ -276,7 +277,7 @@ func prepareDb() {
 // prior to starting execution of test cases.
 // "DEVICE_METADATA" should not be cleaned as it is used
 // during cvl package init() phase.
-func clearDb() {
+func clearDb() error {
 
 	tblList := []string{
 		"ACL_RULE",
@@ -307,24 +308,32 @@ func clearDb() {
 		"DSCP_TO_TC_MAP",
 	}
 
+	client := getConfigDbClient()
+	defer client.Close()
+	ctx := context.Background()
 	for _, tbl := range tblList {
-		_, err := exec.Command("/bin/sh", "-c",
-			"sonic-db-cli CONFIG_DB del `sonic-db-cli CONFIG_DB keys '"+
-				tbl+"|*' | cut -d ' ' -f 2`").Output()
-
+		keys, err := client.Keys(ctx, tbl+"|*").Result()
+		if err == nil && len(keys) != 0 {
+			err = client.Del(ctx, keys...).Err()
+		}
 		if err != nil {
-			fmt.Println(err.Error())
+			return fmt.Errorf("clearDb %s: %w", tbl, err)
 		}
 	}
+	return nil
 }
 
 /* Setup before starting of test. */
 func TestMain(m *testing.M) {
 
-	redisAlreadyRunning := false
-	pidOfRedis, err := exec.Command("pidof", "redis-server").Output()
-	if err == nil && string(pidOfRedis) != "\n" {
-		redisAlreadyRunning = true
+	// A declared Bazel fixture owns its Redis process and private endpoint.
+	// Keep the original service management for standalone legacy invocations.
+	redisAlreadyRunning := os.Getenv("SONIC_TEST_REDIS_MANAGED") == "1"
+	if !redisAlreadyRunning {
+		pidOfRedis, err := exec.Command("pidof", "redis-server").Output()
+		if err == nil && string(pidOfRedis) != "\n" {
+			redisAlreadyRunning = true
+		}
 	}
 
 	if redisAlreadyRunning == false {
@@ -336,8 +345,22 @@ func TestMain(m *testing.M) {
 
 	}
 
+	stopRedis := func() {
+		if redisAlreadyRunning == false {
+			//If Redis was not already running, close the instance that we ran
+			_, err := exec.Command("/bin/sh", "-c", "sudo /etc/init.d/redis-server stop").Output()
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		}
+	}
+
 	//Clear all tables which are used for testing
-	clearDb()
+	if err := clearDb(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		stopRedis()
+		os.Exit(1)
+	}
 
 	/* Prepare the Redis database. */
 	prepareDb()
@@ -353,20 +376,18 @@ func TestMain(m *testing.M) {
 	}
 
 	//Clear all tables which were used for testing
-	clearDb()
+	if err := clearDb(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		if code == 0 {
+			code = 1
+		}
+	}
 
 	cvl.Finish()
 	rclient.Close()
-	rclient.FlushDB()
+	rclient.FlushDB(context.Background())
 
-	if redisAlreadyRunning == false {
-		//If Redis was not already running, close the instance that we ran
-		_, err := exec.Command("/bin/sh", "-c", "sudo /etc/init.d/redis-server stop").Output()
-		if err != nil {
-			fmt.Println(err.Error())
-		}
-
-	}
+	stopRedis()
 
 	os.Exit(code)
 

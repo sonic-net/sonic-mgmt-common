@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "bits.go",
+        "utils.go",
+    ],
+    importpath = "github.com/Azure/sonic-mgmt-common/translib/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cvl",
+        "//translib/db",
+        "@com_github_golang_glog//:glog",
+    ],
+)
